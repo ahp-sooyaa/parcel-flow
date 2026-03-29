@@ -1,4 +1,91 @@
-schema: spec-driven
+project:
+  name: Parcel Flow
+  description: >
+    Parcel Flow is a practical internal delivery-management web application for a Myanmar delivery business.
+    It supports internal operations for parcel handling, merchant management, rider coordination,
+    permission-based user access, and money-sensitive workflows such as COD and delivery fees.
 
-context: |
-   sample context
+product_context:
+  goal: >
+    Build a secure, practical, and maintainable internal ops system.
+    Prioritize operational clarity, accounting correctness, security, and consistency over heavy abstraction.
+  target_users:
+    - super_admin
+    - office_admin
+    - rider
+    - merchant
+  key_terms:
+    merchant: Sender / shop / client using the delivery service to send parcels.
+    receiver: End customer receiving the parcel.
+    cod: Money collected from the receiver on behalf of the merchant. COD is not company revenue.
+    delivery_fee: Shipping fee charged for a parcel and handled separately from COD.
+  auth_model:
+    - No public signup.
+    - Supabase email confirmation is disabled.
+    - Users are created only by authorized admins.
+    - Supabase Auth is used for identity and credentials.
+    - App-level roles, permissions, and user status are stored in the application database.
+  constraints:
+    - COD must never be treated as company revenue.
+    - Money-related calculations must be explicit and easy to audit.
+    - Permission-based authorization is required.
+    - Security is critical because the system handles operational and money-sensitive data.
+    - Business rules may evolve, so implementation should stay adaptable without becoming over-abstract.
+
+tech_stack:
+  frontend:
+    - Next.js App Router
+    - React
+    - Tailwind CSS
+    - shadcn/ui
+  backend:
+    - Next.js full-stack application
+    - Server Actions
+    - Supabase Auth
+  database:
+    - PostgreSQL
+    - Drizzle ORM
+  infrastructure:
+    - Railway
+    - Supabase
+    - Cloudflare R2
+  tooling:
+    - Bun
+    - Oxc
+    - TypeScript
+
+architecture:
+  style: >
+    Use a full-stack Next.js monolith with a feature-sliced folder structure.
+    Keep implementation explicit, practical, secure, and consistent across features.
+  structure:
+    - src/app
+    - src/components/layout
+    - src/components/shared
+    - src/components/ui
+    - src/features/<feature>/components
+    - src/features/<feature>/server/actions.ts
+    - src/features/<feature>/server/dal.ts
+    - src/features/<feature>/server/dto.ts
+    - src/features/<feature>/server/utils.ts
+    - src/lib
+    - src/db
+    - src/proxy.ts
+
+implementation_preferences:
+  - Use server actions for mutations.
+  - Use zod for server-side validation.
+  - Keep business logic out of UI components.
+  - Use DAL/DTO consistently in every feature.
+  - Prefer explicit and maintainable code over clever abstractions.
+  - Follow existing project patterns instead of inventing new ones.
+
+security:
+  rules:
+    - Enforce authorization on the server, not only in the UI.
+    - Validate all input on the server.
+    - Never trust client-provided role, permission, or ownership data.
+    - Keep secrets server-only.
+    - Use DTOs to avoid leaking sensitive fields.
+    - Deny access by default when authorization context is missing.
+    - Validate file uploads on the server when implemented.
