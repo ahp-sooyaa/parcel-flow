@@ -20,28 +20,23 @@ Prioritize:
 
 Required structure:
 
-src/
-app/
-features/
-components/
-layout/
-shared/
-ui/
-<feature>/
-components/
-server/
-actions.ts
-dal.ts
-dto.ts
-utils.ts
-lib/
-db/
-proxy.ts
+- src/app
+- src/components/layout
+- src/components/shared
+- src/components/ui
+- src/features/<feature>/components
+- src/features/<feature>/server/actions.ts
+- src/features/<feature>/server/dal.ts
+- src/features/<feature>/server/dto.ts
+- src/features/<feature>/server/utils.ts
+- src/lib
+- src/db
+- src/proxy.ts
 
 - Use `proxy.ts`, not `middleware.ts`.
-- `features/components/ui` is for shadcn/ui components only.
-- `features/components/layout` is for app shell/layout components.
-- `features/components/shared` is for reusable app-specific shared components.
+- `src/components/ui` is for shadcn/ui components only.
+- `src/components/layout` is for app shell/layout components.
+- `src/components/shared` is for reusable app-specific shared components.
 
 ## Implementation rules
 

@@ -60,9 +60,9 @@ architecture:
     Keep implementation explicit, practical, secure, and consistent across features.
   structure:
     - src/app
-    - src/features/components/layout
-    - src/features/components/shared
-    - src/features/components/ui
+    - src/components/layout
+    - src/components/shared
+    - src/components/ui
     - src/features/<feature>/components
     - src/features/<feature>/server/actions.ts
     - src/features/<feature>/server/dal.ts
