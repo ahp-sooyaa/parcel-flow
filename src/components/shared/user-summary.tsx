@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { signOutAction } from "@/features/auth/server/actions";
 
 type UserSummaryProps = {
   name: string;
@@ -14,8 +15,13 @@ export function UserSummary({ name, role }: UserSummaryProps) {
         <p className="text-xs text-muted-foreground">{role}</p>
       </div>
       <Button asChild variant="outline" size="sm" className="w-full">
-        <Link href="/sign-in">Sign out</Link>
+        <Link href="/dashboard/profile">My Profile</Link>
       </Button>
+      <form action={signOutAction}>
+        <Button type="submit" variant="secondary" size="sm" className="w-full">
+          Sign out
+        </Button>
+      </form>
     </div>
   );
 }

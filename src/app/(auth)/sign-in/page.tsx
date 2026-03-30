@@ -1,7 +1,4 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { SignInForm } from "@/features/auth/components/sign-in-form";
 
 export default function SignInPage() {
   return (
@@ -14,27 +11,7 @@ export default function SignInPage() {
             Access your delivery operations dashboard.
           </p>
         </header>
-
-        <form className="space-y-5">
-          <div className="grid gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" placeholder="name@company.com" required />
-          </div>
-
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="password">Password</Label>
-              <Link href="/" className="text-xs text-muted-foreground hover:text-foreground">
-                Need help?
-              </Link>
-            </div>
-            <Input id="password" name="password" type="password" required />
-          </div>
-
-          <Button type="submit" className="w-full">
-            Sign In
-          </Button>
-        </form>
+        <SignInForm />
       </section>
     </div>
   );
