@@ -3,6 +3,7 @@
 import "server-only";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { countActiveSuperAdminUsers, getUserStatusGuardContext } from "./dal";
 import { createUserSchema, parseActiveFlag } from "./utils";
 import { db } from "@/db";
 import { appUsers } from "@/db/schema";
@@ -167,6 +168,24 @@ export async function updateUserStatusAction(formData: FormData) {
 
   if (!userId) {
     throw new Error("User id is required");
+  }
+
+  const targetUser = await getUserStatusGuardContext(userId);
+
+  if (!targetUser) {
+    throw new Error("User was not found");
+  }
+
+  if (!isActive && currentUser.appUserId === targetUser.id) {
+    throw new Error("You cannot disable your own account.");
+  }
+
+  if (!isActive && targetUser.isActive && targetUser.roleSlug === "super_admin") {
+    const activeSuperAdminCount = await countActiveSuperAdminUsers();
+
+    if (activeSuperAdminCount <= 1) {
+      throw new Error("Cannot disable the last active super admin account.");
+    }
   }
 
   await db.update(appUsers).set({ isActive }).where(eq(appUsers.id, userId));

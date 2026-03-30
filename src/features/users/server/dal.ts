@@ -1,5 +1,5 @@
 import "server-only";
-import { desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import {
   toAppUserDetailDto,
   toAppUserListItemDto,
@@ -8,6 +8,8 @@ import {
 } from "./dto";
 import { db } from "@/db";
 import { appUsers, roles } from "@/db/schema";
+
+import type { RoleSlug } from "@/db/constants";
 
 export async function getUsersList(): Promise<AppUserListItemDto[]> {
   const rows = await db
@@ -48,4 +50,39 @@ export async function getUserById(id: string): Promise<AppUserDetailDto | null> 
     .limit(1);
 
   return row ? toAppUserDetailDto(row) : null;
+}
+
+export type UserStatusGuardContext = {
+  id: string;
+  isActive: boolean;
+  roleSlug: RoleSlug;
+};
+
+export async function getUserStatusGuardContext(
+  userId: string,
+): Promise<UserStatusGuardContext | null> {
+  const [row] = await db
+    .select({
+      id: appUsers.id,
+      isActive: appUsers.isActive,
+      roleSlug: roles.slug,
+    })
+    .from(appUsers)
+    .innerJoin(roles, eq(appUsers.roleId, roles.id))
+    .where(eq(appUsers.id, userId))
+    .limit(1);
+
+  return row ?? null;
+}
+
+export async function countActiveSuperAdminUsers(): Promise<number> {
+  const [row] = await db
+    .select({
+      total: count(appUsers.id),
+    })
+    .from(appUsers)
+    .innerJoin(roles, eq(appUsers.roleId, roles.id))
+    .where(and(eq(roles.slug, "super_admin"), eq(appUsers.isActive, true)));
+
+  return Number(row?.total ?? 0);
 }
