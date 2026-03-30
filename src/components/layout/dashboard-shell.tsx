@@ -1,27 +1,41 @@
 "use client";
 
-import { Menu, PackageSearch, Truck, Users, X, LayoutDashboard, Store } from "lucide-react";
+import { LayoutDashboard, Menu, PackageSearch, Store, Truck, Users, X } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { AppBrand } from "@/components/shared/app-brand";
+import { ResetRequiredBanner } from "@/components/shared/reset-required-banner";
 import { UserSummary } from "@/components/shared/user-summary";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type DashboardShellProps = {
   children: ReactNode;
+  user: {
+    name: string;
+    roleLabel: string;
+    navItems: {
+      key: "dashboard" | "users" | "merchants" | "my-merchant" | "riders" | "parcels";
+      href: string;
+      label: string;
+    }[];
+    mustResetPassword: boolean;
+  };
 };
 
-const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/users", label: "Users", icon: Users },
-  { href: "/merchants", label: "Merchants", icon: Store },
-  { href: "/riders", label: "Riders", icon: Truck },
-  { href: "/parcels", label: "Parcels", icon: PackageSearch },
-];
+const navIconByKey: Record<DashboardShellProps["user"]["navItems"][number]["key"], ReactNode> = {
+  dashboard: <LayoutDashboard className="h-4 w-4" />,
+  users: <Users className="h-4 w-4" />,
+  merchants: <Store className="h-4 w-4" />,
+  "my-merchant": <Store className="h-4 w-4" />,
+  riders: <Truck className="h-4 w-4" />,
+  parcels: <PackageSearch className="h-4 w-4" />,
+};
 
-export function DashboardShell({ children }: DashboardShellProps) {
+export function DashboardShell({ children, user }: DashboardShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const pathname = usePathname();
 
   return (
     <div className="flex min-h-screen bg-muted/40">
@@ -55,8 +69,10 @@ export function DashboardShell({ children }: DashboardShellProps) {
           </Button>
         </div>
         <nav className="mt-8 flex flex-col gap-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
+          {user.navItems.map((item) => {
+            const isActive =
+              pathname === item.href ||
+              (item.href !== "/dashboard" && pathname.startsWith(item.href + "/"));
 
             return (
               <Link
@@ -65,17 +81,19 @@ export function DashboardShell({ children }: DashboardShellProps) {
                 onClick={() => setIsSidebarOpen(false)}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  isActive
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                 )}
               >
-                <Icon className="h-4 w-4" />
+                {navIconByKey[item.key]}
                 {item.label}
               </Link>
             );
           })}
         </nav>
         <div className="mt-8 border-t pt-4">
-          <UserSummary name="Aung Htet" role="office_admin" />
+          <UserSummary name={user.name} role={user.roleLabel} />
         </div>
       </aside>
       <div className="flex min-h-screen flex-1 flex-col">
@@ -92,7 +110,10 @@ export function DashboardShell({ children }: DashboardShellProps) {
           </Button>
           <p className="text-sm text-muted-foreground">Delivery Operations Dashboard</p>
         </header>
-        <main className="flex-1 px-4 py-4 md:px-6 md:py-6">{children}</main>
+        <main className="flex-1 px-4 py-4 md:px-6 md:py-6">
+          <ResetRequiredBanner enabled={user.mustResetPassword} />
+          {children}
+        </main>
       </div>
     </div>
   );
