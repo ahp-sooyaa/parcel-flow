@@ -25,27 +25,88 @@ type StubAccessContext = {
   permissions: string[];
 };
 
-function buildSignInRedirect(request: NextRequest) {
+const isDev = process.env.NODE_ENV === "development";
+
+function getContentSecurityPolicy(nonce: string) {
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'self'",
+    "object-src 'none'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
+    `style-src 'self' 'nonce-${nonce}' https:`,
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data: https:",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+    "frame-src 'self'",
+    isDev ? "" : "upgrade-insecure-requests",
+  ]
+    .filter(Boolean)
+    .join("; ");
+}
+
+function applySecurityHeaders(response: NextResponse, contentSecurityPolicy: string) {
+  response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  response.headers.set("Content-Security-Policy", contentSecurityPolicy);
+  response.headers.set("X-Frame-Options", "SAMEORIGIN");
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  response.headers.set(
+    "Permissions-Policy",
+    [
+      "accelerometer=()",
+      "autoplay=()",
+      "camera=()",
+      "display-capture=()",
+      "encrypted-media=()",
+      "fullscreen=(self)",
+      "geolocation=()",
+      "gyroscope=()",
+      "microphone=()",
+      "payment=()",
+      "picture-in-picture=()",
+      "publickey-credentials-get=()",
+      "usb=()",
+    ].join(", "),
+  );
+}
+
+function buildSignInRedirect(request: NextRequest, contentSecurityPolicy: string) {
   const redirectUrl = new URL("/sign-in", request.url);
   redirectUrl.searchParams.set("next", request.nextUrl.pathname);
 
-  return NextResponse.redirect(redirectUrl);
+  const response = NextResponse.redirect(redirectUrl);
+  applySecurityHeaders(response, contentSecurityPolicy);
+
+  return response;
 }
 
-function redirectToDashboardPath(request: NextRequest, pathname: string) {
-  return NextResponse.redirect(new URL(pathname, request.url));
+function redirectToDashboardPath(
+  request: NextRequest,
+  pathname: string,
+  contentSecurityPolicy: string,
+) {
+  const response = NextResponse.redirect(new URL(pathname, request.url));
+  applySecurityHeaders(response, contentSecurityPolicy);
+
+  return response;
 }
 
-function getAccessDeniedResponse(request: NextRequest, context: StubAccessContext) {
+function getAccessDeniedResponse(
+  request: NextRequest,
+  context: StubAccessContext,
+  contentSecurityPolicy: string,
+) {
   if (context.mustResetPassword && request.nextUrl.pathname !== "/dashboard/profile") {
-    return redirectToDashboardPath(request, "/dashboard/profile");
+    return redirectToDashboardPath(request, "/dashboard/profile", contentSecurityPolicy);
   }
 
   if (request.nextUrl.pathname !== "/dashboard") {
-    return redirectToDashboardPath(request, "/dashboard");
+    return redirectToDashboardPath(request, "/dashboard", contentSecurityPolicy);
   }
 
-  return buildSignInRedirect(request);
+  return buildSignInRedirect(request, contentSecurityPolicy);
 }
 
 function getStubbedAccessContext(request: NextRequest): StubAccessContext | null {
@@ -107,12 +168,33 @@ function extractPermissionSlugs(appUser: AppUserAccessRow) {
   return Array.from(slugs);
 }
 
+function isDashboardPath(pathname: string) {
+  return pathname === "/dashboard" || pathname.startsWith("/dashboard/");
+}
+
 export async function proxy(request: NextRequest) {
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const contentSecurityPolicy = getContentSecurityPolicy(nonce);
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", contentSecurityPolicy);
+
+  if (!isDashboardPath(request.nextUrl.pathname)) {
+    const response = NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+    applySecurityHeaders(response, contentSecurityPolicy);
+
+    return response;
+  }
+
   const stubbedContext = getStubbedAccessContext(request);
 
   if (stubbedContext) {
     if (!stubbedContext.authenticated || !stubbedContext.isActive) {
-      return buildSignInRedirect(request);
+      return buildSignInRedirect(request, contentSecurityPolicy);
     }
 
     const allowed = canAccessDashboardPath(request.nextUrl.pathname, {
@@ -122,13 +204,25 @@ export async function proxy(request: NextRequest) {
     });
 
     if (!allowed) {
-      return getAccessDeniedResponse(request, stubbedContext);
+      return getAccessDeniedResponse(request, stubbedContext, contentSecurityPolicy);
     }
 
-    return NextResponse.next({ request });
+    const response = NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+    applySecurityHeaders(response, contentSecurityPolicy);
+
+    return response;
   }
 
-  const response = NextResponse.next({ request });
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+  applySecurityHeaders(response, contentSecurityPolicy);
   const supabaseEnv = getSupabasePublicEnv();
 
   const supabase = createServerClient(
@@ -151,7 +245,7 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return buildSignInRedirect(request);
+    return buildSignInRedirect(request, contentSecurityPolicy);
   }
 
   const { data: appUser, error } = await supabase
@@ -168,8 +262,8 @@ export async function proxy(request: NextRequest) {
     .eq("supabase_user_id", user.id)
     .maybeSingle<AppUserAccessRow>();
 
-  if (error || !appUser || !appUser.is_active) {
-    return buildSignInRedirect(request);
+  if (error || !appUser?.is_active) {
+    return buildSignInRedirect(request, contentSecurityPolicy);
   }
 
   const allowed = canAccessDashboardPath(request.nextUrl.pathname, {
@@ -179,17 +273,21 @@ export async function proxy(request: NextRequest) {
   });
 
   if (!allowed) {
-    return getAccessDeniedResponse(request, {
-      authenticated: true,
-      isActive: appUser.is_active,
-      mustResetPassword: appUser.must_reset_password,
-      permissions: extractPermissionSlugs(appUser),
-    });
+    return getAccessDeniedResponse(
+      request,
+      {
+        authenticated: true,
+        isActive: appUser.is_active,
+        mustResetPassword: appUser.must_reset_password,
+        permissions: extractPermissionSlugs(appUser),
+      },
+      contentSecurityPolicy,
+    );
   }
 
   return response;
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
