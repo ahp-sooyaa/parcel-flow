@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createCurrentUserContext } from "../../setup/auth-fixtures";
 
 async function loadRequirePermissionWithContext(context: {
   user: { id: string } | null;
@@ -45,17 +46,12 @@ async function loadRequirePermissionWithContext(context: {
 
 describe("requirePermission integration", () => {
   it("returns current user for valid active user with required permission", async () => {
-    const currentUser = {
-      appUserId: "app-1",
-      supabaseUserId: "sup-1",
+    const currentUser = createCurrentUserContext({
       fullName: "Admin",
       email: "admin@example.com",
-      phoneNumber: null,
-      role: { id: "role-1", slug: "super_admin" as const, label: "Super Admin" },
-      isActive: true,
-      mustResetPassword: false,
+      role: { id: "role-1", slug: "super_admin", label: "Super Admin" },
       permissions: ["dashboard-page.view"],
-    };
+    });
 
     const { requirePermission } = await loadRequirePermissionWithContext({
       user: { id: "sup-1" },
@@ -80,17 +76,13 @@ describe("requirePermission integration", () => {
   it("throws reset-required error when permission is outside reset allowlist", async () => {
     const { requirePermission } = await loadRequirePermissionWithContext({
       user: { id: "sup-1" },
-      currentUserContext: {
-        appUserId: "app-1",
-        supabaseUserId: "sup-1",
+      currentUserContext: createCurrentUserContext({
         fullName: "Reset User",
         email: "reset@example.com",
-        phoneNumber: null,
         role: { id: "role-2", slug: "rider", label: "Rider" },
-        isActive: true,
         mustResetPassword: true,
         permissions: ["dashboard-page.view", "parcel-list.view"],
-      },
+      }),
     });
 
     await expect(requirePermission("parcel-list.view")).rejects.toThrow(

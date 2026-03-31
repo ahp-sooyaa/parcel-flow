@@ -1,25 +1,21 @@
 import { describe, expect, it } from "vitest";
+import { createCurrentUserContext } from "../../setup/auth-fixtures";
 import { toCurrentUserContext, toDashboardShellUserDto } from "@/features/auth/server/dto";
 
 import type { CurrentUserContext } from "@/features/auth/server/dto";
 
 describe("auth dto mappers", () => {
   it("toCurrentUserContext returns a defensive copy for permissions and nested role", () => {
-    const input: CurrentUserContext = {
-      appUserId: "app-1",
-      supabaseUserId: "sup-1",
+    const input: CurrentUserContext = createCurrentUserContext({
       fullName: "Admin User",
       email: "admin@example.com",
-      phoneNumber: null,
-      isActive: true,
-      mustResetPassword: false,
       role: {
         id: "role-1",
-        slug: "super_admin" as const,
+        slug: "super_admin",
         label: "Super Admin",
       },
       permissions: ["dashboard-page.view", "user-list.view"],
-    };
+    });
 
     const result = toCurrentUserContext(input);
 
