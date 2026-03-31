@@ -1,9 +1,9 @@
-import { requirePermission } from "@/features/auth/server/utils";
+import { requireCurrentUser } from "@/features/auth/server/utils";
 import { ProfileForms } from "@/features/profile/components/profile-forms";
 import { getProfileByAppUserId } from "@/features/profile/server/dal";
 
 export default async function ProfilePage() {
-  const currentUser = await requirePermission("password.change");
+  const currentUser = await requireCurrentUser();
   const profile = await getProfileByAppUserId(currentUser.appUserId);
 
   if (!profile) {

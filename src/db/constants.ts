@@ -4,7 +4,6 @@ export type RoleSlug = (typeof ROLE_SLUGS)[number];
 
 export const PERMISSION_SLUGS = [
   "dashboard-page.view",
-  "password.change",
   "user-password.reset",
   "user-list.view",
   "user.view",
@@ -32,7 +31,6 @@ export type PermissionSlug = (typeof PERMISSION_SLUGS)[number];
 
 export const ESSENTIAL_PERMISSIONS = [
   "dashboard-page.view",
-  "password.change",
 ] as const satisfies readonly PermissionSlug[];
 
 function withEssentialPermissions(permissions: PermissionSlug[]) {

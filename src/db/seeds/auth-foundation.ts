@@ -12,7 +12,6 @@ const ROLE_LABELS: Record<(typeof ROLE_SLUGS)[number], string> = {
 
 const PERMISSION_LABELS: Record<(typeof PERMISSION_SLUGS)[number], string> = {
   "dashboard-page.view": "View dashboard page",
-  "password.change": "Change own password",
   "user-password.reset": "Reset user password",
   "user-list.view": "View user list",
   "user.view": "View user details",

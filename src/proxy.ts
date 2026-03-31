@@ -18,6 +18,13 @@ type AppUserAccessRow = {
   role: RoleRow | RoleRow[] | null;
 };
 
+type StubAccessContext = {
+  authenticated: boolean;
+  isActive: boolean;
+  mustResetPassword: boolean;
+  permissions: string[];
+};
+
 function buildSignInRedirect(request: NextRequest) {
   const redirectUrl = new URL("/sign-in", request.url);
   redirectUrl.searchParams.set("next", request.nextUrl.pathname);
@@ -27,6 +34,50 @@ function buildSignInRedirect(request: NextRequest) {
 
 function redirectToDashboardPath(request: NextRequest, pathname: string) {
   return NextResponse.redirect(new URL(pathname, request.url));
+}
+
+function getAccessDeniedResponse(request: NextRequest, context: StubAccessContext) {
+  if (context.mustResetPassword && request.nextUrl.pathname !== "/dashboard/profile") {
+    return redirectToDashboardPath(request, "/dashboard/profile");
+  }
+
+  if (request.nextUrl.pathname !== "/dashboard") {
+    return redirectToDashboardPath(request, "/dashboard");
+  }
+
+  return buildSignInRedirect(request);
+}
+
+function getStubbedAccessContext(request: NextRequest): StubAccessContext | null {
+  if (process.env.AUTH_E2E_STUB_MODE !== "1") {
+    return null;
+  }
+
+  const raw = request.headers.get("x-parcel-flow-e2e-auth");
+
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<StubAccessContext>;
+
+    return {
+      authenticated: parsed.authenticated === true,
+      isActive: parsed.isActive === true,
+      mustResetPassword: parsed.mustResetPassword === true,
+      permissions: Array.isArray(parsed.permissions)
+        ? parsed.permissions.filter((value): value is string => typeof value === "string")
+        : [],
+    };
+  } catch {
+    return {
+      authenticated: false,
+      isActive: false,
+      mustResetPassword: false,
+      permissions: [],
+    };
+  }
 }
 
 function toArray<T>(value: T | T[] | null | undefined): T[] {
@@ -57,6 +108,26 @@ function extractPermissionSlugs(appUser: AppUserAccessRow) {
 }
 
 export async function proxy(request: NextRequest) {
+  const stubbedContext = getStubbedAccessContext(request);
+
+  if (stubbedContext) {
+    if (!stubbedContext.authenticated || !stubbedContext.isActive) {
+      return buildSignInRedirect(request);
+    }
+
+    const allowed = canAccessDashboardPath(request.nextUrl.pathname, {
+      permissions: stubbedContext.permissions,
+      isActive: stubbedContext.isActive,
+      mustResetPassword: stubbedContext.mustResetPassword,
+    });
+
+    if (!allowed) {
+      return getAccessDeniedResponse(request, stubbedContext);
+    }
+
+    return NextResponse.next({ request });
+  }
+
   const response = NextResponse.next({ request });
   const supabaseEnv = getSupabasePublicEnv();
 
@@ -108,15 +179,12 @@ export async function proxy(request: NextRequest) {
   });
 
   if (!allowed) {
-    if (appUser.must_reset_password && request.nextUrl.pathname !== "/dashboard/profile") {
-      return redirectToDashboardPath(request, "/dashboard/profile");
-    }
-
-    if (request.nextUrl.pathname !== "/dashboard") {
-      return redirectToDashboardPath(request, "/dashboard");
-    }
-
-    return buildSignInRedirect(request);
+    return getAccessDeniedResponse(request, {
+      authenticated: true,
+      isActive: appUser.is_active,
+      mustResetPassword: appUser.must_reset_password,
+      permissions: extractPermissionSlugs(appUser),
+    });
   }
 
   return response;
