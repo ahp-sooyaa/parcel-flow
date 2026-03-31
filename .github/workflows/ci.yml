@@ -35,8 +35,20 @@ jobs:
       - name: Install Dependencies
         run: bun install --frozen-lockfile
 
+      - name: Install Playwright Browsers
+        run: bunx playwright install --with-deps chromium
+
       - name: Verify Auth Foundation
         run: bun run verify:auth-foundation
+
+      - name: Unit Tests
+        run: bun run test:unit
+
+      - name: Integration Tests
+        run: bun run test:integration
+
+      - name: E2E Tests
+        run: bun run test:e2e
 
       - name: Typecheck
         run: bun run typecheck

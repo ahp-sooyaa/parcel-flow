@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { changePasswordSchema, updateProfileSchema } from "./utils";
 import { db } from "@/db";
 import { appUsers } from "@/db/schema";
-import { requirePermission } from "@/features/auth/server/utils";
+import { requireCurrentUser } from "@/features/auth/server/utils";
 import { logAuditEvent } from "@/lib/security/audit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -48,7 +48,7 @@ export async function updateOwnProfileAction(
   formData: FormData,
 ): Promise<ProfileActionResult> {
   try {
-    const user = await requirePermission("password.change");
+    const user = await requireCurrentUser();
 
     const parsed = updateProfileSchema.safeParse({
       fullName: formData.get("fullName"),
@@ -89,7 +89,7 @@ export async function changeOwnPasswordAction(
   formData: FormData,
 ): Promise<ProfileActionResult> {
   try {
-    const user = await requirePermission("password.change");
+    const user = await requireCurrentUser();
 
     const parsed = changePasswordSchema.safeParse({
       password: formData.get("password"),

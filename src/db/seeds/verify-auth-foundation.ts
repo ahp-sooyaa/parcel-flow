@@ -23,7 +23,6 @@ function verifyPermissionModel() {
   ] as const;
 
   assert(permissionSet.has("dashboard-page.view"), "Permission dashboard-page.view must exist");
-  assert(permissionSet.has("password.change"), "Permission password.change must exist");
   assert(permissionSet.has("user-password.reset"), "Permission user-password.reset must exist");
   for (const legacySlug of legacyPermissionSlugs) {
     assert(!permissionSet.has(legacySlug), `Legacy permission ${legacySlug} must not exist`);
@@ -39,13 +38,11 @@ function verifyPermissionModel() {
   }
 
   for (const [role, rolePermissions] of Object.entries(ROLE_PERMISSION_MATRIX)) {
+    const rolePermissionSet = new Set(rolePermissions);
+
     assert(
-      rolePermissions.includes("dashboard-page.view"),
+      rolePermissionSet.has("dashboard-page.view"),
       `Role ${role} must include dashboard-page.view`,
-    );
-    assert(
-      rolePermissions.includes("password.change"),
-      `Role ${role} must include password.change`,
     );
   }
 
@@ -88,31 +85,35 @@ function verifyNoPublicSignupRoute() {
 }
 
 function verifySharedPermissionCodesExistAcrossRoles() {
-  const merchantViewRoles = Object.entries(ROLE_PERMISSION_MATRIX)
-    .filter(([, permissions]) => permissions.includes("merchant.view"))
-    .map(([role]) => role);
+  const merchantViewRoles = new Set(
+    Object.entries(ROLE_PERMISSION_MATRIX)
+      .filter(([, permissions]) => new Set(permissions).has("merchant.view"))
+      .map(([role]) => role),
+  );
 
-  const parcelUpdateRoles = Object.entries(ROLE_PERMISSION_MATRIX)
-    .filter(([, permissions]) => permissions.includes("parcel.update"))
-    .map(([role]) => role);
+  const parcelUpdateRoles = new Set(
+    Object.entries(ROLE_PERMISSION_MATRIX)
+      .filter(([, permissions]) => new Set(permissions).has("parcel.update"))
+      .map(([role]) => role),
+  );
 
-  assert(merchantViewRoles.includes("merchant"), "merchant.view must be assigned to merchant role");
+  assert(merchantViewRoles.has("merchant"), "merchant.view must be assigned to merchant role");
   assert(
-    merchantViewRoles.includes("office_admin"),
+    merchantViewRoles.has("office_admin"),
     "merchant.view must be assigned to office_admin role",
   );
   assert(
-    merchantViewRoles.includes("super_admin"),
+    merchantViewRoles.has("super_admin"),
     "merchant.view must be assigned to super_admin role",
   );
 
-  assert(parcelUpdateRoles.includes("rider"), "parcel.update must be assigned to rider role");
+  assert(parcelUpdateRoles.has("rider"), "parcel.update must be assigned to rider role");
   assert(
-    parcelUpdateRoles.includes("office_admin"),
+    parcelUpdateRoles.has("office_admin"),
     "parcel.update must be assigned to office_admin role",
   );
   assert(
-    parcelUpdateRoles.includes("super_admin"),
+    parcelUpdateRoles.has("super_admin"),
     "parcel.update must be assigned to super_admin role",
   );
 }

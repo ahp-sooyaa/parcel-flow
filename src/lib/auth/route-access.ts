@@ -17,10 +17,6 @@ type RoutePermissionRule = {
 
 const routePermissionRules: readonly RoutePermissionRule[] = [
   {
-    pathnamePrefix: "/dashboard/profile",
-    anyOf: ["password.change"],
-  },
-  {
     pathnamePrefix: "/dashboard/users",
     anyOf: [
       "user-list.view",
@@ -57,6 +53,10 @@ export function canAccessDashboardPath(pathname: string, context: AccessContext)
 
   if (pathname === "/dashboard") {
     return context.permissions.includes("dashboard-page.view");
+  }
+
+  if (pathname === "/dashboard/profile" || pathname.startsWith("/dashboard/profile/")) {
+    return true;
   }
 
   const permissionSet = new Set(context.permissions);
