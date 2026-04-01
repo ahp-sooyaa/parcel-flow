@@ -1,29 +1,76 @@
+import { createClient } from "@supabase/supabase-js";
 import { eq } from "drizzle-orm";
-import { getRoleBySlug, seedAuthFoundation } from "./auth-foundation";
-import { db } from "@/db";
-import { appUsers } from "@/db/schema";
-import { getSafeEnv } from "@/lib/env";
-import { generateStrongPassword } from "@/lib/security/password";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { drizzle } from "drizzle-orm/postgres-js";
+import { randomBytes } from "node:crypto";
+import postgres from "postgres";
+import { appUsers, roles } from "@/db/schema";
 
-export async function seedSuperAdmin() {
-  await seedAuthFoundation();
+function requiredEnv(name: string) {
+  const value = process.env[name];
 
-  const env = getSafeEnv();
-
-  if (!env.SUPER_ADMIN_EMAIL || !env.SUPER_ADMIN_FULL_NAME) {
-    throw new Error(
-      "SUPER_ADMIN_EMAIL and SUPER_ADMIN_FULL_NAME are required for super admin seeding.",
-    );
+  if (!value) {
+    throw new Error(`${name} is required`);
   }
 
-  const superAdminRole = await getRoleBySlug("super_admin");
+  return value;
+}
+
+function createSeedDbClient() {
+  const databaseUrl = requiredEnv("DATABASE_URL");
+  const queryClient = postgres(databaseUrl, {
+    max: 1,
+    prepare: false,
+  });
+
+  return drizzle(queryClient, { schema: { appUsers, roles }, casing: "snake_case" });
+}
+
+function createSeedSupabaseAdminClient() {
+  const url = requiredEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const serviceRoleKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!serviceRoleKey) {
+    throw new Error("SUPABASE_SECRET_KEY is required");
+  }
+
+  return createClient(url, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+function generateStrongPassword(length: number) {
+  if (length < 12) {
+    throw new Error("Temporary password length must be at least 12.");
+  }
+
+  const charset = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*()-_=+";
+  const bytes = randomBytes(length * 2);
+  let password = "";
+
+  for (let i = 0; i < bytes.length && password.length < length; i += 1) {
+    password += charset[bytes[i] % charset.length];
+  }
+
+  return password.slice(0, length);
+}
+
+export async function seedSuperAdmin() {
+  const db = createSeedDbClient();
+  const superAdminEmail = requiredEnv("SUPER_ADMIN_EMAIL");
+  const superAdminFullName = requiredEnv("SUPER_ADMIN_FULL_NAME");
+  const superAdminPhoneNumber = process.env.SUPER_ADMIN_PHONE_NUMBER ?? null;
+
+  const [superAdminRole] = await db
+    .select()
+    .from(roles)
+    .where(eq(roles.slug, "super_admin"))
+    .limit(1);
 
   if (!superAdminRole) {
     throw new Error("Super admin role must exist before user seed.");
   }
 
-  const supabaseAdmin = createSupabaseAdminClient();
+  const supabaseAdmin = createSeedSupabaseAdminClient();
   const temporaryPassword = generateStrongPassword(24);
 
   const listedUsers = await supabaseAdmin.auth.admin.listUsers({
@@ -31,20 +78,20 @@ export async function seedSuperAdmin() {
     perPage: 100,
   });
 
-  const existing = listedUsers.data.users.find((user) => user.email === env.SUPER_ADMIN_EMAIL);
+  const existing = listedUsers.data.users.find((user) => user.email === superAdminEmail);
 
-  const supabaseUser = existing
-    ? existing
-    : (
-        await supabaseAdmin.auth.admin.createUser({
-          email: env.SUPER_ADMIN_EMAIL,
-          password: temporaryPassword,
-          email_confirm: true,
-          user_metadata: {
-            full_name: env.SUPER_ADMIN_FULL_NAME,
-          },
-        })
-      ).data.user;
+  const supabaseUser =
+    existing ??
+    (
+      await supabaseAdmin.auth.admin.createUser({
+        email: superAdminEmail,
+        password: temporaryPassword,
+        email_confirm: true,
+        user_metadata: {
+          full_name: superAdminFullName,
+        },
+      })
+    ).data.user;
 
   if (!supabaseUser) {
     throw new Error("Unable to resolve super admin user in Supabase Auth");
@@ -59,9 +106,9 @@ export async function seedSuperAdmin() {
   if (!existingAppUser) {
     await db.insert(appUsers).values({
       supabaseUserId: supabaseUser.id,
-      fullName: env.SUPER_ADMIN_FULL_NAME,
-      email: env.SUPER_ADMIN_EMAIL,
-      phoneNumber: env.SUPER_ADMIN_PHONE_NUMBER ?? null,
+      fullName: superAdminFullName,
+      email: superAdminEmail,
+      phoneNumber: superAdminPhoneNumber,
       roleId: superAdminRole.id,
       isActive: true,
       mustResetPassword: true,
@@ -69,7 +116,7 @@ export async function seedSuperAdmin() {
   }
 
   return {
-    email: env.SUPER_ADMIN_EMAIL,
+    email: superAdminEmail,
     temporaryPassword: existing ? undefined : temporaryPassword,
   };
 }

@@ -83,4 +83,19 @@ test.describe("dashboard access control", () => {
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
   });
+
+  test("redirects merchant viewer away from merchant create page", async ({ page }) => {
+    await withAuthHeader(
+      page,
+      createE2EAuthHeader({
+        permissions: ["dashboard-page.view", "merchant.view"],
+        roleSlug: "merchant",
+      }),
+    );
+
+    await page.goto("/dashboard/merchants/create");
+
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  });
 });

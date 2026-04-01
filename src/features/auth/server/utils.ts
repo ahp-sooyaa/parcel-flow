@@ -17,6 +17,7 @@ type StubAccessContext = {
   isActive: boolean;
   mustResetPassword: boolean;
   permissions: string[];
+  linkedMerchantId?: string | null;
   roleSlug?: RoleSlug;
 };
 
@@ -43,6 +44,8 @@ async function getStubbedCurrentUserContext() {
 
     return {
       appUserId: "e2e-app-user",
+      linkedMerchantId:
+        typeof parsed.linkedMerchantId === "string" ? parsed.linkedMerchantId : null,
       supabaseUserId: "e2e-supabase-user",
       fullName: "E2E Test User",
       email: "e2e-user@example.com",
@@ -73,15 +76,14 @@ export const getCurrentUserContext = cache(async () => {
   }
 
   const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+  const userId = typeof claimsData?.claims?.sub === "string" ? claimsData.claims.sub : null;
 
-  if (!user) {
+  if (claimsError || !userId) {
     return null;
   }
 
-  return findCurrentUserContextBySupabaseUserId(user.id);
+  return findCurrentUserContextBySupabaseUserId(userId);
 });
 
 export async function requireCurrentUser() {

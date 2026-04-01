@@ -81,6 +81,22 @@ describe("canAccessDashboardPath", () => {
     ).toBe(false);
   });
 
+  it("requires merchant.create permission for merchant create route", () => {
+    expect(
+      canAccessDashboardPath(
+        "/dashboard/merchants/create",
+        createAccessContext({ permissions: ["merchant.view"] }),
+      ),
+    ).toBe(false);
+
+    expect(
+      canAccessDashboardPath(
+        "/dashboard/merchants/create",
+        createAccessContext({ permissions: ["merchant.create"] }),
+      ),
+    ).toBe(true);
+  });
+
   it("allows nested user detail path with user.view permission", () => {
     expect(
       canAccessDashboardPath(

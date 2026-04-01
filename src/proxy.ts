@@ -35,7 +35,7 @@ function getContentSecurityPolicy(nonce: string) {
     "frame-ancestors 'self'",
     "object-src 'none'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
-    `style-src 'self' 'nonce-${nonce}' https:`,
+    `style-src 'self'${isDev ? " 'unsafe-inline'" : " 'nonce-" + nonce + "'"} https:`,
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https:",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
@@ -217,12 +217,19 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  const response = NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  });
-  applySecurityHeaders(response, contentSecurityPolicy);
+  const createNextResponse = () => {
+    const nextResponse = NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+
+    applySecurityHeaders(nextResponse, contentSecurityPolicy);
+
+    return nextResponse;
+  };
+
+  let response = createNextResponse();
   const supabaseEnv = getSupabasePublicEnv();
 
   const supabase = createServerClient(
@@ -232,6 +239,12 @@ export async function proxy(request: NextRequest) {
       cookies: {
         getAll: () => request.cookies.getAll(),
         setAll: (cookiesToSet) => {
+          for (const { name, value } of cookiesToSet) {
+            request.cookies.set(name, value);
+          }
+
+          response = createNextResponse();
+
           for (const { name, value, options } of cookiesToSet) {
             response.cookies.set(name, value, options);
           }
@@ -240,11 +253,10 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+  const userId = typeof claimsData?.claims?.sub === "string" ? claimsData.claims.sub : null;
 
-  if (!user) {
+  if (claimsError || !userId) {
     return buildSignInRedirect(request, contentSecurityPolicy);
   }
 
@@ -259,7 +271,7 @@ export async function proxy(request: NextRequest) {
         )
       )
     `)
-    .eq("supabase_user_id", user.id)
+    .eq("supabase_user_id", userId)
     .maybeSingle<AppUserAccessRow>();
 
   if (error || !appUser?.is_active) {

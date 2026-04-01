@@ -36,6 +36,10 @@ const routePermissionRules: readonly RoutePermissionRule[] = [
     anyOf: ["parcel-list.view", "parcel.view", "parcel.create", "parcel.update", "parcel.delete"],
   },
   {
+    pathnamePrefix: "/dashboard/merchants/create",
+    anyOf: ["merchant.create"],
+  },
+  {
     pathnamePrefix: "/dashboard/merchants",
     exactAnyOf: ["merchant-list.view"],
     anyOf: ["merchant.view"],
