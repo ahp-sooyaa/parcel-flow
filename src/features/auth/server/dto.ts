@@ -3,6 +3,7 @@ import type { PermissionSlug, RoleSlug } from "@/db/constants";
 
 export type CurrentUserContext = {
   appUserId: string;
+  linkedMerchantId: string | null;
   supabaseUserId: string;
   fullName: string;
   email: string;
@@ -36,6 +37,7 @@ export type AuthActionResult = {
 export function toCurrentUserContext(input: CurrentUserContext): CurrentUserContext {
   return {
     appUserId: input.appUserId,
+    linkedMerchantId: input.linkedMerchantId,
     supabaseUserId: input.supabaseUserId,
     fullName: input.fullName,
     email: input.email,
@@ -53,6 +55,7 @@ export function toCurrentUserContext(input: CurrentUserContext): CurrentUserCont
 
 export function toDashboardShellUserDto(input: {
   appUserId: string;
+  linkedMerchantId: string | null;
   fullName: string;
   mustResetPassword: boolean;
   permissions: readonly PermissionSlug[];
@@ -68,10 +71,14 @@ export function toDashboardShellUserDto(input: {
     navItems.push({ key: "users", href: "/dashboard/users", label: "Users" });
   }
 
-  if (input.role.slug === "merchant" && input.permissions.includes("merchant.view")) {
+  if (
+    input.role.slug === "merchant" &&
+    input.permissions.includes("merchant.view") &&
+    input.linkedMerchantId
+  ) {
     navItems.push({
       key: "my-merchant",
-      href: "/dashboard/merchants/me",
+      href: `/dashboard/merchants/${input.linkedMerchantId}`,
       label: "My Merchant",
     });
   } else if (input.permissions.includes("merchant-list.view")) {

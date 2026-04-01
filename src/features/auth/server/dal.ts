@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { toCurrentUserContext, type CurrentUserContext } from "./dto";
 import { db } from "@/db";
-import { appUsers, permissions, rolePermissions, roles } from "@/db/schema";
+import { appUsers, merchants, permissions, rolePermissions, roles } from "@/db/schema";
 
 import type { RoleSlug } from "@/db/constants";
 
@@ -12,6 +12,7 @@ export async function findCurrentUserContextBySupabaseUserId(
   const rows = await db
     .select({
       appUserId: appUsers.id,
+      linkedMerchantId: merchants.id,
       supabaseUserId: appUsers.supabaseUserId,
       fullName: appUsers.fullName,
       email: appUsers.email,
@@ -25,6 +26,7 @@ export async function findCurrentUserContextBySupabaseUserId(
     })
     .from(appUsers)
     .innerJoin(roles, eq(appUsers.roleId, roles.id))
+    .leftJoin(merchants, eq(merchants.linkedAppUserId, appUsers.id))
     .leftJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
     .leftJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
     .where(eq(appUsers.supabaseUserId, supabaseUserId));
@@ -44,6 +46,7 @@ export async function findCurrentUserContextBySupabaseUserId(
 
   return toCurrentUserContext({
     appUserId: first.appUserId,
+    linkedMerchantId: first.linkedMerchantId,
     supabaseUserId: first.supabaseUserId,
     fullName: first.fullName,
     email: first.email,

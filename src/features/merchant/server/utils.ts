@@ -28,12 +28,18 @@ export const createMerchantSchema = z.object({
     .transform((value) => value ?? null),
 });
 
+const merchantIdSchema = z.string().trim().uuid();
+
 export function normalizeMerchantSearchQuery(raw: string | undefined) {
   return raw?.trim() ?? "";
 }
 
 export function toMerchantSearchPattern(query: string) {
   return `%${query.replaceAll("%", "").replaceAll("_", "")}%`;
+}
+
+export function isMerchantId(value: string) {
+  return merchantIdSchema.safeParse(value).success;
 }
 
 export function canAccessMerchantDetailScope(input: {

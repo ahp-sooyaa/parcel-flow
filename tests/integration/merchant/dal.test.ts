@@ -72,12 +72,25 @@ describe("merchant dal integration", () => {
     const { getMerchantByIdForViewer } = await import("@/features/merchant/server/dal");
 
     const result = await getMerchantByIdForViewer({
-      merchantIdOrMe: "merchant-2",
+      merchantId: "7f048ecf-7989-4f2e-b0a2-97f950f53ea4",
       viewerRoleSlug: "merchant",
       viewerAppUserId: "app-user-1",
     });
 
     expect(result).toBeNull();
     expect(whereMock).toHaveBeenCalled();
+  });
+
+  it("returns null before querying when merchant id is malformed", async () => {
+    const { getMerchantByIdForViewer } = await import("@/features/merchant/server/dal");
+
+    const result = await getMerchantByIdForViewer({
+      merchantId: "not-a-uuid",
+      viewerRoleSlug: "office_admin",
+      viewerAppUserId: "app-user-1",
+    });
+
+    expect(result).toBeNull();
+    expect(whereMock).not.toHaveBeenCalled();
   });
 });

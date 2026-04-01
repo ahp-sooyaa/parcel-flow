@@ -11,7 +11,7 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
 
   const { id } = await params;
   const merchant = await getMerchantByIdForViewer({
-    merchantIdOrMe: id,
+    merchantId: id,
     viewerRoleSlug: currentUser.role.slug,
     viewerAppUserId: currentUser.appUserId,
   });

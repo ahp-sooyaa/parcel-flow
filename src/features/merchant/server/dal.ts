@@ -7,7 +7,7 @@ import {
   type MerchantLinkableUserDto,
   type MerchantListItemDto,
 } from "./dto";
-import { normalizeMerchantSearchQuery, toMerchantSearchPattern } from "./utils";
+import { isMerchantId, normalizeMerchantSearchQuery, toMerchantSearchPattern } from "./utils";
 import { db } from "@/db";
 import { appUsers, merchants, roles } from "@/db/schema";
 
@@ -61,17 +61,15 @@ export async function getMerchantsList(
 }
 
 export async function getMerchantByIdForViewer(input: {
-  merchantIdOrMe: string;
+  merchantId: string;
   viewerRoleSlug: RoleSlug;
   viewerAppUserId: string;
 }): Promise<MerchantDetailDto | null> {
+  if (!isMerchantId(input.merchantId)) {
+    return null;
+  }
+
   if (input.viewerRoleSlug === "merchant") {
-    const conditions = [eq(merchants.linkedAppUserId, input.viewerAppUserId)];
-
-    if (input.merchantIdOrMe !== "me") {
-      conditions.push(eq(merchants.id, input.merchantIdOrMe));
-    }
-
     const [row] = await db
       .select({
         id: merchants.id,
@@ -87,7 +85,12 @@ export async function getMerchantByIdForViewer(input: {
       })
       .from(merchants)
       .leftJoin(appUsers, eq(merchants.linkedAppUserId, appUsers.id))
-      .where(and(...conditions))
+      .where(
+        and(
+          eq(merchants.linkedAppUserId, input.viewerAppUserId),
+          eq(merchants.id, input.merchantId),
+        ),
+      )
       .orderBy(desc(merchants.createdAt))
       .limit(1);
 
@@ -109,10 +112,6 @@ export async function getMerchantByIdForViewer(input: {
     });
   }
 
-  if (input.merchantIdOrMe === "me") {
-    return null;
-  }
-
   const [row] = await db
     .select({
       id: merchants.id,
@@ -128,7 +127,7 @@ export async function getMerchantByIdForViewer(input: {
     })
     .from(merchants)
     .leftJoin(appUsers, eq(merchants.linkedAppUserId, appUsers.id))
-    .where(eq(merchants.id, input.merchantIdOrMe))
+    .where(eq(merchants.id, input.merchantId))
     .limit(1);
 
   if (!row) {

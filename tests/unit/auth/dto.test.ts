@@ -28,6 +28,7 @@ describe("auth dto mappers", () => {
   it("builds dashboard nav for office_admin permissions", () => {
     const dto = toDashboardShellUserDto({
       appUserId: "app-1",
+      linkedMerchantId: null,
       fullName: "Office Admin",
       mustResetPassword: false,
       permissions: [
@@ -53,6 +54,7 @@ describe("auth dto mappers", () => {
   it("returns my-merchant navigation for merchant role when merchant.view exists", () => {
     const dto = toDashboardShellUserDto({
       appUserId: "merchant-user-1",
+      linkedMerchantId: "7f048ecf-7989-4f2e-b0a2-97f950f53ea4",
       fullName: "Merchant User",
       mustResetPassword: true,
       permissions: ["dashboard-page.view", "merchant.view"],
@@ -63,7 +65,7 @@ describe("auth dto mappers", () => {
       { key: "dashboard", href: "/dashboard", label: "Dashboard" },
       {
         key: "my-merchant",
-        href: "/dashboard/merchants/me",
+        href: "/dashboard/merchants/7f048ecf-7989-4f2e-b0a2-97f950f53ea4",
         label: "My Merchant",
       },
     ]);
@@ -73,6 +75,7 @@ describe("auth dto mappers", () => {
   it("does not include unauthorized nav items when permissions are empty", () => {
     const dto = toDashboardShellUserDto({
       appUserId: "app-2",
+      linkedMerchantId: null,
       fullName: "No Access",
       mustResetPassword: false,
       permissions: [],
@@ -85,6 +88,7 @@ describe("auth dto mappers", () => {
   it("prefers merchant list nav for non-merchant role with merchant-list permission", () => {
     const dto = toDashboardShellUserDto({
       appUserId: "app-3",
+      linkedMerchantId: null,
       fullName: "Ops User",
       mustResetPassword: false,
       permissions: ["merchant-list.view"],
@@ -99,6 +103,7 @@ describe("auth dto mappers", () => {
   it("does not create merchant nav for merchant role when merchant.view is missing", () => {
     const dto = toDashboardShellUserDto({
       appUserId: "merchant-user-2",
+      linkedMerchantId: null,
       fullName: "Merchant Limited",
       mustResetPassword: false,
       permissions: ["dashboard-page.view"],
@@ -111,6 +116,7 @@ describe("auth dto mappers", () => {
   it("includes riders navigation when rider-list.view is present", () => {
     const dto = toDashboardShellUserDto({
       appUserId: "app-4",
+      linkedMerchantId: null,
       fullName: "Dispatch User",
       mustResetPassword: false,
       permissions: ["dashboard-page.view", "rider-list.view"],
@@ -121,5 +127,18 @@ describe("auth dto mappers", () => {
       { key: "dashboard", href: "/dashboard", label: "Dashboard" },
       { key: "riders", href: "/dashboard/riders", label: "Riders" },
     ]);
+  });
+
+  it("does not create merchant nav when merchant user has no linked merchant id", () => {
+    const dto = toDashboardShellUserDto({
+      appUserId: "merchant-user-3",
+      linkedMerchantId: null,
+      fullName: "Merchant Without Profile",
+      mustResetPassword: false,
+      permissions: ["dashboard-page.view", "merchant.view"],
+      role: { slug: "merchant", label: "Merchant" },
+    });
+
+    expect(dto.navItems).toEqual([{ key: "dashboard", href: "/dashboard", label: "Dashboard" }]);
   });
 });

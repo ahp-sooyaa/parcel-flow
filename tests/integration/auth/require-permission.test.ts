@@ -5,6 +5,7 @@ async function loadRequirePermissionWithContext(context: {
   user: { id: string } | null;
   currentUserContext: {
     appUserId: string;
+    linkedMerchantId: string | null;
     supabaseUserId: string;
     fullName: string;
     email: string;

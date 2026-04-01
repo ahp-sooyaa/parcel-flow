@@ -1,4 +1,4 @@
-import type { PermissionSlug, RoleSlug } from "@/db/constants";
+import type { RoleSlug } from "@/db/constants";
 import type { CurrentUserContext } from "@/features/auth/server/dto";
 import type { AccessContext } from "@/lib/auth/route-access";
 
@@ -7,6 +7,7 @@ type E2EAuthHeader = {
   isActive: boolean;
   mustResetPassword: boolean;
   permissions: string[];
+  linkedMerchantId?: string | null;
   roleSlug?: RoleSlug;
 };
 
@@ -33,6 +34,7 @@ export function createCurrentUserContext(
 
   return {
     appUserId: "app-1",
+    linkedMerchantId: null,
     supabaseUserId: "sup-1",
     fullName: "Test User",
     email: "user@example.com",
@@ -44,7 +46,7 @@ export function createCurrentUserContext(
       slug: roleSlug,
       label: overrides.role?.label ?? roleLabelBySlug[roleSlug],
     },
-    permissions: (overrides.permissions ?? []) as PermissionSlug[],
+    permissions: overrides.permissions ?? [],
     ...overrides,
   };
 }
