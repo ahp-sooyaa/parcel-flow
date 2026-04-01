@@ -63,7 +63,7 @@ describe("auth dto mappers", () => {
       { key: "dashboard", href: "/dashboard", label: "Dashboard" },
       {
         key: "my-merchant",
-        href: "/dashboard/merchants/merchant-user-1",
+        href: "/dashboard/merchants/me",
         label: "My Merchant",
       },
     ]);

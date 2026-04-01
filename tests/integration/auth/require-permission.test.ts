@@ -19,7 +19,14 @@ async function loadRequirePermissionWithContext(context: {
     permissions: string[];
   } | null;
 }) {
-  const getUserMock = vi.fn().mockResolvedValue({ data: { user: context.user } });
+  const getClaimsMock = vi.fn().mockResolvedValue({
+    data: {
+      claims: {
+        sub: context.user?.id ?? null,
+      },
+    },
+    error: null,
+  });
   const findCurrentUserContextBySupabaseUserIdMock = vi
     .fn()
     .mockResolvedValue(context.currentUserContext);
@@ -27,7 +34,7 @@ async function loadRequirePermissionWithContext(context: {
   vi.doMock("@/lib/supabase/server", () => ({
     createSupabaseServerClient: vi.fn().mockResolvedValue({
       auth: {
-        getUser: getUserMock,
+        getClaims: getClaimsMock,
       },
     }),
   }));
