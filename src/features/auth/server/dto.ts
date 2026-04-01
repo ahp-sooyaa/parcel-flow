@@ -71,7 +71,7 @@ export function toDashboardShellUserDto(input: {
   if (input.role.slug === "merchant" && input.permissions.includes("merchant.view")) {
     navItems.push({
       key: "my-merchant",
-      href: `/dashboard/merchants/${input.appUserId}`,
+      href: "/dashboard/merchants/me",
       label: "My Merchant",
     });
   } else if (input.permissions.includes("merchant-list.view")) {

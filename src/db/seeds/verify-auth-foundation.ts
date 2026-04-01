@@ -119,17 +119,35 @@ function verifySharedPermissionCodesExistAcrossRoles() {
 }
 
 function verifyTemporaryPasswordNotPersisted() {
-  const migrationSql = readFileSync(
-    "src/db/migrations/0000_auth_authorization_foundation.sql",
-    "utf-8",
-  );
+  const baseMigrationSql = readFileSync("src/db/migrations/0000_natural_ben_parker.sql", "utf-8");
+  const rlsMigrationSql = readFileSync("src/db/migrations/0001_auth_rls_policies.sql", "utf-8");
+  const seedMigrationSql = readFileSync("src/db/migrations/0002_seed_data_template.sql", "utf-8");
   const schemaSource = readFileSync("src/db/schema.ts", "utf-8");
 
   assert(
-    !migrationSql.includes("temporary_password"),
+    !baseMigrationSql.includes("temporary_password"),
     "Database must not define temporary_password column",
   );
-  assert(!migrationSql.includes("temp_password"), "Database must not define temp_password column");
+  assert(
+    !rlsMigrationSql.includes("temporary_password"),
+    "Database must not define temporary_password column",
+  );
+  assert(
+    !seedMigrationSql.includes("temporary_password"),
+    "Database must not define temporary_password column",
+  );
+  assert(
+    !baseMigrationSql.includes("temp_password"),
+    "Database must not define temp_password column",
+  );
+  assert(
+    !rlsMigrationSql.includes("temp_password"),
+    "Database must not define temp_password column",
+  );
+  assert(
+    !seedMigrationSql.includes("temp_password"),
+    "Database must not define temp_password column",
+  );
   assert(
     !schemaSource.includes('text("temporary_password"'),
     "Schema must not define temporary_password field",

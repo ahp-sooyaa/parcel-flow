@@ -68,7 +68,33 @@ export const appUsers = pgTable(
   ],
 );
 
+export const merchants = pgTable(
+  "merchants",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    phoneNumber: text("phone_number"),
+    address: text("address").notNull(),
+    township: text("township").notNull(),
+    notes: text("notes"),
+    linkedAppUserId: uuid("linked_app_user_id").references(() => appUsers.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("merchants_linked_app_user_uidx").on(table.linkedAppUserId),
+    index("merchants_name_idx").on(table.name),
+    index("merchants_phone_idx").on(table.phoneNumber),
+    index("merchants_township_idx").on(table.township),
+    index("merchants_created_at_idx").on(table.createdAt),
+  ],
+);
+
 export type Role = typeof roles.$inferSelect;
 export type Permission = typeof permissions.$inferSelect;
 export type AppUser = typeof appUsers.$inferSelect;
 export type NewAppUser = typeof appUsers.$inferInsert;
+export type Merchant = typeof merchants.$inferSelect;
+export type NewMerchant = typeof merchants.$inferInsert;
