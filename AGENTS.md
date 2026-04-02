@@ -50,6 +50,14 @@ Required structure:
 - Do not place raw DB queries in client components.
 - Do not introduce repository/service/mapper/use-case abstractions unless explicitly requested.
 
+## Database workflow
+
+- Use the Drizzle schema as the source of truth.
+- For schema changes, update the schema code first, then run Drizzle generate + migrate.
+- Do not hand-write migration files.
+- Do not ask for raw SQL migration files to be authored manually.
+- When a schema change is needed, write the schema and generate the migration file from it.
+
 ## Auth and authorization
 
 - No public signup.

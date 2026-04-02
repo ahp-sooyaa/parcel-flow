@@ -92,9 +92,37 @@ export const merchants = pgTable(
   ],
 );
 
+export const riders = pgTable(
+  "riders",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    riderCode: text("rider_code").notNull(),
+    fullName: text("full_name").notNull(),
+    phoneNumber: text("phone_number"),
+    address: text("address").notNull(),
+    township: text("township").notNull(),
+    notes: text("notes"),
+    linkedAppUserId: uuid("linked_app_user_id").references(() => appUsers.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("riders_rider_code_uidx").on(table.riderCode),
+    uniqueIndex("riders_linked_app_user_uidx").on(table.linkedAppUserId),
+    index("riders_full_name_idx").on(table.fullName),
+    index("riders_phone_idx").on(table.phoneNumber),
+    index("riders_township_idx").on(table.township),
+    index("riders_created_at_idx").on(table.createdAt),
+  ],
+);
+
 export type Role = typeof roles.$inferSelect;
 export type Permission = typeof permissions.$inferSelect;
 export type AppUser = typeof appUsers.$inferSelect;
 export type NewAppUser = typeof appUsers.$inferInsert;
 export type Merchant = typeof merchants.$inferSelect;
 export type NewMerchant = typeof merchants.$inferInsert;
+export type Rider = typeof riders.$inferSelect;
+export type NewRider = typeof riders.$inferInsert;
