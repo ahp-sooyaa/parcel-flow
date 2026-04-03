@@ -24,6 +24,7 @@ describe("users server utils", () => {
         phoneNumber: "",
         role: "office_admin",
         isActive: true,
+        riderIsActive: true,
       });
 
       expect(parsed.success).toBe(true);
@@ -52,6 +53,7 @@ describe("users server utils", () => {
         phoneNumber: " 09420000000 ",
         role: "office_admin",
         isActive: false,
+        riderIsActive: true,
       });
 
       expect(parsed.success).toBe(true);

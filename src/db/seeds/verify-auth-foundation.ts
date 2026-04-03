@@ -53,17 +53,36 @@ function verifyPermissionModel() {
   );
   assert(!officeAdminPermissions.has("user.delete"), "office_admin must not have user.delete");
   assert(
+    !officeAdminPermissions.has("township.create"),
+    "office_admin must not have township.create",
+  );
+  assert(
+    !officeAdminPermissions.has("township.delete"),
+    "office_admin must not have township.delete",
+  );
+  assert(
     !officeAdminPermissions.has("merchant.delete"),
     "office_admin must not have merchant.delete",
   );
   assert(!officeAdminPermissions.has("rider.delete"), "office_admin must not have rider.delete");
   assert(!officeAdminPermissions.has("parcel.delete"), "office_admin must not have parcel.delete");
+  assert(
+    officeAdminPermissions.has("township-list.view"),
+    "office_admin must have township-list.view",
+  );
+  assert(officeAdminPermissions.has("township.update"), "office_admin must have township.update");
+  assert(officeAdminPermissions.has("merchant.view"), "office_admin must have merchant.view");
+  assert(officeAdminPermissions.has("merchant.update"), "office_admin must have merchant.update");
+  assert(officeAdminPermissions.has("rider.view"), "office_admin must have rider.view");
+  assert(officeAdminPermissions.has("rider.update"), "office_admin must have rider.update");
 
   const merchantPermissions = new Set(ROLE_PERMISSION_MATRIX.merchant);
-  assert(merchantPermissions.has("merchant.view"), "merchant must have merchant.view");
+  assert(!merchantPermissions.has("merchant.view"), "merchant must not have merchant.view");
+  assert(!merchantPermissions.has("merchant.update"), "merchant must not have merchant.update");
+  assert(!merchantPermissions.has("rider.view"), "merchant must not have rider.view");
   assert(
-    !merchantPermissions.has("merchant-list.view"),
-    "merchant must not have merchant-list.view",
+    !merchantPermissions.has("township-list.view"),
+    "merchant must not have township-list.view",
   );
   assert(!merchantPermissions.has("parcel-list.view"), "merchant must not have parcel-list.view");
 
@@ -71,6 +90,10 @@ function verifyPermissionModel() {
   assert(riderPermissions.has("parcel-list.view"), "rider must have parcel-list.view");
   assert(riderPermissions.has("parcel.view"), "rider must have parcel.view");
   assert(riderPermissions.has("parcel.update"), "rider must have parcel.update");
+  assert(!riderPermissions.has("rider.view"), "rider must not have rider.view");
+  assert(!riderPermissions.has("rider.update"), "rider must not have rider.update");
+  assert(!riderPermissions.has("merchant.view"), "rider must not have merchant.view");
+  assert(!riderPermissions.has("township-list.view"), "rider must not have township-list.view");
   assert(!riderPermissions.has("parcel.create"), "rider must not have parcel.create");
   assert(!riderPermissions.has("parcel.delete"), "rider must not have parcel.delete");
 
@@ -91,13 +114,24 @@ function verifySharedPermissionCodesExistAcrossRoles() {
       .map(([role]) => role),
   );
 
+  const riderViewRoles = new Set(
+    Object.entries(ROLE_PERMISSION_MATRIX)
+      .filter(([, permissions]) => new Set(permissions).has("rider.view"))
+      .map(([role]) => role),
+  );
+
+  const townshipListRoles = new Set(
+    Object.entries(ROLE_PERMISSION_MATRIX)
+      .filter(([, permissions]) => new Set(permissions).has("township-list.view"))
+      .map(([role]) => role),
+  );
+
   const parcelUpdateRoles = new Set(
     Object.entries(ROLE_PERMISSION_MATRIX)
       .filter(([, permissions]) => new Set(permissions).has("parcel.update"))
       .map(([role]) => role),
   );
 
-  assert(merchantViewRoles.has("merchant"), "merchant.view must be assigned to merchant role");
   assert(
     merchantViewRoles.has("office_admin"),
     "merchant.view must be assigned to office_admin role",
@@ -105,6 +139,16 @@ function verifySharedPermissionCodesExistAcrossRoles() {
   assert(
     merchantViewRoles.has("super_admin"),
     "merchant.view must be assigned to super_admin role",
+  );
+  assert(riderViewRoles.has("office_admin"), "rider.view must be assigned to office_admin role");
+  assert(riderViewRoles.has("super_admin"), "rider.view must be assigned to super_admin role");
+  assert(
+    townshipListRoles.has("office_admin"),
+    "township-list.view must be assigned to office_admin role",
+  );
+  assert(
+    townshipListRoles.has("super_admin"),
+    "township-list.view must be assigned to super_admin role",
   );
 
   assert(parcelUpdateRoles.has("rider"), "parcel.update must be assigned to rider role");

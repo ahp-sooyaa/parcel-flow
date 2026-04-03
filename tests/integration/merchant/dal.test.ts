@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const selectMock = vi.hoisted(() => vi.fn());
 const fromMock = vi.hoisted(() => vi.fn());
+const innerJoinMock = vi.hoisted(() => vi.fn());
 const leftJoinMock = vi.hoisted(() => vi.fn());
 const whereMock = vi.hoisted(() => vi.fn());
 const orderByMock = vi.hoisted(() => vi.fn());
@@ -17,15 +18,17 @@ describe("merchant dal integration", () => {
   beforeEach(() => {
     selectMock.mockReset();
     fromMock.mockReset();
+    innerJoinMock.mockReset();
     leftJoinMock.mockReset();
     whereMock.mockReset();
     orderByMock.mockReset();
     limitMock.mockReset();
 
     selectMock.mockReturnValue({ from: fromMock });
-    fromMock.mockReturnValue({ leftJoin: leftJoinMock });
+    fromMock.mockReturnValue({ innerJoin: innerJoinMock });
+    innerJoinMock.mockReturnValue({ leftJoin: leftJoinMock });
     leftJoinMock.mockReturnValue({ where: whereMock });
-    whereMock.mockReturnValue({ orderBy: orderByMock });
+    whereMock.mockReturnValue({ orderBy: orderByMock, limit: limitMock });
     orderByMock.mockReturnValue({ limit: limitMock });
   });
 
@@ -33,12 +36,11 @@ describe("merchant dal integration", () => {
     limitMock.mockResolvedValue([
       {
         id: "m-1",
-        name: "Alpha",
+        shopName: "Alpha",
+        contactName: "Ko Aung",
         phoneNumber: "09420000000",
-        township: "Bahan",
-        address: "No 1",
-        linkedAppUserId: null,
-        linkedAppUserName: null,
+        townshipName: "Bahan",
+        defaultPickupAddress: "No 1",
         createdAt: new Date("2026-03-31T00:00:00.000Z"),
       },
     ]);
@@ -55,40 +57,31 @@ describe("merchant dal integration", () => {
     expect(result).toEqual([
       {
         id: "m-1",
-        name: "Alpha",
+        shopName: "Alpha",
+        contactName: "Ko Aung",
         phoneNumber: "09420000000",
-        township: "Bahan",
-        address: "No 1",
-        linkedAppUserId: null,
-        linkedAppUserName: null,
+        townshipName: "Bahan",
+        defaultPickupAddress: "No 1",
         createdAt: new Date("2026-03-31T00:00:00.000Z"),
       },
     ]);
   });
 
-  it("returns merchant detail only for merchant self-scope", async () => {
+  it("returns merchant detail by id", async () => {
     limitMock.mockResolvedValue([]);
 
-    const { getMerchantByIdForViewer } = await import("@/features/merchant/server/dal");
+    const { getMerchantById } = await import("@/features/merchant/server/dal");
 
-    const result = await getMerchantByIdForViewer({
-      merchantId: "7f048ecf-7989-4f2e-b0a2-97f950f53ea4",
-      viewerRoleSlug: "merchant",
-      viewerAppUserId: "app-user-1",
-    });
+    const result = await getMerchantById("7f048ecf-7989-4f2e-b0a2-97f950f53ea4");
 
     expect(result).toBeNull();
     expect(whereMock).toHaveBeenCalled();
   });
 
   it("returns null before querying when merchant id is malformed", async () => {
-    const { getMerchantByIdForViewer } = await import("@/features/merchant/server/dal");
+    const { getMerchantById } = await import("@/features/merchant/server/dal");
 
-    const result = await getMerchantByIdForViewer({
-      merchantId: "not-a-uuid",
-      viewerRoleSlug: "office_admin",
-      viewerAppUserId: "app-user-1",
-    });
+    const result = await getMerchantById("not-a-uuid");
 
     expect(result).toBeNull();
     expect(whereMock).not.toHaveBeenCalled();

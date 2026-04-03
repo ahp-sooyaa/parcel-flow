@@ -2,49 +2,35 @@ import "server-only";
 
 export type MerchantListItemDto = {
   id: string;
-  name: string;
+  shopName: string;
+  contactName: string;
   phoneNumber: string | null;
-  township: string;
-  address: string;
-  linkedAppUserId: string | null;
-  linkedAppUserName: string | null;
+  townshipName: string | null;
+  defaultPickupAddress: string | null;
   createdAt: Date;
 };
 
 export type MerchantDetailDto = {
   id: string;
-  name: string;
+  shopName: string;
+  contactName: string;
+  email: string;
   phoneNumber: string | null;
-  township: string;
-  address: string;
+  townshipName: string | null;
+  defaultPickupAddress: string | null;
   notes: string | null;
-  linkedAppUserId: string | null;
-  linkedAppUserName: string | null;
   createdAt: Date;
   updatedAt: Date;
-};
-
-export type MerchantLinkableUserDto = {
-  id: string;
-  fullName: string;
-  email: string;
-};
-
-export type CreateMerchantActionResult = {
-  ok: boolean;
-  message: string;
-  merchantId?: string;
 };
 
 export function toMerchantListItemDto(input: MerchantListItemDto): MerchantListItemDto {
   return {
     id: input.id,
-    name: input.name,
+    shopName: input.shopName,
+    contactName: input.contactName,
     phoneNumber: input.phoneNumber,
-    township: input.township,
-    address: input.address,
-    linkedAppUserId: input.linkedAppUserId,
-    linkedAppUserName: input.linkedAppUserName,
+    townshipName: input.townshipName,
+    defaultPickupAddress: input.defaultPickupAddress,
     createdAt: input.createdAt,
   };
 }
@@ -52,13 +38,13 @@ export function toMerchantListItemDto(input: MerchantListItemDto): MerchantListI
 export function toMerchantDetailDto(input: MerchantDetailDto): MerchantDetailDto {
   return {
     id: input.id,
-    name: input.name,
+    shopName: input.shopName,
+    contactName: input.contactName,
+    email: input.email,
     phoneNumber: input.phoneNumber,
-    township: input.township,
-    address: input.address,
+    townshipName: input.townshipName,
+    defaultPickupAddress: input.defaultPickupAddress,
     notes: input.notes,
-    linkedAppUserId: input.linkedAppUserId,
-    linkedAppUserName: input.linkedAppUserName,
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
   };

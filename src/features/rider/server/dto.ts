@@ -2,38 +2,56 @@ import "server-only";
 
 export type RiderListItemDto = {
   id: string;
-  riderCode: string;
   fullName: string;
   phoneNumber: string | null;
-  township: string;
-  address: string;
-  linkedAppUserId: string | null;
-  linkedAppUserName: string | null;
+  townshipName: string | null;
+  vehicleType: string;
+  licensePlate: string | null;
+  isActive: boolean;
+  notes: string | null;
   createdAt: Date;
 };
 
-export type RiderLinkableUserDto = {
+export type RiderDetailDto = {
   id: string;
   fullName: string;
   email: string;
-};
-
-export type CreateRiderActionResult = {
-  ok: boolean;
-  message: string;
-  riderId?: string;
+  phoneNumber: string | null;
+  townshipName: string | null;
+  vehicleType: string;
+  licensePlate: string | null;
+  isActive: boolean;
+  notes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 export function toRiderListItemDto(input: RiderListItemDto): RiderListItemDto {
   return {
     id: input.id,
-    riderCode: input.riderCode,
     fullName: input.fullName,
     phoneNumber: input.phoneNumber,
-    township: input.township,
-    address: input.address,
-    linkedAppUserId: input.linkedAppUserId,
-    linkedAppUserName: input.linkedAppUserName,
+    townshipName: input.townshipName,
+    vehicleType: input.vehicleType,
+    licensePlate: input.licensePlate,
+    isActive: input.isActive,
+    notes: input.notes,
     createdAt: input.createdAt,
+  };
+}
+
+export function toRiderDetailDto(input: RiderDetailDto): RiderDetailDto {
+  return {
+    id: input.id,
+    fullName: input.fullName,
+    email: input.email,
+    phoneNumber: input.phoneNumber,
+    townshipName: input.townshipName,
+    vehicleType: input.vehicleType,
+    licensePlate: input.licensePlate,
+    isActive: input.isActive,
+    notes: input.notes,
+    createdAt: input.createdAt,
+    updatedAt: input.updatedAt,
   };
 }

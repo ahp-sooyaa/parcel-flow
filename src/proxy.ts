@@ -4,15 +4,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { canAccessDashboardPath } from "@/lib/auth/route-access";
 import { getSupabasePublicEnv } from "@/lib/env";
 
+import type { RoleSlug } from "@/db/constants";
+
 type PermissionRow = {
   permission: { slug: string | null } | null;
 };
 
 type RoleRow = {
+  slug: string | null;
   role_permissions: PermissionRow[] | PermissionRow | null;
 };
 
 type AppUserAccessRow = {
+  id: string;
   is_active: boolean;
   must_reset_password: boolean;
   role: RoleRow | RoleRow[] | null;
@@ -168,6 +172,21 @@ function extractPermissionSlugs(appUser: AppUserAccessRow) {
   return Array.from(slugs);
 }
 
+function extractRoleSlug(appUser: AppUserAccessRow): RoleSlug | undefined {
+  const role = toArray(appUser.role)[0];
+
+  if (
+    role?.slug === "super_admin" ||
+    role?.slug === "office_admin" ||
+    role?.slug === "rider" ||
+    role?.slug === "merchant"
+  ) {
+    return role.slug;
+  }
+
+  return undefined;
+}
+
 function isDashboardPath(pathname: string) {
   return pathname === "/dashboard" || pathname.startsWith("/dashboard/");
 }
@@ -265,7 +284,9 @@ export async function proxy(request: NextRequest) {
     .select(`
       is_active,
       must_reset_password,
+      id,
       role:role_id (
+        slug,
         role_permissions (
           permission:permission_id ( slug )
         )
@@ -282,6 +303,8 @@ export async function proxy(request: NextRequest) {
     permissions: extractPermissionSlugs(appUser),
     isActive: appUser.is_active,
     mustResetPassword: appUser.must_reset_password,
+    appUserId: appUser.id,
+    roleSlug: extractRoleSlug(appUser),
   });
 
   if (!allowed) {

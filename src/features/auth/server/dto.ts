@@ -22,7 +22,7 @@ export type DashboardShellUserDto = {
   name: string;
   roleLabel: string;
   navItems: {
-    key: "dashboard" | "users" | "merchants" | "my-merchant" | "riders" | "parcels";
+    key: "dashboard" | "users" | "merchants" | "my-merchant" | "riders" | "parcels" | "townships";
     href: string;
     label: string;
   }[];
@@ -71,11 +71,7 @@ export function toDashboardShellUserDto(input: {
     navItems.push({ key: "users", href: "/dashboard/users", label: "Users" });
   }
 
-  if (
-    input.role.slug === "merchant" &&
-    input.permissions.includes("merchant.view") &&
-    input.linkedMerchantId
-  ) {
+  if (input.role.slug === "merchant" && input.linkedMerchantId) {
     navItems.push({
       key: "my-merchant",
       href: `/dashboard/merchants/${input.linkedMerchantId}`,
@@ -91,6 +87,10 @@ export function toDashboardShellUserDto(input: {
 
   if (input.permissions.includes("parcel-list.view")) {
     navItems.push({ key: "parcels", href: "/dashboard/parcels", label: "Parcels" });
+  }
+
+  if (input.permissions.includes("township-list.view")) {
+    navItems.push({ key: "townships", href: "/dashboard/townships", label: "Townships" });
   }
 
   return {

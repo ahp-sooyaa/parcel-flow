@@ -32,14 +32,16 @@ values
   ('user.create', 'Create user'),
   ('user.update', 'Update user'),
   ('user.delete', 'Delete user'),
+  ('township-list.view', 'View township list'),
+  ('township.create', 'Create township'),
+  ('township.update', 'Update township'),
+  ('township.delete', 'Delete township'),
   ('merchant-list.view', 'View merchant list'),
   ('merchant.view', 'View merchant details'),
-  ('merchant.create', 'Create merchant'),
   ('merchant.update', 'Update merchant'),
   ('merchant.delete', 'Delete merchant'),
   ('rider-list.view', 'View rider list'),
   ('rider.view', 'View rider details'),
-  ('rider.create', 'Create rider'),
   ('rider.update', 'Update rider'),
   ('rider.delete', 'Delete rider'),
   ('parcel-list.view', 'View parcel list'),
@@ -57,6 +59,8 @@ insert into seed_office_admin_denied_permissions (permission_slug)
 values
   ('user-password.reset'),
   ('user.delete'),
+  ('township.create'),
+  ('township.delete'),
   ('merchant.delete'),
   ('rider.delete'),
   ('parcel.delete');
@@ -76,9 +80,6 @@ drop table if exists pg_temp.seed_merchant_allowed_permissions;
 create temporary table seed_merchant_allowed_permissions (
   permission_slug text primary key
 ) on commit drop;
-
-insert into seed_merchant_allowed_permissions (permission_slug)
-values ('merchant.view');
 
 drop table if exists pg_temp.seed_essential_permissions;
 create temporary table seed_essential_permissions (

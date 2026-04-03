@@ -9,11 +9,148 @@ import { db } from "@/db";
 import { appUsers } from "@/db/schema";
 import { findRoleBySlug, findAppUserById } from "@/features/auth/server/dal";
 import { requirePermission } from "@/features/auth/server/utils";
+import { createMerchantProfile } from "@/features/merchant/server/dal";
+import { createRiderProfile } from "@/features/rider/server/dal";
+import { findTownshipById } from "@/features/townships/server/dal";
 import { logAuditEvent } from "@/lib/security/audit";
 import { generateStrongPassword } from "@/lib/security/password";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 import type { CreateUserActionResult, ResetUserPasswordActionResult } from "./dto";
+
+type CreateUserInput = ReturnType<typeof createUserSchema.parse>;
+
+async function parseCreateUserInput(formData: FormData) {
+  return createUserSchema.safeParse({
+    fullName: formData.get("fullName"),
+    email: formData.get("email"),
+    phoneNumber: formData.get("phoneNumber"),
+    role: formData.get("role"),
+    isActive: parseActiveFlag(formData.get("isActive")),
+    merchantShopName: formData.get("merchantShopName"),
+    merchantPickupTownshipId: formData.get("merchantPickupTownshipId"),
+    merchantDefaultPickupAddress: formData.get("merchantDefaultPickupAddress"),
+    merchantNotes: formData.get("merchantNotes"),
+    riderTownshipId: formData.get("riderTownshipId"),
+    riderVehicleType: formData.get("riderVehicleType"),
+    riderLicensePlate: formData.get("riderLicensePlate"),
+    riderNotes: formData.get("riderNotes"),
+    riderIsActive: parseActiveFlag(formData.get("riderIsActive")),
+  });
+}
+
+async function validateUserRoleAndTownships(input: CreateUserInput, currentUserRoleSlug: string) {
+  const role = await findRoleBySlug(input.role);
+
+  if (!role) {
+    return { ok: false as const, message: "Selected role was not found." };
+  }
+
+  if (input.role === "super_admin" && currentUserRoleSlug !== "super_admin") {
+    return {
+      ok: false as const,
+      message: "Only super admin can create super admin users.",
+    };
+  }
+
+  const townshipChecks = [
+    {
+      townshipId: input.merchantPickupTownshipId,
+      message: "Selected merchant township was not found.",
+    },
+    {
+      townshipId: input.riderTownshipId,
+      message: "Selected rider township was not found.",
+    },
+  ];
+
+  for (const check of townshipChecks) {
+    if (!check.townshipId) {
+      continue;
+    }
+
+    const township = await findTownshipById(check.townshipId);
+
+    if (!township || !township.isActive) {
+      return { ok: false as const, message: check.message };
+    }
+  }
+
+  return { ok: true as const, role };
+}
+
+async function provisionAuthUser(input: CreateUserInput, temporaryPassword: string) {
+  const supabaseAdmin = createSupabaseAdminClient();
+  const { data, error } = await supabaseAdmin.auth.admin.createUser({
+    email: input.email,
+    password: temporaryPassword,
+    email_confirm: true,
+    user_metadata: {
+      full_name: input.fullName,
+    },
+  });
+
+  if (error || !data.user) {
+    return { ok: false as const, message: "Could not provision Supabase user." };
+  }
+
+  return { ok: true as const, supabaseAdmin, supabaseUserId: data.user.id };
+}
+
+async function createAppUserWithProfiles(params: {
+  input: CreateUserInput;
+  roleId: string;
+  supabaseUserId: string;
+}) {
+  const { input, roleId, supabaseUserId } = params;
+  let createdAppUserId: string | null = null;
+
+  try {
+    const [createdUser] = await db
+      .insert(appUsers)
+      .values({
+        supabaseUserId,
+        fullName: input.fullName,
+        email: input.email,
+        phoneNumber: input.phoneNumber,
+        roleId,
+        isActive: input.isActive,
+        mustResetPassword: true,
+      })
+      .returning({ id: appUsers.id });
+
+    createdAppUserId = createdUser.id;
+
+    if (input.role === "merchant") {
+      await createMerchantProfile({
+        appUserId: createdAppUserId,
+        shopName: input.merchantShopName ?? input.fullName,
+        pickupTownshipId: input.merchantPickupTownshipId,
+        defaultPickupAddress: input.merchantDefaultPickupAddress,
+        notes: input.merchantNotes,
+      });
+    }
+
+    if (input.role === "rider") {
+      await createRiderProfile({
+        appUserId: createdAppUserId,
+        townshipId: input.riderTownshipId,
+        vehicleType: input.riderVehicleType ?? "bike",
+        licensePlate: input.riderLicensePlate,
+        isActive: input.riderIsActive,
+        notes: input.riderNotes,
+      });
+    }
+
+    return { ok: true as const, createdAppUserId };
+  } catch {
+    if (createdAppUserId) {
+      await db.delete(appUsers).where(eq(appUsers.id, createdAppUserId));
+    }
+
+    return { ok: false as const, message: "Failed to store app user profile." };
+  }
+}
 
 export async function createUserAction(
   _prevState: CreateUserActionResult,
@@ -21,62 +158,40 @@ export async function createUserAction(
 ): Promise<CreateUserActionResult> {
   try {
     const currentUser = await requirePermission("user.create");
-
-    const parsed = createUserSchema.safeParse({
-      fullName: formData.get("fullName"),
-      email: formData.get("email"),
-      phoneNumber: formData.get("phoneNumber"),
-      role: formData.get("role"),
-      isActive: parseActiveFlag(formData.get("isActive")),
-    });
+    const parsed = await parseCreateUserInput(formData);
 
     if (!parsed.success) {
       return { ok: false, message: "Please provide valid user details." };
     }
 
-    const role = await findRoleBySlug(parsed.data.role);
+    const guards = await validateUserRoleAndTownships(parsed.data, currentUser.role.slug);
 
-    if (!role) {
-      return { ok: false, message: "Selected role was not found." };
-    }
-
-    if (parsed.data.role === "super_admin" && currentUser.role.slug !== "super_admin") {
-      return { ok: false, message: "Only super admin can create super admin users." };
+    if (!guards.ok) {
+      return { ok: false, message: guards.message };
     }
 
     const tempPassword = generateStrongPassword(20);
-    const supabaseAdmin = createSupabaseAdminClient();
+    const authUser = await provisionAuthUser(parsed.data, tempPassword);
 
-    const { data, error } = await supabaseAdmin.auth.admin.createUser({
-      email: parsed.data.email,
-      password: tempPassword,
-      email_confirm: true,
-      user_metadata: {
-        full_name: parsed.data.fullName,
-      },
-    });
-
-    if (error || !data.user) {
-      return { ok: false, message: "Could not provision Supabase user." };
+    if (!authUser.ok) {
+      return { ok: false, message: authUser.message };
     }
 
-    try {
-      await db.insert(appUsers).values({
-        supabaseUserId: data.user.id,
-        fullName: parsed.data.fullName,
-        email: parsed.data.email,
-        phoneNumber: parsed.data.phoneNumber,
-        roleId: role.id,
-        isActive: parsed.data.isActive,
-        mustResetPassword: true,
-      });
-    } catch {
-      await supabaseAdmin.auth.admin.deleteUser(data.user.id);
+    const appUser = await createAppUserWithProfiles({
+      input: parsed.data,
+      roleId: guards.role.id,
+      supabaseUserId: authUser.supabaseUserId,
+    });
 
-      return { ok: false, message: "Failed to store app user profile." };
+    if (!appUser.ok) {
+      await authUser.supabaseAdmin.auth.admin.deleteUser(authUser.supabaseUserId);
+
+      return { ok: false, message: appUser.message };
     }
 
     revalidatePath("/dashboard/users");
+    revalidatePath("/dashboard/merchants");
+    revalidatePath("/dashboard/riders");
 
     await logAuditEvent({
       event: "user.create",
@@ -84,6 +199,9 @@ export async function createUserAction(
       metadata: {
         role: parsed.data.role,
         isActive: parsed.data.isActive,
+        merchantTownshipId: parsed.data.merchantPickupTownshipId,
+        riderTownshipId: parsed.data.riderTownshipId,
+        riderIsActive: parsed.data.riderIsActive,
       },
     });
 

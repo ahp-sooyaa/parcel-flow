@@ -25,9 +25,9 @@ export default async function MerchantsPage({ searchParams }: Readonly<Merchants
             Browse and search merchants for quick operations lookup.
           </p>
         </div>
-        <IfPermitted permission="merchant.create">
+        <IfPermitted permission="user.create">
           <Button asChild>
-            <Link href="/dashboard/merchants/create">Create Merchant</Link>
+            <Link href="/dashboard/users/create?role=merchant">Create Merchant User</Link>
           </Button>
         </IfPermitted>
       </header>
@@ -36,7 +36,7 @@ export default async function MerchantsPage({ searchParams }: Readonly<Merchants
         <input
           name="q"
           defaultValue={query}
-          placeholder="Search by merchant name or phone"
+          placeholder="Search by shop name or contact name"
           className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         />
         <Button type="submit" variant="outline" size="sm">
@@ -48,10 +48,10 @@ export default async function MerchantsPage({ searchParams }: Readonly<Merchants
         <table className="w-full text-left text-sm">
           <thead className="bg-muted/40 text-xs uppercase">
             <tr>
-              <th className="px-4 py-3">Merchant</th>
+              <th className="px-4 py-3">Shop</th>
+              <th className="px-4 py-3">Contact</th>
               <th className="px-4 py-3">Phone</th>
               <th className="px-4 py-3">Township</th>
-              <th className="px-4 py-3">Linked User</th>
               <th className="px-4 py-3">Actions</th>
             </tr>
           </thead>
@@ -66,12 +66,14 @@ export default async function MerchantsPage({ searchParams }: Readonly<Merchants
               merchants.map((merchant) => (
                 <tr key={merchant.id} className="border-t">
                   <td className="px-4 py-3">
-                    <p className="font-medium">{merchant.name}</p>
-                    <p className="text-xs text-muted-foreground">{merchant.address}</p>
+                    <p className="font-medium">{merchant.shopName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {merchant.defaultPickupAddress ?? "No default pickup address"}
+                    </p>
                   </td>
+                  <td className="px-4 py-3">{merchant.contactName}</td>
                   <td className="px-4 py-3">{merchant.phoneNumber ?? "-"}</td>
-                  <td className="px-4 py-3">{merchant.township}</td>
-                  <td className="px-4 py-3">{merchant.linkedAppUserName ?? "-"}</td>
+                  <td className="px-4 py-3">{merchant.townshipName ?? "-"}</td>
                   <td className="px-4 py-3">
                     <Button asChild size="sm" variant="outline">
                       <Link href={`/dashboard/merchants/${merchant.id}`}>View</Link>

@@ -25,9 +25,9 @@ export default async function RidersPage({ searchParams }: Readonly<RidersPagePr
             Browse and search riders for assignment and operations lookup.
           </p>
         </div>
-        <IfPermitted permission="rider.create">
+        <IfPermitted permission="user.create">
           <Button asChild>
-            <Link href="/dashboard/riders/create">Create Rider</Link>
+            <Link href="/dashboard/users/create?role=rider">Create Rider User</Link>
           </Button>
         </IfPermitted>
       </header>
@@ -36,7 +36,7 @@ export default async function RidersPage({ searchParams }: Readonly<RidersPagePr
         <input
           name="q"
           defaultValue={query}
-          placeholder="Search by rider code, name or phone"
+          placeholder="Search by rider name, phone, vehicle type or license plate"
           className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         />
         <Button type="submit" variant="outline" size="sm">
@@ -49,16 +49,18 @@ export default async function RidersPage({ searchParams }: Readonly<RidersPagePr
           <thead className="bg-muted/40 text-xs uppercase">
             <tr>
               <th className="px-4 py-3">Rider</th>
-              <th className="px-4 py-3">Code</th>
               <th className="px-4 py-3">Phone</th>
+              <th className="px-4 py-3">Vehicle</th>
+              <th className="px-4 py-3">License Plate</th>
               <th className="px-4 py-3">Township</th>
-              <th className="px-4 py-3">Linked User</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Actions</th>
             </tr>
           </thead>
           <tbody>
             {riders.length === 0 ? (
               <tr>
-                <td className="px-4 py-6 text-sm text-muted-foreground" colSpan={5}>
+                <td className="px-4 py-6 text-sm text-muted-foreground" colSpan={7}>
                   No riders found.
                 </td>
               </tr>
@@ -67,12 +69,20 @@ export default async function RidersPage({ searchParams }: Readonly<RidersPagePr
                 <tr key={rider.id} className="border-t">
                   <td className="px-4 py-3">
                     <p className="font-medium">{rider.fullName}</p>
-                    <p className="text-xs text-muted-foreground">{rider.address}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {rider.notes ?? "No rider notes"}
+                    </p>
                   </td>
-                  <td className="px-4 py-3">{rider.riderCode}</td>
                   <td className="px-4 py-3">{rider.phoneNumber ?? "-"}</td>
-                  <td className="px-4 py-3">{rider.township}</td>
-                  <td className="px-4 py-3">{rider.linkedAppUserName ?? "-"}</td>
+                  <td className="px-4 py-3">{rider.vehicleType}</td>
+                  <td className="px-4 py-3">{rider.licensePlate ?? "-"}</td>
+                  <td className="px-4 py-3">{rider.townshipName ?? "-"}</td>
+                  <td className="px-4 py-3">{rider.isActive ? "Active" : "Inactive"}</td>
+                  <td className="px-4 py-3">
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/dashboard/riders/${rider.id}`}>View</Link>
+                    </Button>
+                  </td>
                 </tr>
               ))
             )}

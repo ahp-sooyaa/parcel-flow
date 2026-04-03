@@ -1,9 +1,12 @@
 import type { PermissionSlug } from "@/db/constants";
+import type { RoleSlug } from "@/db/constants";
 
 export type AccessContext = {
   permissions: readonly string[];
   isActive: boolean;
   mustResetPassword: boolean;
+  appUserId?: string | null;
+  roleSlug?: RoleSlug;
 };
 
 const resetRequiredAllowlist = new Set(["/dashboard", "/dashboard/profile"]);
@@ -29,22 +32,44 @@ const routePermissionRules: readonly RoutePermissionRule[] = [
   },
   {
     pathnamePrefix: "/dashboard/riders",
-    anyOf: ["rider-list.view", "rider.view", "rider.create", "rider.update", "rider.delete"],
+    anyOf: ["rider-list.view", "rider.view", "rider.update", "rider.delete"],
   },
   {
     pathnamePrefix: "/dashboard/parcels",
     anyOf: ["parcel-list.view", "parcel.view", "parcel.create", "parcel.update", "parcel.delete"],
   },
   {
-    pathnamePrefix: "/dashboard/merchants/create",
-    anyOf: ["merchant.create"],
-  },
-  {
     pathnamePrefix: "/dashboard/merchants",
     exactAnyOf: ["merchant-list.view"],
     anyOf: ["merchant.view"],
   },
+  {
+    pathnamePrefix: "/dashboard/townships/create",
+    anyOf: ["township.create"],
+  },
+  {
+    pathnamePrefix: "/dashboard/townships",
+    exactAnyOf: ["township-list.view"],
+    anyOf: ["township.update", "township.delete"],
+  },
 ];
+
+function getOwnedResourceId(
+  pathname: string,
+  resourcePrefix: "/dashboard/merchants" | "/dashboard/riders",
+) {
+  if (!pathname.startsWith(resourcePrefix + "/")) {
+    return null;
+  }
+
+  const resourceId = pathname.slice(resourcePrefix.length + 1);
+
+  if (!resourceId || resourceId.includes("/")) {
+    return null;
+  }
+
+  return resourceId;
+}
 
 export function canAccessDashboardPath(pathname: string, context: AccessContext) {
   if (!context.isActive) {
@@ -60,6 +85,20 @@ export function canAccessDashboardPath(pathname: string, context: AccessContext)
   }
 
   if (pathname === "/dashboard/profile" || pathname.startsWith("/dashboard/profile/")) {
+    return true;
+  }
+
+  if (pathname === "/dashboard/merchants/create" || pathname === "/dashboard/riders/create") {
+    return false;
+  }
+
+  const merchantId = getOwnedResourceId(pathname, "/dashboard/merchants");
+  if (merchantId && context.roleSlug === "merchant" && context.appUserId === merchantId) {
+    return true;
+  }
+
+  const riderId = getOwnedResourceId(pathname, "/dashboard/riders");
+  if (riderId && context.roleSlug === "rider" && context.appUserId === riderId) {
     return true;
   }
 

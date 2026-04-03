@@ -1,6 +1,15 @@
 "use client";
 
-import { LayoutDashboard, Menu, PackageSearch, Store, Truck, Users, X } from "lucide-react";
+import {
+  LayoutDashboard,
+  MapPinned,
+  Menu,
+  PackageSearch,
+  Store,
+  Truck,
+  Users,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
@@ -16,7 +25,7 @@ type DashboardShellProps = {
     name: string;
     roleLabel: string;
     navItems: {
-      key: "dashboard" | "users" | "merchants" | "my-merchant" | "riders" | "parcels";
+      key: "dashboard" | "users" | "merchants" | "my-merchant" | "riders" | "parcels" | "townships";
       href: string;
       label: string;
     }[];
@@ -31,9 +40,10 @@ const navIconByKey: Record<DashboardShellProps["user"]["navItems"][number]["key"
   "my-merchant": <Store className="h-4 w-4" />,
   riders: <Truck className="h-4 w-4" />,
   parcels: <PackageSearch className="h-4 w-4" />,
+  townships: <MapPinned className="h-4 w-4" />,
 };
 
-export function DashboardShell({ children, user }: DashboardShellProps) {
+export function DashboardShell({ children, user }: Readonly<DashboardShellProps>) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const pathname = usePathname();
 
