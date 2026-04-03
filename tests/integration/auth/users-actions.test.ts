@@ -183,6 +183,7 @@ describe("users actions integration", () => {
     riderForm.set("role", "rider");
     riderForm.set("isActive", "on");
     riderForm.set("riderTownshipId", townshipId);
+    riderForm.set("riderIsActive", "on");
 
     const riderResult = await createUserAction({ ok: false, message: "" }, riderForm);
 
