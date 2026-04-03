@@ -14,7 +14,7 @@ type ProfileFormsProps = {
 
 const profileInitial = { ok: true, message: "" };
 
-export function ProfileForms({ fullName, email, phoneNumber }: ProfileFormsProps) {
+export function ProfileForms({ fullName, email, phoneNumber }: Readonly<ProfileFormsProps>) {
   const [profileState, profileAction, profilePending] = useActionState(
     updateOwnProfileAction,
     profileInitial,

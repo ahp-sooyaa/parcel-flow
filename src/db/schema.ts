@@ -68,26 +68,40 @@ export const appUsers = pgTable(
   ],
 );
 
-export const merchants = pgTable(
-  "merchants",
+export const townships = pgTable(
+  "townships",
   {
     id: uuid("id").defaultRandom().primaryKey(),
     name: text("name").notNull(),
-    phoneNumber: text("phone_number"),
-    address: text("address").notNull(),
-    township: text("township").notNull(),
-    notes: text("notes"),
-    linkedAppUserId: uuid("linked_app_user_id").references(() => appUsers.id, {
-      onDelete: "set null",
-    }),
+    isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("merchants_linked_app_user_uidx").on(table.linkedAppUserId),
-    index("merchants_name_idx").on(table.name),
-    index("merchants_phone_idx").on(table.phoneNumber),
-    index("merchants_township_idx").on(table.township),
+    uniqueIndex("townships_name_uidx").on(table.name),
+    index("townships_active_idx").on(table.isActive),
+    index("townships_created_at_idx").on(table.createdAt),
+  ],
+);
+
+export const merchants = pgTable(
+  "merchants",
+  {
+    appUserId: uuid("app_user_id")
+      .primaryKey()
+      .references(() => appUsers.id, { onDelete: "cascade" }),
+    shopName: text("shop_name").notNull(),
+    pickupTownshipId: uuid("pickup_township_id").references(() => townships.id, {
+      onDelete: "restrict",
+    }),
+    defaultPickupAddress: text("default_pickup_address"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("merchants_shop_name_idx").on(table.shopName),
+    index("merchants_pickup_township_idx").on(table.pickupTownshipId),
     index("merchants_created_at_idx").on(table.createdAt),
   ],
 );
@@ -95,25 +109,23 @@ export const merchants = pgTable(
 export const riders = pgTable(
   "riders",
   {
-    id: uuid("id").defaultRandom().primaryKey(),
-    riderCode: text("rider_code").notNull(),
-    fullName: text("full_name").notNull(),
-    phoneNumber: text("phone_number"),
-    address: text("address").notNull(),
-    township: text("township").notNull(),
-    notes: text("notes"),
-    linkedAppUserId: uuid("linked_app_user_id").references(() => appUsers.id, {
-      onDelete: "set null",
+    appUserId: uuid("app_user_id")
+      .primaryKey()
+      .references(() => appUsers.id, { onDelete: "cascade" }),
+    townshipId: uuid("township_id").references(() => townships.id, {
+      onDelete: "restrict",
     }),
+    vehicleType: text("vehicle_type").notNull().default("bike"),
+    licensePlate: text("license_plate"),
+    isActive: boolean("is_active").default(true).notNull(),
+    notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("riders_rider_code_uidx").on(table.riderCode),
-    uniqueIndex("riders_linked_app_user_uidx").on(table.linkedAppUserId),
-    index("riders_full_name_idx").on(table.fullName),
-    index("riders_phone_idx").on(table.phoneNumber),
-    index("riders_township_idx").on(table.township),
+    index("riders_township_idx").on(table.townshipId),
+    index("riders_vehicle_type_idx").on(table.vehicleType),
+    index("riders_active_idx").on(table.isActive),
     index("riders_created_at_idx").on(table.createdAt),
   ],
 );
@@ -122,6 +134,8 @@ export type Role = typeof roles.$inferSelect;
 export type Permission = typeof permissions.$inferSelect;
 export type AppUser = typeof appUsers.$inferSelect;
 export type NewAppUser = typeof appUsers.$inferInsert;
+export type Township = typeof townships.$inferSelect;
+export type NewTownship = typeof townships.$inferInsert;
 export type Merchant = typeof merchants.$inferSelect;
 export type NewMerchant = typeof merchants.$inferInsert;
 export type Rider = typeof riders.$inferSelect;

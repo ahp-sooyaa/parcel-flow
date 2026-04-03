@@ -81,20 +81,13 @@ describe("canAccessDashboardPath", () => {
     ).toBe(false);
   });
 
-  it("requires merchant.create permission for merchant create route", () => {
+  it("denies removed merchant create route", () => {
     expect(
       canAccessDashboardPath(
         "/dashboard/merchants/create",
-        createAccessContext({ permissions: ["merchant.view"] }),
+        createAccessContext({ permissions: ["user.create"] }),
       ),
     ).toBe(false);
-
-    expect(
-      canAccessDashboardPath(
-        "/dashboard/merchants/create",
-        createAccessContext({ permissions: ["merchant.create"] }),
-      ),
-    ).toBe(true);
   });
 
   it("allows nested user detail path with user.view permission", () => {
@@ -110,6 +103,28 @@ describe("canAccessDashboardPath", () => {
     expect(canAccessDashboardPath("/dashboard/profile", createAccessContext())).toBe(true);
   });
 
+  it("requires township permissions for township routes", () => {
+    expect(canAccessDashboardPath("/dashboard/townships", createAccessContext())).toBe(false);
+    expect(
+      canAccessDashboardPath(
+        "/dashboard/townships",
+        createAccessContext({ permissions: ["township-list.view"] }),
+      ),
+    ).toBe(true);
+    expect(
+      canAccessDashboardPath(
+        "/dashboard/townships/create",
+        createAccessContext({ permissions: ["township.update"] }),
+      ),
+    ).toBe(false);
+    expect(
+      canAccessDashboardPath(
+        "/dashboard/townships/create",
+        createAccessContext({ permissions: ["township.create"] }),
+      ),
+    ).toBe(true);
+  });
+
   it("denies nested rider path when rider permission set is missing", () => {
     expect(
       canAccessDashboardPath(
@@ -117,5 +132,23 @@ describe("canAccessDashboardPath", () => {
         createAccessContext({ permissions: ["dashboard-page.view"] }),
       ),
     ).toBe(false);
+  });
+
+  it("allows merchant self detail path without direct merchant permissions", () => {
+    expect(
+      canAccessDashboardPath(
+        "/dashboard/merchants/merchant-1",
+        createAccessContext({ appUserId: "merchant-1", roleSlug: "merchant" }),
+      ),
+    ).toBe(true);
+  });
+
+  it("allows rider self detail path without direct rider permissions", () => {
+    expect(
+      canAccessDashboardPath(
+        "/dashboard/riders/rider-1",
+        createAccessContext({ appUserId: "rider-1", roleSlug: "rider" }),
+      ),
+    ).toBe(true);
   });
 });

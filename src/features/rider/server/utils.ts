@@ -1,23 +1,9 @@
 import "server-only";
 import { z } from "zod";
-import { YANGON_TOWNSHIPS } from "@/features/merchant/constants";
-import { optionalNullableTrimmedString, optionalNullableUuid } from "@/lib/validation/zod-helpers";
 
-export const RIDER_CODE_REGEX = /^RDR-\d{4}$/;
+import type { PermissionSlug, RoleSlug } from "@/db/constants";
 
-export const createRiderSchema = z.object({
-  riderCode: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .regex(RIDER_CODE_REGEX, "Rider code must follow RDR-XXXX format."),
-  fullName: z.string().trim().min(2).max(120),
-  phoneNumber: optionalNullableTrimmedString(30),
-  address: z.string().trim().min(3).max(255),
-  township: z.enum(YANGON_TOWNSHIPS),
-  notes: optionalNullableTrimmedString(1000),
-  linkedAppUserId: optionalNullableUuid(),
-});
+const riderIdSchema = z.string().trim().uuid();
 
 export function normalizeRiderSearchQuery(raw: string | undefined) {
   return raw?.trim() ?? "";
@@ -25,4 +11,26 @@ export function normalizeRiderSearchQuery(raw: string | undefined) {
 
 export function toRiderSearchPattern(query: string) {
   return `%${query.replaceAll("%", "").replaceAll("_", "")}%`;
+}
+
+export function isRiderId(value: string) {
+  return riderIdSchema.safeParse(value).success;
+}
+
+export function canAccessRiderResource(input: {
+  viewerRoleSlug: RoleSlug;
+  viewerAppUserId: string;
+  riderAppUserId: string;
+  viewerPermissions?: readonly PermissionSlug[];
+  permission?: PermissionSlug;
+}) {
+  if (input.permission && input.viewerPermissions?.includes(input.permission)) {
+    return true;
+  }
+
+  if (input.viewerRoleSlug !== "rider") {
+    return false;
+  }
+
+  return input.riderAppUserId === input.viewerAppUserId;
 }

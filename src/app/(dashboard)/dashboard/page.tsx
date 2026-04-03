@@ -43,6 +43,16 @@ export default async function DashboardPage() {
             </Button>
           </article>
         </IfPermitted>
+
+        <IfPermitted permission="township-list.view">
+          <article className="rounded-xl border bg-card p-4">
+            <p className="text-xs text-muted-foreground">Townships</p>
+            <p className="mt-2 text-sm">Manage township master data used across operations.</p>
+            <Button asChild className="mt-4" size="sm" variant="outline">
+              <Link href="/dashboard/townships">Open Townships</Link>
+            </Button>
+          </article>
+        </IfPermitted>
       </div>
     </section>
   );

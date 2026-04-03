@@ -1,17 +1,14 @@
 import "server-only";
-import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
+import { asc, desc, eq, ilike, or } from "drizzle-orm";
 import {
   toMerchantDetailDto,
   toMerchantListItemDto,
   type MerchantDetailDto,
-  type MerchantLinkableUserDto,
   type MerchantListItemDto,
 } from "./dto";
 import { isMerchantId, normalizeMerchantSearchQuery, toMerchantSearchPattern } from "./utils";
 import { db } from "@/db";
-import { appUsers, merchants, roles } from "@/db/schema";
-
-import type { RoleSlug } from "@/db/constants";
+import { appUsers, merchants, townships } from "@/db/schema";
 
 export async function getMerchantsList(
   input: {
@@ -27,107 +24,60 @@ export async function getMerchantsList(
 
   const rows = await db
     .select({
-      id: merchants.id,
-      name: merchants.name,
-      phoneNumber: merchants.phoneNumber,
-      township: merchants.township,
-      address: merchants.address,
-      linkedAppUserId: merchants.linkedAppUserId,
-      linkedAppUserName: appUsers.fullName,
+      id: merchants.appUserId,
+      shopName: merchants.shopName,
+      contactName: appUsers.fullName,
+      phoneNumber: appUsers.phoneNumber,
+      townshipName: townships.name,
+      defaultPickupAddress: merchants.defaultPickupAddress,
       createdAt: merchants.createdAt,
     })
     .from(merchants)
-    .leftJoin(appUsers, eq(merchants.linkedAppUserId, appUsers.id))
+    .innerJoin(appUsers, eq(merchants.appUserId, appUsers.id))
+    .leftJoin(townships, eq(merchants.pickupTownshipId, townships.id))
     .where(
       searchPattern
-        ? or(ilike(merchants.name, searchPattern), ilike(merchants.phoneNumber, searchPattern))
+        ? or(ilike(merchants.shopName, searchPattern), ilike(appUsers.fullName, searchPattern))
         : undefined,
     )
-    .orderBy(asc(merchants.name), desc(merchants.createdAt))
+    .orderBy(asc(merchants.shopName), desc(merchants.createdAt))
     .limit(safeLimit);
 
   return rows.map((row) =>
     toMerchantListItemDto({
       id: row.id,
-      name: row.name,
+      shopName: row.shopName,
+      contactName: row.contactName,
       phoneNumber: row.phoneNumber,
-      township: row.township,
-      address: row.address,
-      linkedAppUserId: row.linkedAppUserId,
-      linkedAppUserName: row.linkedAppUserName,
+      townshipName: row.townshipName,
+      defaultPickupAddress: row.defaultPickupAddress,
       createdAt: row.createdAt,
     }),
   );
 }
 
-export async function getMerchantByIdForViewer(input: {
-  merchantId: string;
-  viewerRoleSlug: RoleSlug;
-  viewerAppUserId: string;
-}): Promise<MerchantDetailDto | null> {
-  if (!isMerchantId(input.merchantId)) {
+export async function getMerchantById(merchantId: string): Promise<MerchantDetailDto | null> {
+  if (!isMerchantId(merchantId)) {
     return null;
-  }
-
-  if (input.viewerRoleSlug === "merchant") {
-    const [row] = await db
-      .select({
-        id: merchants.id,
-        name: merchants.name,
-        phoneNumber: merchants.phoneNumber,
-        township: merchants.township,
-        address: merchants.address,
-        notes: merchants.notes,
-        linkedAppUserId: merchants.linkedAppUserId,
-        linkedAppUserName: appUsers.fullName,
-        createdAt: merchants.createdAt,
-        updatedAt: merchants.updatedAt,
-      })
-      .from(merchants)
-      .leftJoin(appUsers, eq(merchants.linkedAppUserId, appUsers.id))
-      .where(
-        and(
-          eq(merchants.linkedAppUserId, input.viewerAppUserId),
-          eq(merchants.id, input.merchantId),
-        ),
-      )
-      .orderBy(desc(merchants.createdAt))
-      .limit(1);
-
-    if (!row) {
-      return null;
-    }
-
-    return toMerchantDetailDto({
-      id: row.id,
-      name: row.name,
-      phoneNumber: row.phoneNumber,
-      township: row.township,
-      address: row.address,
-      notes: row.notes,
-      linkedAppUserId: row.linkedAppUserId,
-      linkedAppUserName: row.linkedAppUserName,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-    });
   }
 
   const [row] = await db
     .select({
-      id: merchants.id,
-      name: merchants.name,
-      phoneNumber: merchants.phoneNumber,
-      township: merchants.township,
-      address: merchants.address,
+      id: merchants.appUserId,
+      shopName: merchants.shopName,
+      contactName: appUsers.fullName,
+      email: appUsers.email,
+      phoneNumber: appUsers.phoneNumber,
+      townshipName: townships.name,
+      defaultPickupAddress: merchants.defaultPickupAddress,
       notes: merchants.notes,
-      linkedAppUserId: merchants.linkedAppUserId,
-      linkedAppUserName: appUsers.fullName,
       createdAt: merchants.createdAt,
       updatedAt: merchants.updatedAt,
     })
     .from(merchants)
-    .leftJoin(appUsers, eq(merchants.linkedAppUserId, appUsers.id))
-    .where(eq(merchants.id, input.merchantId))
+    .innerJoin(appUsers, eq(merchants.appUserId, appUsers.id))
+    .leftJoin(townships, eq(merchants.pickupTownshipId, townships.id))
+    .where(eq(merchants.appUserId, merchantId))
     .limit(1);
 
   if (!row) {
@@ -136,60 +86,45 @@ export async function getMerchantByIdForViewer(input: {
 
   return toMerchantDetailDto({
     id: row.id,
-    name: row.name,
+    shopName: row.shopName,
+    contactName: row.contactName,
+    email: row.email,
     phoneNumber: row.phoneNumber,
-    township: row.township,
-    address: row.address,
+    townshipName: row.townshipName,
+    defaultPickupAddress: row.defaultPickupAddress,
     notes: row.notes,
-    linkedAppUserId: row.linkedAppUserId,
-    linkedAppUserName: row.linkedAppUserName,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   });
 }
 
-export async function createMerchant(input: {
-  name: string;
-  phoneNumber: string | null;
-  address: string;
-  township: string;
+export async function createMerchantProfile(input: {
+  appUserId: string;
+  shopName: string;
+  pickupTownshipId: string | null;
+  defaultPickupAddress: string | null;
   notes: string | null;
-  linkedAppUserId: string | null;
 }) {
   const [created] = await db
     .insert(merchants)
     .values({
-      name: input.name,
-      phoneNumber: input.phoneNumber,
-      address: input.address,
-      township: input.township,
+      appUserId: input.appUserId,
+      shopName: input.shopName,
+      pickupTownshipId: input.pickupTownshipId,
+      defaultPickupAddress: input.defaultPickupAddress,
       notes: input.notes,
-      linkedAppUserId: input.linkedAppUserId,
     })
-    .returning({ id: merchants.id });
+    .returning({ id: merchants.appUserId });
 
   return created;
 }
 
-export async function findMerchantByLinkedAppUserId(linkedAppUserId: string) {
+export async function findMerchantByAppUserId(appUserId: string) {
   const [row] = await db
-    .select({ id: merchants.id })
+    .select({ id: merchants.appUserId })
     .from(merchants)
-    .where(eq(merchants.linkedAppUserId, linkedAppUserId))
+    .where(eq(merchants.appUserId, appUserId))
     .limit(1);
 
   return row ?? null;
-}
-
-export async function getMerchantLinkableUsers(): Promise<MerchantLinkableUserDto[]> {
-  return db
-    .select({
-      id: appUsers.id,
-      fullName: appUsers.fullName,
-      email: appUsers.email,
-    })
-    .from(appUsers)
-    .innerJoin(roles, eq(appUsers.roleId, roles.id))
-    .where(and(eq(roles.slug, "merchant"), eq(appUsers.isActive, true)))
-    .orderBy(asc(appUsers.fullName));
 }

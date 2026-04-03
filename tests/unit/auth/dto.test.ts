@@ -36,6 +36,7 @@ describe("auth dto mappers", () => {
         "user-list.view",
         "merchant-list.view",
         "parcel-list.view",
+        "township-list.view",
       ],
       role: { slug: "office_admin", label: "Office Admin" },
     });
@@ -47,17 +48,18 @@ describe("auth dto mappers", () => {
       "users",
       "merchants",
       "parcels",
+      "townships",
     ]);
     expect(dto.mustResetPassword).toBe(false);
   });
 
-  it("returns my-merchant navigation for merchant role when merchant.view exists", () => {
+  it("returns my-merchant navigation for merchant role when linked merchant exists", () => {
     const dto = toDashboardShellUserDto({
       appUserId: "merchant-user-1",
       linkedMerchantId: "7f048ecf-7989-4f2e-b0a2-97f950f53ea4",
       fullName: "Merchant User",
       mustResetPassword: true,
-      permissions: ["dashboard-page.view", "merchant.view"],
+      permissions: ["dashboard-page.view"],
       role: { slug: "merchant", label: "Merchant" },
     });
 
@@ -100,7 +102,7 @@ describe("auth dto mappers", () => {
     ]);
   });
 
-  it("does not create merchant nav for merchant role when merchant.view is missing", () => {
+  it("does not create merchant nav for merchant role when linked merchant id is missing", () => {
     const dto = toDashboardShellUserDto({
       appUserId: "merchant-user-2",
       linkedMerchantId: null,
@@ -119,13 +121,14 @@ describe("auth dto mappers", () => {
       linkedMerchantId: null,
       fullName: "Dispatch User",
       mustResetPassword: false,
-      permissions: ["dashboard-page.view", "rider-list.view"],
+      permissions: ["dashboard-page.view", "rider-list.view", "township-list.view"],
       role: { slug: "office_admin", label: "Office Admin" },
     });
 
     expect(dto.navItems).toEqual([
       { key: "dashboard", href: "/dashboard", label: "Dashboard" },
       { key: "riders", href: "/dashboard/riders", label: "Riders" },
+      { key: "townships", href: "/dashboard/townships", label: "Townships" },
     ]);
   });
 
@@ -135,10 +138,38 @@ describe("auth dto mappers", () => {
       linkedMerchantId: null,
       fullName: "Merchant Without Profile",
       mustResetPassword: false,
-      permissions: ["dashboard-page.view", "merchant.view"],
+      permissions: ["dashboard-page.view"],
       role: { slug: "merchant", label: "Merchant" },
     });
 
     expect(dto.navItems).toEqual([{ key: "dashboard", href: "/dashboard", label: "Dashboard" }]);
+  });
+
+  it("shows township navigation only when township permission exists", () => {
+    const dto = toDashboardShellUserDto({
+      appUserId: "app-5",
+      linkedMerchantId: null,
+      fullName: "Township User",
+      mustResetPassword: false,
+      permissions: ["township-list.view"],
+      role: { slug: "office_admin", label: "Office Admin" },
+    });
+
+    expect(dto.navItems).toEqual([
+      { key: "townships", href: "/dashboard/townships", label: "Townships" },
+    ]);
+  });
+
+  it("does not show township navigation for update-only permission", () => {
+    const dto = toDashboardShellUserDto({
+      appUserId: "app-6",
+      linkedMerchantId: null,
+      fullName: "Township Updater",
+      mustResetPassword: false,
+      permissions: ["township.update"],
+      role: { slug: "office_admin", label: "Office Admin" },
+    });
+
+    expect(dto.navItems).toEqual([]);
   });
 });

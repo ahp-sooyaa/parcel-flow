@@ -1,9 +1,14 @@
 import "server-only";
-import { and, asc, desc, eq, ilike, isNull, or } from "drizzle-orm";
-import { toRiderListItemDto, type RiderLinkableUserDto, type RiderListItemDto } from "./dto";
-import { normalizeRiderSearchQuery, toRiderSearchPattern } from "./utils";
+import { asc, desc, eq, ilike, or } from "drizzle-orm";
+import {
+  toRiderDetailDto,
+  toRiderListItemDto,
+  type RiderDetailDto,
+  type RiderListItemDto,
+} from "./dto";
+import { isRiderId, normalizeRiderSearchQuery, toRiderSearchPattern } from "./utils";
 import { db } from "@/db";
-import { appUsers, riders, roles } from "@/db/schema";
+import { appUsers, riders, townships } from "@/db/schema";
 
 export async function getRidersList(
   input: {
@@ -19,105 +24,120 @@ export async function getRidersList(
 
   const rows = await db
     .select({
-      id: riders.id,
-      riderCode: riders.riderCode,
-      fullName: riders.fullName,
-      phoneNumber: riders.phoneNumber,
-      township: riders.township,
-      address: riders.address,
-      linkedAppUserId: riders.linkedAppUserId,
-      linkedAppUserName: appUsers.fullName,
+      id: riders.appUserId,
+      fullName: appUsers.fullName,
+      phoneNumber: appUsers.phoneNumber,
+      townshipName: townships.name,
+      vehicleType: riders.vehicleType,
+      licensePlate: riders.licensePlate,
+      isActive: riders.isActive,
+      notes: riders.notes,
       createdAt: riders.createdAt,
     })
     .from(riders)
-    .leftJoin(appUsers, eq(riders.linkedAppUserId, appUsers.id))
+    .innerJoin(appUsers, eq(riders.appUserId, appUsers.id))
+    .leftJoin(townships, eq(riders.townshipId, townships.id))
     .where(
       searchPattern
         ? or(
-            ilike(riders.riderCode, searchPattern),
-            ilike(riders.fullName, searchPattern),
-            ilike(riders.phoneNumber, searchPattern),
+            ilike(appUsers.fullName, searchPattern),
+            ilike(appUsers.phoneNumber, searchPattern),
+            ilike(riders.vehicleType, searchPattern),
+            ilike(riders.licensePlate, searchPattern),
           )
         : undefined,
     )
-    .orderBy(asc(riders.fullName), desc(riders.createdAt))
+    .orderBy(asc(appUsers.fullName), desc(riders.createdAt))
     .limit(safeLimit);
 
   return rows.map((row) =>
     toRiderListItemDto({
       id: row.id,
-      riderCode: row.riderCode,
       fullName: row.fullName,
       phoneNumber: row.phoneNumber,
-      township: row.township,
-      address: row.address,
-      linkedAppUserId: row.linkedAppUserId,
-      linkedAppUserName: row.linkedAppUserName,
+      townshipName: row.townshipName,
+      vehicleType: row.vehicleType,
+      licensePlate: row.licensePlate,
+      isActive: row.isActive,
+      notes: row.notes,
       createdAt: row.createdAt,
     }),
   );
 }
 
-export async function createRider(input: {
-  riderCode: string;
-  fullName: string;
-  phoneNumber: string | null;
-  address: string;
-  township: string;
+export async function createRiderProfile(input: {
+  appUserId: string;
+  townshipId: string | null;
+  vehicleType: string;
+  licensePlate: string | null;
+  isActive: boolean;
   notes: string | null;
-  linkedAppUserId: string | null;
 }) {
   const [created] = await db
     .insert(riders)
     .values({
-      riderCode: input.riderCode,
-      fullName: input.fullName,
-      phoneNumber: input.phoneNumber,
-      address: input.address,
-      township: input.township,
+      appUserId: input.appUserId,
+      townshipId: input.townshipId,
+      vehicleType: input.vehicleType,
+      licensePlate: input.licensePlate,
+      isActive: input.isActive,
       notes: input.notes,
-      linkedAppUserId: input.linkedAppUserId,
     })
-    .returning({ id: riders.id });
+    .returning({ id: riders.appUserId });
 
   return created;
 }
 
-export async function findRiderByLinkedAppUserId(linkedAppUserId: string) {
+export async function getRiderById(riderId: string): Promise<RiderDetailDto | null> {
+  if (!isRiderId(riderId)) {
+    return null;
+  }
+
   const [row] = await db
-    .select({ id: riders.id })
+    .select({
+      id: riders.appUserId,
+      fullName: appUsers.fullName,
+      email: appUsers.email,
+      phoneNumber: appUsers.phoneNumber,
+      townshipName: townships.name,
+      vehicleType: riders.vehicleType,
+      licensePlate: riders.licensePlate,
+      isActive: riders.isActive,
+      notes: riders.notes,
+      createdAt: riders.createdAt,
+      updatedAt: riders.updatedAt,
+    })
     .from(riders)
-    .where(eq(riders.linkedAppUserId, linkedAppUserId))
+    .innerJoin(appUsers, eq(riders.appUserId, appUsers.id))
+    .leftJoin(townships, eq(riders.townshipId, townships.id))
+    .where(eq(riders.appUserId, riderId))
     .limit(1);
 
-  return row ?? null;
+  if (!row) {
+    return null;
+  }
+
+  return toRiderDetailDto({
+    id: row.id,
+    fullName: row.fullName,
+    email: row.email,
+    phoneNumber: row.phoneNumber,
+    townshipName: row.townshipName,
+    vehicleType: row.vehicleType,
+    licensePlate: row.licensePlate,
+    isActive: row.isActive,
+    notes: row.notes,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  });
 }
 
-export async function findActiveRiderAppUserById(appUserId: string) {
+export async function findRiderByAppUserId(appUserId: string) {
   const [row] = await db
-    .select({
-      id: appUsers.id,
-      fullName: appUsers.fullName,
-      email: appUsers.email,
-    })
-    .from(appUsers)
-    .innerJoin(roles, eq(appUsers.roleId, roles.id))
-    .where(and(eq(appUsers.id, appUserId), eq(appUsers.isActive, true), eq(roles.slug, "rider")))
+    .select({ id: riders.appUserId })
+    .from(riders)
+    .where(eq(riders.appUserId, appUserId))
     .limit(1);
 
   return row ?? null;
-}
-
-export async function getRiderLinkableUsers(): Promise<RiderLinkableUserDto[]> {
-  return db
-    .select({
-      id: appUsers.id,
-      fullName: appUsers.fullName,
-      email: appUsers.email,
-    })
-    .from(appUsers)
-    .innerJoin(roles, eq(appUsers.roleId, roles.id))
-    .leftJoin(riders, eq(riders.linkedAppUserId, appUsers.id))
-    .where(and(eq(roles.slug, "rider"), eq(appUsers.isActive, true), isNull(riders.id)))
-    .orderBy(asc(appUsers.fullName));
 }
