@@ -230,4 +230,56 @@ describe("users actions integration", () => {
     expect(dbInsertMock).not.toHaveBeenCalled();
     expect(createMerchantProfileMock).not.toHaveBeenCalled();
   });
+
+  it("createUserAction preserves an unchecked rider active flag", async () => {
+    const { createUserAction } = await import("@/features/users/server/actions");
+    const townshipId = "7f048ecf-7989-4f2e-b0a2-97f950f53ea4";
+
+    requirePermissionMock.mockResolvedValue({
+      appUserId: "admin-1",
+      role: { slug: "super_admin" },
+    });
+    findRoleBySlugMock.mockResolvedValue({ id: "role-rider" });
+    findTownshipByIdMock.mockResolvedValue({ id: townshipId, name: "Bahan", isActive: true });
+    generateStrongPasswordMock.mockReturnValue("temp-password");
+
+    const deleteUserMock = vi.fn().mockResolvedValue({});
+    const createUserMock = vi.fn().mockResolvedValue({
+      data: { user: { id: "supabase-user-3" } },
+      error: null,
+    });
+    createSupabaseAdminClientMock.mockReturnValue({
+      auth: {
+        admin: {
+          createUser: createUserMock,
+          deleteUser: deleteUserMock,
+        },
+      },
+    });
+
+    const returningMock = vi.fn().mockResolvedValue([{ id: "app-user-3" }]);
+    const valuesMock = vi.fn().mockReturnValue({ returning: returningMock });
+    dbInsertMock.mockReturnValue({ values: valuesMock });
+    createRiderProfileMock.mockResolvedValue({ id: "app-user-3" });
+
+    const riderForm = new FormData();
+    riderForm.set("fullName", "Inactive Rider");
+    riderForm.set("email", "inactive-rider@example.com");
+    riderForm.set("role", "rider");
+    riderForm.set("isActive", "on");
+    riderForm.set("riderTownshipId", townshipId);
+
+    const result = await createUserAction({ ok: false, message: "" }, riderForm);
+
+    expect(result.ok).toBe(true);
+    expect(createRiderProfileMock).toHaveBeenCalledWith({
+      appUserId: "app-user-3",
+      townshipId,
+      vehicleType: "bike",
+      licensePlate: null,
+      isActive: false,
+      notes: null,
+    });
+    expect(deleteUserMock).not.toHaveBeenCalled();
+  });
 });

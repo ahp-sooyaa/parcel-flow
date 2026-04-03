@@ -17,15 +17,24 @@ CREATE POLICY townships_insert_authenticated
 ON public.townships
 FOR INSERT
 TO authenticated
-WITH CHECK (true);
+WITH CHECK (
+  public.is_super_admin()
+  OR public.is_office_admin()
+);
 --> statement-breakpoint
 
 CREATE POLICY townships_update_authenticated
 ON public.townships
 FOR UPDATE
 TO authenticated
-USING (true)
-WITH CHECK (true);
+USING (
+  public.is_super_admin()
+  OR public.is_office_admin()
+)
+WITH CHECK (
+  public.is_super_admin()
+  OR public.is_office_admin()
+);
 --> statement-breakpoint
 
 CREATE POLICY townships_delete_super_admin_only

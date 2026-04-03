@@ -35,9 +35,7 @@ async function parseCreateUserInput(formData: FormData) {
     riderVehicleType: formData.get("riderVehicleType"),
     riderLicensePlate: formData.get("riderLicensePlate"),
     riderNotes: formData.get("riderNotes"),
-    riderIsActive: formData.has("riderIsActive")
-      ? parseActiveFlag(formData.get("riderIsActive"))
-      : true,
+    riderIsActive: parseActiveFlag(formData.get("riderIsActive")),
   });
 }
 
