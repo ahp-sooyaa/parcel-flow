@@ -437,12 +437,6 @@ export async function softDeleteUserAction(
 
     const deletedAt = new Date();
     const deletedEmail = `${targetAppUser.email}_deleted_${deletedAt.getTime()}`;
-    const supabaseAdmin = createSupabaseAdminClient();
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(targetAppUser.supabaseUserId);
-
-    if (error) {
-      return { ok: false, message: "Failed to delete auth user." };
-    }
 
     await db.transaction(async (tx) => {
       await tx
@@ -472,12 +466,17 @@ export async function softDeleteUserAction(
         .where(and(eq(riders.appUserId, parsed.data.userId), isNull(riders.deletedAt)));
     });
 
+    const supabaseAdmin = createSupabaseAdminClient();
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(targetAppUser.supabaseUserId);
+    const authUserDeleted = !error;
+
     await logAuditEvent({
       event: "user.delete",
       actorAppUserId: currentUser.appUserId,
       targetAppUserId: parsed.data.userId,
       metadata: {
-        authUserDeleted: true,
+        authDeleteError: error?.message ?? null,
+        authUserDeleted,
         deletedEmail,
         softDeleted: true,
       },
