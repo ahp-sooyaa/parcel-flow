@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import { getCurrentUserContext } from "@/features/auth/server/utils";
 import { getRiderById } from "@/features/rider/server/dal";
 import { canAccessRiderResource } from "@/features/rider/server/utils";
@@ -33,12 +35,28 @@ export default async function RiderDetailPage({ params }: Readonly<RiderDetailPa
     notFound();
   }
 
+  const canEditRider = canAccessRiderResource({
+    viewerRoleSlug: currentUser.role.slug,
+    viewerAppUserId: currentUser.appUserId,
+    riderAppUserId: id,
+    viewerPermissions: currentUser.permissions,
+    permission: "rider.update",
+  });
+
   return (
     <section className="mx-auto w-full max-w-3xl space-y-6">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">{rider.fullName}</h1>
         <p className="text-sm text-muted-foreground">Rider detail profile</p>
       </header>
+
+      {canEditRider ? (
+        <div>
+          <Button asChild variant="outline">
+            <Link href={`/dashboard/riders/${rider.id}/edit`}>Edit Rider Profile</Link>
+          </Button>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 rounded-xl border bg-card p-5 text-sm">
         <div className="grid gap-1">

@@ -29,6 +29,7 @@ describe("auth dto mappers", () => {
     const dto = toDashboardShellUserDto({
       appUserId: "app-1",
       linkedMerchantId: null,
+      linkedRiderId: null,
       fullName: "Office Admin",
       mustResetPassword: false,
       permissions: [
@@ -57,6 +58,7 @@ describe("auth dto mappers", () => {
     const dto = toDashboardShellUserDto({
       appUserId: "merchant-user-1",
       linkedMerchantId: "7f048ecf-7989-4f2e-b0a2-97f950f53ea4",
+      linkedRiderId: null,
       fullName: "Merchant User",
       mustResetPassword: true,
       permissions: ["dashboard-page.view"],
@@ -78,6 +80,7 @@ describe("auth dto mappers", () => {
     const dto = toDashboardShellUserDto({
       appUserId: "app-2",
       linkedMerchantId: null,
+      linkedRiderId: null,
       fullName: "No Access",
       mustResetPassword: false,
       permissions: [],
@@ -91,6 +94,7 @@ describe("auth dto mappers", () => {
     const dto = toDashboardShellUserDto({
       appUserId: "app-3",
       linkedMerchantId: null,
+      linkedRiderId: null,
       fullName: "Ops User",
       mustResetPassword: false,
       permissions: ["merchant-list.view"],
@@ -106,6 +110,7 @@ describe("auth dto mappers", () => {
     const dto = toDashboardShellUserDto({
       appUserId: "merchant-user-2",
       linkedMerchantId: null,
+      linkedRiderId: null,
       fullName: "Merchant Limited",
       mustResetPassword: false,
       permissions: ["dashboard-page.view"],
@@ -119,6 +124,7 @@ describe("auth dto mappers", () => {
     const dto = toDashboardShellUserDto({
       appUserId: "app-4",
       linkedMerchantId: null,
+      linkedRiderId: null,
       fullName: "Dispatch User",
       mustResetPassword: false,
       permissions: ["dashboard-page.view", "rider-list.view", "township-list.view"],
@@ -136,6 +142,7 @@ describe("auth dto mappers", () => {
     const dto = toDashboardShellUserDto({
       appUserId: "merchant-user-3",
       linkedMerchantId: null,
+      linkedRiderId: null,
       fullName: "Merchant Without Profile",
       mustResetPassword: false,
       permissions: ["dashboard-page.view"],
@@ -149,6 +156,7 @@ describe("auth dto mappers", () => {
     const dto = toDashboardShellUserDto({
       appUserId: "app-5",
       linkedMerchantId: null,
+      linkedRiderId: null,
       fullName: "Township User",
       mustResetPassword: false,
       permissions: ["township-list.view"],
@@ -164,6 +172,7 @@ describe("auth dto mappers", () => {
     const dto = toDashboardShellUserDto({
       appUserId: "app-6",
       linkedMerchantId: null,
+      linkedRiderId: null,
       fullName: "Township Updater",
       mustResetPassword: false,
       permissions: ["township.update"],
@@ -171,5 +180,26 @@ describe("auth dto mappers", () => {
     });
 
     expect(dto.navItems).toEqual([]);
+  });
+
+  it("returns my-rider navigation for rider role when linked rider exists", () => {
+    const dto = toDashboardShellUserDto({
+      appUserId: "rider-user-1",
+      linkedMerchantId: null,
+      linkedRiderId: "0bf797e3-4eaf-4e45-ab56-8b0508b8d7be",
+      fullName: "Rider User",
+      mustResetPassword: false,
+      permissions: ["dashboard-page.view"],
+      role: { slug: "rider", label: "Rider" },
+    });
+
+    expect(dto.navItems).toEqual([
+      { key: "dashboard", href: "/dashboard", label: "Dashboard" },
+      {
+        key: "my-rider",
+        href: "/dashboard/riders/0bf797e3-4eaf-4e45-ab56-8b0508b8d7be",
+        label: "My Rider",
+      },
+    ]);
   });
 });

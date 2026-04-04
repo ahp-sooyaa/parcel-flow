@@ -1,5 +1,4 @@
-import type { PermissionSlug } from "@/db/constants";
-import type { RoleSlug } from "@/db/constants";
+import type { PermissionSlug, RoleSlug } from "@/db/constants";
 
 export type AccessContext = {
   permissions: readonly string[];
@@ -62,9 +61,10 @@ function getOwnedResourceId(
     return null;
   }
 
-  const resourceId = pathname.slice(resourcePrefix.length + 1);
+  const resourcePath = pathname.slice(resourcePrefix.length + 1);
+  const [resourceId] = resourcePath.split("/");
 
-  if (!resourceId || resourceId.includes("/")) {
+  if (!resourceId) {
     return null;
   }
 

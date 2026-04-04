@@ -25,7 +25,15 @@ type DashboardShellProps = {
     name: string;
     roleLabel: string;
     navItems: {
-      key: "dashboard" | "users" | "merchants" | "my-merchant" | "riders" | "parcels" | "townships";
+      key:
+        | "dashboard"
+        | "users"
+        | "merchants"
+        | "my-merchant"
+        | "riders"
+        | "my-rider"
+        | "parcels"
+        | "townships";
       href: string;
       label: string;
     }[];
@@ -39,6 +47,7 @@ const navIconByKey: Record<DashboardShellProps["user"]["navItems"][number]["key"
   merchants: <Store className="h-4 w-4" />,
   "my-merchant": <Store className="h-4 w-4" />,
   riders: <Truck className="h-4 w-4" />,
+  "my-rider": <Truck className="h-4 w-4" />,
   parcels: <PackageSearch className="h-4 w-4" />,
   townships: <MapPinned className="h-4 w-4" />,
 };

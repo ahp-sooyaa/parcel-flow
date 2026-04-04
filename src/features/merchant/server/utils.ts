@@ -1,8 +1,8 @@
 import "server-only";
 import { z } from "zod";
+import { optionalNullableTrimmedString, optionalNullableUuid } from "@/lib/validation/zod-helpers";
 
-import type { RoleSlug } from "@/db/constants";
-import type { PermissionSlug } from "@/db/constants";
+import type { RoleSlug, PermissionSlug } from "@/db/constants";
 
 const merchantIdSchema = z.string().trim().uuid();
 
@@ -17,6 +17,14 @@ export function toMerchantSearchPattern(query: string) {
 export function isMerchantId(value: string) {
   return merchantIdSchema.safeParse(value).success;
 }
+
+export const updateMerchantProfileSchema = z.object({
+  merchantId: z.string().trim().uuid(),
+  shopName: z.string().trim().min(2).max(120),
+  pickupTownshipId: optionalNullableUuid(),
+  defaultPickupAddress: optionalNullableTrimmedString(255),
+  notes: optionalNullableTrimmedString(1000),
+});
 
 export function canAccessMerchantResource(input: {
   viewerRoleSlug: RoleSlug;

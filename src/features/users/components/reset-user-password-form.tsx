@@ -14,7 +14,7 @@ const initialState = {
   temporaryPassword: undefined,
 };
 
-export function ResetUserPasswordForm({ userId }: ResetUserPasswordFormProps) {
+export function ResetUserPasswordForm({ userId }: Readonly<ResetUserPasswordFormProps>) {
   const [state, action, isPending] = useActionState(resetUserPasswordAction, initialState);
 
   return (

@@ -118,7 +118,6 @@ erDiagram
         string event "e.g. update_parcel_status"
         jsonb old_values
         jsonb new_values
-        timestamp deleted_at
         timestamp created_at
     }
 
@@ -134,8 +133,7 @@ erDiagram
         uuid created_by_user_id FK
         string receipt_url
         text note
-        string status
-        timestamp deleted_at
+        string status "pending | in_progress | paid | cancelled | rejected"
         timestamp created_at
         timestamp updated_at
     }
@@ -146,7 +144,6 @@ erDiagram
         uuid parcel_payment_record_id FK
         decimal snapshot_delivery_fee
         decimal payout_amount
-        timestamp deleted_at
         timestamp created_at
         timestamp updated_at
     }
@@ -165,8 +162,7 @@ erDiagram
         string receipt_url
         text note
         string type "invoice | remit"
-        string status
-        timestamp deleted_at
+        string status "pending | in_progress | paid | cancelled | rejected"
         timestamp created_at
         timestamp updated_at
     }
@@ -179,7 +175,6 @@ erDiagram
         decimal snapshot_delivery_fee
         boolean is_delivery_fee_deducted
         decimal net_payable_amount
-        timestamp deleted_at
         timestamp created_at
         timestamp updated_at
     }

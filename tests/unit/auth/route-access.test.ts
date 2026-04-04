@@ -151,4 +151,22 @@ describe("canAccessDashboardPath", () => {
       ),
     ).toBe(true);
   });
+
+  it("allows merchant self edit path without direct merchant permissions", () => {
+    expect(
+      canAccessDashboardPath(
+        "/dashboard/merchants/merchant-1/edit",
+        createAccessContext({ appUserId: "merchant-1", roleSlug: "merchant" }),
+      ),
+    ).toBe(true);
+  });
+
+  it("allows rider self edit path without direct rider permissions", () => {
+    expect(
+      canAccessDashboardPath(
+        "/dashboard/riders/rider-1/edit",
+        createAccessContext({ appUserId: "rider-1", roleSlug: "rider" }),
+      ),
+    ).toBe(true);
+  });
 });

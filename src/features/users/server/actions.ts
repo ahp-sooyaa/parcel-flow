@@ -1,12 +1,18 @@
 "use server";
 
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { countActiveSuperAdminUsers, getUserStatusGuardContext } from "./dal";
-import { createUserSchema, parseActiveFlag } from "./utils";
+import {
+  createUserSchema,
+  parseActiveFlag,
+  softDeleteUserSchema,
+  updateUserProfileSchema,
+} from "./utils";
 import { db } from "@/db";
-import { appUsers } from "@/db/schema";
+import { appUsers, merchants, riders } from "@/db/schema";
 import { findRoleBySlug, findAppUserById } from "@/features/auth/server/dal";
 import { requirePermission } from "@/features/auth/server/utils";
 import { createMerchantProfile } from "@/features/merchant/server/dal";
@@ -16,7 +22,12 @@ import { logAuditEvent } from "@/lib/security/audit";
 import { generateStrongPassword } from "@/lib/security/password";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
-import type { CreateUserActionResult, ResetUserPasswordActionResult } from "./dto";
+import type {
+  CreateUserActionResult,
+  ResetUserPasswordActionResult,
+  SoftDeleteUserActionResult,
+  UpdateUserProfileActionResult,
+} from "./dto";
 
 type CreateUserInput = ReturnType<typeof createUserSchema.parse>;
 
@@ -71,7 +82,7 @@ async function validateUserRoleAndTownships(input: CreateUserInput, currentUserR
 
     const township = await findTownshipById(check.townshipId);
 
-    if (!township || !township.isActive) {
+    if (!township?.isActive) {
       return { ok: false as const, message: check.message };
     }
   }
@@ -319,4 +330,171 @@ export async function updateUserStatusAction(formData: FormData) {
 
   revalidatePath(`/dashboard/users/${userId}`);
   revalidatePath("/dashboard/users");
+}
+
+export async function updateUserProfileAction(
+  _prevState: UpdateUserProfileActionResult,
+  formData: FormData,
+): Promise<UpdateUserProfileActionResult> {
+  try {
+    const currentUser = await requirePermission("user.update");
+    const parsed = updateUserProfileSchema.safeParse({
+      userId: formData.get("userId"),
+      fullName: formData.get("fullName"),
+      phoneNumber: formData.get("phoneNumber"),
+    });
+
+    if (!parsed.success) {
+      return { ok: false, message: "Please provide valid user profile data." };
+    }
+
+    const targetUser = await getUserStatusGuardContext(parsed.data.userId);
+
+    if (!targetUser) {
+      return { ok: false, message: "User was not found." };
+    }
+
+    if (targetUser.roleSlug === "super_admin" && currentUser.role.slug !== "super_admin") {
+      return { ok: false, message: "Only super admin can update super admin users." };
+    }
+
+    await db
+      .update(appUsers)
+      .set({
+        fullName: parsed.data.fullName,
+        phoneNumber: parsed.data.phoneNumber,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(appUsers.id, parsed.data.userId), isNull(appUsers.deletedAt)));
+
+    await logAuditEvent({
+      event: "user.update",
+      actorAppUserId: currentUser.appUserId,
+      targetAppUserId: parsed.data.userId,
+      metadata: {
+        fullNameChanged: true,
+        phoneNumberProvided: Boolean(parsed.data.phoneNumber),
+      },
+    });
+
+    revalidatePath(`/dashboard/users/${parsed.data.userId}`);
+    revalidatePath(`/dashboard/users/${parsed.data.userId}/edit`);
+    revalidatePath("/dashboard/users");
+    revalidatePath("/dashboard/profile");
+
+    return { ok: true, message: "User profile updated." };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to update user profile.";
+
+    return { ok: false, message };
+  }
+}
+
+export async function softDeleteUserAction(
+  _prevState: SoftDeleteUserActionResult,
+  formData: FormData,
+): Promise<SoftDeleteUserActionResult> {
+  let deletedUserId: string | null = null;
+
+  try {
+    const currentUser = await requirePermission("user.delete");
+
+    if (currentUser.role.slug !== "super_admin") {
+      return { ok: false, message: "Only super admin can delete users." };
+    }
+
+    const parsed = softDeleteUserSchema.safeParse({
+      userId: formData.get("userId"),
+    });
+
+    if (!parsed.success) {
+      return { ok: false, message: "User id is required." };
+    }
+
+    const targetUser = await getUserStatusGuardContext(parsed.data.userId);
+
+    if (!targetUser) {
+      return { ok: false, message: "User was not found." };
+    }
+
+    if (currentUser.appUserId === targetUser.id) {
+      return { ok: false, message: "You cannot delete your own account." };
+    }
+
+    if (targetUser.roleSlug === "super_admin" && targetUser.isActive) {
+      const activeSuperAdminCount = await countActiveSuperAdminUsers();
+
+      if (activeSuperAdminCount <= 1) {
+        return { ok: false, message: "Cannot delete the last active super admin account." };
+      }
+    }
+
+    const targetAppUser = await findAppUserById(parsed.data.userId);
+
+    if (!targetAppUser) {
+      return { ok: false, message: "User was not found." };
+    }
+
+    const deletedAt = new Date();
+    const deletedEmail = `${targetAppUser.email}_deleted_${deletedAt.getTime()}`;
+    const supabaseAdmin = createSupabaseAdminClient();
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(targetAppUser.supabaseUserId);
+
+    if (error) {
+      return { ok: false, message: "Failed to delete auth user." };
+    }
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(appUsers)
+        .set({
+          email: deletedEmail,
+          isActive: false,
+          deletedAt,
+          updatedAt: deletedAt,
+        })
+        .where(and(eq(appUsers.id, parsed.data.userId), isNull(appUsers.deletedAt)));
+
+      await tx
+        .update(merchants)
+        .set({
+          deletedAt,
+          updatedAt: deletedAt,
+        })
+        .where(and(eq(merchants.appUserId, parsed.data.userId), isNull(merchants.deletedAt)));
+
+      await tx
+        .update(riders)
+        .set({
+          deletedAt,
+          updatedAt: deletedAt,
+        })
+        .where(and(eq(riders.appUserId, parsed.data.userId), isNull(riders.deletedAt)));
+    });
+
+    await logAuditEvent({
+      event: "user.delete",
+      actorAppUserId: currentUser.appUserId,
+      targetAppUserId: parsed.data.userId,
+      metadata: {
+        authUserDeleted: true,
+        deletedEmail,
+        softDeleted: true,
+      },
+    });
+    deletedUserId = parsed.data.userId;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to delete user.";
+
+    return { ok: false, message };
+  }
+
+  revalidatePath("/dashboard/users");
+  revalidatePath(`/dashboard/users/${deletedUserId}`);
+  revalidatePath(`/dashboard/users/${deletedUserId}/edit`);
+  revalidatePath("/dashboard/merchants");
+  revalidatePath("/dashboard/riders");
+  revalidatePath("/dashboard/profile");
+
+  redirect("/dashboard/users");
 }

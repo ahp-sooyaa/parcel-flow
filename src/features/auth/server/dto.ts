@@ -4,6 +4,7 @@ import type { PermissionSlug, RoleSlug } from "@/db/constants";
 export type CurrentUserContext = {
   appUserId: string;
   linkedMerchantId: string | null;
+  linkedRiderId: string | null;
   supabaseUserId: string;
   fullName: string;
   email: string;
@@ -22,7 +23,15 @@ export type DashboardShellUserDto = {
   name: string;
   roleLabel: string;
   navItems: {
-    key: "dashboard" | "users" | "merchants" | "my-merchant" | "riders" | "parcels" | "townships";
+    key:
+      | "dashboard"
+      | "users"
+      | "merchants"
+      | "my-merchant"
+      | "riders"
+      | "my-rider"
+      | "parcels"
+      | "townships";
     href: string;
     label: string;
   }[];
@@ -38,6 +47,7 @@ export function toCurrentUserContext(input: CurrentUserContext): CurrentUserCont
   return {
     appUserId: input.appUserId,
     linkedMerchantId: input.linkedMerchantId,
+    linkedRiderId: input.linkedRiderId,
     supabaseUserId: input.supabaseUserId,
     fullName: input.fullName,
     email: input.email,
@@ -56,6 +66,7 @@ export function toCurrentUserContext(input: CurrentUserContext): CurrentUserCont
 export function toDashboardShellUserDto(input: {
   appUserId: string;
   linkedMerchantId: string | null;
+  linkedRiderId: string | null;
   fullName: string;
   mustResetPassword: boolean;
   permissions: readonly PermissionSlug[];
@@ -81,7 +92,13 @@ export function toDashboardShellUserDto(input: {
     navItems.push({ key: "merchants", href: "/dashboard/merchants", label: "Merchants" });
   }
 
-  if (input.permissions.includes("rider-list.view")) {
+  if (input.role.slug === "rider" && input.linkedRiderId) {
+    navItems.push({
+      key: "my-rider",
+      href: `/dashboard/riders/${input.linkedRiderId}`,
+      label: "My Rider",
+    });
+  } else if (input.permissions.includes("rider-list.view")) {
     navItems.push({ key: "riders", href: "/dashboard/riders", label: "Riders" });
   }
 
