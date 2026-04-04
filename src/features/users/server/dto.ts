@@ -31,6 +31,16 @@ export type CreateUserActionResult = {
   temporaryPassword?: string;
 };
 
+export type UpdateUserProfileActionResult = {
+  ok: boolean;
+  message: string;
+};
+
+export type SoftDeleteUserActionResult = {
+  ok: boolean;
+  message: string;
+};
+
 export type ResetUserPasswordActionResult = {
   ok: boolean;
   message: string;

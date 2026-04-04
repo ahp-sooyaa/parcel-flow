@@ -18,6 +18,7 @@ type StubAccessContext = {
   mustResetPassword: boolean;
   permissions: string[];
   linkedMerchantId?: string | null;
+  linkedRiderId?: string | null;
   roleSlug?: RoleSlug;
 };
 
@@ -46,6 +47,7 @@ async function getStubbedCurrentUserContext() {
       appUserId: "e2e-app-user",
       linkedMerchantId:
         typeof parsed.linkedMerchantId === "string" ? parsed.linkedMerchantId : null,
+      linkedRiderId: typeof parsed.linkedRiderId === "string" ? parsed.linkedRiderId : null,
       supabaseUserId: "e2e-supabase-user",
       fullName: "E2E Test User",
       email: "e2e-user@example.com",

@@ -4,7 +4,7 @@ import { requirePermission } from "@/features/auth/server/utils";
 import { getUsersList } from "@/features/users/server/dal";
 
 export default async function UsersPage() {
-  await requirePermission("user-list.view");
+  const currentUser = await requirePermission("user-list.view");
 
   const users = await getUsersList();
 
@@ -46,9 +46,16 @@ export default async function UsersPage() {
                   {user.mustResetPassword ? " • Reset Required" : ""}
                 </td>
                 <td className="px-4 py-3">
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/dashboard/users/${user.id}`}>View</Link>
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/dashboard/users/${user.id}`}>View</Link>
+                    </Button>
+                    {currentUser.permissions.includes("user.update") ? (
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/dashboard/users/${user.id}/edit`}>Edit</Link>
+                      </Button>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ))}

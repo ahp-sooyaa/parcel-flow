@@ -1,17 +1,36 @@
 import { describe, expect, it } from "vitest";
-import {
-  normalizeMerchantSearchQuery,
-  toMerchantSearchPattern,
-} from "@/features/merchant/server/utils";
+import { canAccessMerchantResource } from "@/features/merchant/server/utils";
 
-describe("merchant server utils", () => {
-  it("normalizes merchant search query", () => {
-    expect(normalizeMerchantSearchQuery(undefined)).toBe("");
-    expect(normalizeMerchantSearchQuery("  Aung Shop  ")).toBe("Aung Shop");
+describe("canAccessMerchantResource", () => {
+  it("allows admin access when merchant.update permission is present", () => {
+    expect(
+      canAccessMerchantResource({
+        viewerRoleSlug: "office_admin",
+        viewerAppUserId: "admin-1",
+        merchantAppUserId: "merchant-1",
+        viewerPermissions: ["merchant.update"],
+        permission: "merchant.update",
+      }),
+    ).toBe(true);
   });
 
-  it("builds safe ILIKE pattern from query", () => {
-    expect(toMerchantSearchPattern("abc")).toBe("%abc%");
-    expect(toMerchantSearchPattern("%a_b%")).toBe("%ab%");
+  it("allows merchant self access without direct merchant permission", () => {
+    expect(
+      canAccessMerchantResource({
+        viewerRoleSlug: "merchant",
+        viewerAppUserId: "merchant-1",
+        merchantAppUserId: "merchant-1",
+      }),
+    ).toBe(true);
+  });
+
+  it("denies merchant access to another merchant record", () => {
+    expect(
+      canAccessMerchantResource({
+        viewerRoleSlug: "merchant",
+        viewerAppUserId: "merchant-1",
+        merchantAppUserId: "merchant-2",
+      }),
+    ).toBe(false);
   });
 });

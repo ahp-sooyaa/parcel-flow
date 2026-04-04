@@ -20,6 +20,16 @@ export const createUserSchema = z.object({
   riderIsActive: z.boolean(),
 });
 
+export const updateUserProfileSchema = z.object({
+  userId: z.string().trim().uuid(),
+  fullName: z.string().trim().min(2).max(120),
+  phoneNumber: optionalNullableTrimmedString(30),
+});
+
+export const softDeleteUserSchema = z.object({
+  userId: z.string().trim().uuid(),
+});
+
 export function parseActiveFlag(raw: FormDataEntryValue | null) {
   return raw === "on" || raw === "true";
 }

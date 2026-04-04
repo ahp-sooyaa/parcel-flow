@@ -10,7 +10,7 @@ type MerchantsPageProps = {
 };
 
 export default async function MerchantsPage({ searchParams }: Readonly<MerchantsPageProps>) {
-  await requirePermission("merchant-list.view");
+  const currentUser = await requirePermission("merchant-list.view");
 
   const { q } = await searchParams;
   const query = normalizeMerchantSearchQuery(q);
@@ -75,9 +75,16 @@ export default async function MerchantsPage({ searchParams }: Readonly<Merchants
                   <td className="px-4 py-3">{merchant.phoneNumber ?? "-"}</td>
                   <td className="px-4 py-3">{merchant.townshipName ?? "-"}</td>
                   <td className="px-4 py-3">
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={`/dashboard/merchants/${merchant.id}`}>View</Link>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/dashboard/merchants/${merchant.id}`}>View</Link>
+                      </Button>
+                      {currentUser.permissions.includes("merchant.update") ? (
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/dashboard/merchants/${merchant.id}/edit`}>Edit</Link>
+                        </Button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))

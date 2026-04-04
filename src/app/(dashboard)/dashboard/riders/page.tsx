@@ -10,7 +10,7 @@ type RidersPageProps = {
 };
 
 export default async function RidersPage({ searchParams }: Readonly<RidersPageProps>) {
-  await requirePermission("rider-list.view");
+  const currentUser = await requirePermission("rider-list.view");
 
   const { q } = await searchParams;
   const query = normalizeRiderSearchQuery(q);
@@ -79,9 +79,16 @@ export default async function RidersPage({ searchParams }: Readonly<RidersPagePr
                   <td className="px-4 py-3">{rider.townshipName ?? "-"}</td>
                   <td className="px-4 py-3">{rider.isActive ? "Active" : "Inactive"}</td>
                   <td className="px-4 py-3">
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={`/dashboard/riders/${rider.id}`}>View</Link>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/dashboard/riders/${rider.id}`}>View</Link>
+                      </Button>
+                      {currentUser.permissions.includes("rider.update") ? (
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/dashboard/riders/${rider.id}/edit`}>Edit</Link>
+                        </Button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))

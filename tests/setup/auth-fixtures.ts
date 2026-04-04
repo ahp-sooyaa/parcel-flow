@@ -8,6 +8,7 @@ type E2EAuthHeader = {
   mustResetPassword: boolean;
   permissions: string[];
   linkedMerchantId?: string | null;
+  linkedRiderId?: string | null;
   roleSlug?: RoleSlug;
 };
 
@@ -35,6 +36,7 @@ export function createCurrentUserContext(
   return {
     appUserId: "app-1",
     linkedMerchantId: null,
+    linkedRiderId: null,
     supabaseUserId: "sup-1",
     fullName: "Test User",
     email: "user@example.com",

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, isNull } from "drizzle-orm";
 import {
   toAppUserDetailDto,
   toAppUserListItemDto,
@@ -25,6 +25,7 @@ export async function getUsersList(): Promise<AppUserListItemDto[]> {
     })
     .from(appUsers)
     .innerJoin(roles, eq(appUsers.roleId, roles.id))
+    .where(isNull(appUsers.deletedAt))
     .orderBy(desc(appUsers.createdAt));
 
   return rows.map((row) => toAppUserListItemDto(row));
@@ -46,7 +47,7 @@ export async function getUserById(id: string): Promise<AppUserDetailDto | null> 
     })
     .from(appUsers)
     .innerJoin(roles, eq(appUsers.roleId, roles.id))
-    .where(eq(appUsers.id, id))
+    .where(and(eq(appUsers.id, id), isNull(appUsers.deletedAt)))
     .limit(1);
 
   return row ? toAppUserDetailDto(row) : null;
@@ -69,7 +70,7 @@ export async function getUserStatusGuardContext(
     })
     .from(appUsers)
     .innerJoin(roles, eq(appUsers.roleId, roles.id))
-    .where(eq(appUsers.id, userId))
+    .where(and(eq(appUsers.id, userId), isNull(appUsers.deletedAt)))
     .limit(1);
 
   return row ?? null;
@@ -82,7 +83,9 @@ export async function countActiveSuperAdminUsers(): Promise<number> {
     })
     .from(appUsers)
     .innerJoin(roles, eq(appUsers.roleId, roles.id))
-    .where(and(eq(roles.slug, "super_admin"), eq(appUsers.isActive, true)));
+    .where(
+      and(eq(roles.slug, "super_admin"), eq(appUsers.isActive, true), isNull(appUsers.deletedAt)),
+    );
 
   return Number(row?.total ?? 0);
 }

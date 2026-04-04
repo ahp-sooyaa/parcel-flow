@@ -1,5 +1,5 @@
 import "server-only";
-import { asc, desc, eq, ilike, or } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNull, or } from "drizzle-orm";
 import {
   toRiderDetailDto,
   toRiderListItemDto,
@@ -38,14 +38,18 @@ export async function getRidersList(
     .innerJoin(appUsers, eq(riders.appUserId, appUsers.id))
     .leftJoin(townships, eq(riders.townshipId, townships.id))
     .where(
-      searchPattern
-        ? or(
-            ilike(appUsers.fullName, searchPattern),
-            ilike(appUsers.phoneNumber, searchPattern),
-            ilike(riders.vehicleType, searchPattern),
-            ilike(riders.licensePlate, searchPattern),
-          )
-        : undefined,
+      and(
+        isNull(riders.deletedAt),
+        isNull(appUsers.deletedAt),
+        searchPattern
+          ? or(
+              ilike(appUsers.fullName, searchPattern),
+              ilike(appUsers.phoneNumber, searchPattern),
+              ilike(riders.vehicleType, searchPattern),
+              ilike(riders.licensePlate, searchPattern),
+            )
+          : undefined,
+      ),
     )
     .orderBy(asc(appUsers.fullName), desc(riders.createdAt))
     .limit(safeLimit);
@@ -99,6 +103,7 @@ export async function getRiderById(riderId: string): Promise<RiderDetailDto | nu
       fullName: appUsers.fullName,
       email: appUsers.email,
       phoneNumber: appUsers.phoneNumber,
+      townshipId: riders.townshipId,
       townshipName: townships.name,
       vehicleType: riders.vehicleType,
       licensePlate: riders.licensePlate,
@@ -110,7 +115,7 @@ export async function getRiderById(riderId: string): Promise<RiderDetailDto | nu
     .from(riders)
     .innerJoin(appUsers, eq(riders.appUserId, appUsers.id))
     .leftJoin(townships, eq(riders.townshipId, townships.id))
-    .where(eq(riders.appUserId, riderId))
+    .where(and(eq(riders.appUserId, riderId), isNull(riders.deletedAt), isNull(appUsers.deletedAt)))
     .limit(1);
 
   if (!row) {
@@ -122,6 +127,7 @@ export async function getRiderById(riderId: string): Promise<RiderDetailDto | nu
     fullName: row.fullName,
     email: row.email,
     phoneNumber: row.phoneNumber,
+    townshipId: row.townshipId,
     townshipName: row.townshipName,
     vehicleType: row.vehicleType,
     licensePlate: row.licensePlate,
@@ -136,7 +142,7 @@ export async function findRiderByAppUserId(appUserId: string) {
   const [row] = await db
     .select({ id: riders.appUserId })
     .from(riders)
-    .where(eq(riders.appUserId, appUserId))
+    .where(and(eq(riders.appUserId, appUserId), isNull(riders.deletedAt)))
     .limit(1);
 
   return row ?? null;

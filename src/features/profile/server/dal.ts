@@ -1,5 +1,5 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { headers } from "next/headers";
 import { toProfilePageDto, type ProfilePageDto } from "./dto";
 import { db } from "@/db";
@@ -52,7 +52,7 @@ export async function getProfileByAppUserId(appUserId: string): Promise<ProfileP
       phoneNumber: appUsers.phoneNumber,
     })
     .from(appUsers)
-    .where(eq(appUsers.id, appUserId))
+    .where(and(eq(appUsers.id, appUserId), isNull(appUsers.deletedAt)))
     .limit(1);
 
   return row ? toProfilePageDto(row) : null;

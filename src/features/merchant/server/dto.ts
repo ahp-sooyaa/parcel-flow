@@ -16,6 +16,7 @@ export type MerchantDetailDto = {
   contactName: string;
   email: string;
   phoneNumber: string | null;
+  pickupTownshipId: string | null;
   townshipName: string | null;
   defaultPickupAddress: string | null;
   notes: string | null;
@@ -42,6 +43,7 @@ export function toMerchantDetailDto(input: MerchantDetailDto): MerchantDetailDto
     contactName: input.contactName,
     email: input.email,
     phoneNumber: input.phoneNumber,
+    pickupTownshipId: input.pickupTownshipId,
     townshipName: input.townshipName,
     defaultPickupAddress: input.defaultPickupAddress,
     notes: input.notes,

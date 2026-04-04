@@ -57,6 +57,7 @@ export const appUsers = pgTable(
       .references(() => roles.id),
     isActive: boolean("is_active").default(true).notNull(),
     mustResetPassword: boolean("must_reset_password").default(true).notNull(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -65,6 +66,7 @@ export const appUsers = pgTable(
     uniqueIndex("app_users_email_uidx").on(table.email),
     index("app_users_role_idx").on(table.roleId),
     index("app_users_active_idx").on(table.isActive),
+    index("app_users_deleted_at_idx").on(table.deletedAt),
   ],
 );
 
@@ -96,6 +98,7 @@ export const merchants = pgTable(
     }),
     defaultPickupAddress: text("default_pickup_address"),
     notes: text("notes"),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -103,6 +106,7 @@ export const merchants = pgTable(
     index("merchants_shop_name_idx").on(table.shopName),
     index("merchants_pickup_township_idx").on(table.pickupTownshipId),
     index("merchants_created_at_idx").on(table.createdAt),
+    index("merchants_deleted_at_idx").on(table.deletedAt),
   ],
 );
 
@@ -119,6 +123,7 @@ export const riders = pgTable(
     licensePlate: text("license_plate"),
     isActive: boolean("is_active").default(true).notNull(),
     notes: text("notes"),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -127,6 +132,7 @@ export const riders = pgTable(
     index("riders_vehicle_type_idx").on(table.vehicleType),
     index("riders_active_idx").on(table.isActive),
     index("riders_created_at_idx").on(table.createdAt),
+    index("riders_deleted_at_idx").on(table.deletedAt),
   ],
 );
 

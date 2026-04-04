@@ -50,6 +50,13 @@
       "when": 1775212793484,
       "tag": "0006_township_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1775229170752,
+      "tag": "0007_clean_strong_guy",
+      "breakpoints": true
     }
   ]
 }

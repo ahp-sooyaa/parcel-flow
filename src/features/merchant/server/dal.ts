@@ -1,5 +1,5 @@
 import "server-only";
-import { asc, desc, eq, ilike, or } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNull, or } from "drizzle-orm";
 import {
   toMerchantDetailDto,
   toMerchantListItemDto,
@@ -36,9 +36,13 @@ export async function getMerchantsList(
     .innerJoin(appUsers, eq(merchants.appUserId, appUsers.id))
     .leftJoin(townships, eq(merchants.pickupTownshipId, townships.id))
     .where(
-      searchPattern
-        ? or(ilike(merchants.shopName, searchPattern), ilike(appUsers.fullName, searchPattern))
-        : undefined,
+      and(
+        isNull(merchants.deletedAt),
+        isNull(appUsers.deletedAt),
+        searchPattern
+          ? or(ilike(merchants.shopName, searchPattern), ilike(appUsers.fullName, searchPattern))
+          : undefined,
+      ),
     )
     .orderBy(asc(merchants.shopName), desc(merchants.createdAt))
     .limit(safeLimit);
@@ -68,6 +72,7 @@ export async function getMerchantById(merchantId: string): Promise<MerchantDetai
       contactName: appUsers.fullName,
       email: appUsers.email,
       phoneNumber: appUsers.phoneNumber,
+      pickupTownshipId: merchants.pickupTownshipId,
       townshipName: townships.name,
       defaultPickupAddress: merchants.defaultPickupAddress,
       notes: merchants.notes,
@@ -77,7 +82,13 @@ export async function getMerchantById(merchantId: string): Promise<MerchantDetai
     .from(merchants)
     .innerJoin(appUsers, eq(merchants.appUserId, appUsers.id))
     .leftJoin(townships, eq(merchants.pickupTownshipId, townships.id))
-    .where(eq(merchants.appUserId, merchantId))
+    .where(
+      and(
+        eq(merchants.appUserId, merchantId),
+        isNull(merchants.deletedAt),
+        isNull(appUsers.deletedAt),
+      ),
+    )
     .limit(1);
 
   if (!row) {
@@ -90,6 +101,7 @@ export async function getMerchantById(merchantId: string): Promise<MerchantDetai
     contactName: row.contactName,
     email: row.email,
     phoneNumber: row.phoneNumber,
+    pickupTownshipId: row.pickupTownshipId,
     townshipName: row.townshipName,
     defaultPickupAddress: row.defaultPickupAddress,
     notes: row.notes,
@@ -123,7 +135,7 @@ export async function findMerchantByAppUserId(appUserId: string) {
   const [row] = await db
     .select({ id: merchants.appUserId })
     .from(merchants)
-    .where(eq(merchants.appUserId, appUserId))
+    .where(and(eq(merchants.appUserId, appUserId), isNull(merchants.deletedAt)))
     .limit(1);
 
   return row ?? null;

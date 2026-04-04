@@ -17,6 +17,7 @@ export type RiderDetailDto = {
   fullName: string;
   email: string;
   phoneNumber: string | null;
+  townshipId: string | null;
   townshipName: string | null;
   vehicleType: string;
   licensePlate: string | null;
@@ -46,6 +47,7 @@ export function toRiderDetailDto(input: RiderDetailDto): RiderDetailDto {
     fullName: input.fullName,
     email: input.email,
     phoneNumber: input.phoneNumber,
+    townshipId: input.townshipId,
     townshipName: input.townshipName,
     vehicleType: input.vehicleType,
     licensePlate: input.licensePlate,

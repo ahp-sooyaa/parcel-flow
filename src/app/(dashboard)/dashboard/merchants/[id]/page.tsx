@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import { getCurrentUserContext } from "@/features/auth/server/utils";
 import { getMerchantById } from "@/features/merchant/server/dal";
 import { canAccessMerchantResource } from "@/features/merchant/server/utils";
@@ -33,12 +35,28 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
     notFound();
   }
 
+  const canEditMerchant = canAccessMerchantResource({
+    viewerRoleSlug: currentUser.role.slug,
+    viewerAppUserId: currentUser.appUserId,
+    merchantAppUserId: id,
+    viewerPermissions: currentUser.permissions,
+    permission: "merchant.update",
+  });
+
   return (
     <section className="mx-auto w-full max-w-3xl space-y-6">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">{merchant.shopName}</h1>
         <p className="text-sm text-muted-foreground">Merchant detail profile</p>
       </header>
+
+      {canEditMerchant ? (
+        <div>
+          <Button asChild variant="outline">
+            <Link href={`/dashboard/merchants/${merchant.id}/edit`}>Edit Merchant Profile</Link>
+          </Button>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 rounded-xl border bg-card p-5 text-sm">
         <div className="grid gap-1">

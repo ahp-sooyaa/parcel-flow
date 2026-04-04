@@ -71,4 +71,32 @@ describe("getCurrentUserContext integration", () => {
     expect(getClaimsMock).not.toHaveBeenCalled();
     expect(findCurrentUserContextBySupabaseUserIdMock).not.toHaveBeenCalled();
   });
+
+  it("preserves linked rider id from the e2e auth header", async () => {
+    const linkedRiderId = "0bf797e3-4eaf-4e45-ab56-8b0508b8d7be";
+    const { getCurrentUserContext, getClaimsMock, findCurrentUserContextBySupabaseUserIdMock } =
+      await loadGetCurrentUserContextWithStubbedHeader(
+        JSON.stringify({
+          authenticated: true,
+          isActive: true,
+          mustResetPassword: false,
+          permissions: ["dashboard-page.view", "parcel-list.view"],
+          linkedRiderId,
+          roleSlug: "rider",
+        }),
+      );
+
+    const result = await getCurrentUserContext();
+
+    expect(result).toMatchObject({
+      appUserId: "e2e-app-user",
+      linkedRiderId,
+      role: {
+        slug: "rider",
+      },
+      permissions: ["dashboard-page.view", "parcel-list.view"],
+    });
+    expect(getClaimsMock).not.toHaveBeenCalled();
+    expect(findCurrentUserContextBySupabaseUserIdMock).not.toHaveBeenCalled();
+  });
 });

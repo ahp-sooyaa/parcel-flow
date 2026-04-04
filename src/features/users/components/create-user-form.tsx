@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useActionState } from "react";
+import { useState, useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,7 +33,7 @@ export function CreateUserForm({
   canCreateSuperAdmin,
   defaultRole = "office_admin",
   townships,
-}: CreateUserFormProps) {
+}: Readonly<CreateUserFormProps>) {
   const [state, action, isPending] = useActionState(createUserAction, initialState);
   const selectableRoles: readonly (typeof ROLE_SLUGS)[number][] = canCreateSuperAdmin
     ? ROLE_SLUGS
@@ -80,8 +79,7 @@ export function CreateUserForm({
       </div>
 
       <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" name="isActive" defaultChecked className="h-4 w-4" />
-        User is active
+        <input type="checkbox" name="isActive" defaultChecked className="h-4 w-4" /> User is active
       </label>
 
       {showMerchantFields ? (
@@ -191,8 +189,8 @@ export function CreateUserForm({
           </div>
 
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="riderIsActive" defaultChecked className="h-4 w-4" />
-            Rider is operationally active
+            <input type="checkbox" name="riderIsActive" defaultChecked className="h-4 w-4" /> Rider
+            is operationally active
           </label>
         </div>
       ) : null}
