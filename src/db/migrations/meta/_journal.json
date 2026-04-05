@@ -57,6 +57,13 @@
       "when": 1775229170752,
       "tag": "0007_clean_strong_guy",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1775290804511,
+      "tag": "0008_breezy_korath",
+      "breakpoints": true
     }
   ]
 }

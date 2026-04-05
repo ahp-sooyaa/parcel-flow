@@ -90,8 +90,9 @@ erDiagram
         string delivery_fee_payer "merchant | receiver"
         string type "cod | non-cod"
         decimal total_amount_to_collect
-        string status "active | out_for_pickup | at_office | etc"
-        timestamp deleted_at
+        string status "pending | out_for_pickup | at_office | out_for_delivery | delivered | return_to_office | return_to_merchant | returned | cancelled"
+        jsonb pickup_image_url
+        jsonb proof_of_delivery_image_url
         timestamp created_at
         timestamp updated_at
     }
@@ -99,14 +100,14 @@ erDiagram
     parcel_payment_records {
         uuid id PK
         uuid parcel_id FK
-        string delivery_fee_status "unpaid | paid_by_merchant | etc"
-        string cod_fee_status "unpaid | collected"
+        string delivery_fee_status "unpaid | paid_by_merchant | collected_from_receiver | deduct_from_settlement | bill_merchant | waived"
+        string cod_fee_status "not_applicable | pending | collected | not_collected"
         decimal collected_amount
-        string status "held_by_rider | held_by_office | settled"
+        string collection_status "pending | not_collected | collected_by_rider | received_by_office | void"
         string merchant_settlement_status "pending | in_progress | settled"
         string rider_payout_status "pending | in_progress | paid"
         text note
-        timestamp deleted_at
+        jsonb payment_slip_url
         timestamp created_at
         timestamp updated_at
     }
@@ -134,6 +135,7 @@ erDiagram
         string receipt_url
         text note
         string status "pending | in_progress | paid | cancelled | rejected"
+        jsonb payment_slip_url
         timestamp created_at
         timestamp updated_at
     }
@@ -163,6 +165,7 @@ erDiagram
         text note
         string type "invoice | remit"
         string status "pending | in_progress | paid | cancelled | rejected"
+        jsonb payment_slip_url
         timestamp created_at
         timestamp updated_at
     }
