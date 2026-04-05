@@ -162,9 +162,12 @@ describe("parcels actions", () => {
 
     const result = await updateParcelAction({ ok: true, message: "" }, formData);
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
       message: "Only super admin and office admin can update parcels.",
+    });
+    expect(result.fields).toMatchObject({
+      parcelId: "7f048ecf-7989-4f2e-b0a2-97f950f53ea4",
     });
     expect(updateParcelAndPaymentWithAuditMock).not.toHaveBeenCalled();
   });
