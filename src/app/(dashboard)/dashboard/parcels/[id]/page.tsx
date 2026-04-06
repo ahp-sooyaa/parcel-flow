@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { requirePermission } from "@/features/auth/server/utils";
 import { getParcelById } from "@/features/parcels/server/dal";
-import { isAdminDashboardRole } from "@/features/parcels/server/utils";
 
 type ParcelDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -12,12 +11,8 @@ type ParcelDetailPageProps = {
 export default async function ParcelDetailPage({ params }: Readonly<ParcelDetailPageProps>) {
   const currentUser = await requirePermission("parcel.view");
 
-  if (!isAdminDashboardRole(currentUser.role.slug)) {
-    throw new Error("Forbidden");
-  }
-
   const { id } = await params;
-  const parcel = await getParcelById(id);
+  const parcel = await getParcelById(id, currentUser);
 
   if (!parcel) {
     notFound();

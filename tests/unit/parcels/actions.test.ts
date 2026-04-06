@@ -70,7 +70,7 @@ describe("parcels actions", () => {
     expect(createParcelWithPaymentAndAuditMock).not.toHaveBeenCalled();
   });
 
-  it("creates parcel with selected fee payer and delivery fee status", async () => {
+  it("creates parcel with submitted fee payer and delivery fee status", async () => {
     requirePermissionMock.mockResolvedValue({
       appUserId: "admin-1",
       role: { slug: "office_admin" },
@@ -149,26 +149,39 @@ describe("parcels actions", () => {
     expect(createParcelWithPaymentAndAuditMock).not.toHaveBeenCalled();
   });
 
-  it("blocks parcel updates from rider role for admin dashboard workflow", async () => {
+  it("rejects non-COD parcel creation because create defaults keep COD status pending", async () => {
     requirePermissionMock.mockResolvedValue({
-      appUserId: "rider-1",
-      role: { slug: "rider" },
-      permissions: ["parcel.update"],
+      appUserId: "admin-1",
+      role: { slug: "office_admin" },
+      permissions: ["parcel.create"],
     });
+    findMerchantByAppUserIdMock.mockResolvedValue({ id: "merchant-1" });
+    getRiderByIdMock.mockResolvedValue({ id: "rider-1", isActive: true });
+    findTownshipByIdMock.mockResolvedValue({ id: "township-1", isActive: true });
 
-    const { updateParcelAction } = await import("@/features/parcels/server/actions");
+    const { createParcelAction } = await import("@/features/parcels/server/actions");
     const formData = new FormData();
-    formData.set("parcelId", "7f048ecf-7989-4f2e-b0a2-97f950f53ea4");
+    formData.set("merchantId", "7f048ecf-7989-4f2e-b0a2-97f950f53ea4");
+    formData.set("riderId", "5f0ee80f-ad8d-40ce-8ded-d6fffe44f633");
+    formData.set("recipientName", "Ko Aung");
+    formData.set("recipientPhone", "0912345678");
+    formData.set("recipientTownshipId", "c4e4c8c7-a43b-4c56-8913-8c98ebebc35f");
+    formData.set("recipientAddress", "No 1, Street");
+    formData.set("parcelType", "non_cod");
+    formData.set("codAmount", "0");
+    formData.set("deliveryFee", "1500");
+    formData.set("deliveryFeePayer", "receiver");
+    formData.set("deliveryFeeStatus", "unpaid");
 
-    const result = await updateParcelAction({ ok: true, message: "" }, formData);
+    const result = await createParcelAction({ ok: true, message: "" }, formData);
 
     expect(result).toMatchObject({
       ok: false,
-      message: "Only super admin and office admin can update parcels.",
+      message: "COD status must be 'not_applicable' when parcel type is non-COD.",
     });
     expect(result.fields).toMatchObject({
-      parcelId: "7f048ecf-7989-4f2e-b0a2-97f950f53ea4",
+      parcelType: "non_cod",
     });
-    expect(updateParcelAndPaymentWithAuditMock).not.toHaveBeenCalled();
+    expect(createParcelWithPaymentAndAuditMock).not.toHaveBeenCalled();
   });
 });

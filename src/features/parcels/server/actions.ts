@@ -173,13 +173,22 @@ export async function createParcelAction(
       return { ok: false, message: deliveryFeeStateGuard.message, fields: submittedFields };
     }
 
+    const codStateGuard = validateUpdateCodState({
+      parcelType: parsed.data.parcelType,
+      codStatus: DEFAULT_CREATE_PARCEL_STATE.codStatus,
+    });
+
+    if (!codStateGuard.ok) {
+      return { ok: false, message: codStateGuard.message, fields: submittedFields };
+    }
+
     const parcelCode = await generateUniqueParcelCode();
 
     const totalAmountToCollect = computeTotalAmountToCollect({
       parcelType: parsed.data.parcelType,
       codAmount: parsed.data.codAmount,
       deliveryFee: parsed.data.deliveryFee,
-      deliveryFeePayer: parsed.data.deliveryFeePayer,
+      deliveryFeePayer: DEFAULT_CREATE_PARCEL_STATE.deliveryFeePayer,
     });
 
     const created = await createParcelWithPaymentAndAudit({
@@ -233,14 +242,6 @@ export async function updateParcelAction(
   try {
     const currentUser = await requirePermission("parcel.update");
 
-    if (!isAdminDashboardRole(currentUser.role.slug)) {
-      return {
-        ok: false,
-        message: "Only super admin and office admin can update parcels.",
-        fields: submittedFields,
-      };
-    }
-
     const parsed = updateParcelSchema.safeParse(submittedFields);
 
     if (!parsed.success) {
@@ -281,7 +282,7 @@ export async function updateParcelAction(
       return { ok: false, message: codStateGuard.message, fields: submittedFields };
     }
 
-    const current = await getParcelUpdateContext(parsed.data.parcelId);
+    const current = await getParcelUpdateContext(parsed.data.parcelId, currentUser);
 
     if (!current) {
       return { ok: false, message: "Parcel was not found.", fields: submittedFields };

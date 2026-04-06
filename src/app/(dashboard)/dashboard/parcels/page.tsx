@@ -2,16 +2,10 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { requirePermission } from "@/features/auth/server/utils";
 import { getParcelsList } from "@/features/parcels/server/dal";
-import { isAdminDashboardRole } from "@/features/parcels/server/utils";
 
 export default async function ParcelsPage() {
   const currentUser = await requirePermission("parcel-list.view");
-
-  if (!isAdminDashboardRole(currentUser.role.slug)) {
-    throw new Error("Forbidden");
-  }
-
-  const parcels = await getParcelsList();
+  const parcels = await getParcelsList(currentUser);
 
   return (
     <section className="space-y-5">

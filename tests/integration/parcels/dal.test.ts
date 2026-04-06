@@ -15,6 +15,16 @@ vi.mock("@/db", () => ({
   },
 }));
 
+const adminViewer = {
+  role: {
+    id: "role-1",
+    slug: "office_admin" as const,
+    label: "Office Admin",
+  },
+  linkedMerchantId: null,
+  linkedRiderId: null,
+};
+
 describe("parcels dal integration", () => {
   beforeEach(() => {
     selectMock.mockReset();
@@ -54,7 +64,7 @@ describe("parcels dal integration", () => {
 
     const { getParcelsList } = await import("@/features/parcels/server/dal");
 
-    const rows = await getParcelsList();
+    const rows = await getParcelsList(adminViewer);
 
     expect(orderByMock).toHaveBeenCalledTimes(1);
     expect(rows).toEqual([
@@ -77,7 +87,7 @@ describe("parcels dal integration", () => {
 
     const { getParcelById } = await import("@/features/parcels/server/dal");
 
-    const parcel = await getParcelById("7f048ecf-7989-4f2e-b0a2-97f950f53ea4");
+    const parcel = await getParcelById("7f048ecf-7989-4f2e-b0a2-97f950f53ea4", adminViewer);
 
     expect(whereMock).toHaveBeenCalledTimes(1);
     expect(parcel).toBeNull();

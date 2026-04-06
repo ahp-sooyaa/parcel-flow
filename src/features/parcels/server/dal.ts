@@ -18,7 +18,11 @@ import {
   riders,
   townships,
 } from "@/db/schema";
-import { toMoneyString } from "@/features/parcels/server/utils";
+import { isAdminDashboardRole, toMoneyString } from "@/features/parcels/server/utils";
+
+import type { CurrentUserContext } from "@/features/auth/server/dto";
+
+type ParcelViewerContext = Pick<CurrentUserContext, "linkedMerchantId" | "linkedRiderId" | "role">;
 
 type AuditLogInsertInput = {
   parcelId: string;
@@ -53,7 +57,7 @@ type CreatePaymentInsertInput = {
     | "deduct_from_settlement"
     | "bill_merchant"
     | "waived";
-  codStatus: "pending";
+  codStatus: "not_applicable" | "pending";
   collectedAmount: string;
   collectionStatus: "pending";
   merchantSettlementStatus: "pending";
@@ -157,7 +161,26 @@ type ParcelUpdateContext = {
 
 const riderAppUsers = alias(appUsers, "rider_app_users");
 
-export async function getParcelsList(): Promise<ParcelListItemDto[]> {
+function buildParcelViewerAccessFilter(viewer: ParcelViewerContext) {
+  if (isAdminDashboardRole(viewer.role.slug)) {
+    return undefined;
+  }
+
+  if (viewer.role.slug === "merchant") {
+    return viewer.linkedMerchantId
+      ? eq(parcels.merchantId, viewer.linkedMerchantId)
+      : eq(parcels.id, "");
+  }
+
+  if (viewer.role.slug === "rider") {
+    return viewer.linkedRiderId ? eq(parcels.riderId, viewer.linkedRiderId) : eq(parcels.id, "");
+  }
+
+  return eq(parcels.id, "");
+}
+
+export async function getParcelsList(viewer: ParcelViewerContext): Promise<ParcelListItemDto[]> {
+  const accessFilter = buildParcelViewerAccessFilter(viewer);
   const rows = await db
     .select({
       id: parcels.id,
@@ -174,6 +197,7 @@ export async function getParcelsList(): Promise<ParcelListItemDto[]> {
     .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
     .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
     .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
+    .where(accessFilter)
     .orderBy(desc(parcels.createdAt));
 
   return rows.map((row) =>
@@ -191,7 +215,11 @@ export async function getParcelsList(): Promise<ParcelListItemDto[]> {
   );
 }
 
-export async function getParcelById(parcelId: string): Promise<ParcelDetailDto | null> {
+export async function getParcelById(
+  parcelId: string,
+  viewer: ParcelViewerContext,
+): Promise<ParcelDetailDto | null> {
+  const accessFilter = buildParcelViewerAccessFilter(viewer);
   const [row] = await db
     .select({
       id: parcels.id,
@@ -227,7 +255,7 @@ export async function getParcelById(parcelId: string): Promise<ParcelDetailDto |
     .leftJoin(riderAppUsers, eq(riders.appUserId, riderAppUsers.id))
     .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
     .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
-    .where(eq(parcels.id, parcelId))
+    .where(and(eq(parcels.id, parcelId), accessFilter))
     .limit(1);
 
   if (!row) {
@@ -362,7 +390,9 @@ export async function createParcelWithPaymentAndAudit(input: {
 
 export async function getParcelUpdateContext(
   parcelId: string,
+  viewer: ParcelViewerContext,
 ): Promise<ParcelUpdateContext | null> {
+  const accessFilter = buildParcelViewerAccessFilter(viewer);
   const [row] = await db
     .select({
       parcelId: parcels.id,
@@ -390,7 +420,7 @@ export async function getParcelUpdateContext(
     })
     .from(parcels)
     .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
-    .where(eq(parcels.id, parcelId))
+    .where(and(eq(parcels.id, parcelId), accessFilter))
     .limit(1);
 
   if (!row?.paymentId) {

@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { requirePermission } from "@/features/auth/server/utils";
 import { EditParcelForm } from "@/features/parcels/components/edit-parcel-form";
 import { getParcelById, getParcelFormOptions } from "@/features/parcels/server/dal";
-import { isAdminDashboardRole } from "@/features/parcels/server/utils";
 
 type EditParcelPageProps = {
   params: Promise<{ id: string }>;
@@ -11,12 +10,11 @@ type EditParcelPageProps = {
 export default async function EditParcelPage({ params }: Readonly<EditParcelPageProps>) {
   const currentUser = await requirePermission("parcel.update");
 
-  if (!isAdminDashboardRole(currentUser.role.slug)) {
-    throw new Error("Forbidden");
-  }
-
   const { id } = await params;
-  const [parcel, options] = await Promise.all([getParcelById(id), getParcelFormOptions()]);
+  const [parcel, options] = await Promise.all([
+    getParcelById(id, currentUser),
+    getParcelFormOptions(),
+  ]);
 
   if (!parcel) {
     notFound();

@@ -1,9 +1,9 @@
 import "server-only";
+import { randomInt } from "node:crypto";
 import { z } from "zod";
 import {
   COD_STATUSES,
   COLLECTION_STATUSES,
-  DEFAULT_CREATE_PARCEL_STATE,
   DELIVERY_FEE_PAYERS,
   DELIVERY_FEE_STATUSES,
   MERCHANT_SETTLEMENT_STATUSES,
@@ -109,7 +109,7 @@ export function generateParcelCode(date = new Date()) {
   const year = date.getFullYear().toString().slice(-2);
   const month = padCodeNumber(date.getMonth() + 1, 2);
   const day = padCodeNumber(date.getDate(), 2);
-  const random = padCodeNumber(Math.floor(Math.random() * 1_000_000), 6);
+  const random = padCodeNumber(randomInt(0, 1_000_000), 6);
 
   return `PF-${year}${month}${day}-${random}`;
 }
