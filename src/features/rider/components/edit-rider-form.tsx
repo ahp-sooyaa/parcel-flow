@@ -149,18 +149,18 @@ export function EditRiderForm({
         />
       </div>
 
-      {canEditOperationalStatus ? (
+      {canEditOperationalStatus && (
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="isActive" defaultChecked={isActive} className="h-4 w-4" />{" "}
           Rider is operationally active
         </label>
-      ) : null}
+      )}
 
-      {state.message ? (
+      {state.message && (
         <p className={state.ok ? "text-xs text-emerald-700" : "text-xs text-destructive"}>
           {state.message}
         </p>
-      ) : null}
+      )}
 
       <Button type="submit" disabled={isPending}>
         {isPending ? "Saving..." : "Save Rider Profile"}

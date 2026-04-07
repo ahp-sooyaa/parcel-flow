@@ -82,7 +82,7 @@ export function CreateUserForm({
         <input type="checkbox" name="isActive" defaultChecked className="h-4 w-4" /> User is active
       </label>
 
-      {showMerchantFields ? (
+      {showMerchantFields && (
         <div className="space-y-5 rounded-xl border bg-muted/30 p-4">
           <div className="space-y-1">
             <h2 className="text-sm font-semibold">Merchant Profile</h2>
@@ -139,9 +139,9 @@ export function CreateUserForm({
             />
           </div>
         </div>
-      ) : null}
+      )}
 
-      {showRiderFields ? (
+      {showRiderFields && (
         <div className="space-y-5 rounded-xl border bg-muted/30 p-4">
           <div className="space-y-1">
             <h2 className="text-sm font-semibold">Rider Profile</h2>
@@ -193,9 +193,9 @@ export function CreateUserForm({
             is operationally active
           </label>
         </div>
-      ) : null}
+      )}
 
-      {state.message ? (
+      {state.message && (
         <div
           className={
             state.ok
@@ -206,14 +206,14 @@ export function CreateUserForm({
           <p className={state.ok ? "text-xs text-emerald-800" : "text-xs text-destructive"}>
             {state.message}
           </p>
-          {state.temporaryPassword ? (
+          {state.temporaryPassword && (
             <p className="mt-2 text-xs font-semibold text-amber-900">
               Temporary password (show once):{" "}
               <span className="font-mono">{state.temporaryPassword}</span>
             </p>
-          ) : null}
+          )}
         </div>
-      ) : null}
+      )}
 
       <Button type="submit" disabled={isPending}>
         {isPending ? "Creating..." : "Create User"}

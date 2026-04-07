@@ -84,11 +84,11 @@ export function EditUserForm({
         />
       </div>
 
-      {state.message ? (
+      {state.message && (
         <p className={state.ok ? "text-xs text-emerald-700" : "text-xs text-destructive"}>
           {state.message}
         </p>
-      ) : null}
+      )}
 
       <Button type="submit" disabled={isPending}>
         {isPending ? "Saving..." : "Save User Profile"}

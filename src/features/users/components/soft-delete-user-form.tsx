@@ -32,11 +32,11 @@ export function SoftDeleteUserForm({ userId }: Readonly<SoftDeleteUserFormProps>
     >
       <input type="hidden" name="userId" value={userId} />
 
-      {state.message ? (
+      {state.message && (
         <p className={state.ok ? "text-xs text-emerald-700" : "text-xs text-destructive"}>
           {state.message}
         </p>
-      ) : null}
+      )}
 
       <Button type="submit" variant="destructive" disabled={isPending}>
         {isPending ? "Deleting..." : "Delete User"}

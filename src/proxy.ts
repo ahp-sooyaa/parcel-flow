@@ -290,9 +290,9 @@ export async function proxy(request: NextRequest) {
   );
 
   const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
-  const userId = typeof claimsData?.claims?.sub === "string" ? claimsData.claims.sub : null;
+  const userId = claimsData?.claims?.sub;
 
-  if (claimsError || !userId) {
+  if (claimsError || typeof userId !== "string") {
     return buildSignInRedirect(request, contentSecurityPolicy);
   }
 

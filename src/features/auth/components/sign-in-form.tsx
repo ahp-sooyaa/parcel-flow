@@ -26,11 +26,11 @@ export function SignInForm() {
         <Input id="password" name="password" type="password" required />
       </div>
 
-      {state.message ? (
+      {state.message && (
         <p className={state.ok ? "text-xs text-emerald-700" : "text-xs text-destructive"}>
           {state.message}
         </p>
-      ) : null}
+      )}
 
       <p className="text-xs text-muted-foreground">
         Forgot password is handled by admin-assisted reset in this release.

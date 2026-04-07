@@ -24,7 +24,7 @@ export function ResetUserPasswordForm({ userId }: Readonly<ResetUserPasswordForm
         {isPending ? "Resetting..." : "Reset Password"}
       </Button>
 
-      {state.message ? (
+      {state.message && (
         <div
           className={
             state.ok
@@ -35,14 +35,14 @@ export function ResetUserPasswordForm({ userId }: Readonly<ResetUserPasswordForm
           <p className={state.ok ? "text-xs text-emerald-800" : "text-xs text-destructive"}>
             {state.message}
           </p>
-          {state.temporaryPassword ? (
+          {state.temporaryPassword && (
             <p className="mt-2 text-xs font-semibold text-amber-900">
               Temporary password (show once):{" "}
               <span className="font-mono">{state.temporaryPassword}</span>
             </p>
-          ) : null}
+          )}
         </div>
-      ) : null}
+      )}
     </form>
   );
 }

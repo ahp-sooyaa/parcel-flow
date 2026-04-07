@@ -80,13 +80,13 @@ export function ProfileForms({ fullName, email, phoneNumber }: Readonly<ProfileF
             />
           </div>
 
-          {profileState.message ? (
+          {profileState.message && (
             <p
               className={profileState.ok ? "text-xs text-emerald-700" : "text-xs text-destructive"}
             >
               {profileState.message}
             </p>
-          ) : null}
+          )}
 
           <Button type="submit" disabled={profilePending}>
             {profilePending ? "Saving..." : "Save Profile"}
@@ -117,13 +117,13 @@ export function ProfileForms({ fullName, email, phoneNumber }: Readonly<ProfileF
             />
           </div>
 
-          {passwordState.message ? (
+          {passwordState.message && (
             <p
               className={passwordState.ok ? "text-xs text-emerald-700" : "text-xs text-destructive"}
             >
               {passwordState.message}
             </p>
-          ) : null}
+          )}
 
           <Button type="submit" disabled={passwordPending}>
             {passwordPending ? "Updating..." : "Change Password"}

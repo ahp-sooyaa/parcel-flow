@@ -287,7 +287,7 @@ export function CreateParcelForm({
         </div>
       </section>
 
-      {state.message ? (
+      {state.message && (
         <div
           className={
             state.ok
@@ -299,7 +299,7 @@ export function CreateParcelForm({
             {state.message}
           </p>
         </div>
-      ) : null}
+      )}
 
       <Button type="submit" disabled={isPending}>
         {isPending ? "Creating..." : "Create Parcel"}

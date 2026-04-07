@@ -58,14 +58,14 @@ export function DashboardShell({ children, user }: Readonly<DashboardShellProps>
 
   return (
     <div className="flex min-h-screen bg-muted/40">
-      {isSidebarOpen ? (
+      {isSidebarOpen && (
         <button
           type="button"
           className="fixed inset-0 z-40 bg-black/40 md:hidden"
           aria-label="Close menu"
           onClick={() => setIsSidebarOpen(false)}
         />
-      ) : null}
+      )}
 
       <aside
         className={cn(

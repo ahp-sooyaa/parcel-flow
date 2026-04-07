@@ -33,7 +33,7 @@ export function CreateTownshipForm() {
         Township is active
       </label>
 
-      {state.message ? (
+      {state.message && (
         <div
           className={
             state.ok
@@ -45,7 +45,7 @@ export function CreateTownshipForm() {
             {state.message}
           </p>
         </div>
-      ) : null}
+      )}
 
       <Button type="submit" disabled={isPending}>
         {isPending ? "Creating..." : "Create Township"}
