@@ -1,19 +1,26 @@
 import { notFound } from "next/navigation";
-import { requirePermission } from "@/features/auth/server/utils";
+import { getCurrentUserContext } from "@/features/auth/server/utils";
 import { EditParcelForm } from "@/features/parcels/components/edit-parcel-form";
 import { getParcelById, getParcelFormOptions } from "@/features/parcels/server/dal";
+import { canEditParcel } from "@/features/parcels/server/utils";
 
 type EditParcelPageProps = {
   params: Promise<{ id: string }>;
 };
 
 export default async function EditParcelPage({ params }: Readonly<EditParcelPageProps>) {
-  const currentUser = await requirePermission("parcel.update");
+  const currentUser = await getCurrentUserContext();
+
+  if (!currentUser || !canEditParcel(currentUser)) {
+    notFound();
+  }
 
   const { id } = await params;
   const [parcel, options] = await Promise.all([
     getParcelById(id, currentUser),
-    getParcelFormOptions(),
+    getParcelFormOptions({
+      merchantId: currentUser.role.slug === "merchant" ? currentUser.linkedMerchantId : null,
+    }),
   ]);
 
   if (!parcel) {
@@ -35,6 +42,8 @@ export default async function EditParcelPage({ params }: Readonly<EditParcelPage
         merchants={options.merchants}
         riders={options.riders}
         townships={options.townships}
+        merchantFieldReadOnly={currentUser.role.slug === "merchant"}
+        accountingFieldsReadOnly={currentUser.role.slug === "merchant"}
       />
     </section>
   );

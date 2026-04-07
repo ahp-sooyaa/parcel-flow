@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  canCreateParcel,
+  canEditParcel,
+  canAdvanceRiderParcel,
   computeTotalAmountToCollect,
   createParcelSchema,
   DEFAULT_CREATE_PARCEL_STATE,
+  getNextRiderParcelAction,
+  resolveMerchantScopedParcelOwner,
   validateCreateDeliveryFeeState,
   updateParcelSchema,
 } from "@/features/parcels/server/utils";
@@ -117,5 +122,78 @@ describe("parcels utils", () => {
     expect(valid.ok).toBe(true);
     expect(invalidType.ok).toBe(false);
     expect(invalidAmount.ok).toBe(false);
+  });
+
+  it("resolves merchant parcel ownership from the current merchant session", () => {
+    const allowed = resolveMerchantScopedParcelOwner({
+      viewer: {
+        linkedMerchantId: "merchant-1",
+        linkedRiderId: null,
+        role: { slug: "merchant" },
+      },
+      submittedMerchantId: "merchant-1",
+    });
+    const denied = resolveMerchantScopedParcelOwner({
+      viewer: {
+        linkedMerchantId: "merchant-1",
+        linkedRiderId: null,
+        role: { slug: "merchant" },
+      },
+      submittedMerchantId: "merchant-2",
+    });
+
+    expect(allowed).toEqual({ ok: true, merchantId: "merchant-1" });
+    expect(denied.ok).toBe(false);
+  });
+
+  it("derives rider next actions from parcel status", () => {
+    expect(getNextRiderParcelAction("pending")).toEqual({
+      label: "Start Pickup",
+      nextStatus: "out_for_pickup",
+    });
+    expect(getNextRiderParcelAction("delivered")).toBeNull();
+  });
+
+  it("only allows rider transitions for assigned parcels and valid next statuses", () => {
+    const allowed = canAdvanceRiderParcel({
+      viewer: {
+        linkedMerchantId: null,
+        linkedRiderId: "rider-1",
+        role: { slug: "rider" },
+      },
+      assignedRiderId: "rider-1",
+      currentStatus: "pending",
+      requestedNextStatus: "out_for_pickup",
+    });
+    const denied = canAdvanceRiderParcel({
+      viewer: {
+        linkedMerchantId: null,
+        linkedRiderId: "rider-1",
+        role: { slug: "rider" },
+      },
+      assignedRiderId: "rider-2",
+      currentStatus: "pending",
+      requestedNextStatus: "out_for_pickup",
+    });
+
+    expect(allowed.ok).toBe(true);
+    expect(denied.ok).toBe(false);
+  });
+
+  it("requires a linked merchant profile before allowing merchant parcel create or edit", () => {
+    expect(
+      canCreateParcel({
+        linkedMerchantId: null,
+        linkedRiderId: null,
+        role: { slug: "merchant" },
+      }),
+    ).toBe(false);
+    expect(
+      canEditParcel({
+        linkedMerchantId: null,
+        linkedRiderId: null,
+        role: { slug: "merchant" },
+      }),
+    ).toBe(false);
   });
 });

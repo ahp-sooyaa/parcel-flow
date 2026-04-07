@@ -33,4 +33,16 @@ describe("canAccessRiderResource", () => {
       }),
     ).toBe(false);
   });
+
+  it("does not treat rider self-service permissions as global rider access", () => {
+    expect(
+      canAccessRiderResource({
+        viewerRoleSlug: "rider",
+        viewerAppUserId: "rider-1",
+        riderAppUserId: "rider-2",
+        viewerPermissions: ["rider.view", "rider.update"],
+        permission: "rider.view",
+      }),
+    ).toBe(false);
+  });
 });

@@ -9,13 +9,7 @@ type DashboardLayoutProps = {
   children: ReactNode;
 };
 
-export const dynamic = "force-dynamic";
-
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  return <DashboardShellGuard>{children}</DashboardShellGuard>;
-}
-
-async function DashboardShellGuard({ children }: DashboardLayoutProps) {
+export default async function DashboardLayout({ children }: Readonly<DashboardLayoutProps>) {
   const currentUser = await getCurrentUserContext();
 
   if (!currentUser) {

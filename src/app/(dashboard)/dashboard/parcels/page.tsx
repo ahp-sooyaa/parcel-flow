@@ -1,10 +1,17 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { requirePermission } from "@/features/auth/server/utils";
+import { getCurrentUserContext } from "@/features/auth/server/utils";
 import { getParcelsList } from "@/features/parcels/server/dal";
+import { canAccessParcelList, canEditParcel } from "@/features/parcels/server/utils";
 
 export default async function ParcelsPage() {
-  const currentUser = await requirePermission("parcel-list.view");
+  const currentUser = await getCurrentUserContext();
+
+  if (!currentUser || !canAccessParcelList(currentUser)) {
+    notFound();
+  }
+
   const parcels = await getParcelsList(currentUser);
 
   return (
@@ -52,7 +59,7 @@ export default async function ParcelsPage() {
                     <Button asChild size="sm" variant="outline">
                       <Link href={`/dashboard/parcels/${parcel.id}`}>View</Link>
                     </Button>
-                    {currentUser.permissions.includes("parcel.update") ? (
+                    {canEditParcel(currentUser) ? (
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/dashboard/parcels/${parcel.id}/edit`}>Edit</Link>
                       </Button>

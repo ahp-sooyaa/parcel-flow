@@ -70,16 +70,14 @@ create temporary table seed_rider_allowed_permissions (
   permission_slug text primary key
 ) on commit drop;
 
-insert into seed_rider_allowed_permissions (permission_slug)
-values
-  ('parcel-list.view'),
-  ('parcel.view'),
-  ('parcel.update');
-
 drop table if exists pg_temp.seed_merchant_allowed_permissions;
 create temporary table seed_merchant_allowed_permissions (
   permission_slug text primary key
 ) on commit drop;
+
+insert into seed_merchant_allowed_permissions (permission_slug)
+values
+  ('parcel.create');
 
 drop table if exists pg_temp.seed_essential_permissions;
 create temporary table seed_essential_permissions (

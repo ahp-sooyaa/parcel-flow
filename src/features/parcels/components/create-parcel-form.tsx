@@ -16,6 +16,7 @@ type CreateParcelFormProps = {
   merchants: { id: string; label: string }[];
   riders: { id: string; label: string }[];
   townships: { id: string; label: string }[];
+  merchantFieldReadOnly?: boolean;
 };
 
 const initialState = {
@@ -29,8 +30,13 @@ export function CreateParcelForm({
   merchants,
   riders,
   townships,
+  merchantFieldReadOnly = false,
 }: Readonly<CreateParcelFormProps>) {
   const [state, action, isPending] = useActionState(createParcelAction, initialState);
+  const selectedMerchant = merchants.find(
+    (merchant) => merchant.id === (state.fields?.merchantId ?? ""),
+  );
+  const defaultMerchantId = state.fields?.merchantId ?? merchants[0]?.id ?? "";
 
   return (
     <form action={action} className="space-y-6">
@@ -46,23 +52,35 @@ export function CreateParcelForm({
 
         <div className="grid gap-2">
           <Label htmlFor="merchantId">Merchant</Label>
-          <select
-            key={state.fields?.merchantId ?? ""}
-            id="merchantId"
-            name="merchantId"
-            className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            required
-            defaultValue={state.fields?.merchantId ?? ""}
-          >
-            <option value="" disabled>
-              Select merchant
-            </option>
-            {merchants.map((merchant) => (
-              <option key={merchant.id} value={merchant.id}>
-                {merchant.label}
+          {merchantFieldReadOnly ? (
+            <>
+              <Input
+                id="merchantId"
+                value={selectedMerchant?.label ?? merchants[0]?.label ?? "-"}
+                readOnly
+                disabled
+              />
+              <input type="hidden" name="merchantId" value={defaultMerchantId} />
+            </>
+          ) : (
+            <select
+              key={state.fields?.merchantId ?? ""}
+              id="merchantId"
+              name="merchantId"
+              className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              required
+              defaultValue={state.fields?.merchantId ?? ""}
+            >
+              <option value="" disabled>
+                Select merchant
               </option>
-            ))}
-          </select>
+              {merchants.map((merchant) => (
+                <option key={merchant.id} value={merchant.id}>
+                  {merchant.label}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div className="grid gap-2">

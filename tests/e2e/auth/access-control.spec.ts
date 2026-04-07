@@ -88,7 +88,7 @@ test.describe("dashboard access control", () => {
     await withAuthHeader(
       page,
       createE2EAuthHeader({
-        permissions: ["dashboard-page.view", "merchant.view"],
+        permissions: ["dashboard-page.view"],
         roleSlug: "merchant",
       }),
     );
@@ -97,5 +97,22 @@ test.describe("dashboard access control", () => {
 
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  });
+
+  test("allows parcel create route with parcel.create permission", async ({ page }) => {
+    await withAuthHeader(
+      page,
+      createE2EAuthHeader({
+        appUserId: "7f048ecf-7989-4f2e-b0a2-97f950f53ea4",
+        linkedMerchantId: "7f048ecf-7989-4f2e-b0a2-97f950f53ea4",
+        permissions: ["dashboard-page.view", "parcel.create"],
+        roleSlug: "merchant",
+      }),
+    );
+
+    await page.goto("/dashboard/parcels/create");
+
+    await expect(page).toHaveURL(/\/dashboard\/parcels\/create$/);
+    await expect(page.getByRole("heading", { name: "Create Parcel" })).toBeVisible();
   });
 });

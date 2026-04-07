@@ -169,4 +169,87 @@ describe("canAccessDashboardPath", () => {
       ),
     ).toBe(true);
   });
+
+  it("requires parcel.create for parcel create route", () => {
+    expect(
+      canAccessDashboardPath(
+        "/dashboard/parcels/create",
+        createAccessContext({ permissions: ["parcel.view"] }),
+      ),
+    ).toBe(false);
+
+    expect(
+      canAccessDashboardPath(
+        "/dashboard/parcels/create",
+        createAccessContext({ permissions: ["parcel.create"] }),
+      ),
+    ).toBe(true);
+  });
+
+  it("requires parcel.update for parcel edit route", () => {
+    expect(
+      canAccessDashboardPath(
+        "/dashboard/parcels/parcel-1/edit",
+        createAccessContext({ permissions: ["parcel.view"] }),
+      ),
+    ).toBe(false);
+
+    expect(
+      canAccessDashboardPath(
+        "/dashboard/parcels/parcel-1/edit",
+        createAccessContext({ permissions: ["parcel.update"] }),
+      ),
+    ).toBe(true);
+  });
+
+  it("allows merchant parcel routes without explicit parcel view or update permissions", () => {
+    expect(
+      canAccessDashboardPath(
+        "/dashboard/parcels/parcel-1",
+        createAccessContext({ roleSlug: "merchant" }),
+      ),
+    ).toBe(true);
+
+    expect(
+      canAccessDashboardPath(
+        "/dashboard/parcels/parcel-1/edit",
+        createAccessContext({ roleSlug: "merchant" }),
+      ),
+    ).toBe(true);
+  });
+
+  it("allows rider parcel detail routes without explicit parcel view permission", () => {
+    expect(
+      canAccessDashboardPath(
+        "/dashboard/parcels/parcel-1",
+        createAccessContext({ roleSlug: "rider" }),
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps merchant detail routes self-scoped even when merchant.view is present", () => {
+    expect(
+      canAccessDashboardPath(
+        "/dashboard/merchants/merchant-2",
+        createAccessContext({
+          roleSlug: "merchant",
+          appUserId: "merchant-1",
+          permissions: ["merchant.view"],
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps rider detail routes self-scoped even when rider.view is present", () => {
+    expect(
+      canAccessDashboardPath(
+        "/dashboard/riders/rider-2",
+        createAccessContext({
+          roleSlug: "rider",
+          appUserId: "rider-1",
+          permissions: ["rider.view"],
+        }),
+      ),
+    ).toBe(false);
+  });
 });

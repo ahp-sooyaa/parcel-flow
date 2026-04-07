@@ -52,7 +52,7 @@ describe("getCurrentUserContext integration", () => {
           authenticated: true,
           isActive: true,
           mustResetPassword: false,
-          permissions: ["dashboard-page.view", "merchant.view"],
+          permissions: ["dashboard-page.view", "parcel.create"],
           linkedMerchantId,
           roleSlug: "merchant",
         }),
@@ -66,7 +66,7 @@ describe("getCurrentUserContext integration", () => {
       role: {
         slug: "merchant",
       },
-      permissions: ["dashboard-page.view", "merchant.view"],
+      permissions: ["dashboard-page.view", "parcel.create"],
     });
     expect(getClaimsMock).not.toHaveBeenCalled();
     expect(findCurrentUserContextBySupabaseUserIdMock).not.toHaveBeenCalled();
@@ -80,7 +80,7 @@ describe("getCurrentUserContext integration", () => {
           authenticated: true,
           isActive: true,
           mustResetPassword: false,
-          permissions: ["dashboard-page.view", "parcel-list.view"],
+          permissions: ["dashboard-page.view"],
           linkedRiderId,
           roleSlug: "rider",
         }),
@@ -94,9 +94,33 @@ describe("getCurrentUserContext integration", () => {
       role: {
         slug: "rider",
       },
-      permissions: ["dashboard-page.view", "parcel-list.view"],
+      permissions: ["dashboard-page.view"],
     });
     expect(getClaimsMock).not.toHaveBeenCalled();
     expect(findCurrentUserContextBySupabaseUserIdMock).not.toHaveBeenCalled();
+  });
+
+  it("preserves app user id from the e2e auth header", async () => {
+    const { getCurrentUserContext } = await loadGetCurrentUserContextWithStubbedHeader(
+      JSON.stringify({
+        authenticated: true,
+        isActive: true,
+        mustResetPassword: false,
+        permissions: ["dashboard-page.view"],
+        appUserId: "merchant-1",
+        linkedMerchantId: "merchant-1",
+        roleSlug: "merchant",
+      }),
+    );
+
+    const result = await getCurrentUserContext();
+
+    expect(result).toMatchObject({
+      appUserId: "merchant-1",
+      linkedMerchantId: "merchant-1",
+      role: {
+        slug: "merchant",
+      },
+    });
   });
 });

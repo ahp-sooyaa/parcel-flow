@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { getCurrentUserContext } from "@/features/auth/server/utils";
 import { getMerchantById } from "@/features/merchant/server/dal";
 import { canAccessMerchantResource } from "@/features/merchant/server/utils";
+import { getMerchantParcelsList } from "@/features/parcels/server/dal";
+import { canEditParcel } from "@/features/parcels/server/utils";
 
 type MerchantDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -29,7 +31,10 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
     notFound();
   }
 
-  const merchant = await getMerchantById(id);
+  const [merchant, merchantParcels] = await Promise.all([
+    getMerchantById(id),
+    getMerchantParcelsList(currentUser, id),
+  ]);
 
   if (!merchant) {
     notFound();
@@ -51,10 +56,15 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
       </header>
 
       {canEditMerchant ? (
-        <div>
+        <div className="flex items-center gap-3">
           <Button asChild variant="outline">
             <Link href={`/dashboard/merchants/${merchant.id}/edit`}>Edit Merchant Profile</Link>
           </Button>
+          {currentUser.permissions.includes("parcel.create") ? (
+            <Button asChild>
+              <Link href="/dashboard/parcels/create">Create Parcel</Link>
+            </Button>
+          ) : null}
         </div>
       ) : null}
 
@@ -84,6 +94,58 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
           <p>{merchant.notes ?? "-"}</p>
         </div>
       </div>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Parcels</h2>
+          <p className="text-sm text-muted-foreground">
+            Only parcels related to this merchant are listed here.
+          </p>
+        </div>
+
+        <div className="overflow-hidden rounded-xl border bg-card">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-muted/40 text-xs uppercase">
+              <tr>
+                <th className="px-4 py-3">Parcel Code</th>
+                <th className="px-4 py-3">Recipient</th>
+                <th className="px-4 py-3">Township</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {merchantParcels.map((parcel) => (
+                <tr key={parcel.id} className="border-t">
+                  <td className="px-4 py-3">{parcel.parcelCode}</td>
+                  <td className="px-4 py-3">{parcel.recipientName}</td>
+                  <td className="px-4 py-3">{parcel.recipientTownshipName ?? "-"}</td>
+                  <td className="px-4 py-3">{parcel.parcelStatus}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/dashboard/parcels/${parcel.id}`}>View</Link>
+                      </Button>
+                      {canEditParcel(currentUser) ? (
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/dashboard/parcels/${parcel.id}/edit`}>Edit</Link>
+                        </Button>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {merchantParcels.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-10 text-center text-xs text-muted-foreground">
+                    No parcels found for this merchant.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </section>
   );
 }

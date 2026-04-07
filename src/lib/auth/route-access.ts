@@ -35,6 +35,7 @@ const routePermissionRules: readonly RoutePermissionRule[] = [
   },
   {
     pathnamePrefix: "/dashboard/parcels",
+    exactAnyOf: ["parcel-list.view"],
     anyOf: ["parcel-list.view", "parcel.view", "parcel.create", "parcel.update", "parcel.delete"],
   },
   {
@@ -92,14 +93,42 @@ export function canAccessDashboardPath(pathname: string, context: AccessContext)
     return false;
   }
 
+  if (pathname === "/dashboard/parcels/create") {
+    return context.permissions.includes("parcel.create");
+  }
+
+  if (pathname.endsWith("/edit") && pathname.startsWith("/dashboard/parcels/")) {
+    return context.permissions.includes("parcel.update") || context.roleSlug === "merchant";
+  }
+
+  if (pathname === "/dashboard/parcels") {
+    return context.permissions.includes("parcel-list.view");
+  }
+
+  if (pathname.startsWith("/dashboard/parcels/")) {
+    return (
+      context.permissions.includes("parcel.view") ||
+      context.permissions.includes("parcel.update") ||
+      context.permissions.includes("parcel.delete") ||
+      context.roleSlug === "merchant" ||
+      context.roleSlug === "rider"
+    );
+  }
+
   const merchantId = getOwnedResourceId(pathname, "/dashboard/merchants");
   if (merchantId && context.roleSlug === "merchant" && context.appUserId === merchantId) {
     return true;
+  }
+  if (merchantId && context.roleSlug === "merchant") {
+    return false;
   }
 
   const riderId = getOwnedResourceId(pathname, "/dashboard/riders");
   if (riderId && context.roleSlug === "rider" && context.appUserId === riderId) {
     return true;
+  }
+  if (riderId && context.roleSlug === "rider") {
+    return false;
   }
 
   const permissionSet = new Set(context.permissions);

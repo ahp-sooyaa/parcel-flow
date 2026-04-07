@@ -27,6 +27,10 @@ type StubAccessContext = {
   isActive: boolean;
   mustResetPassword: boolean;
   permissions: string[];
+  appUserId?: string | null;
+  linkedMerchantId?: string | null;
+  linkedRiderId?: string | null;
+  roleSlug?: RoleSlug;
 };
 
 const isDev = process.env.NODE_ENV === "development";
@@ -131,6 +135,17 @@ function getStubbedAccessContext(request: NextRequest): StubAccessContext | null
       authenticated: parsed.authenticated === true,
       isActive: parsed.isActive === true,
       mustResetPassword: parsed.mustResetPassword === true,
+      appUserId: typeof parsed.appUserId === "string" ? parsed.appUserId : null,
+      linkedMerchantId:
+        typeof parsed.linkedMerchantId === "string" ? parsed.linkedMerchantId : null,
+      linkedRiderId: typeof parsed.linkedRiderId === "string" ? parsed.linkedRiderId : null,
+      roleSlug:
+        parsed.roleSlug === "super_admin" ||
+        parsed.roleSlug === "office_admin" ||
+        parsed.roleSlug === "rider" ||
+        parsed.roleSlug === "merchant"
+          ? parsed.roleSlug
+          : undefined,
       permissions: Array.isArray(parsed.permissions)
         ? parsed.permissions.filter((value): value is string => typeof value === "string")
         : [],
@@ -220,6 +235,8 @@ export async function proxy(request: NextRequest) {
       permissions: stubbedContext.permissions,
       isActive: stubbedContext.isActive,
       mustResetPassword: stubbedContext.mustResetPassword,
+      appUserId: stubbedContext.appUserId,
+      roleSlug: stubbedContext.roleSlug,
     });
 
     if (!allowed) {

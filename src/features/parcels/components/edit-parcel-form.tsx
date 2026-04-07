@@ -42,6 +42,8 @@ type EditParcelFormProps = {
   merchants: { id: string; label: string }[];
   riders: { id: string; label: string }[];
   townships: { id: string; label: string }[];
+  merchantFieldReadOnly?: boolean;
+  accountingFieldsReadOnly?: boolean;
 };
 
 type FormValues = {
@@ -99,10 +101,14 @@ export function EditParcelForm({
   merchants,
   riders,
   townships,
+  merchantFieldReadOnly = false,
+  accountingFieldsReadOnly = false,
 }: Readonly<EditParcelFormProps>) {
   const [state, action, isPending] = useActionState(updateParcelAction, initialState);
 
   const fields = state.fields ?? buildFormValues(parcel);
+  const selectedMerchant = merchants.find((merchant) => merchant.id === fields.merchantId);
+  const selectedRider = riders.find((rider) => rider.id === fields.riderId);
 
   return (
     <form action={action} className="space-y-6">
@@ -121,38 +127,57 @@ export function EditParcelForm({
 
         <div className="grid gap-2">
           <Label htmlFor="merchant-id">Merchant</Label>
-          <select
-            key={fields.merchantId}
-            id="merchant-id"
-            name="merchantId"
-            defaultValue={fields.merchantId}
-            className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            required
-          >
-            {merchants.map((merchant) => (
-              <option key={merchant.id} value={merchant.id}>
-                {merchant.label}
-              </option>
-            ))}
-          </select>
+          {merchantFieldReadOnly ? (
+            <>
+              <Input id="merchant-id" value={selectedMerchant?.label ?? "-"} readOnly disabled />
+              <input type="hidden" name="merchantId" value={fields.merchantId} />
+            </>
+          ) : (
+            <select
+              key={fields.merchantId}
+              id="merchant-id"
+              name="merchantId"
+              defaultValue={fields.merchantId}
+              className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              required
+            >
+              {merchants.map((merchant) => (
+                <option key={merchant.id} value={merchant.id}>
+                  {merchant.label}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div className="grid gap-2">
           <Label htmlFor="rider-id">Rider (Optional)</Label>
-          <select
-            key={fields.riderId}
-            id="rider-id"
-            name="riderId"
-            defaultValue={fields.riderId}
-            className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            <option value="">No rider assigned</option>
-            {riders.map((rider) => (
-              <option key={rider.id} value={rider.id}>
-                {rider.label}
-              </option>
-            ))}
-          </select>
+          {accountingFieldsReadOnly ? (
+            <>
+              <Input
+                id="rider-id"
+                value={selectedRider?.label ?? "No rider assigned"}
+                readOnly
+                disabled
+              />
+              <input type="hidden" name="riderId" value={fields.riderId} />
+            </>
+          ) : (
+            <select
+              key={fields.riderId}
+              id="rider-id"
+              name="riderId"
+              defaultValue={fields.riderId}
+              className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <option value="">No rider assigned</option>
+              {riders.map((rider) => (
+                <option key={rider.id} value={rider.id}>
+                  {rider.label}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div className="grid gap-2">
@@ -207,20 +232,27 @@ export function EditParcelForm({
 
         <div className="grid gap-2">
           <Label htmlFor="parcel-status">Parcel Status</Label>
-          <select
-            key={fields.parcelStatus}
-            id="parcel-status"
-            name="parcelStatus"
-            defaultValue={fields.parcelStatus}
-            className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            required
-          >
-            {PARCEL_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
+          {accountingFieldsReadOnly ? (
+            <>
+              <Input id="parcel-status" value={fields.parcelStatus} readOnly disabled />
+              <input type="hidden" name="parcelStatus" value={fields.parcelStatus} />
+            </>
+          ) : (
+            <select
+              key={fields.parcelStatus}
+              id="parcel-status"
+              name="parcelStatus"
+              defaultValue={fields.parcelStatus}
+              className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              required
+            >
+              {PARCEL_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </section>
 
@@ -294,119 +326,140 @@ export function EditParcelForm({
           </select>
         </div>
 
-        <div className="grid gap-2">
-          <Label htmlFor="delivery-fee-status">Delivery Fee Status</Label>
-          <select
-            key={fields.deliveryFeeStatus}
-            id="delivery-fee-status"
-            name="deliveryFeeStatus"
-            defaultValue={fields.deliveryFeeStatus}
-            className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            required
-          >
-            {DELIVERY_FEE_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
-        </div>
+        {accountingFieldsReadOnly ? (
+          <>
+            <p className="rounded-lg border bg-background p-3 text-xs text-muted-foreground">
+              Internal accounting and settlement fields stay managed by office users.
+            </p>
+            <input type="hidden" name="deliveryFeeStatus" value={fields.deliveryFeeStatus} />
+            <input type="hidden" name="codStatus" value={fields.codStatus} />
+            <input type="hidden" name="collectedAmount" value={fields.collectedAmount} />
+            <input type="hidden" name="collectionStatus" value={fields.collectionStatus} />
+            <input
+              type="hidden"
+              name="merchantSettlementStatus"
+              value={fields.merchantSettlementStatus}
+            />
+            <input type="hidden" name="riderPayoutStatus" value={fields.riderPayoutStatus} />
+            <input type="hidden" name="paymentNote" value={fields.paymentNote} />
+          </>
+        ) : (
+          <>
+            <div className="grid gap-2">
+              <Label htmlFor="delivery-fee-status">Delivery Fee Status</Label>
+              <select
+                key={fields.deliveryFeeStatus}
+                id="delivery-fee-status"
+                name="deliveryFeeStatus"
+                defaultValue={fields.deliveryFeeStatus}
+                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                required
+              >
+                {DELIVERY_FEE_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        <div className="grid gap-2">
-          <Label htmlFor="cod-status">COD Status</Label>
-          <select
-            key={fields.codStatus}
-            id="cod-status"
-            name="codStatus"
-            defaultValue={fields.codStatus}
-            className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            required
-          >
-            {COD_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
-        </div>
+            <div className="grid gap-2">
+              <Label htmlFor="cod-status">COD Status</Label>
+              <select
+                key={fields.codStatus}
+                id="cod-status"
+                name="codStatus"
+                defaultValue={fields.codStatus}
+                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                required
+              >
+                {COD_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        <div className="grid gap-2">
-          <Label htmlFor="collected-amount">Collected Amount</Label>
-          <Input
-            id="collected-amount"
-            name="collectedAmount"
-            type="number"
-            min="0"
-            step="0.01"
-            defaultValue={fields.collectedAmount}
-            required
-          />
-        </div>
+            <div className="grid gap-2">
+              <Label htmlFor="collected-amount">Collected Amount</Label>
+              <Input
+                id="collected-amount"
+                name="collectedAmount"
+                type="number"
+                min="0"
+                step="0.01"
+                defaultValue={fields.collectedAmount}
+                required
+              />
+            </div>
 
-        <div className="grid gap-2">
-          <Label htmlFor="collection-status">Collection Status</Label>
-          <select
-            key={fields.collectionStatus}
-            id="collection-status"
-            name="collectionStatus"
-            defaultValue={fields.collectionStatus}
-            className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            required
-          >
-            {COLLECTION_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
-        </div>
+            <div className="grid gap-2">
+              <Label htmlFor="collection-status">Collection Status</Label>
+              <select
+                key={fields.collectionStatus}
+                id="collection-status"
+                name="collectionStatus"
+                defaultValue={fields.collectionStatus}
+                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                required
+              >
+                {COLLECTION_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        <div className="grid gap-2">
-          <Label htmlFor="merchant-settlement-status">Merchant Settlement Status</Label>
-          <select
-            key={fields.merchantSettlementStatus}
-            id="merchant-settlement-status"
-            name="merchantSettlementStatus"
-            defaultValue={fields.merchantSettlementStatus}
-            className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            required
-          >
-            {MERCHANT_SETTLEMENT_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
-        </div>
+            <div className="grid gap-2">
+              <Label htmlFor="merchant-settlement-status">Merchant Settlement Status</Label>
+              <select
+                key={fields.merchantSettlementStatus}
+                id="merchant-settlement-status"
+                name="merchantSettlementStatus"
+                defaultValue={fields.merchantSettlementStatus}
+                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                required
+              >
+                {MERCHANT_SETTLEMENT_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        <div className="grid gap-2">
-          <Label htmlFor="rider-payout-status">Rider Payout Status</Label>
-          <select
-            key={fields.riderPayoutStatus}
-            id="rider-payout-status"
-            name="riderPayoutStatus"
-            defaultValue={fields.riderPayoutStatus}
-            className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            required
-          >
-            {RIDER_PAYOUT_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
-        </div>
+            <div className="grid gap-2">
+              <Label htmlFor="rider-payout-status">Rider Payout Status</Label>
+              <select
+                key={fields.riderPayoutStatus}
+                id="rider-payout-status"
+                name="riderPayoutStatus"
+                defaultValue={fields.riderPayoutStatus}
+                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                required
+              >
+                {RIDER_PAYOUT_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        <div className="grid gap-2">
-          <Label htmlFor="payment-note">Payment Note (Optional)</Label>
-          <textarea
-            id="payment-note"
-            name="paymentNote"
-            rows={3}
-            defaultValue={fields.paymentNote}
-            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          />
-        </div>
+            <div className="grid gap-2">
+              <Label htmlFor="payment-note">Payment Note (Optional)</Label>
+              <textarea
+                id="payment-note"
+                name="paymentNote"
+                rows={3}
+                defaultValue={fields.paymentNote}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              />
+            </div>
+          </>
+        )}
       </section>
 
       {state.message ? (

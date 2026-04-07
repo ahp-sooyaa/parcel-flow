@@ -1,16 +1,18 @@
 import { requirePermission } from "@/features/auth/server/utils";
 import { CreateParcelForm } from "@/features/parcels/components/create-parcel-form";
 import { getParcelFormOptions } from "@/features/parcels/server/dal";
-import { isAdminDashboardRole } from "@/features/parcels/server/utils";
+import { canCreateParcel } from "@/features/parcels/server/utils";
 
 export default async function CreateParcelPage() {
   const currentUser = await requirePermission("parcel.create");
 
-  if (!isAdminDashboardRole(currentUser.role.slug)) {
+  if (!canCreateParcel(currentUser)) {
     throw new Error("Forbidden");
   }
 
-  const options = await getParcelFormOptions();
+  const options = await getParcelFormOptions({
+    merchantId: currentUser.role.slug === "merchant" ? currentUser.linkedMerchantId : null,
+  });
 
   return (
     <section className="mx-auto w-full max-w-3xl space-y-6 rounded-xl border bg-card p-6">
@@ -25,6 +27,7 @@ export default async function CreateParcelPage() {
         merchants={options.merchants}
         riders={options.riders}
         townships={options.townships}
+        merchantFieldReadOnly={currentUser.role.slug === "merchant"}
       />
     </section>
   );

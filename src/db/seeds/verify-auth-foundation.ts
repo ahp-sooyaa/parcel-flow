@@ -79,17 +79,21 @@ function verifyPermissionModel() {
   const merchantPermissions = new Set(ROLE_PERMISSION_MATRIX.merchant);
   assert(!merchantPermissions.has("merchant.view"), "merchant must not have merchant.view");
   assert(!merchantPermissions.has("merchant.update"), "merchant must not have merchant.update");
+  assert(!merchantPermissions.has("parcel.view"), "merchant must not have parcel.view");
+  assert(merchantPermissions.has("parcel.create"), "merchant must have parcel.create");
+  assert(!merchantPermissions.has("parcel.update"), "merchant must not have parcel.update");
   assert(!merchantPermissions.has("rider.view"), "merchant must not have rider.view");
   assert(
     !merchantPermissions.has("township-list.view"),
     "merchant must not have township-list.view",
   );
   assert(!merchantPermissions.has("parcel-list.view"), "merchant must not have parcel-list.view");
+  assert(!merchantPermissions.has("parcel.delete"), "merchant must not have parcel.delete");
 
   const riderPermissions = new Set(ROLE_PERMISSION_MATRIX.rider);
-  assert(riderPermissions.has("parcel-list.view"), "rider must have parcel-list.view");
-  assert(riderPermissions.has("parcel.view"), "rider must have parcel.view");
-  assert(riderPermissions.has("parcel.update"), "rider must have parcel.update");
+  assert(!riderPermissions.has("parcel-list.view"), "rider must not have parcel-list.view");
+  assert(!riderPermissions.has("parcel.view"), "rider must not have parcel.view");
+  assert(!riderPermissions.has("parcel.update"), "rider must not have parcel.update");
   assert(!riderPermissions.has("rider.view"), "rider must not have rider.view");
   assert(!riderPermissions.has("rider.update"), "rider must not have rider.update");
   assert(!riderPermissions.has("merchant.view"), "rider must not have merchant.view");
@@ -151,7 +155,6 @@ function verifySharedPermissionCodesExistAcrossRoles() {
     "township-list.view must be assigned to super_admin role",
   );
 
-  assert(parcelUpdateRoles.has("rider"), "parcel.update must be assigned to rider role");
   assert(
     parcelUpdateRoles.has("office_admin"),
     "parcel.update must be assigned to office_admin role",
@@ -160,6 +163,8 @@ function verifySharedPermissionCodesExistAcrossRoles() {
     parcelUpdateRoles.has("super_admin"),
     "parcel.update must be assigned to super_admin role",
   );
+  assert(!parcelUpdateRoles.has("merchant"), "parcel.update must not be assigned to merchant role");
+  assert(!parcelUpdateRoles.has("rider"), "parcel.update must not be assigned to rider role");
 }
 
 function verifyTemporaryPasswordNotPersisted() {
