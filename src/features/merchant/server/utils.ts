@@ -33,7 +33,11 @@ export function canAccessMerchantResource(input: {
   viewerPermissions?: readonly PermissionSlug[];
   permission?: PermissionSlug;
 }) {
-  if (input.permission && input.viewerPermissions?.includes(input.permission)) {
+  if (
+    input.viewerRoleSlug !== "merchant" &&
+    input.permission &&
+    input.viewerPermissions?.includes(input.permission)
+  ) {
     return true;
   }
 

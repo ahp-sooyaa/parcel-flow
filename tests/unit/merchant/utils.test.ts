@@ -33,4 +33,16 @@ describe("canAccessMerchantResource", () => {
       }),
     ).toBe(false);
   });
+
+  it("does not treat merchant self-service permissions as global merchant access", () => {
+    expect(
+      canAccessMerchantResource({
+        viewerRoleSlug: "merchant",
+        viewerAppUserId: "merchant-1",
+        merchantAppUserId: "merchant-2",
+        viewerPermissions: ["merchant.view", "merchant.update"],
+        permission: "merchant.view",
+      }),
+    ).toBe(false);
+  });
 });

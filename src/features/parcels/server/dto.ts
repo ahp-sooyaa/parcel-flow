@@ -27,6 +27,11 @@ export type ParcelListItemDto = {
   createdAt: Date;
 };
 
+export type RiderParcelActionDto = {
+  label: string;
+  nextStatus: (typeof PARCEL_STATUSES)[number];
+};
+
 export type ParcelDetailDto = {
   id: string;
   parcelCode: string;
@@ -54,6 +59,25 @@ export type ParcelDetailDto = {
   paymentNote: string | null;
   createdAt: Date;
   updatedAt: Date;
+};
+
+export type MerchantParcelListItemDto = ParcelListItemDto;
+
+export type RiderParcelDetailDto = {
+  id: string;
+  parcelCode: string;
+  merchantLabel: string;
+  riderLabel: string | null;
+  recipientName: string;
+  recipientPhone: string;
+  recipientTownshipName: string | null;
+  recipientAddress: string;
+  parcelType: (typeof PARCEL_TYPES)[number];
+  parcelStatus: (typeof PARCEL_STATUSES)[number];
+  codAmount: string;
+  totalAmountToCollect: string;
+  collectionStatus: (typeof COLLECTION_STATUSES)[number];
+  nextAction: RiderParcelActionDto | null;
 };
 
 export type CreateParcelActionResult = {
@@ -120,6 +144,10 @@ export function toParcelListItemDto(input: ParcelListItemDto): ParcelListItemDto
   };
 }
 
+export function toMerchantParcelListItemDto(input: ParcelListItemDto): MerchantParcelListItemDto {
+  return toParcelListItemDto(input);
+}
+
 export function toParcelDetailDto(input: ParcelDetailDto): ParcelDetailDto {
   return {
     id: input.id,
@@ -148,5 +176,39 @@ export function toParcelDetailDto(input: ParcelDetailDto): ParcelDetailDto {
     paymentNote: input.paymentNote,
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
+  };
+}
+
+export function toRiderParcelDetailDto(input: {
+  id: string;
+  parcelCode: string;
+  merchantLabel: string;
+  riderLabel: string | null;
+  recipientName: string;
+  recipientPhone: string;
+  recipientTownshipName: string | null;
+  recipientAddress: string;
+  parcelType: (typeof PARCEL_TYPES)[number];
+  parcelStatus: (typeof PARCEL_STATUSES)[number];
+  codAmount: string;
+  totalAmountToCollect: string;
+  collectionStatus: (typeof COLLECTION_STATUSES)[number];
+  nextAction: RiderParcelActionDto | null;
+}): RiderParcelDetailDto {
+  return {
+    id: input.id,
+    parcelCode: input.parcelCode,
+    merchantLabel: input.merchantLabel,
+    riderLabel: input.riderLabel,
+    recipientName: input.recipientName,
+    recipientPhone: input.recipientPhone,
+    recipientTownshipName: input.recipientTownshipName,
+    recipientAddress: input.recipientAddress,
+    parcelType: input.parcelType,
+    parcelStatus: input.parcelStatus,
+    codAmount: input.codAmount,
+    totalAmountToCollect: input.totalAmountToCollect,
+    collectionStatus: input.collectionStatus,
+    nextAction: input.nextAction,
   };
 }

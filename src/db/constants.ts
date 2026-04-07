@@ -59,6 +59,6 @@ export const ROLE_PERMISSION_MATRIX: Record<RoleSlug, PermissionSlug[]> = {
     "parcel.create",
     "parcel.update",
   ]),
-  rider: withEssentialPermissions(["parcel-list.view", "parcel.view", "parcel.update"]),
-  merchant: withEssentialPermissions([]),
+  rider: withEssentialPermissions([]),
+  merchant: withEssentialPermissions(["parcel.create"]),
 };

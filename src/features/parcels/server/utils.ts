@@ -78,8 +78,143 @@ export const updateParcelSchema = createParcelSchema
 export type ParcelCreateInput = z.infer<typeof createParcelSchema>;
 export type ParcelUpdateInput = z.infer<typeof updateParcelSchema>;
 
+export type ParcelViewerContext = {
+  linkedMerchantId: string | null;
+  linkedRiderId: string | null;
+  role: {
+    slug: RoleSlug;
+  };
+};
+
+export type RiderNextAction = {
+  label: string;
+  nextStatus: (typeof PARCEL_STATUSES)[number];
+};
+
+const riderNextActionByStatus: Partial<Record<(typeof PARCEL_STATUSES)[number], RiderNextAction>> =
+  {
+    pending: {
+      label: "Start Pickup",
+      nextStatus: "out_for_pickup",
+    },
+    out_for_pickup: {
+      label: "Mark At Office",
+      nextStatus: "at_office",
+    },
+    at_office: {
+      label: "Start Delivery",
+      nextStatus: "out_for_delivery",
+    },
+    out_for_delivery: {
+      label: "Mark Delivered",
+      nextStatus: "delivered",
+    },
+    return_to_office: {
+      label: "Return To Merchant",
+      nextStatus: "return_to_merchant",
+    },
+  };
+
 export function isAdminDashboardRole(roleSlug: RoleSlug) {
   return roleSlug === "super_admin" || roleSlug === "office_admin";
+}
+
+export function canAccessParcelList(viewer: ParcelViewerContext) {
+  return isAdminDashboardRole(viewer.role.slug);
+}
+
+export function canViewParcel(viewer: ParcelViewerContext) {
+  return (
+    isAdminDashboardRole(viewer.role.slug) ||
+    (viewer.role.slug === "merchant" && Boolean(viewer.linkedMerchantId)) ||
+    (viewer.role.slug === "rider" && Boolean(viewer.linkedRiderId))
+  );
+}
+
+export function canCreateParcel(viewer: ParcelViewerContext) {
+  return (
+    isAdminDashboardRole(viewer.role.slug) ||
+    (viewer.role.slug === "merchant" && Boolean(viewer.linkedMerchantId))
+  );
+}
+
+export function canEditParcel(viewer: ParcelViewerContext) {
+  return (
+    isAdminDashboardRole(viewer.role.slug) ||
+    (viewer.role.slug === "merchant" && Boolean(viewer.linkedMerchantId))
+  );
+}
+
+export function resolveMerchantScopedParcelOwner(input: {
+  viewer: ParcelViewerContext;
+  submittedMerchantId: string;
+}) {
+  if (input.viewer.role.slug !== "merchant") {
+    return {
+      ok: true as const,
+      merchantId: input.submittedMerchantId,
+    };
+  }
+
+  if (!input.viewer.linkedMerchantId) {
+    return {
+      ok: false as const,
+      message: "Merchant account is not linked to a merchant profile.",
+    };
+  }
+
+  if (input.submittedMerchantId !== input.viewer.linkedMerchantId) {
+    return {
+      ok: false as const,
+      message: "Merchant users can only manage parcels for their own merchant profile.",
+    };
+  }
+
+  return {
+    ok: true as const,
+    merchantId: input.viewer.linkedMerchantId,
+  };
+}
+
+export function getNextRiderParcelAction(
+  status: (typeof PARCEL_STATUSES)[number],
+): RiderNextAction | null {
+  return riderNextActionByStatus[status] ?? null;
+}
+
+export function canAdvanceRiderParcel(input: {
+  viewer: ParcelViewerContext;
+  assignedRiderId: string | null;
+  currentStatus: (typeof PARCEL_STATUSES)[number];
+  requestedNextStatus: (typeof PARCEL_STATUSES)[number];
+}) {
+  if (input.viewer.role.slug !== "rider") {
+    return {
+      ok: false as const,
+      message: "Only rider users can perform rider workflow actions.",
+    };
+  }
+
+  if (!input.viewer.linkedRiderId || input.assignedRiderId !== input.viewer.linkedRiderId) {
+    return {
+      ok: false as const,
+      message: "Rider can only perform actions on assigned parcels.",
+    };
+  }
+
+  const nextAction = getNextRiderParcelAction(input.currentStatus);
+
+  if (!nextAction || nextAction.nextStatus !== input.requestedNextStatus) {
+    return {
+      ok: false as const,
+      message: "Parcel status cannot be advanced with this rider action.",
+    };
+  }
+
+  return {
+    ok: true as const,
+    nextAction,
+  };
 }
 
 export function computeTotalAmountToCollect(input: {

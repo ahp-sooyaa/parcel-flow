@@ -2,11 +2,14 @@ import "server-only";
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
+  toMerchantParcelListItemDto,
   toParcelDetailDto,
   toParcelListItemDto,
+  toRiderParcelDetailDto,
   type ParcelDetailDto,
   type ParcelListItemDto,
   type ParcelOptionDto,
+  type RiderParcelDetailDto,
 } from "./dto";
 import { db } from "@/db";
 import {
@@ -18,11 +21,12 @@ import {
   riders,
   townships,
 } from "@/db/schema";
-import { isAdminDashboardRole, toMoneyString } from "@/features/parcels/server/utils";
-
-import type { CurrentUserContext } from "@/features/auth/server/dto";
-
-type ParcelViewerContext = Pick<CurrentUserContext, "linkedMerchantId" | "linkedRiderId" | "role">;
+import {
+  getNextRiderParcelAction,
+  isAdminDashboardRole,
+  toMoneyString,
+  type ParcelViewerContext,
+} from "@/features/parcels/server/utils";
 
 type AuditLogInsertInput = {
   parcelId: string;
@@ -215,6 +219,90 @@ export async function getParcelsList(viewer: ParcelViewerContext): Promise<Parce
   );
 }
 
+export async function getMerchantParcelsList(
+  viewer: ParcelViewerContext,
+  merchantId: string,
+): Promise<ParcelListItemDto[]> {
+  const accessFilter = buildParcelViewerAccessFilter(viewer);
+  const whereClause = accessFilter
+    ? and(accessFilter, eq(parcels.merchantId, merchantId))
+    : eq(parcels.merchantId, merchantId);
+  const rows = await db
+    .select({
+      id: parcels.id,
+      parcelCode: parcels.parcelCode,
+      merchantLabel: merchants.shopName,
+      recipientName: parcels.recipientName,
+      recipientTownshipName: townships.name,
+      parcelStatus: parcels.status,
+      deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
+      collectionStatus: parcelPaymentRecords.collectionStatus,
+      createdAt: parcels.createdAt,
+    })
+    .from(parcels)
+    .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
+    .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
+    .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
+    .where(whereClause)
+    .orderBy(desc(parcels.createdAt));
+
+  return rows.map((row) =>
+    toMerchantParcelListItemDto({
+      id: row.id,
+      parcelCode: row.parcelCode,
+      merchantLabel: row.merchantLabel,
+      recipientName: row.recipientName,
+      recipientTownshipName: row.recipientTownshipName,
+      parcelStatus: row.parcelStatus,
+      deliveryFeeStatus: row.deliveryFeeStatus ?? "unpaid",
+      collectionStatus: row.collectionStatus ?? "pending",
+      createdAt: row.createdAt,
+    }),
+  );
+}
+
+export async function getAssignedRiderParcelsList(
+  viewer: ParcelViewerContext,
+  riderId: string,
+): Promise<ParcelListItemDto[]> {
+  const accessFilter = buildParcelViewerAccessFilter(viewer);
+  const whereClause = accessFilter
+    ? and(accessFilter, eq(parcels.riderId, riderId))
+    : eq(parcels.riderId, riderId);
+  const rows = await db
+    .select({
+      id: parcels.id,
+      parcelCode: parcels.parcelCode,
+      merchantLabel: merchants.shopName,
+      recipientName: parcels.recipientName,
+      recipientTownshipName: townships.name,
+      parcelStatus: parcels.status,
+      deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
+      collectionStatus: parcelPaymentRecords.collectionStatus,
+      createdAt: parcels.createdAt,
+    })
+    .from(parcels)
+    .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
+    .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
+    .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
+    .where(whereClause)
+    .orderBy(desc(parcels.createdAt));
+
+  return rows.map((row) =>
+    toParcelListItemDto({
+      id: row.id,
+      parcelCode: row.parcelCode,
+      merchantLabel: row.merchantLabel,
+      recipientName: row.recipientName,
+      recipientTownshipName: row.recipientTownshipName,
+      parcelStatus: row.parcelStatus,
+      deliveryFeeStatus: row.deliveryFeeStatus ?? "unpaid",
+      collectionStatus: row.collectionStatus ?? "pending",
+      createdAt: row.createdAt,
+    }),
+  );
+}
+
 export async function getParcelById(
   parcelId: string,
   viewer: ParcelViewerContext,
@@ -292,6 +380,34 @@ export async function getParcelById(
   });
 }
 
+export async function getRiderParcelById(
+  parcelId: string,
+  viewer: ParcelViewerContext,
+): Promise<RiderParcelDetailDto | null> {
+  const parcel = await getParcelById(parcelId, viewer);
+
+  if (!parcel) {
+    return null;
+  }
+
+  return toRiderParcelDetailDto({
+    id: parcel.id,
+    parcelCode: parcel.parcelCode,
+    merchantLabel: parcel.merchantLabel,
+    riderLabel: parcel.riderLabel,
+    recipientName: parcel.recipientName,
+    recipientPhone: parcel.recipientPhone,
+    recipientTownshipName: parcel.recipientTownshipName,
+    recipientAddress: parcel.recipientAddress,
+    parcelType: parcel.parcelType,
+    parcelStatus: parcel.parcelStatus,
+    codAmount: parcel.codAmount,
+    totalAmountToCollect: parcel.totalAmountToCollect,
+    collectionStatus: parcel.collectionStatus,
+    nextAction: getNextRiderParcelAction(parcel.parcelStatus),
+  });
+}
+
 export async function isParcelCodeInUse(parcelCode: string): Promise<boolean> {
   const [row] = await db
     .select({ id: parcels.id })
@@ -302,7 +418,7 @@ export async function isParcelCodeInUse(parcelCode: string): Promise<boolean> {
   return Boolean(row?.id);
 }
 
-export async function getParcelFormOptions(): Promise<{
+export async function getParcelFormOptions(input?: { merchantId?: string | null }): Promise<{
   merchants: ParcelOptionDto[];
   riders: ParcelOptionDto[];
   townships: ParcelOptionDto[];
@@ -314,7 +430,11 @@ export async function getParcelFormOptions(): Promise<{
         label: merchants.shopName,
       })
       .from(merchants)
-      .where(isNull(merchants.deletedAt))
+      .where(
+        input?.merchantId
+          ? and(isNull(merchants.deletedAt), eq(merchants.appUserId, input.merchantId))
+          : isNull(merchants.deletedAt),
+      )
       .orderBy(asc(merchants.shopName)),
     db
       .select({

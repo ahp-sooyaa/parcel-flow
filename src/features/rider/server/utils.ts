@@ -37,7 +37,11 @@ export function canAccessRiderResource(input: {
   viewerPermissions?: readonly PermissionSlug[];
   permission?: PermissionSlug;
 }) {
-  if (input.permission && input.viewerPermissions?.includes(input.permission)) {
+  if (
+    input.viewerRoleSlug !== "rider" &&
+    input.permission &&
+    input.viewerPermissions?.includes(input.permission)
+  ) {
     return true;
   }
 

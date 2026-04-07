@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { getCurrentUserContext } from "@/features/auth/server/utils";
+import { getAssignedRiderParcelsList } from "@/features/parcels/server/dal";
 import { getRiderById } from "@/features/rider/server/dal";
 import { canAccessRiderResource } from "@/features/rider/server/utils";
 
@@ -29,7 +30,10 @@ export default async function RiderDetailPage({ params }: Readonly<RiderDetailPa
     notFound();
   }
 
-  const rider = await getRiderById(id);
+  const [rider, riderParcels] = await Promise.all([
+    getRiderById(id),
+    getAssignedRiderParcelsList(currentUser, id),
+  ]);
 
   if (!rider) {
     notFound();
@@ -88,6 +92,51 @@ export default async function RiderDetailPage({ params }: Readonly<RiderDetailPa
           <p>{rider.notes ?? "-"}</p>
         </div>
       </div>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Assigned Parcels</h2>
+          <p className="text-sm text-muted-foreground">
+            The rider can only access parcels assigned to this rider profile.
+          </p>
+        </div>
+
+        <div className="overflow-hidden rounded-xl border bg-card">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-muted/40 text-xs uppercase">
+              <tr>
+                <th className="px-4 py-3">Parcel Code</th>
+                <th className="px-4 py-3">Merchant</th>
+                <th className="px-4 py-3">Recipient</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {riderParcels.map((parcel) => (
+                <tr key={parcel.id} className="border-t">
+                  <td className="px-4 py-3">{parcel.parcelCode}</td>
+                  <td className="px-4 py-3">{parcel.merchantLabel}</td>
+                  <td className="px-4 py-3">{parcel.recipientName}</td>
+                  <td className="px-4 py-3">{parcel.parcelStatus}</td>
+                  <td className="px-4 py-3">
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/dashboard/parcels/${parcel.id}`}>View</Link>
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+              {riderParcels.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-10 text-center text-xs text-muted-foreground">
+                    No assigned parcels found.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </section>
   );
 }
