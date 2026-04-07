@@ -657,4 +657,151 @@ describe("parcels actions", () => {
     expect(revalidatePathMock).toHaveBeenCalledWith(`/dashboard/merchants/${merchantId}`);
     expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/riders/rider-1");
   });
+
+  it("rejects merchant update when scoped COD status would make a non-COD parcel invalid", async () => {
+    const merchantId = "7f048ecf-7989-4f2e-b0a2-97f950f53ea4";
+    const parcelId = "5f0ee80f-ad8d-40ce-8ded-d6fffe44f633";
+
+    getCurrentUserContextMock.mockResolvedValue({
+      appUserId: "merchant-user-1",
+      linkedMerchantId: merchantId,
+      linkedRiderId: null,
+      role: { slug: "merchant" },
+      permissions: ["parcel.update", "parcel.create"],
+    });
+    findMerchantByAppUserIdMock.mockResolvedValue({ id: "merchant-1" });
+    findTownshipByIdMock.mockResolvedValue({ id: "township-1", isActive: true });
+    getParcelUpdateContextMock.mockResolvedValue({
+      parcel: {
+        id: parcelId,
+        parcelCode: "PF-001",
+        merchantId,
+        riderId: null,
+        recipientName: "Ko Aung",
+        recipientPhone: "0912345678",
+        recipientTownshipId: "township-1",
+        recipientAddress: "Street",
+        parcelType: "cod",
+        codAmount: "1000",
+        deliveryFee: "100",
+        totalAmountToCollect: "1100",
+        deliveryFeePayer: "receiver",
+        status: "pending",
+      },
+      payment: {
+        id: "payment-1",
+        deliveryFeeStatus: "unpaid",
+        codStatus: "pending",
+        collectedAmount: "0",
+        collectionStatus: "pending",
+        merchantSettlementStatus: "pending",
+        riderPayoutStatus: "pending",
+        note: null,
+      },
+    });
+
+    const { updateParcelAction } = await import("@/features/parcels/server/actions");
+    const formData = new FormData();
+    formData.set("parcelId", parcelId);
+    formData.set("merchantId", merchantId);
+    formData.set("riderId", "");
+    formData.set("recipientName", "Ko Aung");
+    formData.set("recipientPhone", "0912345678");
+    formData.set("recipientTownshipId", "c4e4c8c7-a43b-4c56-8913-8c98ebebc35f");
+    formData.set("recipientAddress", "No 1, Street");
+    formData.set("parcelType", "non_cod");
+    formData.set("codAmount", "0");
+    formData.set("deliveryFee", "100");
+    formData.set("deliveryFeePayer", "receiver");
+    formData.set("parcelStatus", "pending");
+    formData.set("deliveryFeeStatus", "unpaid");
+    formData.set("codStatus", "not_applicable");
+    formData.set("collectedAmount", "0");
+    formData.set("collectionStatus", "pending");
+    formData.set("merchantSettlementStatus", "pending");
+    formData.set("riderPayoutStatus", "pending");
+    formData.set("paymentNote", "");
+
+    const result = await updateParcelAction({ ok: true, message: "" }, formData);
+
+    expect(result).toMatchObject({
+      ok: false,
+      message: "COD status must be 'not_applicable' when parcel type is non-COD.",
+    });
+    expect(updateParcelAndPaymentWithAuditMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects merchant update when scoped delivery fee status would violate settlement rules", async () => {
+    const merchantId = "7f048ecf-7989-4f2e-b0a2-97f950f53ea4";
+    const parcelId = "5f0ee80f-ad8d-40ce-8ded-d6fffe44f633";
+
+    getCurrentUserContextMock.mockResolvedValue({
+      appUserId: "merchant-user-1",
+      linkedMerchantId: merchantId,
+      linkedRiderId: null,
+      role: { slug: "merchant" },
+      permissions: ["parcel.update", "parcel.create"],
+    });
+    findMerchantByAppUserIdMock.mockResolvedValue({ id: "merchant-1" });
+    findTownshipByIdMock.mockResolvedValue({ id: "township-1", isActive: true });
+    getParcelUpdateContextMock.mockResolvedValue({
+      parcel: {
+        id: parcelId,
+        parcelCode: "PF-001",
+        merchantId,
+        riderId: null,
+        recipientName: "Ko Aung",
+        recipientPhone: "0912345678",
+        recipientTownshipId: "township-1",
+        recipientAddress: "Street",
+        parcelType: "cod",
+        codAmount: "1000",
+        deliveryFee: "100",
+        totalAmountToCollect: "1100",
+        deliveryFeePayer: "receiver",
+        status: "pending",
+      },
+      payment: {
+        id: "payment-1",
+        deliveryFeeStatus: "deduct_from_settlement",
+        codStatus: "pending",
+        collectedAmount: "0",
+        collectionStatus: "pending",
+        merchantSettlementStatus: "pending",
+        riderPayoutStatus: "pending",
+        note: null,
+      },
+    });
+
+    const { updateParcelAction } = await import("@/features/parcels/server/actions");
+    const formData = new FormData();
+    formData.set("parcelId", parcelId);
+    formData.set("merchantId", merchantId);
+    formData.set("riderId", "");
+    formData.set("recipientName", "Ko Aung");
+    formData.set("recipientPhone", "0912345678");
+    formData.set("recipientTownshipId", "c4e4c8c7-a43b-4c56-8913-8c98ebebc35f");
+    formData.set("recipientAddress", "No 1, Street");
+    formData.set("parcelType", "cod");
+    formData.set("codAmount", "100");
+    formData.set("deliveryFee", "150");
+    formData.set("deliveryFeePayer", "receiver");
+    formData.set("parcelStatus", "pending");
+    formData.set("deliveryFeeStatus", "unpaid");
+    formData.set("codStatus", "pending");
+    formData.set("collectedAmount", "0");
+    formData.set("collectionStatus", "pending");
+    formData.set("merchantSettlementStatus", "pending");
+    formData.set("riderPayoutStatus", "pending");
+    formData.set("paymentNote", "");
+
+    const result = await updateParcelAction({ ok: true, message: "" }, formData);
+
+    expect(result).toMatchObject({
+      ok: false,
+      message:
+        "COD amount must be greater than delivery fee when delivery fee status is 'deduct_from_settlement'.",
+    });
+    expect(updateParcelAndPaymentWithAuditMock).not.toHaveBeenCalled();
+  });
 });

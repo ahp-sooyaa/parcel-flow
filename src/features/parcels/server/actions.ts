@@ -348,36 +348,6 @@ export async function updateParcelAction(
       };
     }
 
-    const refs = await validateParcelReferences({
-      merchantId: parsed.data.merchantId,
-      riderId: parsed.data.riderId,
-      recipientTownshipId: parsed.data.recipientTownshipId,
-    });
-
-    if (!refs.ok) {
-      return { ok: false, message: refs.message, fields: submittedFields };
-    }
-
-    const deliveryFeeStateGuard = validateCreateDeliveryFeeState({
-      parcelType: parsed.data.parcelType,
-      codAmount: parsed.data.codAmount,
-      deliveryFee: parsed.data.deliveryFee,
-      deliveryFeeStatus: parsed.data.deliveryFeeStatus,
-    });
-
-    if (!deliveryFeeStateGuard.ok) {
-      return { ok: false, message: deliveryFeeStateGuard.message, fields: submittedFields };
-    }
-
-    const codStateGuard = validateUpdateCodState({
-      parcelType: parsed.data.parcelType,
-      codStatus: parsed.data.codStatus,
-    });
-
-    if (!codStateGuard.ok) {
-      return { ok: false, message: codStateGuard.message, fields: submittedFields };
-    }
-
     const current = await getParcelUpdateContext(parsed.data.parcelId, currentUser);
 
     if (!current) {
@@ -399,6 +369,36 @@ export async function updateParcelAction(
       current,
       merchantId: merchantScope.merchantId,
     });
+
+    const refs = await validateParcelReferences({
+      merchantId: actorScopedUpdate.merchantId,
+      riderId: actorScopedUpdate.riderId,
+      recipientTownshipId: parsed.data.recipientTownshipId,
+    });
+
+    if (!refs.ok) {
+      return { ok: false, message: refs.message, fields: submittedFields };
+    }
+
+    const deliveryFeeStateGuard = validateCreateDeliveryFeeState({
+      parcelType: parsed.data.parcelType,
+      codAmount: parsed.data.codAmount,
+      deliveryFee: parsed.data.deliveryFee,
+      deliveryFeeStatus: actorScopedUpdate.deliveryFeeStatus,
+    });
+
+    if (!deliveryFeeStateGuard.ok) {
+      return { ok: false, message: deliveryFeeStateGuard.message, fields: submittedFields };
+    }
+
+    const codStateGuard = validateUpdateCodState({
+      parcelType: parsed.data.parcelType,
+      codStatus: actorScopedUpdate.codStatus,
+    });
+
+    if (!codStateGuard.ok) {
+      return { ok: false, message: codStateGuard.message, fields: submittedFields };
+    }
 
     const totalAmountToCollect = computeTotalAmountToCollect({
       parcelType: parsed.data.parcelType,
