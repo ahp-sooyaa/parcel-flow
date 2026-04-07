@@ -99,4 +99,28 @@ describe("getCurrentUserContext integration", () => {
     expect(getClaimsMock).not.toHaveBeenCalled();
     expect(findCurrentUserContextBySupabaseUserIdMock).not.toHaveBeenCalled();
   });
+
+  it("preserves app user id from the e2e auth header", async () => {
+    const { getCurrentUserContext } = await loadGetCurrentUserContextWithStubbedHeader(
+      JSON.stringify({
+        authenticated: true,
+        isActive: true,
+        mustResetPassword: false,
+        permissions: ["dashboard-page.view"],
+        appUserId: "merchant-1",
+        linkedMerchantId: "merchant-1",
+        roleSlug: "merchant",
+      }),
+    );
+
+    const result = await getCurrentUserContext();
+
+    expect(result).toMatchObject({
+      appUserId: "merchant-1",
+      linkedMerchantId: "merchant-1",
+      role: {
+        slug: "merchant",
+      },
+    });
+  });
 });

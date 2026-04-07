@@ -7,6 +7,7 @@ type E2EAuthHeader = {
   isActive: boolean;
   mustResetPassword: boolean;
   permissions: string[];
+  appUserId?: string | null;
   linkedMerchantId?: string | null;
   linkedRiderId?: string | null;
   roleSlug?: RoleSlug;
@@ -59,6 +60,7 @@ export function createE2EAuthHeader(overrides: Partial<E2EAuthHeader> = {}): E2E
     isActive: true,
     mustResetPassword: false,
     permissions: [],
+    appUserId: "e2e-app-user",
     roleSlug: "office_admin",
     ...overrides,
   };
