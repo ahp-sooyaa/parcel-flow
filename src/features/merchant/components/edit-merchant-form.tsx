@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateMerchantProfileAction } from "@/features/merchant/server/actions";
+import { cn } from "@/lib/utils";
 
 type EditMerchantFormProps = {
   merchantId: string;
@@ -146,7 +147,12 @@ export function EditMerchantForm({
       </div>
 
       {state.message && (
-        <p className={state.ok ? "text-xs text-emerald-700" : "text-xs text-destructive"}>
+        <p
+          className={cn("text-xs", {
+            "text-emerald-700": state.ok,
+            "text-destructive": !state.ok,
+          })}
+        >
           {state.message}
         </p>
       )}

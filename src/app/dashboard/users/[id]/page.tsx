@@ -7,36 +7,14 @@ import { ResetUserPasswordForm } from "@/features/users/components/reset-user-pa
 import { SoftDeleteUserForm } from "@/features/users/components/soft-delete-user-form";
 import { updateUserStatusAction } from "@/features/users/server/actions";
 import { getUserById } from "@/features/users/server/dal";
+import { getUserRoleEditAction } from "@/features/users/server/utils";
 
 type UserDetailPageProps = {
   params: Promise<{ id: string }>;
 };
 
-function getRoleEditAction(input: {
-  roleSlug: "super_admin" | "office_admin" | "merchant" | "rider";
-  userId: string;
-}) {
-  if (input.roleSlug === "merchant") {
-    return {
-      href: `/dashboard/merchants/${input.userId}/edit`,
-      label: "Edit Merchant Profile",
-      permission: "merchant.update" as const,
-    };
-  }
-
-  if (input.roleSlug === "rider") {
-    return {
-      href: `/dashboard/riders/${input.userId}/edit`,
-      label: "Edit Rider Profile",
-      permission: "rider.update" as const,
-    };
-  }
-
-  return null;
-}
-
 export default async function UserDetailPage({ params }: Readonly<UserDetailPageProps>) {
-  const currentUser = await requirePermission("user.view");
+  await requirePermission("user.view");
   const { id } = await params;
   const user = await getUserById(id);
 
@@ -44,7 +22,7 @@ export default async function UserDetailPage({ params }: Readonly<UserDetailPage
     notFound();
   }
 
-  const roleEditAction = getRoleEditAction({
+  const roleEditAction = getUserRoleEditAction({
     roleSlug: user.roleSlug,
     userId: user.id,
   });
@@ -115,16 +93,14 @@ export default async function UserDetailPage({ params }: Readonly<UserDetailPage
       </IfPermitted>
 
       <IfPermitted permission="user.delete">
-        {currentUser.role.slug === "super_admin" && (
-          <section className="space-y-3 rounded-xl border border-destructive/30 bg-card p-5">
-            <h2 className="text-lg font-semibold text-destructive">Delete User</h2>
-            <p className="text-xs text-muted-foreground">
-              This removes the user from normal screens and day-to-day operations. The record is
-              still kept for history and audit purposes.
-            </p>
-            <SoftDeleteUserForm userId={user.id} />
-          </section>
-        )}
+        <section className="space-y-3 rounded-xl border border-destructive/30 bg-card p-5">
+          <h2 className="text-lg font-semibold text-destructive">Delete User</h2>
+          <p className="text-xs text-muted-foreground">
+            This removes the user from normal screens and day-to-day operations. The record is still
+            kept for history and audit purposes.
+          </p>
+          <SoftDeleteUserForm userId={user.id} />
+        </section>
       </IfPermitted>
     </section>
   );

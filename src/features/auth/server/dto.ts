@@ -23,15 +23,7 @@ export type DashboardShellUserDto = {
   name: string;
   roleLabel: string;
   navItems: {
-    key:
-      | "dashboard"
-      | "users"
-      | "merchants"
-      | "my-merchant"
-      | "riders"
-      | "my-rider"
-      | "parcels"
-      | "townships";
+    key: "dashboard" | "users" | "merchants" | "riders" | "parcels" | "townships";
     href: string;
     label: string;
   }[];
@@ -84,9 +76,9 @@ export function toDashboardShellUserDto(input: {
 
   if (input.role.slug === "merchant" && input.linkedMerchantId) {
     navItems.push({
-      key: "my-merchant",
+      key: "parcels",
       href: `/dashboard/merchants/${input.linkedMerchantId}`,
-      label: "My Merchant",
+      label: "My Parcels",
     });
   } else if (input.permissions.includes("merchant-list.view")) {
     navItems.push({ key: "merchants", href: "/dashboard/merchants", label: "Merchants" });
@@ -94,9 +86,9 @@ export function toDashboardShellUserDto(input: {
 
   if (input.role.slug === "rider" && input.linkedRiderId) {
     navItems.push({
-      key: "my-rider",
+      key: "parcels",
       href: `/dashboard/riders/${input.linkedRiderId}`,
-      label: "My Rider",
+      label: "My Parcels",
     });
   } else if (input.permissions.includes("rider-list.view")) {
     navItems.push({ key: "riders", href: "/dashboard/riders", label: "Riders" });

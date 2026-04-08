@@ -1,4 +1,4 @@
-import { ROLE_SLUGS } from "@/db/constants";
+import { isRoleSlug, type RoleSlug } from "@/db/constants";
 import { requirePermission } from "@/features/auth/server/utils";
 import { getTownshipOptions } from "@/features/townships/server/dal";
 import { CreateUserForm } from "@/features/users/components/create-user-form";
@@ -11,9 +11,7 @@ export default async function CreateUserPage({ searchParams }: Readonly<CreateUs
   const currentUser = await requirePermission("user.create");
   const townships = await getTownshipOptions();
   const { role } = await searchParams;
-  const defaultRole = ROLE_SLUGS.includes(role as (typeof ROLE_SLUGS)[number])
-    ? (role as (typeof ROLE_SLUGS)[number])
-    : "office_admin";
+  const defaultRole: RoleSlug = role && isRoleSlug(role) ? role : "office_admin";
 
   return (
     <section className="mx-auto w-full max-w-3xl space-y-6 rounded-xl border bg-card p-6">

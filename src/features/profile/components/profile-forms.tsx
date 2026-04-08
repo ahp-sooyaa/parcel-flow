@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { changeOwnPasswordAction, updateOwnProfileAction } from "@/features/profile/server/actions";
+import { cn } from "@/lib/utils";
 
 type ProfileFormsProps = {
   fullName: string;
@@ -82,7 +83,10 @@ export function ProfileForms({ fullName, email, phoneNumber }: Readonly<ProfileF
 
           {profileState.message && (
             <p
-              className={profileState.ok ? "text-xs text-emerald-700" : "text-xs text-destructive"}
+              className={cn("text-xs", {
+                "text-emerald-700": profileState.ok,
+                "text-destructive": !profileState.ok,
+              })}
             >
               {profileState.message}
             </p>
@@ -119,7 +123,10 @@ export function ProfileForms({ fullName, email, phoneNumber }: Readonly<ProfileF
 
           {passwordState.message && (
             <p
-              className={passwordState.ok ? "text-xs text-emerald-700" : "text-xs text-destructive"}
+              className={cn("text-xs", {
+                "text-emerald-700": passwordState.ok,
+                "text-destructive": !passwordState.ok,
+              })}
             >
               {passwordState.message}
             </p>

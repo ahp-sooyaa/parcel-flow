@@ -2,6 +2,10 @@ export const ROLE_SLUGS = ["super_admin", "office_admin", "rider", "merchant"] a
 
 export type RoleSlug = (typeof ROLE_SLUGS)[number];
 
+export function isRoleSlug(value: string): value is RoleSlug {
+  return ROLE_SLUGS.includes(value as RoleSlug);
+}
+
 export const PERMISSION_SLUGS = [
   "dashboard-page.view",
   "user-password.reset",

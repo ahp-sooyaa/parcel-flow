@@ -11,6 +11,7 @@ import {
   PARCEL_TYPES,
 } from "@/features/parcels/constants";
 import { createParcelAction } from "@/features/parcels/server/actions";
+import { cn } from "@/lib/utils";
 
 type CreateParcelFormProps = {
   merchants: { id: string; label: string }[];
@@ -289,13 +290,17 @@ export function CreateParcelForm({
 
       {state.message && (
         <div
-          className={
-            state.ok
-              ? "rounded-lg border border-emerald-300 bg-emerald-50 p-3"
-              : "rounded-lg border border-red-300 bg-red-50 p-3"
-          }
+          className={cn("rounded-lg border p-3", {
+            "border-emerald-300 bg-emerald-50": state.ok,
+            "border-red-300 bg-red-50": !state.ok,
+          })}
         >
-          <p className={state.ok ? "text-xs text-emerald-800" : "text-xs text-destructive"}>
+          <p
+            className={cn("text-xs", {
+              "text-emerald-800": state.ok,
+              "text-destructive": !state.ok,
+            })}
+          >
             {state.message}
           </p>
         </div>

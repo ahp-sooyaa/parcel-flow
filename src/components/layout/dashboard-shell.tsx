@@ -25,15 +25,7 @@ type DashboardShellProps = {
     name: string;
     roleLabel: string;
     navItems: {
-      key:
-        | "dashboard"
-        | "users"
-        | "merchants"
-        | "my-merchant"
-        | "riders"
-        | "my-rider"
-        | "parcels"
-        | "townships";
+      key: "dashboard" | "users" | "merchants" | "riders" | "parcels" | "townships";
       href: string;
       label: string;
     }[];
@@ -45,9 +37,7 @@ const navIconByKey: Record<DashboardShellProps["user"]["navItems"][number]["key"
   dashboard: <LayoutDashboard className="h-4 w-4" />,
   users: <Users className="h-4 w-4" />,
   merchants: <Store className="h-4 w-4" />,
-  "my-merchant": <Store className="h-4 w-4" />,
   riders: <Truck className="h-4 w-4" />,
-  "my-rider": <Truck className="h-4 w-4" />,
   parcels: <PackageSearch className="h-4 w-4" />,
   townships: <MapPinned className="h-4 w-4" />,
 };
@@ -71,7 +61,7 @@ export function DashboardShell({ children, user }: Readonly<DashboardShellProps>
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-72 border-r bg-sidebar px-4 py-6 transition-transform duration-200",
           "md:static md:translate-x-0",
-          isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+          isSidebarOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
         <div className="mb-4 flex items-center justify-between md:mb-0 md:block">

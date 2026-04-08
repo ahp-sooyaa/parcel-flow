@@ -4,10 +4,11 @@ import { useState, useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ROLE_SLUGS } from "@/db/constants";
+import { ROLE_SLUGS, type RoleSlug } from "@/db/constants";
 import { createUserAction } from "@/features/users/server/actions";
+import { cn } from "@/lib/utils";
 
-const roleLabels: Record<(typeof ROLE_SLUGS)[number], string> = {
+const roleLabels: Record<RoleSlug, string> = {
   super_admin: "Super Admin",
   office_admin: "Office Admin",
   rider: "Rider",
@@ -22,7 +23,7 @@ const initialState = {
 
 type CreateUserFormProps = {
   canCreateSuperAdmin: boolean;
-  defaultRole?: (typeof ROLE_SLUGS)[number];
+  defaultRole?: RoleSlug;
   townships: {
     id: string;
     name: string;
@@ -35,11 +36,11 @@ export function CreateUserForm({
   townships,
 }: Readonly<CreateUserFormProps>) {
   const [state, action, isPending] = useActionState(createUserAction, initialState);
-  const selectableRoles: readonly (typeof ROLE_SLUGS)[number][] = canCreateSuperAdmin
+  const selectableRoles: readonly RoleSlug[] = canCreateSuperAdmin
     ? ROLE_SLUGS
     : ROLE_SLUGS.filter((role) => role !== "super_admin");
   const safeDefaultRole = selectableRoles.includes(defaultRole) ? defaultRole : selectableRoles[0];
-  const [selectedRole, setSelectedRole] = useState<(typeof ROLE_SLUGS)[number]>(safeDefaultRole);
+  const [selectedRole, setSelectedRole] = useState<RoleSlug>(safeDefaultRole);
   const showMerchantFields = selectedRole === "merchant";
   const showRiderFields = selectedRole === "rider";
 
@@ -67,7 +68,7 @@ export function CreateUserForm({
           name="role"
           className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           value={selectedRole}
-          onChange={(event) => setSelectedRole(event.target.value as (typeof ROLE_SLUGS)[number])}
+          onChange={(event) => setSelectedRole(event.target.value as RoleSlug)}
           required
         >
           {selectableRoles.map((roleSlug) => (
@@ -197,13 +198,17 @@ export function CreateUserForm({
 
       {state.message && (
         <div
-          className={
-            state.ok
-              ? "rounded-lg border border-emerald-300 bg-emerald-50 p-3"
-              : "rounded-lg border border-red-300 bg-red-50 p-3"
-          }
+          className={cn("rounded-lg border p-3", {
+            "border-emerald-300 bg-emerald-50": state.ok,
+            "border-red-300 bg-red-50": !state.ok,
+          })}
         >
-          <p className={state.ok ? "text-xs text-emerald-800" : "text-xs text-destructive"}>
+          <p
+            className={cn("text-xs", {
+              "text-emerald-800": state.ok,
+              "text-destructive": !state.ok,
+            })}
+          >
             {state.message}
           </p>
           {state.temporaryPassword && (

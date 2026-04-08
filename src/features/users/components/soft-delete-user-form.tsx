@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { softDeleteUserAction } from "@/features/users/server/actions";
+import { cn } from "@/lib/utils";
 
 type SoftDeleteUserFormProps = {
   userId: string;
@@ -33,7 +34,12 @@ export function SoftDeleteUserForm({ userId }: Readonly<SoftDeleteUserFormProps>
       <input type="hidden" name="userId" value={userId} />
 
       {state.message && (
-        <p className={state.ok ? "text-xs text-emerald-700" : "text-xs text-destructive"}>
+        <p
+          className={cn("text-xs", {
+            "text-emerald-700": state.ok,
+            "text-destructive": !state.ok,
+          })}
+        >
           {state.message}
         </p>
       )}

@@ -1,19 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { IfPermitted } from "@/components/shared/if-permitted";
 import { Button } from "@/components/ui/button";
 import { requirePermission } from "@/features/auth/server/utils";
 import { EditUserForm } from "@/features/users/components/edit-user-form";
 import { SoftDeleteUserForm } from "@/features/users/components/soft-delete-user-form";
 import { getUserById } from "@/features/users/server/dal";
+import { getUserRoleEditAction } from "@/features/users/server/utils";
 
 type EditUserPageProps = {
   params: Promise<{ id: string }>;
 };
 
 export default async function EditUserPage({ params }: Readonly<EditUserPageProps>) {
-  const currentUser = await requirePermission("user.update");
-  const canDeleteUser =
-    currentUser.role.slug === "super_admin" && currentUser.permissions.includes("user.delete");
+  await requirePermission("user.update");
   const { id } = await params;
   const user = await getUserById(id);
 
@@ -21,16 +21,10 @@ export default async function EditUserPage({ params }: Readonly<EditUserPageProp
     notFound();
   }
 
-  let roleEditHref: string | null = null;
-  let roleEditLabel: string | null = null;
-
-  if (user.roleSlug === "merchant") {
-    roleEditHref = `/dashboard/merchants/${user.id}/edit`;
-    roleEditLabel = "Edit Merchant Profile";
-  } else if (user.roleSlug === "rider") {
-    roleEditHref = `/dashboard/riders/${user.id}/edit`;
-    roleEditLabel = "Edit Rider Profile";
-  }
+  const roleEditAction = getUserRoleEditAction({
+    roleSlug: user.roleSlug,
+    userId: user.id,
+  });
 
   return (
     <section className="mx-auto w-full max-w-3xl space-y-6">
@@ -51,19 +45,21 @@ export default async function EditUserPage({ params }: Readonly<EditUserPageProp
         />
       </section>
 
-      {roleEditHref && roleEditLabel && (
-        <section className="space-y-3 rounded-xl border bg-card p-5">
-          <h2 className="text-lg font-semibold">Linked Role Profile</h2>
-          <p className="text-xs text-muted-foreground">
-            Role-specific merchant and rider data is managed in its own edit workflow.
-          </p>
-          <Button asChild variant="outline">
-            <Link href={roleEditHref}>{roleEditLabel}</Link>
-          </Button>
-        </section>
+      {roleEditAction && (
+        <IfPermitted permission={roleEditAction.permission}>
+          <section className="space-y-3 rounded-xl border bg-card p-5">
+            <h2 className="text-lg font-semibold">Linked Role Profile</h2>
+            <p className="text-xs text-muted-foreground">
+              Role-specific merchant and rider data is managed in its own edit workflow.
+            </p>
+            <Button asChild variant="outline">
+              <Link href={roleEditAction.href}>{roleEditAction.label}</Link>
+            </Button>
+          </section>
+        </IfPermitted>
       )}
 
-      {canDeleteUser && (
+      <IfPermitted permission="user.delete">
         <section className="space-y-3 rounded-xl border border-destructive/30 bg-card p-5">
           <h2 className="text-lg font-semibold text-destructive">Delete User</h2>
           <p className="text-xs text-muted-foreground">
@@ -72,7 +68,7 @@ export default async function EditUserPage({ params }: Readonly<EditUserPageProp
           </p>
           <SoftDeleteUserForm userId={user.id} />
         </section>
-      )}
+      </IfPermitted>
     </section>
   );
 }

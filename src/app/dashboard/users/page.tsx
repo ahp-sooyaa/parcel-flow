@@ -1,10 +1,11 @@
 import Link from "next/link";
+import { IfPermitted } from "@/components/shared/if-permitted";
 import { Button } from "@/components/ui/button";
 import { requirePermission } from "@/features/auth/server/utils";
 import { getUsersList } from "@/features/users/server/dal";
 
 export default async function UsersPage() {
-  const currentUser = await requirePermission("user-list.view");
+  await requirePermission("user-list.view");
 
   const users = await getUsersList();
 
@@ -50,11 +51,11 @@ export default async function UsersPage() {
                     <Button asChild size="sm" variant="outline">
                       <Link href={`/dashboard/users/${user.id}`}>View</Link>
                     </Button>
-                    {currentUser.permissions.includes("user.update") && (
+                    <IfPermitted permission="user.update">
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/dashboard/users/${user.id}/edit`}>Edit</Link>
                       </Button>
-                    )}
+                    </IfPermitted>
                   </div>
                 </td>
               </tr>
