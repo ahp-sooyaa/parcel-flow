@@ -20,11 +20,21 @@ export const createUserSchema = z.object({
   riderIsActive: z.boolean(),
 });
 
-export const updateUserProfileSchema = z.object({
-  userId: z.string().trim().uuid(),
+export const updateAccountProfileSchema = z.object({
+  targetUserId: optionalNullableUuid(),
   fullName: z.string().trim().min(2).max(120),
   phoneNumber: optionalNullableTrimmedString(30),
 });
+
+export const changePasswordSchema = z
+  .object({
+    password: z.string().min(12),
+    confirmPassword: z.string().min(12),
+  })
+  .refine((value) => value.password === value.confirmPassword, {
+    message: "Passwords do not match.",
+    path: ["confirmPassword"],
+  });
 
 export const softDeleteUserSchema = z.object({
   userId: z.string().trim().uuid(),

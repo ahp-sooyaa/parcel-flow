@@ -4,15 +4,17 @@ import { useActionState, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { updateUserProfileAction } from "@/features/users/server/actions";
+import { updateAccountProfileAction } from "@/features/users/server/actions";
 import { cn } from "@/lib/utils";
 
-type EditUserFormProps = {
-  userId: string;
+type AccountEditFormProps = {
+  targetUserId?: string;
   fullName: string;
   email: string;
   phoneNumber: string | null;
-  roleLabel: string;
+  showRole?: boolean;
+  roleLabel?: string;
+  submitLabel?: string;
 };
 
 const initialState = {
@@ -20,14 +22,16 @@ const initialState = {
   message: "",
 };
 
-export function EditUserForm({
-  userId,
+export function AccountEditForm({
+  targetUserId,
   fullName,
   email,
   phoneNumber,
+  showRole = false,
   roleLabel,
-}: Readonly<EditUserFormProps>) {
-  const [state, action, isPending] = useActionState(updateUserProfileAction, initialState);
+  submitLabel = "Save Profile",
+}: Readonly<AccountEditFormProps>) {
+  const [state, action, isPending] = useActionState(updateAccountProfileAction, initialState);
   const [values, setValues] = useState({
     fullName,
     phoneNumber: phoneNumber ?? "",
@@ -42,7 +46,7 @@ export function EditUserForm({
 
   return (
     <form action={action} className="space-y-5">
-      <input type="hidden" name="userId" value={userId} />
+      {targetUserId && <input type="hidden" name="targetUserId" value={targetUserId} />}
 
       <div className="grid gap-2">
         <Label htmlFor="edit-user-full-name">Full Name</Label>
@@ -65,10 +69,12 @@ export function EditUserForm({
         <Input id="edit-user-email" value={email} disabled />
       </div>
 
-      <div className="grid gap-2">
-        <Label htmlFor="edit-user-role">Role</Label>
-        <Input id="edit-user-role" value={roleLabel} disabled />
-      </div>
+      {showRole && (
+        <div className="grid gap-2">
+          <Label htmlFor="edit-user-role">Role</Label>
+          <Input id="edit-user-role" value={roleLabel ?? "-"} disabled />
+        </div>
+      )}
 
       <div className="grid gap-2">
         <Label htmlFor="edit-user-phone-number">Phone Number</Label>
@@ -97,7 +103,7 @@ export function EditUserForm({
       )}
 
       <Button type="submit" disabled={isPending}>
-        {isPending ? "Saving..." : "Save User Profile"}
+        {isPending ? "Saving..." : submitLabel}
       </Button>
     </form>
   );

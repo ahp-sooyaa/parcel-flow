@@ -6,30 +6,63 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { countActiveSuperAdminUsers, getUserStatusGuardContext } from "./dal";
 import {
+  changePasswordSchema,
   createUserSchema,
   parseActiveFlag,
   softDeleteUserSchema,
-  updateUserProfileSchema,
+  updateAccountProfileSchema,
 } from "./utils";
 import { db } from "@/db";
 import { appUsers, merchants, riders } from "@/db/schema";
 import { findRoleBySlug, findAppUserById } from "@/features/auth/server/dal";
-import { requirePermission } from "@/features/auth/server/utils";
+import { hasPermission, requireCurrentUser, requirePermission } from "@/features/auth/server/utils";
 import { createMerchantProfile } from "@/features/merchant/server/dal";
 import { createRiderProfile } from "@/features/rider/server/dal";
 import { findTownshipById } from "@/features/townships/server/dal";
 import { logAuditEvent } from "@/lib/security/audit";
 import { generateStrongPassword } from "@/lib/security/password";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 import type {
+  AccountActionResult,
   CreateUserActionResult,
   ResetUserPasswordActionResult,
   SoftDeleteUserActionResult,
-  UpdateUserProfileActionResult,
 } from "./dto";
 
 type CreateUserInput = ReturnType<typeof createUserSchema.parse>;
+
+function mapPasswordUpdateError(error: { message?: string; code?: string; status?: number }) {
+  const message = error.message?.toLowerCase() ?? "";
+  const code = error.code?.toLowerCase() ?? "";
+
+  if (message.includes("same") || message.includes("different from the old password")) {
+    return "Please choose a new password that is different from your current password.";
+  }
+
+  if (
+    message.includes("weak") ||
+    message.includes("strength") ||
+    message.includes("security purposes")
+  ) {
+    return "Your new password is too weak. Use a stronger password with at least 12 characters.";
+  }
+
+  if (code === "reauthentication_needed" || message.includes("reauthentication")) {
+    return "For security, please sign in again and then change your password.";
+  }
+
+  if (code === "over_request_rate_limit" || message.includes("rate limit")) {
+    return "Too many attempts. Please wait a moment and try again.";
+  }
+
+  if (error.status === 401 || message.includes("jwt") || message.includes("token")) {
+    return "Your session has expired. Please sign in again and try changing your password.";
+  }
+
+  return "Could not update password. Please try again.";
+}
 
 async function parseCreateUserInput(formData: FormData) {
   return createUserSchema.safeParse({
@@ -332,26 +365,35 @@ export async function updateUserStatusAction(formData: FormData) {
   revalidatePath("/dashboard/users");
 }
 
-export async function updateUserProfileAction(
-  _prevState: UpdateUserProfileActionResult,
+export async function updateAccountProfileAction(
+  _prevState: AccountActionResult,
   formData: FormData,
-): Promise<UpdateUserProfileActionResult> {
+): Promise<AccountActionResult> {
   try {
-    const currentUser = await requirePermission("user.update");
-    const parsed = updateUserProfileSchema.safeParse({
-      userId: formData.get("userId"),
+    const currentUser = await requireCurrentUser();
+    const parsed = updateAccountProfileSchema.safeParse({
+      targetUserId: formData.get("targetUserId"),
       fullName: formData.get("fullName"),
       phoneNumber: formData.get("phoneNumber"),
     });
 
     if (!parsed.success) {
-      return { ok: false, message: "Please provide valid user profile data." };
+      return { ok: false, message: "Please provide valid profile data." };
     }
 
-    const targetUser = await getUserStatusGuardContext(parsed.data.userId);
+    const targetUserId = parsed.data.targetUserId ?? currentUser.appUserId;
+    const targetUser = await getUserStatusGuardContext(targetUserId);
 
     if (!targetUser) {
       return { ok: false, message: "User was not found." };
+    }
+
+    const canEditTarget =
+      hasPermission(currentUser.permissions, "user.update") ||
+      currentUser.appUserId === targetUser.id;
+
+    if (!canEditTarget) {
+      return { ok: false, message: "Forbidden" };
     }
 
     if (targetUser.roleSlug === "super_admin" && currentUser.role.slug !== "super_admin") {
@@ -365,26 +407,75 @@ export async function updateUserProfileAction(
         phoneNumber: parsed.data.phoneNumber,
         updatedAt: new Date(),
       })
-      .where(and(eq(appUsers.id, parsed.data.userId), isNull(appUsers.deletedAt)));
+      .where(and(eq(appUsers.id, targetUser.id), isNull(appUsers.deletedAt)));
 
     await logAuditEvent({
       event: "user.update",
       actorAppUserId: currentUser.appUserId,
-      targetAppUserId: parsed.data.userId,
+      targetAppUserId: targetUser.id,
       metadata: {
         fullNameChanged: true,
         phoneNumberProvided: Boolean(parsed.data.phoneNumber),
+        ownershipEdit: targetUser.id === currentUser.appUserId,
       },
     });
 
-    revalidatePath(`/dashboard/users/${parsed.data.userId}`);
-    revalidatePath(`/dashboard/users/${parsed.data.userId}/edit`);
+    revalidatePath(`/dashboard/users/${targetUser.id}`);
+    revalidatePath(`/dashboard/users/${targetUser.id}/edit`);
     revalidatePath("/dashboard/users");
     revalidatePath("/dashboard/profile");
 
-    return { ok: true, message: "User profile updated." };
+    return {
+      ok: true,
+      message:
+        targetUser.id === currentUser.appUserId ? "Profile updated." : "User profile updated.",
+    };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to update user profile.";
+    const message = error instanceof Error ? error.message : "Unable to update profile.";
+
+    return { ok: false, message };
+  }
+}
+
+export async function changeOwnPasswordAction(
+  _prevState: AccountActionResult,
+  formData: FormData,
+): Promise<AccountActionResult> {
+  try {
+    const currentUser = await requireCurrentUser();
+    const parsed = changePasswordSchema.safeParse({
+      password: formData.get("password"),
+      confirmPassword: formData.get("confirmPassword"),
+    });
+
+    if (!parsed.success) {
+      const firstIssue = parsed.error.issues[0];
+      return { ok: false, message: firstIssue?.message || "Please provide a valid new password." };
+    }
+
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+
+    if (error) {
+      return { ok: false, message: mapPasswordUpdateError(error) };
+    }
+
+    await db
+      .update(appUsers)
+      .set({ mustResetPassword: false })
+      .where(eq(appUsers.id, currentUser.appUserId));
+
+    await logAuditEvent({
+      event: "password.change",
+      actorAppUserId: currentUser.appUserId,
+    });
+
+    revalidatePath("/dashboard/profile");
+    revalidatePath("/dashboard");
+
+    return { ok: true, message: "Password changed successfully." };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to change password.";
 
     return { ok: false, message };
   }

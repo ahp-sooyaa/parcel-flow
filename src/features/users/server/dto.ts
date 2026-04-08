@@ -31,9 +31,15 @@ export type CreateUserActionResult = {
   temporaryPassword?: string;
 };
 
-export type UpdateUserProfileActionResult = {
+export type AccountActionResult = {
   ok: boolean;
   message: string;
+};
+
+export type ProfilePageDto = {
+  fullName: string;
+  email: string;
+  phoneNumber: string | null;
 };
 
 export type SoftDeleteUserActionResult = {
@@ -72,5 +78,13 @@ export function toAppUserDetailDto(input: AppUserDetailDto): AppUserDetailDto {
     roleLabel: input.roleLabel,
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
+  };
+}
+
+export function toProfilePageDto(input: ProfilePageDto): ProfilePageDto {
+  return {
+    fullName: input.fullName,
+    email: input.email,
+    phoneNumber: input.phoneNumber,
   };
 }

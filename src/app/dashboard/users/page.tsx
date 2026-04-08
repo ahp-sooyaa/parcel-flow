@@ -48,9 +48,11 @@ export default async function UsersPage() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={`/dashboard/users/${user.id}`}>View</Link>
-                    </Button>
+                    <IfPermitted permission="user.view">
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/dashboard/users/${user.id}`}>View</Link>
+                      </Button>
+                    </IfPermitted>
                     <IfPermitted permission="user.update">
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/dashboard/users/${user.id}/edit`}>Edit</Link>
