@@ -1,6 +1,6 @@
 import { requireCurrentUser } from "@/features/auth/server/utils";
 import { UserProfileEditor } from "@/features/users/components/user-profile-editor";
-import { getProfileByAppUserId } from "@/features/users/server/dal";
+import { getUserById } from "@/features/users/server/dal";
 
 type ProfilePageProps = {
   searchParams: Promise<{ tab?: string }>;
@@ -9,9 +9,9 @@ type ProfilePageProps = {
 export default async function ProfilePage({ searchParams }: Readonly<ProfilePageProps>) {
   const currentUser = await requireCurrentUser();
   const { tab } = await searchParams;
-  const profile = await getProfileByAppUserId(currentUser.appUserId);
+  const user = await getUserById(currentUser.appUserId);
 
-  if (!profile) {
+  if (!user) {
     throw new Error("Profile not found.");
   }
 
@@ -25,21 +25,8 @@ export default async function ProfilePage({ searchParams }: Readonly<ProfilePage
       </header>
 
       <UserProfileEditor
-        viewer={{
-          appUserId: currentUser.appUserId,
-          roleSlug: currentUser.role.slug,
-          permissions: currentUser.permissions,
-          linkedMerchantId: currentUser.linkedMerchantId,
-          linkedRiderId: currentUser.linkedRiderId,
-        }}
-        targetUser={{
-          id: currentUser.appUserId,
-          fullName: profile.fullName,
-          email: profile.email,
-          phoneNumber: profile.phoneNumber,
-          roleSlug: currentUser.role.slug,
-          roleLabel: currentUser.role.label,
-        }}
+        viewer={currentUser}
+        targetUser={user}
         mode="self"
         activeTab={tab}
         basePath="/dashboard/profile"

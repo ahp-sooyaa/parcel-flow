@@ -8,30 +8,14 @@ import { getRiderById } from "@/features/rider/server/dal";
 import { getTownshipOptions } from "@/features/townships/server/dal";
 import { cn } from "@/lib/utils";
 
-import type { PermissionSlug, RoleSlug } from "@/db/constants";
+import type { CurrentUserContext } from "@/features/auth/server/dto";
+import type { AppUserDetailDto } from "@/features/users/server/dto";
 
 type EditorMode = "self" | "admin";
 
-type UserProfileEditorViewer = {
-  appUserId: string;
-  roleSlug: RoleSlug;
-  permissions: readonly PermissionSlug[];
-  linkedMerchantId: string | null;
-  linkedRiderId: string | null;
-};
-
-type UserProfileEditorTarget = {
-  id: string;
-  fullName: string;
-  email: string;
-  phoneNumber: string | null;
-  roleSlug: RoleSlug;
-  roleLabel: string;
-};
-
 type UserProfileEditorProps = {
-  viewer: UserProfileEditorViewer;
-  targetUser: UserProfileEditorTarget;
+  viewer: CurrentUserContext;
+  targetUser: AppUserDetailDto;
   mode: EditorMode;
   activeTab?: string;
   basePath: string;
@@ -44,36 +28,32 @@ export async function UserProfileEditor({
   activeTab,
   basePath,
 }: Readonly<UserProfileEditorProps>) {
-  const canEditMerchantDetails =
-    targetUser.roleSlug === "merchant" &&
-    (mode === "admin"
-      ? viewer.permissions.includes("merchant.update")
-      : viewer.roleSlug === "merchant" && viewer.linkedMerchantId === targetUser.id);
-
-  const canEditRiderDetails =
-    targetUser.roleSlug === "rider" &&
-    (mode === "admin"
-      ? viewer.permissions.includes("rider.update")
-      : viewer.roleSlug === "rider" && viewer.linkedRiderId === targetUser.id);
-
+  const targetUserId = targetUser.id;
+  const targetUserRoleLabel = targetUser.roleLabel;
+  let canEditMerchantDetails = false;
+  let canEditRiderDetails = false;
   let merchantProfile: Awaited<ReturnType<typeof getMerchantById>> = null;
   let riderProfile: Awaited<ReturnType<typeof getRiderById>> = null;
   let townships: Awaited<ReturnType<typeof getTownshipOptions>> = [];
 
-  if (canEditMerchantDetails) {
-    merchantProfile = await getMerchantById(targetUser.id);
+  if (mode === "admin") {
+    canEditMerchantDetails = viewer.permissions.includes("merchant.update");
+    canEditRiderDetails = viewer.permissions.includes("rider.update");
+  } else {
+    canEditMerchantDetails = targetUserId === viewer.linkedMerchantId;
+    canEditRiderDetails = targetUserId === viewer.linkedRiderId;
+  }
 
-    if (merchantProfile) {
-      townships = await getTownshipOptions();
-    }
+  if (canEditMerchantDetails) {
+    merchantProfile = await getMerchantById(targetUserId);
   }
 
   if (canEditRiderDetails) {
-    riderProfile = await getRiderById(targetUser.id);
+    riderProfile = await getRiderById(targetUserId);
+  }
 
-    if (riderProfile) {
-      townships = await getTownshipOptions();
-    }
+  if (canEditMerchantDetails || canEditRiderDetails) {
+    townships = await getTownshipOptions();
   }
 
   return (
@@ -81,12 +61,11 @@ export async function UserProfileEditor({
       <nav className="flex items-center gap-1 border-b" aria-label="Profile edit tabs">
         <Link
           href={`${basePath}?tab=account-details`}
-          className={cn(
-            "border-b-2 px-4 py-2 text-sm font-medium transition-colors",
-            activeTab === "account-details"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground",
-          )}
+          className={cn("border-b-2 px-4 py-2 text-sm font-medium transition-colors", {
+            "border-primary text-foreground": activeTab === "account-details",
+            "border-transparent text-muted-foreground hover:text-foreground":
+              activeTab !== "account-details",
+          })}
         >
           Account Details
         </Link>
@@ -94,12 +73,11 @@ export async function UserProfileEditor({
         {merchantProfile && (
           <Link
             href={`${basePath}?tab=merchant-details`}
-            className={cn(
-              "border-b-2 px-4 py-2 text-sm font-medium transition-colors",
-              activeTab === "merchant-details"
-                ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
+            className={cn("border-b-2 px-4 py-2 text-sm font-medium transition-colors", {
+              "border-primary text-foreground": activeTab === "merchant-details",
+              "border-transparent text-muted-foreground hover:text-foreground":
+                activeTab !== "merchant-details",
+            })}
           >
             Merchant Details
           </Link>
@@ -108,12 +86,11 @@ export async function UserProfileEditor({
         {riderProfile && (
           <Link
             href={`${basePath}?tab=rider-details`}
-            className={cn(
-              "border-b-2 px-4 py-2 text-sm font-medium transition-colors",
-              activeTab === "rider-details"
-                ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
+            className={cn("border-b-2 px-4 py-2 text-sm font-medium transition-colors", {
+              "border-primary text-foreground": activeTab === "rider-details",
+              "border-transparent text-muted-foreground hover:text-foreground":
+                activeTab !== "rider-details",
+            })}
           >
             Rider Details
           </Link>
@@ -134,12 +111,12 @@ export async function UserProfileEditor({
               </header>
 
               <AccountEditForm
-                targetUserId={mode === "admin" ? targetUser.id : undefined}
+                targetUserId={mode === "admin" ? targetUserId : undefined}
                 fullName={targetUser.fullName}
                 email={targetUser.email}
                 phoneNumber={targetUser.phoneNumber}
                 showRole={mode === "admin"}
-                roleLabel={targetUser.roleLabel}
+                roleLabel={targetUserRoleLabel}
                 submitLabel={mode === "admin" ? "Save User Profile" : "Save Profile"}
               />
             </section>

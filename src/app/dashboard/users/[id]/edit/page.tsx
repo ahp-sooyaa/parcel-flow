@@ -30,21 +30,8 @@ export default async function EditUserPage({ params, searchParams }: Readonly<Ed
       </header>
 
       <UserProfileEditor
-        viewer={{
-          appUserId: currentUser.appUserId,
-          roleSlug: currentUser.role.slug,
-          permissions: currentUser.permissions,
-          linkedMerchantId: currentUser.linkedMerchantId,
-          linkedRiderId: currentUser.linkedRiderId,
-        }}
-        targetUser={{
-          id: user.id,
-          fullName: user.fullName,
-          email: user.email,
-          phoneNumber: user.phoneNumber,
-          roleSlug: user.roleSlug,
-          roleLabel: user.roleLabel,
-        }}
+        viewer={currentUser}
+        targetUser={user}
         mode="admin"
         activeTab={tab}
         basePath={`/dashboard/users/${user.id}/edit`}
