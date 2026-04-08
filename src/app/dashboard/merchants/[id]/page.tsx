@@ -47,6 +47,10 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
     viewerPermissions: currentUser.permissions,
     permission: "merchant.update",
   });
+  const editMerchantHref =
+    currentUser.role.slug === "merchant"
+      ? "/dashboard/profile"
+      : `/dashboard/users/${merchant.id}/edit`;
 
   return (
     <section className="mx-auto w-full max-w-3xl space-y-6">
@@ -58,7 +62,7 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
       {canEditMerchant && (
         <div className="flex items-center gap-3">
           <Button asChild variant="outline">
-            <Link href={`/dashboard/merchants/${merchant.id}/edit`}>Edit Merchant Profile</Link>
+            <Link href={editMerchantHref}>Edit Merchant Profile</Link>
           </Button>
           {currentUser.permissions.includes("parcel.create") && (
             <Button asChild>

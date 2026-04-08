@@ -85,7 +85,7 @@ export default async function RidersPage({ searchParams }: Readonly<RidersPagePr
                       </Button>
                       {currentUser.permissions.includes("rider.update") && (
                         <Button asChild size="sm" variant="outline">
-                          <Link href={`/dashboard/riders/${rider.id}/edit`}>Edit</Link>
+                          <Link href={`/dashboard/users/${rider.id}/edit`}>Edit</Link>
                         </Button>
                       )}
                     </div>

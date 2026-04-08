@@ -46,6 +46,8 @@ export default async function RiderDetailPage({ params }: Readonly<RiderDetailPa
     viewerPermissions: currentUser.permissions,
     permission: "rider.update",
   });
+  const editRiderHref =
+    currentUser.role.slug === "rider" ? "/dashboard/profile" : `/dashboard/users/${rider.id}/edit`;
 
   return (
     <section className="mx-auto w-full max-w-3xl space-y-6">
@@ -57,7 +59,7 @@ export default async function RiderDetailPage({ params }: Readonly<RiderDetailPa
       {canEditRider && (
         <div>
           <Button asChild variant="outline">
-            <Link href={`/dashboard/riders/${rider.id}/edit`}>Edit Rider Profile</Link>
+            <Link href={editRiderHref}>Edit Rider Profile</Link>
           </Button>
         </div>
       )}

@@ -81,7 +81,7 @@ export default async function MerchantsPage({ searchParams }: Readonly<Merchants
                       </Button>
                       {currentUser.permissions.includes("merchant.update") && (
                         <Button asChild size="sm" variant="outline">
-                          <Link href={`/dashboard/merchants/${merchant.id}/edit`}>Edit</Link>
+                          <Link href={`/dashboard/users/${merchant.id}/edit`}>Edit</Link>
                         </Button>
                       )}
                     </div>

@@ -7,7 +7,6 @@ import { ResetUserPasswordForm } from "@/features/users/components/reset-user-pa
 import { SoftDeleteUserForm } from "@/features/users/components/soft-delete-user-form";
 import { updateUserStatusAction } from "@/features/users/server/actions";
 import { getUserById } from "@/features/users/server/dal";
-import { getUserRoleEditAction } from "@/features/users/server/utils";
 
 type UserDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -22,11 +21,6 @@ export default async function UserDetailPage({ params }: Readonly<UserDetailPage
     notFound();
   }
 
-  const roleEditAction = getUserRoleEditAction({
-    roleSlug: user.roleSlug,
-    userId: user.id,
-  });
-
   return (
     <section className="mx-auto w-full max-w-3xl space-y-6">
       <header className="space-y-1">
@@ -40,13 +34,6 @@ export default async function UserDetailPage({ params }: Readonly<UserDetailPage
             <Link href={`/dashboard/users/${user.id}/edit`}>Edit User</Link>
           </Button>
         </IfPermitted>
-        {roleEditAction && (
-          <IfPermitted permission={roleEditAction.permission}>
-            <Button asChild variant="outline">
-              <Link href={roleEditAction.href}>{roleEditAction.label}</Link>
-            </Button>
-          </IfPermitted>
-        )}
       </div>
 
       <div className="grid gap-4 rounded-xl border bg-card p-5 text-sm">
