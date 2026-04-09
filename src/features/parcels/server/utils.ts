@@ -79,8 +79,7 @@ export type ParcelCreateInput = z.infer<typeof createParcelSchema>;
 export type ParcelUpdateInput = z.infer<typeof updateParcelSchema>;
 
 export type ParcelViewerContext = {
-  linkedMerchantId: string | null;
-  linkedRiderId: string | null;
+  appUserId: string;
   role: {
     slug: RoleSlug;
   };
@@ -126,23 +125,17 @@ export function canAccessParcelList(viewer: ParcelViewerContext) {
 export function canViewParcel(viewer: ParcelViewerContext) {
   return (
     isAdminDashboardRole(viewer.role.slug) ||
-    (viewer.role.slug === "merchant" && Boolean(viewer.linkedMerchantId)) ||
-    (viewer.role.slug === "rider" && Boolean(viewer.linkedRiderId))
+    viewer.role.slug === "merchant" ||
+    viewer.role.slug === "rider"
   );
 }
 
 export function canCreateParcel(viewer: ParcelViewerContext) {
-  return (
-    isAdminDashboardRole(viewer.role.slug) ||
-    (viewer.role.slug === "merchant" && Boolean(viewer.linkedMerchantId))
-  );
+  return isAdminDashboardRole(viewer.role.slug) || viewer.role.slug === "merchant";
 }
 
 export function canEditParcel(viewer: ParcelViewerContext) {
-  return (
-    isAdminDashboardRole(viewer.role.slug) ||
-    (viewer.role.slug === "merchant" && Boolean(viewer.linkedMerchantId))
-  );
+  return isAdminDashboardRole(viewer.role.slug) || viewer.role.slug === "merchant";
 }
 
 export function resolveMerchantScopedParcelOwner(input: {
@@ -156,14 +149,7 @@ export function resolveMerchantScopedParcelOwner(input: {
     };
   }
 
-  if (!input.viewer.linkedMerchantId) {
-    return {
-      ok: false as const,
-      message: "Merchant account is not linked to a merchant profile.",
-    };
-  }
-
-  if (input.submittedMerchantId !== input.viewer.linkedMerchantId) {
+  if (input.submittedMerchantId !== input.viewer.appUserId) {
     return {
       ok: false as const,
       message: "Merchant users can only manage parcels for their own merchant profile.",
@@ -172,7 +158,7 @@ export function resolveMerchantScopedParcelOwner(input: {
 
   return {
     ok: true as const,
-    merchantId: input.viewer.linkedMerchantId,
+    merchantId: input.viewer.appUserId,
   };
 }
 
@@ -195,7 +181,7 @@ export function canAdvanceRiderParcel(input: {
     };
   }
 
-  if (!input.viewer.linkedRiderId || input.assignedRiderId !== input.viewer.linkedRiderId) {
+  if (input.assignedRiderId !== input.viewer.appUserId) {
     return {
       ok: false as const,
       message: "Rider can only perform actions on assigned parcels.",

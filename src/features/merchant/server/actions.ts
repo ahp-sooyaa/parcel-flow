@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { canAccessMerchantResource, updateMerchantProfileSchema } from "./utils";
 import { db } from "@/db";
 import { merchants } from "@/db/schema";
-import { requireCurrentUser } from "@/features/auth/server/utils";
+import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { findTownshipById } from "@/features/townships/server/dal";
 import { logAuditEvent } from "@/lib/security/audit";
 
@@ -20,7 +20,7 @@ export async function updateMerchantProfileAction(
   formData: FormData,
 ): Promise<UpdateMerchantProfileActionResult> {
   try {
-    const currentUser = await requireCurrentUser();
+    const currentUser = await requireAppAccessContext();
     const parsed = updateMerchantProfileSchema.safeParse({
       merchantId: formData.get("merchantId"),
       shopName: formData.get("shopName"),

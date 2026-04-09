@@ -3,8 +3,10 @@ import { and, asc, desc, eq, ilike, isNull, or } from "drizzle-orm";
 import {
   toRiderDetailDto,
   toRiderListItemDto,
+  toRiderProfileDto,
   type RiderDetailDto,
   type RiderListItemDto,
+  type RiderProfileDto,
 } from "./dto";
 import { isRiderId, normalizeRiderSearchQuery, toRiderSearchPattern } from "./utils";
 import { db } from "@/db";
@@ -92,6 +94,31 @@ export async function createRiderProfile(input: {
   return created;
 }
 
+export async function getRiderProfileByAppUserId(
+  appUserId: string,
+): Promise<RiderProfileDto | null> {
+  if (!isRiderId(appUserId)) {
+    return null;
+  }
+
+  const [row] = await db
+    .select({
+      appUserId: riders.appUserId,
+      townshipId: riders.townshipId,
+      vehicleType: riders.vehicleType,
+      licensePlate: riders.licensePlate,
+      isActive: riders.isActive,
+      notes: riders.notes,
+      createdAt: riders.createdAt,
+      updatedAt: riders.updatedAt,
+    })
+    .from(riders)
+    .where(and(eq(riders.appUserId, appUserId), isNull(riders.deletedAt)))
+    .limit(1);
+
+  return row ? toRiderProfileDto(row) : null;
+}
+
 export async function getRiderById(riderId: string): Promise<RiderDetailDto | null> {
   if (!isRiderId(riderId)) {
     return null;
@@ -138,9 +165,9 @@ export async function getRiderById(riderId: string): Promise<RiderDetailDto | nu
   });
 }
 
-export async function findRiderByAppUserId(appUserId: string) {
+export async function findRiderProfileLinkByAppUserId(appUserId: string) {
   const [row] = await db
-    .select({ id: riders.appUserId })
+    .select({ appUserId: riders.appUserId })
     .from(riders)
     .where(and(eq(riders.appUserId, appUserId), isNull(riders.deletedAt)))
     .limit(1);

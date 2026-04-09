@@ -14,8 +14,12 @@ import {
 } from "./utils";
 import { db } from "@/db";
 import { appUsers, merchants, riders } from "@/db/schema";
-import { findRoleBySlug, findAppUserById } from "@/features/auth/server/dal";
-import { hasPermission, requireCurrentUser, requirePermission } from "@/features/auth/server/utils";
+import { findRoleBySlug, getAppUserRecordById } from "@/features/auth/server/dal";
+import {
+  hasPermission,
+  requireAppAccessContext,
+  requirePermission,
+} from "@/features/auth/server/utils";
 import { createMerchantProfile } from "@/features/merchant/server/dal";
 import { createRiderProfile } from "@/features/rider/server/dal";
 import { findTownshipById } from "@/features/townships/server/dal";
@@ -277,7 +281,7 @@ export async function resetUserPasswordAction(
       return { ok: false, message: "User id is required." };
     }
 
-    const targetUser = await findAppUserById(userId);
+    const targetUser = await getAppUserRecordById(userId);
 
     if (!targetUser) {
       return { ok: false, message: "User was not found." };
@@ -370,7 +374,7 @@ export async function updateAccountProfileAction(
   formData: FormData,
 ): Promise<AccountActionResult> {
   try {
-    const currentUser = await requireCurrentUser();
+    const currentUser = await requireAppAccessContext();
     const parsed = updateAccountProfileSchema.safeParse({
       targetUserId: formData.get("targetUserId"),
       fullName: formData.get("fullName"),
@@ -442,7 +446,7 @@ export async function changeOwnPasswordAction(
   formData: FormData,
 ): Promise<AccountActionResult> {
   try {
-    const currentUser = await requireCurrentUser();
+    const currentUser = await requireAppAccessContext();
     const parsed = changePasswordSchema.safeParse({
       password: formData.get("password"),
       confirmPassword: formData.get("confirmPassword"),
@@ -520,7 +524,7 @@ export async function softDeleteUserAction(
       }
     }
 
-    const targetAppUser = await findAppUserById(parsed.data.userId);
+    const targetAppUser = await getAppUserRecordById(parsed.data.userId);
 
     if (!targetAppUser) {
       return { ok: false, message: "User was not found." };

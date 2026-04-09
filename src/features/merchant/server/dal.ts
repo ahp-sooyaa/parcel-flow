@@ -3,8 +3,10 @@ import { and, asc, desc, eq, ilike, isNull, or } from "drizzle-orm";
 import {
   toMerchantDetailDto,
   toMerchantListItemDto,
+  toMerchantProfileDto,
   type MerchantDetailDto,
   type MerchantListItemDto,
+  type MerchantProfileDto,
 } from "./dto";
 import { isMerchantId, normalizeMerchantSearchQuery, toMerchantSearchPattern } from "./utils";
 import { db } from "@/db";
@@ -110,6 +112,30 @@ export async function getMerchantById(merchantId: string): Promise<MerchantDetai
   });
 }
 
+export async function getMerchantProfileByAppUserId(
+  appUserId: string,
+): Promise<MerchantProfileDto | null> {
+  if (!isMerchantId(appUserId)) {
+    return null;
+  }
+
+  const [row] = await db
+    .select({
+      appUserId: merchants.appUserId,
+      shopName: merchants.shopName,
+      pickupTownshipId: merchants.pickupTownshipId,
+      defaultPickupAddress: merchants.defaultPickupAddress,
+      notes: merchants.notes,
+      createdAt: merchants.createdAt,
+      updatedAt: merchants.updatedAt,
+    })
+    .from(merchants)
+    .where(and(eq(merchants.appUserId, appUserId), isNull(merchants.deletedAt)))
+    .limit(1);
+
+  return row ? toMerchantProfileDto(row) : null;
+}
+
 export async function createMerchantProfile(input: {
   appUserId: string;
   shopName: string;
@@ -131,9 +157,9 @@ export async function createMerchantProfile(input: {
   return created;
 }
 
-export async function findMerchantByAppUserId(appUserId: string) {
+export async function findMerchantProfileLinkByAppUserId(appUserId: string) {
   const [row] = await db
-    .select({ id: merchants.appUserId })
+    .select({ appUserId: merchants.appUserId })
     .from(merchants)
     .where(and(eq(merchants.appUserId, appUserId), isNull(merchants.deletedAt)))
     .limit(1);

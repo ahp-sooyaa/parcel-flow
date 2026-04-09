@@ -25,8 +25,8 @@ import {
   validateCreateDeliveryFeeState,
   validateUpdateCodState,
 } from "./utils";
-import { getCurrentUserContext, requirePermission } from "@/features/auth/server/utils";
-import { findMerchantByAppUserId } from "@/features/merchant/server/dal";
+import { requireAppAccessContext, requirePermission } from "@/features/auth/server/utils";
+import { findMerchantProfileLinkByAppUserId } from "@/features/merchant/server/dal";
 import { computeTotalAmountToCollect, toMoneyString } from "@/features/parcels/server/utils";
 import { getRiderById } from "@/features/rider/server/dal";
 import { findTownshipById } from "@/features/townships/server/dal";
@@ -37,7 +37,7 @@ import type {
   UpdateParcelFormFields,
   UpdateParcelActionResult,
 } from "./dto";
-import type { CurrentUserContext } from "@/features/auth/server/dto";
+import type { AppAccessContext } from "@/features/auth/server/dto";
 
 function readFormString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -104,7 +104,7 @@ async function validateParcelReferences(input: {
   riderId: string | null;
   recipientTownshipId: string;
 }) {
-  const merchant = await findMerchantByAppUserId(input.merchantId);
+  const merchant = await findMerchantProfileLinkByAppUserId(input.merchantId);
 
   if (!merchant) {
     return { ok: false as const, message: "Selected merchant was not found." };
@@ -154,7 +154,7 @@ function revalidateParcelPaths(input: {
 }
 
 function resolveUpdateSubmissionForActor(input: {
-  viewer: CurrentUserContext;
+  viewer: AppAccessContext;
   submitted: ParcelUpdateInput;
   current: Awaited<ReturnType<typeof getParcelUpdateContext>>;
   merchantId: string;
@@ -320,15 +320,7 @@ export async function updateParcelAction(
   const submittedFields = extractUpdateParcelFields(formData);
 
   try {
-    const currentUser = await getCurrentUserContext();
-
-    if (!currentUser) {
-      return {
-        ok: false,
-        message: "You must be signed in to update parcels.",
-        fields: submittedFields,
-      };
-    }
+    const currentUser = await requireAppAccessContext();
 
     if (!canEditParcel(currentUser)) {
       return {
@@ -477,14 +469,7 @@ export async function updateParcelAction(
 
 export async function advanceRiderParcelAction(parcelId: string, nextStatus: string) {
   try {
-    const currentUser = await getCurrentUserContext();
-
-    if (!currentUser) {
-      return {
-        ok: false,
-        message: "You must be signed in to update parcel status.",
-      };
-    }
+    const currentUser = await requireAppAccessContext();
 
     if (currentUser.role.slug !== "rider") {
       return {

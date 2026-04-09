@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { toDashboardShellUserDto } from "@/features/auth/server/dto";
-import { getCurrentUserContext } from "@/features/auth/server/utils";
+import { requireAppAccessContext } from "@/features/auth/server/utils";
 
 import type { ReactNode } from "react";
 
@@ -10,9 +10,10 @@ type DashboardLayoutProps = {
 };
 
 export default async function DashboardLayout({ children }: Readonly<DashboardLayoutProps>) {
-  const currentUser = await getCurrentUserContext();
-
-  if (!currentUser) {
+  let currentUser;
+  try {
+    currentUser = await requireAppAccessContext();
+  } catch {
     redirect("/sign-in");
   }
 

@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { canAccessRiderResource, parseActiveFlag, updateRiderProfileSchema } from "./utils";
 import { db } from "@/db";
 import { riders } from "@/db/schema";
-import { requireCurrentUser } from "@/features/auth/server/utils";
+import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { findTownshipById } from "@/features/townships/server/dal";
 import { logAuditEvent } from "@/lib/security/audit";
 
@@ -20,7 +20,7 @@ export async function updateRiderProfileAction(
   formData: FormData,
 ): Promise<UpdateRiderProfileActionResult> {
   try {
-    const currentUser = await requireCurrentUser();
+    const currentUser = await requireAppAccessContext();
     const parsed = updateRiderProfileSchema.safeParse({
       riderId: formData.get("riderId"),
       townshipId: formData.get("townshipId"),

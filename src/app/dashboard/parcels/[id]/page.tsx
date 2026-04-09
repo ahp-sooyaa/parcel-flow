@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { getCurrentUserContext } from "@/features/auth/server/utils";
+import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { advanceRiderParcelAction } from "@/features/parcels/server/actions";
 import { getParcelById, getRiderParcelById } from "@/features/parcels/server/dal";
 import { canEditParcel, canViewParcel } from "@/features/parcels/server/utils";
@@ -11,10 +11,10 @@ type ParcelDetailPageProps = {
 };
 
 export default async function ParcelDetailPage({ params }: Readonly<ParcelDetailPageProps>) {
-  const currentUser = await getCurrentUserContext();
+  const currentUser = await requireAppAccessContext();
   const { id } = await params;
 
-  if (!currentUser || !canViewParcel(currentUser)) {
+  if (!canViewParcel(currentUser)) {
     notFound();
   }
 

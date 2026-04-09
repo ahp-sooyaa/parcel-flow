@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getCurrentUserContext } from "@/features/auth/server/utils";
+import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { EditParcelForm } from "@/features/parcels/components/edit-parcel-form";
 import { getParcelById, getParcelFormOptions } from "@/features/parcels/server/dal";
 import { canEditParcel } from "@/features/parcels/server/utils";
@@ -9,9 +9,9 @@ type EditParcelPageProps = {
 };
 
 export default async function EditParcelPage({ params }: Readonly<EditParcelPageProps>) {
-  const currentUser = await getCurrentUserContext();
+  const currentUser = await requireAppAccessContext();
 
-  if (!currentUser || !canEditParcel(currentUser)) {
+  if (!canEditParcel(currentUser)) {
     notFound();
   }
 
@@ -19,7 +19,7 @@ export default async function EditParcelPage({ params }: Readonly<EditParcelPage
   const [parcel, options] = await Promise.all([
     getParcelById(id, currentUser),
     getParcelFormOptions({
-      merchantId: currentUser.role.slug === "merchant" ? currentUser.linkedMerchantId : null,
+      merchantId: currentUser.role.slug === "merchant" ? currentUser.appUserId : null,
     }),
   ]);
 

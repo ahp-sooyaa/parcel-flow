@@ -1,4 +1,4 @@
-import { getCurrentUserContext } from "@/features/auth/server/utils";
+import { requireAppAccessContext } from "@/features/auth/server/utils";
 
 import type { PermissionSlug } from "@/db/constants";
 import type { ReactNode } from "react";
@@ -10,9 +10,10 @@ type IfPermittedProps = {
 };
 
 export async function IfPermitted({ permission, children, fallback = null }: IfPermittedProps) {
-  const currentUser = await getCurrentUserContext();
-
-  if (!currentUser) {
+  let currentUser;
+  try {
+    currentUser = await requireAppAccessContext();
+  } catch {
     return fallback;
   }
 

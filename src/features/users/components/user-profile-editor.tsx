@@ -2,54 +2,68 @@ import Link from "next/link";
 import { ChangePasswordForm } from "./change-password-form";
 import { AccountEditForm } from "./edit-user-form";
 import { EditMerchantForm } from "@/features/merchant/components/edit-merchant-form";
-import { getMerchantById } from "@/features/merchant/server/dal";
+import { getMerchantProfileByAppUserId } from "@/features/merchant/server/dal";
 import { EditRiderForm } from "@/features/rider/components/edit-rider-form";
-import { getRiderById } from "@/features/rider/server/dal";
+import { getRiderProfileByAppUserId } from "@/features/rider/server/dal";
 import { getTownshipOptions } from "@/features/townships/server/dal";
 import { cn } from "@/lib/utils";
 
-import type { CurrentUserContext } from "@/features/auth/server/dto";
+import type { AppAccessContext } from "@/features/auth/server/dto";
 import type { AppUserDetailDto } from "@/features/users/server/dto";
 
 type EditorMode = "self" | "admin";
 
 type UserProfileEditorProps = {
-  viewer: CurrentUserContext;
-  targetUser: AppUserDetailDto;
+  viewer: AppAccessContext;
   mode: EditorMode;
   activeTab?: string;
   basePath: string;
+  targetUser?: AppUserDetailDto;
 };
 
 export async function UserProfileEditor({
   viewer,
-  targetUser,
   mode,
   activeTab,
   basePath,
+  targetUser,
 }: Readonly<UserProfileEditorProps>) {
-  const targetUserId = targetUser.id;
-  const targetUserRoleLabel = targetUser.roleLabel;
+  const accountUser =
+    mode === "self"
+      ? {
+          id: viewer.appUserId,
+          fullName: viewer.fullName,
+          email: viewer.email,
+          phoneNumber: viewer.phoneNumber,
+          roleLabel: viewer.role.label,
+        }
+      : targetUser;
+
+  if (!accountUser) {
+    throw new Error("Target user is required for admin profile editing.");
+  }
+
+  const targetUserId = accountUser.id;
   let canEditMerchantDetails = false;
   let canEditRiderDetails = false;
-  let merchantProfile: Awaited<ReturnType<typeof getMerchantById>> = null;
-  let riderProfile: Awaited<ReturnType<typeof getRiderById>> = null;
+  let merchantProfile: Awaited<ReturnType<typeof getMerchantProfileByAppUserId>> = null;
+  let riderProfile: Awaited<ReturnType<typeof getRiderProfileByAppUserId>> = null;
   let townships: Awaited<ReturnType<typeof getTownshipOptions>> = [];
 
   if (mode === "admin") {
     canEditMerchantDetails = viewer.permissions.includes("merchant.update");
     canEditRiderDetails = viewer.permissions.includes("rider.update");
   } else {
-    canEditMerchantDetails = targetUserId === viewer.linkedMerchantId;
-    canEditRiderDetails = targetUserId === viewer.linkedRiderId;
+    canEditMerchantDetails = viewer.role.slug === "merchant";
+    canEditRiderDetails = viewer.role.slug === "rider";
   }
 
   if (canEditMerchantDetails) {
-    merchantProfile = await getMerchantById(targetUserId);
+    merchantProfile = await getMerchantProfileByAppUserId(targetUserId);
   }
 
   if (canEditRiderDetails) {
-    riderProfile = await getRiderById(targetUserId);
+    riderProfile = await getRiderProfileByAppUserId(targetUserId);
   }
 
   if (canEditMerchantDetails || canEditRiderDetails) {
@@ -111,12 +125,8 @@ export async function UserProfileEditor({
               </header>
 
               <AccountEditForm
-                targetUserId={mode === "admin" ? targetUserId : undefined}
-                fullName={targetUser.fullName}
-                email={targetUser.email}
-                phoneNumber={targetUser.phoneNumber}
-                showRole={mode === "admin"}
-                roleLabel={targetUserRoleLabel}
+                user={accountUser}
+                mode={mode}
                 submitLabel={mode === "admin" ? "Save User Profile" : "Save Profile"}
               />
             </section>
@@ -145,11 +155,11 @@ export async function UserProfileEditor({
             </header>
 
             <EditMerchantForm
-              merchantId={merchantProfile.id}
+              merchantId={merchantProfile.appUserId}
               shopName={merchantProfile.shopName}
-              contactName={merchantProfile.contactName}
-              email={merchantProfile.email}
-              phoneNumber={merchantProfile.phoneNumber}
+              contactName={accountUser.fullName}
+              email={accountUser.email}
+              phoneNumber={accountUser.phoneNumber}
               townshipId={merchantProfile.pickupTownshipId}
               defaultPickupAddress={merchantProfile.defaultPickupAddress}
               notes={merchantProfile.notes}
@@ -170,10 +180,10 @@ export async function UserProfileEditor({
             </header>
 
             <EditRiderForm
-              riderId={riderProfile.id}
-              fullName={riderProfile.fullName}
-              email={riderProfile.email}
-              phoneNumber={riderProfile.phoneNumber}
+              riderId={riderProfile.appUserId}
+              fullName={accountUser.fullName}
+              email={accountUser.email}
+              phoneNumber={accountUser.phoneNumber}
               townshipId={riderProfile.townshipId}
               vehicleType={riderProfile.vehicleType}
               licensePlate={riderProfile.licensePlate}

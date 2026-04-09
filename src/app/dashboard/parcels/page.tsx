@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { getCurrentUserContext } from "@/features/auth/server/utils";
+import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { getParcelsList } from "@/features/parcels/server/dal";
 import { canAccessParcelList, canEditParcel } from "@/features/parcels/server/utils";
 
 export default async function ParcelsPage() {
-  const currentUser = await getCurrentUserContext();
+  const currentUser = await requireAppAccessContext();
 
-  if (!currentUser || !canAccessParcelList(currentUser)) {
+  if (!canAccessParcelList(currentUser)) {
     notFound();
   }
 

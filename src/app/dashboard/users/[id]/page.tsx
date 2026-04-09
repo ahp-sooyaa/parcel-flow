@@ -6,7 +6,7 @@ import { requirePermission } from "@/features/auth/server/utils";
 import { ResetUserPasswordForm } from "@/features/users/components/reset-user-password-form";
 import { SoftDeleteUserForm } from "@/features/users/components/soft-delete-user-form";
 import { updateUserStatusAction } from "@/features/users/server/actions";
-import { getUserById } from "@/features/users/server/dal";
+import { getAppUserDetailById } from "@/features/users/server/dal";
 
 type UserDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -15,7 +15,7 @@ type UserDetailPageProps = {
 export default async function UserDetailPage({ params }: Readonly<UserDetailPageProps>) {
   await requirePermission("user.view");
   const { id } = await params;
-  const user = await getUserById(id);
+  const user = await getAppUserDetailById(id);
 
   if (!user) {
     notFound();

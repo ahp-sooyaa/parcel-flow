@@ -171,13 +171,11 @@ function buildParcelViewerAccessFilter(viewer: ParcelViewerContext) {
   }
 
   if (viewer.role.slug === "merchant") {
-    return viewer.linkedMerchantId
-      ? eq(parcels.merchantId, viewer.linkedMerchantId)
-      : eq(parcels.id, "");
+    return eq(parcels.merchantId, viewer.appUserId);
   }
 
   if (viewer.role.slug === "rider") {
-    return viewer.linkedRiderId ? eq(parcels.riderId, viewer.linkedRiderId) : eq(parcels.id, "");
+    return eq(parcels.riderId, viewer.appUserId);
   }
 
   return eq(parcels.id, "");

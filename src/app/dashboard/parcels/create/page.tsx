@@ -11,7 +11,7 @@ export default async function CreateParcelPage() {
   }
 
   const options = await getParcelFormOptions({
-    merchantId: currentUser.role.slug === "merchant" ? currentUser.linkedMerchantId : null,
+    merchantId: currentUser.role.slug === "merchant" ? currentUser.appUserId : null,
   });
 
   return (

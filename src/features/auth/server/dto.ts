@@ -1,10 +1,12 @@
 import "server-only";
 import type { PermissionSlug, RoleSlug } from "@/db/constants";
 
-export type CurrentUserContext = {
+export type AuthenticatedSession = {
+  supabaseUserId: string;
+};
+
+export type AppAccessContext = {
   appUserId: string;
-  linkedMerchantId: string | null;
-  linkedRiderId: string | null;
   supabaseUserId: string;
   fullName: string;
   email: string;
@@ -15,6 +17,7 @@ export type CurrentUserContext = {
     label: string;
   };
   isActive: boolean;
+  deletedAt: Date | null;
   mustResetPassword: boolean;
   permissions: PermissionSlug[];
 };
@@ -35,16 +38,21 @@ export type AuthActionResult = {
   message: string;
 };
 
-export function toCurrentUserContext(input: CurrentUserContext): CurrentUserContext {
+export function toAuthenticatedSession(input: AuthenticatedSession): AuthenticatedSession {
+  return {
+    supabaseUserId: input.supabaseUserId,
+  };
+}
+
+export function toAppAccessContext(input: AppAccessContext): AppAccessContext {
   return {
     appUserId: input.appUserId,
-    linkedMerchantId: input.linkedMerchantId,
-    linkedRiderId: input.linkedRiderId,
     supabaseUserId: input.supabaseUserId,
     fullName: input.fullName,
     email: input.email,
     phoneNumber: input.phoneNumber,
     isActive: input.isActive,
+    deletedAt: input.deletedAt,
     mustResetPassword: input.mustResetPassword,
     role: {
       id: input.role.id,
@@ -57,8 +65,6 @@ export function toCurrentUserContext(input: CurrentUserContext): CurrentUserCont
 
 export function toDashboardShellUserDto(input: {
   appUserId: string;
-  linkedMerchantId: string | null;
-  linkedRiderId: string | null;
   fullName: string;
   mustResetPassword: boolean;
   permissions: readonly PermissionSlug[];
@@ -74,20 +80,20 @@ export function toDashboardShellUserDto(input: {
     navItems.push({ key: "users", href: "/dashboard/users", label: "Users" });
   }
 
-  if (input.role.slug === "merchant" && input.linkedMerchantId) {
+  if (input.role.slug === "merchant") {
     navItems.push({
       key: "parcels",
-      href: `/dashboard/merchants/${input.linkedMerchantId}`,
+      href: `/dashboard/merchants/${input.appUserId}`,
       label: "My Parcels",
     });
   } else if (input.permissions.includes("merchant-list.view")) {
     navItems.push({ key: "merchants", href: "/dashboard/merchants", label: "Merchants" });
   }
 
-  if (input.role.slug === "rider" && input.linkedRiderId) {
+  if (input.role.slug === "rider") {
     navItems.push({
       key: "parcels",
-      href: `/dashboard/riders/${input.linkedRiderId}`,
+      href: `/dashboard/riders/${input.appUserId}`,
       label: "My Parcels",
     });
   } else if (input.permissions.includes("rider-list.view")) {

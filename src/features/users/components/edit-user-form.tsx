@@ -8,12 +8,14 @@ import { updateAccountProfileAction } from "@/features/users/server/actions";
 import { cn } from "@/lib/utils";
 
 type AccountEditFormProps = {
-  targetUserId?: string;
-  fullName: string;
-  email: string;
-  phoneNumber: string | null;
-  showRole?: boolean;
-  roleLabel?: string;
+  user: {
+    id: string;
+    fullName: string;
+    email: string;
+    phoneNumber: string | null;
+    roleLabel?: string;
+  };
+  mode: "self" | "admin";
   submitLabel?: string;
 };
 
@@ -23,30 +25,26 @@ const initialState = {
 };
 
 export function AccountEditForm({
-  targetUserId,
-  fullName,
-  email,
-  phoneNumber,
-  showRole = false,
-  roleLabel,
+  user,
+  mode,
   submitLabel = "Save Profile",
 }: Readonly<AccountEditFormProps>) {
   const [state, action, isPending] = useActionState(updateAccountProfileAction, initialState);
   const [values, setValues] = useState({
-    fullName,
-    phoneNumber: phoneNumber ?? "",
+    fullName: user.fullName,
+    phoneNumber: user.phoneNumber ?? "",
   });
 
   useEffect(() => {
     setValues({
-      fullName,
-      phoneNumber: phoneNumber ?? "",
+      fullName: user.fullName,
+      phoneNumber: user.phoneNumber ?? "",
     });
-  }, [fullName, phoneNumber]);
+  }, [user.fullName, user.phoneNumber]);
 
   return (
     <form action={action} className="space-y-5">
-      {targetUserId && <input type="hidden" name="targetUserId" value={targetUserId} />}
+      {mode === "admin" && <input type="hidden" name="targetUserId" value={user.id} />}
 
       <div className="grid gap-2">
         <Label htmlFor="edit-user-full-name">Full Name</Label>
@@ -66,13 +64,13 @@ export function AccountEditForm({
 
       <div className="grid gap-2">
         <Label htmlFor="edit-user-email">Email</Label>
-        <Input id="edit-user-email" value={email} disabled />
+        <Input id="edit-user-email" value={user.email} disabled />
       </div>
 
-      {showRole && (
+      {mode === "admin" && (
         <div className="grid gap-2">
           <Label htmlFor="edit-user-role">Role</Label>
-          <Input id="edit-user-role" value={roleLabel ?? "-"} disabled />
+          <Input id="edit-user-role" value={user.roleLabel ?? "-"} disabled />
         </div>
       )}
 

@@ -1,19 +1,13 @@
-import { requireCurrentUser } from "@/features/auth/server/utils";
+import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { UserProfileEditor } from "@/features/users/components/user-profile-editor";
-import { getUserById } from "@/features/users/server/dal";
 
 type ProfilePageProps = {
   searchParams: Promise<{ tab?: string }>;
 };
 
 export default async function ProfilePage({ searchParams }: Readonly<ProfilePageProps>) {
-  const currentUser = await requireCurrentUser();
+  const currentUser = await requireAppAccessContext();
   const { tab } = await searchParams;
-  const user = await getUserById(currentUser.appUserId);
-
-  if (!user) {
-    throw new Error("Profile not found.");
-  }
 
   return (
     <section className="space-y-5">
@@ -26,7 +20,6 @@ export default async function ProfilePage({ searchParams }: Readonly<ProfilePage
 
       <UserProfileEditor
         viewer={currentUser}
-        targetUser={user}
         mode="self"
         activeTab={tab}
         basePath="/dashboard/profile"

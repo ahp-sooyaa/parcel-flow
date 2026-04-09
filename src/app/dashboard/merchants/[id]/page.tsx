@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { getCurrentUserContext } from "@/features/auth/server/utils";
+import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { getMerchantById } from "@/features/merchant/server/dal";
 import { canAccessMerchantResource } from "@/features/merchant/server/utils";
 import { getMerchantParcelsList } from "@/features/parcels/server/dal";
@@ -12,12 +12,8 @@ type MerchantDetailPageProps = {
 };
 
 export default async function MerchantDetailPage({ params }: Readonly<MerchantDetailPageProps>) {
-  const currentUser = await getCurrentUserContext();
+  const currentUser = await requireAppAccessContext();
   const { id } = await params;
-
-  if (!currentUser) {
-    notFound();
-  }
 
   const canAccessMerchant = canAccessMerchantResource({
     viewerRoleSlug: currentUser.role.slug,

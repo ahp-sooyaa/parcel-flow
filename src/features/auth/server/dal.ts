@@ -1,24 +1,23 @@
 import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
-import { toCurrentUserContext, type CurrentUserContext } from "./dto";
+import { toAppAccessContext, type AppAccessContext } from "./dto";
 import { db } from "@/db";
-import { appUsers, merchants, permissions, riders, rolePermissions, roles } from "@/db/schema";
+import { appUsers, permissions, rolePermissions, roles } from "@/db/schema";
 
 import type { RoleSlug } from "@/db/constants";
 
-export async function findCurrentUserContextBySupabaseUserId(
+export async function findAppAccessContextBySupabaseUserId(
   supabaseUserId: string,
-): Promise<CurrentUserContext | null> {
+): Promise<AppAccessContext | null> {
   const rows = await db
     .select({
       appUserId: appUsers.id,
-      linkedMerchantId: merchants.appUserId,
-      linkedRiderId: riders.appUserId,
       supabaseUserId: appUsers.supabaseUserId,
       fullName: appUsers.fullName,
       email: appUsers.email,
       phoneNumber: appUsers.phoneNumber,
       isActive: appUsers.isActive,
+      deletedAt: appUsers.deletedAt,
       mustResetPassword: appUsers.mustResetPassword,
       roleId: roles.id,
       roleSlug: roles.slug,
@@ -27,8 +26,6 @@ export async function findCurrentUserContextBySupabaseUserId(
     })
     .from(appUsers)
     .innerJoin(roles, eq(appUsers.roleId, roles.id))
-    .leftJoin(merchants, and(eq(merchants.appUserId, appUsers.id), isNull(merchants.deletedAt)))
-    .leftJoin(riders, and(eq(riders.appUserId, appUsers.id), isNull(riders.deletedAt)))
     .leftJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
     .leftJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
     .where(and(eq(appUsers.supabaseUserId, supabaseUserId), isNull(appUsers.deletedAt)));
@@ -46,22 +43,21 @@ export async function findCurrentUserContextBySupabaseUserId(
     }
   }
 
-  return toCurrentUserContext({
+  return toAppAccessContext({
     appUserId: first.appUserId,
-    linkedMerchantId: first.linkedMerchantId,
-    linkedRiderId: first.linkedRiderId,
     supabaseUserId: first.supabaseUserId,
     fullName: first.fullName,
     email: first.email,
     phoneNumber: first.phoneNumber,
     isActive: first.isActive,
+    deletedAt: first.deletedAt,
     mustResetPassword: first.mustResetPassword,
     role: {
       id: first.roleId,
       slug: first.roleSlug,
       label: first.roleLabel,
     },
-    permissions: Array.from(permissionSet) as CurrentUserContext["permissions"],
+    permissions: Array.from(permissionSet) as AppAccessContext["permissions"],
   });
 }
 
@@ -71,21 +67,11 @@ export async function findRoleBySlug(slug: RoleSlug) {
   return role ?? null;
 }
 
-export async function findAppUserById(id: string) {
+export async function getAppUserRecordById(appUserId: string) {
   const [row] = await db
     .select()
     .from(appUsers)
-    .where(and(eq(appUsers.id, id), isNull(appUsers.deletedAt)))
-    .limit(1);
-
-  return row ?? null;
-}
-
-export async function findAppUserByEmail(email: string) {
-  const [row] = await db
-    .select()
-    .from(appUsers)
-    .where(and(eq(appUsers.email, email), isNull(appUsers.deletedAt)))
+    .where(and(eq(appUsers.id, appUserId), isNull(appUsers.deletedAt)))
     .limit(1);
 
   return row ?? null;

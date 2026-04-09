@@ -27,6 +27,17 @@ export type RiderDetailDto = {
   updatedAt: Date;
 };
 
+export type RiderProfileDto = {
+  appUserId: string;
+  townshipId: string | null;
+  vehicleType: string;
+  licensePlate: string | null;
+  isActive: boolean;
+  notes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export function toRiderListItemDto(input: RiderListItemDto): RiderListItemDto {
   return {
     id: input.id,
@@ -49,6 +60,19 @@ export function toRiderDetailDto(input: RiderDetailDto): RiderDetailDto {
     phoneNumber: input.phoneNumber,
     townshipId: input.townshipId,
     townshipName: input.townshipName,
+    vehicleType: input.vehicleType,
+    licensePlate: input.licensePlate,
+    isActive: input.isActive,
+    notes: input.notes,
+    createdAt: input.createdAt,
+    updatedAt: input.updatedAt,
+  };
+}
+
+export function toRiderProfileDto(input: RiderProfileDto): RiderProfileDto {
+  return {
+    appUserId: input.appUserId,
+    townshipId: input.townshipId,
     vehicleType: input.vehicleType,
     licensePlate: input.licensePlate,
     isActive: input.isActive,

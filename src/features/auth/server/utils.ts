@@ -1,83 +1,11 @@
 import "server-only";
-import { headers } from "next/headers";
 import { cache } from "react";
-import { findCurrentUserContextBySupabaseUserId } from "./dal";
-import { PERMISSION_SLUGS, type PermissionSlug, type RoleSlug } from "@/db/constants";
+import { findAppAccessContextBySupabaseUserId } from "./dal";
+import { toAuthenticatedSession } from "./dto";
+import { PERMISSION_SLUGS, type PermissionSlug } from "@/db/constants";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-const roleLabelBySlug: Record<RoleSlug, string> = {
-  super_admin: "Super Admin",
-  office_admin: "Office Admin",
-  rider: "Rider",
-  merchant: "Merchant",
-};
-
-type StubAccessContext = {
-  authenticated: boolean;
-  isActive: boolean;
-  mustResetPassword: boolean;
-  permissions: string[];
-  appUserId?: string | null;
-  linkedMerchantId?: string | null;
-  linkedRiderId?: string | null;
-  roleSlug?: RoleSlug;
-};
-
-async function getStubbedCurrentUserContext() {
-  if (process.env.AUTH_E2E_STUB_MODE !== "1") {
-    return null;
-  }
-
-  const requestHeaders = await headers();
-  const raw = requestHeaders.get("x-parcel-flow-e2e-auth");
-
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Partial<StubAccessContext>;
-    const roleSlug: RoleSlug =
-      parsed.roleSlug && roleLabelBySlug[parsed.roleSlug] ? parsed.roleSlug : "office_admin";
-
-    if (parsed.authenticated !== true) {
-      return null;
-    }
-
-    return {
-      appUserId: typeof parsed.appUserId === "string" ? parsed.appUserId : "e2e-app-user",
-      linkedMerchantId:
-        typeof parsed.linkedMerchantId === "string" ? parsed.linkedMerchantId : null,
-      linkedRiderId: typeof parsed.linkedRiderId === "string" ? parsed.linkedRiderId : null,
-      supabaseUserId: "e2e-supabase-user",
-      fullName: "E2E Test User",
-      email: "e2e-user@example.com",
-      phoneNumber: null,
-      role: {
-        id: `e2e-${roleSlug}`,
-        slug: roleSlug,
-        label: roleLabelBySlug[roleSlug],
-      },
-      isActive: parsed.isActive === true,
-      mustResetPassword: parsed.mustResetPassword === true,
-      permissions: Array.isArray(parsed.permissions)
-        ? parsed.permissions.filter((value): value is PermissionSlug =>
-            PERMISSION_SLUGS.includes(value as PermissionSlug),
-          )
-        : [],
-    };
-  } catch {
-    return null;
-  }
-}
-
-export const getCurrentUserContext = cache(async () => {
-  const stubbed = await getStubbedCurrentUserContext();
-
-  if (stubbed) {
-    return stubbed;
-  }
-
+export const getAuthenticatedSession = cache(async () => {
   const supabase = await createSupabaseServerClient();
   const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
   const userId = claimsData?.claims?.sub;
@@ -86,13 +14,29 @@ export const getCurrentUserContext = cache(async () => {
     return null;
   }
 
-  return findCurrentUserContextBySupabaseUserId(userId);
+  return toAuthenticatedSession({
+    supabaseUserId: userId,
+  });
 });
 
-export async function requireCurrentUser() {
-  const currentUser = await getCurrentUserContext();
+export const getCurrentAppAccessContext = cache(async () => {
+  const session = await getAuthenticatedSession();
 
-  if (!currentUser?.isActive) {
+  if (!session) {
+    return null;
+  }
+
+  return findAppAccessContextBySupabaseUserId(session.supabaseUserId);
+});
+
+export async function requireAppAccessContext() {
+  const currentUser = await getCurrentAppAccessContext();
+
+  if (!currentUser) {
+    throw new Error("Unauthorized");
+  }
+
+  if (!currentUser.isActive || currentUser.deletedAt) {
     throw new Error("Unauthorized");
   }
 
@@ -100,7 +44,7 @@ export async function requireCurrentUser() {
 }
 
 export function hasPermission(
-  userPermissions: readonly string[],
+  userPermissions: readonly PermissionSlug[],
   permission: PermissionSlug,
 ): boolean {
   return userPermissions.includes(permission);
@@ -111,7 +55,7 @@ export async function requirePermission(permission: PermissionSlug) {
     throw new Error(`Unknown permission: ${permission}`);
   }
 
-  const currentUser = await requireCurrentUser();
+  const currentUser = await requireAppAccessContext();
 
   if (currentUser.mustResetPassword && permission !== "dashboard-page.view") {
     throw new Error("Password reset required before this action is allowed");

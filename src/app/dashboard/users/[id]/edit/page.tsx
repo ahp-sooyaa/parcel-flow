@@ -3,7 +3,7 @@ import { IfPermitted } from "@/components/shared/if-permitted";
 import { requirePermission } from "@/features/auth/server/utils";
 import { SoftDeleteUserForm } from "@/features/users/components/soft-delete-user-form";
 import { UserProfileEditor } from "@/features/users/components/user-profile-editor";
-import { getUserById } from "@/features/users/server/dal";
+import { getAppUserDetailById } from "@/features/users/server/dal";
 
 type EditUserPageProps = {
   params: Promise<{ id: string }>;
@@ -14,7 +14,7 @@ export default async function EditUserPage({ params, searchParams }: Readonly<Ed
   const currentUser = await requirePermission("user.update");
   const { id } = await params;
   const { tab } = await searchParams;
-  const user = await getUserById(id);
+  const user = await getAppUserDetailById(id);
 
   if (!user) {
     notFound();

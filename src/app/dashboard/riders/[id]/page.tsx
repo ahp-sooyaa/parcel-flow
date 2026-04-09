@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { getCurrentUserContext } from "@/features/auth/server/utils";
+import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { getAssignedRiderParcelsList } from "@/features/parcels/server/dal";
 import { getRiderById } from "@/features/rider/server/dal";
 import { canAccessRiderResource } from "@/features/rider/server/utils";
@@ -11,12 +11,8 @@ type RiderDetailPageProps = {
 };
 
 export default async function RiderDetailPage({ params }: Readonly<RiderDetailPageProps>) {
-  const currentUser = await getCurrentUserContext();
+  const currentUser = await requireAppAccessContext();
   const { id } = await params;
-
-  if (!currentUser) {
-    notFound();
-  }
 
   const canAccessRider = canAccessRiderResource({
     viewerRoleSlug: currentUser.role.slug,

@@ -31,7 +31,7 @@ export async function getUsersList(): Promise<AppUserListItemDto[]> {
   return rows.map((row) => toAppUserListItemDto(row));
 }
 
-export async function getUserById(id: string): Promise<AppUserDetailDto | null> {
+export async function getAppUserDetailById(appUserId: string): Promise<AppUserDetailDto | null> {
   const [row] = await db
     .select({
       id: appUsers.id,
@@ -47,7 +47,7 @@ export async function getUserById(id: string): Promise<AppUserDetailDto | null> 
     })
     .from(appUsers)
     .innerJoin(roles, eq(appUsers.roleId, roles.id))
-    .where(and(eq(appUsers.id, id), isNull(appUsers.deletedAt)))
+    .where(and(eq(appUsers.id, appUserId), isNull(appUsers.deletedAt)))
     .limit(1);
 
   return row ? toAppUserDetailDto(row) : null;
