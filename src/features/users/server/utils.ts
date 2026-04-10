@@ -3,6 +3,8 @@ import { z } from "zod";
 import { ROLE_SLUGS } from "@/db/constants";
 import { optionalNullableTrimmedString, optionalNullableUuid } from "@/lib/validation/zod-helpers";
 
+import type { AppAccessContext } from "@/features/auth/server/dto";
+
 export const createUserSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
   email: z.string().trim().email(),
@@ -42,4 +44,17 @@ export const softDeleteUserSchema = z.object({
 
 export function parseActiveFlag(raw: FormDataEntryValue | null) {
   return raw === "on" || raw === "true";
+}
+
+export function getUserResourceAccess(input: { viewer: Pick<AppAccessContext, "permissions"> }) {
+  const { viewer } = input;
+
+  return {
+    canViewList: viewer.permissions.includes("user-list.view"),
+    canCreate: viewer.permissions.includes("user.create"),
+    canView: viewer.permissions.includes("user.view"),
+    canUpdate: viewer.permissions.includes("user.update"),
+    canDelete: viewer.permissions.includes("user.delete"),
+    canResetPassword: viewer.permissions.includes("user-password.reset"),
+  };
 }

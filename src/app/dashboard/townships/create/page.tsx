@@ -2,6 +2,9 @@ import { requirePermission } from "@/features/auth/server/utils";
 import { CreateTownshipForm } from "@/features/townships/components/create-township-form";
 
 export default async function CreateTownshipPage() {
+  // admin user - permission check
+  // rider user - no access
+  // merchant user - no access
   await requirePermission("township.create");
 
   return (

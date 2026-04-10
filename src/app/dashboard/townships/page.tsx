@@ -1,11 +1,17 @@
 import Link from "next/link";
-import { IfPermitted } from "@/components/shared/if-permitted";
+import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { requirePermission } from "@/features/auth/server/utils";
+import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { getTownshipsList } from "@/features/townships/server/dal";
+import { getTownshipResourceAccess } from "@/features/townships/server/utils";
 
 export default async function TownshipsPage() {
-  await requirePermission("township-list.view");
+  const currentUser = await requireAppAccessContext();
+  const townshipAccess = getTownshipResourceAccess({ viewer: currentUser });
+
+  if (!townshipAccess.canViewList) {
+    notFound();
+  }
 
   const townships = await getTownshipsList();
 
@@ -18,11 +24,11 @@ export default async function TownshipsPage() {
             Manage township master data used by merchant and rider workflows.
           </p>
         </div>
-        <IfPermitted permission="township.create">
+        {townshipAccess.canCreate && (
           <Button asChild>
             <Link href="/dashboard/townships/create">Create Township</Link>
           </Button>
-        </IfPermitted>
+        )}
       </header>
 
       <div className="overflow-hidden rounded-xl border bg-card">
@@ -35,20 +41,19 @@ export default async function TownshipsPage() {
             </tr>
           </thead>
           <tbody>
-            {townships.length === 0 ? (
+            {townships.map((township) => (
+              <tr key={township.id} className="border-t">
+                <td className="px-4 py-3 font-medium">{township.name}</td>
+                <td className="px-4 py-3">{township.isActive ? "Active" : "Inactive"}</td>
+                <td className="px-4 py-3">{township.createdAt.toLocaleDateString()}</td>
+              </tr>
+            ))}
+            {townships.length === 0 && (
               <tr>
                 <td className="px-4 py-6 text-sm text-muted-foreground" colSpan={3}>
                   No townships found.
                 </td>
               </tr>
-            ) : (
-              townships.map((township) => (
-                <tr key={township.id} className="border-t">
-                  <td className="px-4 py-3 font-medium">{township.name}</td>
-                  <td className="px-4 py-3">{township.isActive ? "Active" : "Inactive"}</td>
-                  <td className="px-4 py-3">{township.createdAt.toLocaleDateString()}</td>
-                </tr>
-              ))
             )}
           </tbody>
         </table>

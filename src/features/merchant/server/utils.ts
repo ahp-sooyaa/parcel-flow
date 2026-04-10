@@ -39,8 +39,8 @@ export function getMerchantResourceAccess(input: {
   return {
     canViewList: viewer.permissions.includes("merchant-list.view"),
     canCreate: viewer.permissions.includes("user.create"),
-    canView: isOwnMerchant || viewer.permissions.includes("merchant.view"),
-    canUpdate: isOwnMerchant || viewer.permissions.includes("merchant.update"),
+    canView: viewer.permissions.includes("merchant.view") || isOwnMerchant,
+    canUpdate: viewer.permissions.includes("merchant.update") || isOwnMerchant,
     canDelete: viewer.permissions.includes("merchant.delete"),
   };
 }

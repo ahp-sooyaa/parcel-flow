@@ -33,13 +33,14 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
     notFound();
   }
 
+  const parcelAccess = getParcelResourceAccess({
+    viewer: currentUser,
+  });
+
   const editMerchantHref =
     currentUser.roleSlug === "merchant"
       ? "/dashboard/profile"
       : `/dashboard/users/${merchant.id}/edit`;
-  const parcelAccess = getParcelResourceAccess({
-    viewer: currentUser,
-  });
 
   return (
     <section className="mx-auto w-full max-w-3xl space-y-6">
@@ -108,31 +109,30 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
               </tr>
             </thead>
             <tbody>
-              {merchantParcels.length === 0 ? (
+              {merchantParcels.map((parcel) => (
+                <tr key={parcel.id} className="border-t">
+                  <td className="px-4 py-3">{parcel.parcelCode}</td>
+                  <td className="px-4 py-3">{parcel.recipientName}</td>
+                  <td className="px-4 py-3">{parcel.recipientTownshipName ?? "-"}</td>
+                  <td className="px-4 py-3">{parcel.parcelStatus}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/dashboard/parcels/${parcel.id}`}>View</Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/dashboard/parcels/${parcel.id}/edit`}>Edit</Link>
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {merchantParcels.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-4 py-10 text-center text-xs text-muted-foreground">
                     No parcels found for this merchant.
                   </td>
                 </tr>
-              ) : (
-                merchantParcels.map((parcel) => (
-                  <tr key={parcel.id} className="border-t">
-                    <td className="px-4 py-3">{parcel.parcelCode}</td>
-                    <td className="px-4 py-3">{parcel.recipientName}</td>
-                    <td className="px-4 py-3">{parcel.recipientTownshipName ?? "-"}</td>
-                    <td className="px-4 py-3">{parcel.parcelStatus}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/dashboard/parcels/${parcel.id}`}>View</Link>
-                        </Button>
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/dashboard/parcels/${parcel.id}/edit`}>Edit</Link>
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
               )}
             </tbody>
           </table>

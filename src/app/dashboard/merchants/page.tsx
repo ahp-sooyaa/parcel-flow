@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { requirePermission } from "@/features/auth/server/utils";
+import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { getMerchantsList } from "@/features/merchant/server/dal";
 import {
   getMerchantResourceAccess,
@@ -12,8 +13,12 @@ type MerchantsPageProps = {
 };
 
 export default async function MerchantsPage({ searchParams }: Readonly<MerchantsPageProps>) {
-  const currentUser = await requirePermission("merchant-list.view");
+  const currentUser = await requireAppAccessContext();
   const merchantAccess = getMerchantResourceAccess({ viewer: currentUser });
+
+  if (!merchantAccess.canViewList) {
+    notFound();
+  }
 
   const { q } = await searchParams;
   const query = normalizeMerchantSearchQuery(q);

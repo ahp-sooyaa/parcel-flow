@@ -6,6 +6,9 @@ import { getParcelsList } from "@/features/parcels/server/dal";
 import { getParcelResourceAccess } from "@/features/parcels/server/utils";
 
 export default async function ParcelsPage() {
+  // admin user - permission check
+  // rider user - no access
+  // merchant user - no access
   const currentUser = await requireAppAccessContext();
   const parcelAccess = getParcelResourceAccess({ viewer: currentUser });
 
@@ -60,7 +63,7 @@ export default async function ParcelsPage() {
                     <Button asChild size="sm" variant="outline">
                       <Link href={`/dashboard/parcels/${parcel.id}`}>View</Link>
                     </Button>
-                    {currentUser.permissions.includes("parcel.update") && (
+                    {parcelAccess.canUpdate && (
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/dashboard/parcels/${parcel.id}/edit`}>Edit</Link>
                       </Button>

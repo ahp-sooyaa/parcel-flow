@@ -9,9 +9,12 @@ type EditParcelPageProps = {
 };
 
 export default async function EditParcelPage({ params }: Readonly<EditParcelPageProps>) {
+  // admin user - permission check
+  // rider user - no access to this edit form, rider have it own UI in parcel detail page
+  // merchant user - no permission, ownership check
   const currentUser = await requireAppAccessContext();
-
   const { id } = await params;
+
   const [parcel, options] = await Promise.all([
     getParcelById(id, currentUser, "update"),
     getParcelFormOptions({
@@ -27,7 +30,6 @@ export default async function EditParcelPage({ params }: Readonly<EditParcelPage
     viewer: currentUser,
     parcel: {
       merchantId: parcel.merchantId,
-      riderId: parcel.riderId,
     },
   });
 

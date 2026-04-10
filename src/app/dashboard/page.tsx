@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { IfPermitted } from "@/components/shared/if-permitted";
 import { Button } from "@/components/ui/button";
 import { requirePermission } from "@/features/auth/server/utils";
+import { getUserResourceAccess } from "@/features/users/server/utils";
 
 export default async function DashboardPage() {
-  await requirePermission("dashboard-page.view");
+  const currentUser = await requirePermission("dashboard-page.view");
+  const userAccess = getUserResourceAccess({ viewer: currentUser });
 
   return (
     <section className="space-y-6">
@@ -14,7 +15,7 @@ export default async function DashboardPage() {
       </header>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <IfPermitted permission="user-list.view">
+        {userAccess.canView && (
           <article className="rounded-xl border bg-card p-4">
             <p className="text-xs text-muted-foreground">User Management</p>
             <p className="mt-2 text-sm">Create accounts, manage status, and reset passwords.</p>
@@ -22,9 +23,9 @@ export default async function DashboardPage() {
               <Link href="/dashboard/users">Open Users</Link>
             </Button>
           </article>
-        </IfPermitted>
+        )}
 
-        <IfPermitted permission="parcel-list.view">
+        {userAccess.canView && (
           <article className="rounded-xl border bg-card p-4">
             <p className="text-xs text-muted-foreground">Parcels</p>
             <p className="mt-2 text-sm">View assigned parcel queue.</p>
@@ -32,9 +33,9 @@ export default async function DashboardPage() {
               <Link href="/dashboard/parcels">Open Parcels</Link>
             </Button>
           </article>
-        </IfPermitted>
+        )}
 
-        <IfPermitted permission="merchant-list.view">
+        {userAccess.canView && (
           <article className="rounded-xl border bg-card p-4">
             <p className="text-xs text-muted-foreground">Merchant</p>
             <p className="mt-2 text-sm">Review merchant-specific area.</p>
@@ -42,9 +43,9 @@ export default async function DashboardPage() {
               <Link href="/dashboard/merchants">Open Merchants</Link>
             </Button>
           </article>
-        </IfPermitted>
+        )}
 
-        <IfPermitted permission="township-list.view">
+        {userAccess.canView && (
           <article className="rounded-xl border bg-card p-4">
             <p className="text-xs text-muted-foreground">Townships</p>
             <p className="mt-2 text-sm">Manage township master data used across operations.</p>
@@ -52,7 +53,7 @@ export default async function DashboardPage() {
               <Link href="/dashboard/townships">Open Townships</Link>
             </Button>
           </article>
-        </IfPermitted>
+        )}
       </div>
     </section>
   );

@@ -1,15 +1,12 @@
 import { requirePermission } from "@/features/auth/server/utils";
 import { CreateParcelForm } from "@/features/parcels/components/create-parcel-form";
 import { getParcelFormOptions } from "@/features/parcels/server/dal";
-import { getParcelResourceAccess } from "@/features/parcels/server/utils";
 
 export default async function CreateParcelPage() {
+  // admin user - permission check
+  // rider user - no access
+  // merchant user - permission check (will give explicit parcel.create)
   const currentUser = await requirePermission("parcel.create");
-  const parcelAccess = getParcelResourceAccess({ viewer: currentUser });
-
-  if (!parcelAccess.canCreate) {
-    throw new Error("Forbidden");
-  }
 
   const options = await getParcelFormOptions({
     merchantId: currentUser.roleSlug === "merchant" ? currentUser.appUserId : null,

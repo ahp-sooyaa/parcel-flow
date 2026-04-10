@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { requirePermission } from "@/features/auth/server/utils";
+import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { getRidersList } from "@/features/rider/server/dal";
 import { getRiderResourceAccess, normalizeRiderSearchQuery } from "@/features/rider/server/utils";
 
@@ -9,8 +10,15 @@ type RidersPageProps = {
 };
 
 export default async function RidersPage({ searchParams }: Readonly<RidersPageProps>) {
-  const currentUser = await requirePermission("rider-list.view");
+  // admin user - permission check
+  // rider user - no access
+  // merchant user - no access
+  const currentUser = await requireAppAccessContext();
   const riderAccess = getRiderResourceAccess({ viewer: currentUser });
+
+  if (!riderAccess.canViewList) {
+    notFound();
+  }
 
   const { q } = await searchParams;
   const query = normalizeRiderSearchQuery(q);
@@ -58,40 +66,37 @@ export default async function RidersPage({ searchParams }: Readonly<RidersPagePr
             </tr>
           </thead>
           <tbody>
-            {riders.length === 0 ? (
+            {riders.map((rider) => (
+              <tr key={rider.id} className="border-t">
+                <td className="px-4 py-3">
+                  <p className="font-medium">{rider.fullName}</p>
+                  <p className="text-xs text-muted-foreground">{rider.notes ?? "No rider notes"}</p>
+                </td>
+                <td className="px-4 py-3">{rider.phoneNumber ?? "-"}</td>
+                <td className="px-4 py-3">{rider.vehicleType}</td>
+                <td className="px-4 py-3">{rider.licensePlate ?? "-"}</td>
+                <td className="px-4 py-3">{rider.townshipName ?? "-"}</td>
+                <td className="px-4 py-3">{rider.isActive ? "Active" : "Inactive"}</td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/dashboard/riders/${rider.id}`}>View</Link>
+                    </Button>
+                    {riderAccess.canUpdate && (
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/dashboard/users/${rider.id}/edit`}>Edit</Link>
+                      </Button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {riders.length === 0 && (
               <tr>
                 <td className="px-4 py-6 text-sm text-muted-foreground" colSpan={7}>
                   No riders found.
                 </td>
               </tr>
-            ) : (
-              riders.map((rider) => (
-                <tr key={rider.id} className="border-t">
-                  <td className="px-4 py-3">
-                    <p className="font-medium">{rider.fullName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {rider.notes ?? "No rider notes"}
-                    </p>
-                  </td>
-                  <td className="px-4 py-3">{rider.phoneNumber ?? "-"}</td>
-                  <td className="px-4 py-3">{rider.vehicleType}</td>
-                  <td className="px-4 py-3">{rider.licensePlate ?? "-"}</td>
-                  <td className="px-4 py-3">{rider.townshipName ?? "-"}</td>
-                  <td className="px-4 py-3">{rider.isActive ? "Active" : "Inactive"}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/dashboard/riders/${rider.id}`}>View</Link>
-                      </Button>
-                      {riderAccess.canUpdate && (
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/dashboard/users/${rider.id}/edit`}>Edit</Link>
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
             )}
           </tbody>
         </table>

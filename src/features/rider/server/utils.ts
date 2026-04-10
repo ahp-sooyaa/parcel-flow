@@ -43,8 +43,8 @@ export function getRiderResourceAccess(input: {
   return {
     canViewList: viewer.permissions.includes("rider-list.view"),
     canCreate: viewer.permissions.includes("user.create"),
-    canView: isOwnRider || viewer.permissions.includes("rider.view"),
-    canUpdate: isOwnRider || viewer.permissions.includes("rider.update"),
+    canView: viewer.permissions.includes("rider.view") || isOwnRider,
+    canUpdate: viewer.permissions.includes("rider.update") || isOwnRider,
     canDelete: viewer.permissions.includes("rider.delete"),
   };
 }

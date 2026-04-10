@@ -11,9 +11,13 @@ type ParcelDetailPageProps = {
 };
 
 export default async function ParcelDetailPage({ params }: Readonly<ParcelDetailPageProps>) {
+  // admin user - permission check
+  // rider user - no permission, ownership check
+  // merchant user - no permission, ownership check
   const currentUser = await requireAppAccessContext();
   const { id } = await params;
 
+  // rider dedicated form ui
   if (currentUser.roleSlug === "rider") {
     const riderParcel = await getRiderParcelById(id, currentUser);
 
@@ -30,13 +34,17 @@ export default async function ParcelDetailPage({ params }: Readonly<ParcelDetail
     notFound();
   }
 
+  // no permission for rider to access parcel detail page
   const parcelAccess = getParcelResourceAccess({
     viewer: currentUser,
     parcel: {
       merchantId: parcel.merchantId,
-      riderId: parcel.riderId,
     },
   });
+
+  if (!parcelAccess.canView) {
+    notFound();
+  }
 
   return (
     <section className="mx-auto w-full max-w-3xl space-y-6">

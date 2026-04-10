@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { IfPermitted } from "@/components/shared/if-permitted";
 import { Button } from "@/components/ui/button";
 import { getUserByAppUserId } from "@/features/auth/server/dal";
-import { requirePermission } from "@/features/auth/server/utils";
+import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { ResetUserPasswordForm } from "@/features/users/components/reset-user-password-form";
 import { SoftDeleteUserForm } from "@/features/users/components/soft-delete-user-form";
 import { updateUserStatusAction } from "@/features/users/server/actions";
+import { getUserResourceAccess } from "@/features/users/server/utils";
 import { formatRoleSlug } from "@/lib/roles";
 
 type UserDetailPageProps = {
@@ -14,7 +14,13 @@ type UserDetailPageProps = {
 };
 
 export default async function UserDetailPage({ params }: Readonly<UserDetailPageProps>) {
-  await requirePermission("user.view");
+  const currentUser = await requireAppAccessContext();
+  const userAccess = getUserResourceAccess({ viewer: currentUser });
+
+  if (!userAccess.canView) {
+    notFound();
+  }
+
   const { id } = await params;
   const user = await getUserByAppUserId(id);
 
@@ -30,11 +36,11 @@ export default async function UserDetailPage({ params }: Readonly<UserDetailPage
       </header>
 
       <div className="flex flex-wrap gap-2">
-        <IfPermitted permission="user.update">
+        {userAccess.canUpdate && (
           <Button asChild variant="outline">
             <Link href={`/dashboard/users/${user.appUserId}/edit`}>Edit User</Link>
           </Button>
-        </IfPermitted>
+        )}
       </div>
 
       <div className="grid gap-4 rounded-xl border bg-card p-5 text-sm">
@@ -56,7 +62,7 @@ export default async function UserDetailPage({ params }: Readonly<UserDetailPage
         </div>
       </div>
 
-      <IfPermitted permission="user.update">
+      {userAccess.canUpdate && (
         <section className="space-y-3 rounded-xl border bg-card p-5">
           <h2 className="text-lg font-semibold">User Status</h2>
           <form action={updateUserStatusAction} className="flex items-center gap-3">
@@ -67,9 +73,9 @@ export default async function UserDetailPage({ params }: Readonly<UserDetailPage
             </Button>
           </form>
         </section>
-      </IfPermitted>
+      )}
 
-      <IfPermitted permission="user-password.reset">
+      {userAccess.canResetPassword && (
         <section className="space-y-3 rounded-xl border bg-card p-5">
           <h2 className="text-lg font-semibold">Admin Password Reset</h2>
           <p className="text-xs text-muted-foreground">
@@ -78,9 +84,9 @@ export default async function UserDetailPage({ params }: Readonly<UserDetailPage
           </p>
           <ResetUserPasswordForm userId={user.appUserId} />
         </section>
-      </IfPermitted>
+      )}
 
-      <IfPermitted permission="user.delete">
+      {userAccess.canDelete && (
         <section className="space-y-3 rounded-xl border border-destructive/30 bg-card p-5">
           <h2 className="text-lg font-semibold text-destructive">Delete User</h2>
           <p className="text-xs text-muted-foreground">
@@ -89,7 +95,7 @@ export default async function UserDetailPage({ params }: Readonly<UserDetailPage
           </p>
           <SoftDeleteUserForm userId={user.appUserId} />
         </section>
-      </IfPermitted>
+      )}
     </section>
   );
 }

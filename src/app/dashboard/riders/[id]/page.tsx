@@ -11,6 +11,9 @@ type RiderDetailPageProps = {
 };
 
 export default async function RiderDetailPage({ params }: Readonly<RiderDetailPageProps>) {
+  // admin user - permission check
+  // rider user - no permission, ownership check
+  // merchant user - no access
   const currentUser = await requireAppAccessContext();
   const { id } = await params;
 

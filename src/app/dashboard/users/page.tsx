@@ -1,12 +1,18 @@
 import Link from "next/link";
-import { IfPermitted } from "@/components/shared/if-permitted";
+import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { requirePermission } from "@/features/auth/server/utils";
+import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { getUsersList } from "@/features/users/server/dal";
+import { getUserResourceAccess } from "@/features/users/server/utils";
 import { formatRoleSlug } from "@/lib/roles";
 
 export default async function UsersPage() {
-  await requirePermission("user-list.view");
+  const currentUser = await requireAppAccessContext();
+  const userAccess = getUserResourceAccess({ viewer: currentUser });
+
+  if (!userAccess.canViewList) {
+    notFound();
+  }
 
   const users = await getUsersList();
 
@@ -19,9 +25,11 @@ export default async function UsersPage() {
             Manage internal app users and account status.
           </p>
         </div>
-        <Button asChild>
-          <Link href="/dashboard/users/create">Create User</Link>
-        </Button>
+        {userAccess.canCreate && (
+          <Button asChild>
+            <Link href="/dashboard/users/create">Create User</Link>
+          </Button>
+        )}
       </header>
 
       <div className="overflow-hidden rounded-xl border bg-card">
@@ -49,16 +57,16 @@ export default async function UsersPage() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <IfPermitted permission="user.view">
+                    {userAccess.canView && (
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/dashboard/users/${user.id}`}>View</Link>
                       </Button>
-                    </IfPermitted>
-                    <IfPermitted permission="user.update">
+                    )}
+                    {userAccess.canUpdate && (
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/dashboard/users/${user.id}/edit`}>Edit</Link>
                       </Button>
-                    </IfPermitted>
+                    )}
                   </div>
                 </td>
               </tr>
