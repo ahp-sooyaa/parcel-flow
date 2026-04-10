@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { IfPermitted } from "@/components/shared/if-permitted";
 import { Button } from "@/components/ui/button";
 import { requirePermission } from "@/features/auth/server/utils";
 import { getRidersList } from "@/features/rider/server/dal";
-import { normalizeRiderSearchQuery } from "@/features/rider/server/utils";
+import { getRiderResourceAccess, normalizeRiderSearchQuery } from "@/features/rider/server/utils";
 
 type RidersPageProps = {
   searchParams: Promise<{ q?: string }>;
@@ -11,6 +10,7 @@ type RidersPageProps = {
 
 export default async function RidersPage({ searchParams }: Readonly<RidersPageProps>) {
   const currentUser = await requirePermission("rider-list.view");
+  const riderAccess = getRiderResourceAccess({ viewer: currentUser });
 
   const { q } = await searchParams;
   const query = normalizeRiderSearchQuery(q);
@@ -25,11 +25,11 @@ export default async function RidersPage({ searchParams }: Readonly<RidersPagePr
             Browse and search riders for assignment and operations lookup.
           </p>
         </div>
-        <IfPermitted permission="user.create">
+        {riderAccess.canCreate && (
           <Button asChild>
             <Link href="/dashboard/users/create?role=rider">Create Rider User</Link>
           </Button>
-        </IfPermitted>
+        )}
       </header>
 
       <form className="flex items-center gap-2 rounded-xl border bg-card p-3" method="get">
@@ -83,7 +83,7 @@ export default async function RidersPage({ searchParams }: Readonly<RidersPagePr
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/dashboard/riders/${rider.id}`}>View</Link>
                       </Button>
-                      {currentUser.permissions.includes("rider.update") && (
+                      {riderAccess.canUpdate && (
                         <Button asChild size="sm" variant="outline">
                           <Link href={`/dashboard/users/${rider.id}/edit`}>Edit</Link>
                         </Button>

@@ -3,6 +3,7 @@ import { IfPermitted } from "@/components/shared/if-permitted";
 import { Button } from "@/components/ui/button";
 import { requirePermission } from "@/features/auth/server/utils";
 import { getUsersList } from "@/features/users/server/dal";
+import { formatRoleSlug } from "@/lib/roles";
 
 export default async function UsersPage() {
   await requirePermission("user-list.view");
@@ -41,7 +42,7 @@ export default async function UsersPage() {
                 <td className="px-4 py-3">{user.fullName}</td>
                 <td className="px-4 py-3">{user.email}</td>
                 <td className="px-4 py-3">{user.phoneNumber ?? "-"}</td>
-                <td className="px-4 py-3">{user.roleSlug}</td>
+                <td className="px-4 py-3">{formatRoleSlug(user.roleSlug)}</td>
                 <td className="px-4 py-3">
                   {user.isActive ? "Active" : "Inactive"}
                   {user.mustResetPassword ? " • Reset Required" : ""}

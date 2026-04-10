@@ -3,7 +3,7 @@
 import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { canAccessMerchantResource, updateMerchantProfileSchema } from "./utils";
+import { getMerchantResourceAccess, updateMerchantProfileSchema } from "./utils";
 import { db } from "@/db";
 import { merchants } from "@/db/schema";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
@@ -33,15 +33,12 @@ export async function updateMerchantProfileAction(
       return { ok: false, message: "Please provide valid merchant profile data." };
     }
 
-    const canEditMerchant = canAccessMerchantResource({
-      viewerRoleSlug: currentUser.role.slug,
-      viewerAppUserId: currentUser.appUserId,
+    const merchantAccess = getMerchantResourceAccess({
+      viewer: currentUser,
       merchantAppUserId: parsed.data.merchantId,
-      viewerPermissions: currentUser.permissions,
-      permission: "merchant.update",
     });
 
-    if (!canEditMerchant) {
+    if (!merchantAccess.canUpdate) {
       return { ok: false, message: "Forbidden" };
     }
 

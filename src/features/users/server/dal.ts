@@ -1,11 +1,6 @@
 import "server-only";
 import { and, count, desc, eq, isNull } from "drizzle-orm";
-import {
-  toAppUserDetailDto,
-  toAppUserListItemDto,
-  type AppUserDetailDto,
-  type AppUserListItemDto,
-} from "./dto";
+import { toAppUserListItemDto, type AppUserListItemDto } from "./dto";
 import { db } from "@/db";
 import { appUsers, roles } from "@/db/schema";
 
@@ -29,28 +24,6 @@ export async function getUsersList(): Promise<AppUserListItemDto[]> {
     .orderBy(desc(appUsers.createdAt));
 
   return rows.map((row) => toAppUserListItemDto(row));
-}
-
-export async function getAppUserDetailById(appUserId: string): Promise<AppUserDetailDto | null> {
-  const [row] = await db
-    .select({
-      id: appUsers.id,
-      fullName: appUsers.fullName,
-      email: appUsers.email,
-      phoneNumber: appUsers.phoneNumber,
-      isActive: appUsers.isActive,
-      mustResetPassword: appUsers.mustResetPassword,
-      roleSlug: roles.slug,
-      roleLabel: roles.label,
-      createdAt: appUsers.createdAt,
-      updatedAt: appUsers.updatedAt,
-    })
-    .from(appUsers)
-    .innerJoin(roles, eq(appUsers.roleId, roles.id))
-    .where(and(eq(appUsers.id, appUserId), isNull(appUsers.deletedAt)))
-    .limit(1);
-
-  return row ? toAppUserDetailDto(row) : null;
 }
 
 export type UserStatusGuardContext = {

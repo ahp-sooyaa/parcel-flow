@@ -1,9 +1,11 @@
 import Link from "next/link";
-import { IfPermitted } from "@/components/shared/if-permitted";
 import { Button } from "@/components/ui/button";
 import { requirePermission } from "@/features/auth/server/utils";
 import { getMerchantsList } from "@/features/merchant/server/dal";
-import { normalizeMerchantSearchQuery } from "@/features/merchant/server/utils";
+import {
+  getMerchantResourceAccess,
+  normalizeMerchantSearchQuery,
+} from "@/features/merchant/server/utils";
 
 type MerchantsPageProps = {
   searchParams: Promise<{ q?: string }>;
@@ -11,6 +13,7 @@ type MerchantsPageProps = {
 
 export default async function MerchantsPage({ searchParams }: Readonly<MerchantsPageProps>) {
   const currentUser = await requirePermission("merchant-list.view");
+  const merchantAccess = getMerchantResourceAccess({ viewer: currentUser });
 
   const { q } = await searchParams;
   const query = normalizeMerchantSearchQuery(q);
@@ -25,11 +28,11 @@ export default async function MerchantsPage({ searchParams }: Readonly<Merchants
             Browse and search merchants for quick operations lookup.
           </p>
         </div>
-        <IfPermitted permission="user.create">
+        {merchantAccess.canCreate && (
           <Button asChild>
             <Link href="/dashboard/users/create?role=merchant">Create Merchant User</Link>
           </Button>
-        </IfPermitted>
+        )}
       </header>
 
       <form className="flex items-center gap-2 rounded-xl border bg-card p-3" method="get">
@@ -79,7 +82,7 @@ export default async function MerchantsPage({ searchParams }: Readonly<Merchants
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/dashboard/merchants/${merchant.id}`}>View</Link>
                       </Button>
-                      {currentUser.permissions.includes("merchant.update") && (
+                      {merchantAccess.canUpdate && (
                         <Button asChild size="sm" variant="outline">
                           <Link href={`/dashboard/users/${merchant.id}/edit`}>Edit</Link>
                         </Button>

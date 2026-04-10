@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { getAssignedRiderParcelsList } from "@/features/parcels/server/dal";
 import { getRiderById } from "@/features/rider/server/dal";
-import { canAccessRiderResource } from "@/features/rider/server/utils";
+import { getRiderResourceAccess } from "@/features/rider/server/utils";
 
 type RiderDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -14,15 +14,12 @@ export default async function RiderDetailPage({ params }: Readonly<RiderDetailPa
   const currentUser = await requireAppAccessContext();
   const { id } = await params;
 
-  const canAccessRider = canAccessRiderResource({
-    viewerRoleSlug: currentUser.role.slug,
-    viewerAppUserId: currentUser.appUserId,
+  const riderAccess = getRiderResourceAccess({
+    viewer: currentUser,
     riderAppUserId: id,
-    viewerPermissions: currentUser.permissions,
-    permission: "rider.view",
   });
 
-  if (!canAccessRider) {
+  if (!riderAccess.canView) {
     notFound();
   }
 
@@ -35,15 +32,8 @@ export default async function RiderDetailPage({ params }: Readonly<RiderDetailPa
     notFound();
   }
 
-  const canEditRider = canAccessRiderResource({
-    viewerRoleSlug: currentUser.role.slug,
-    viewerAppUserId: currentUser.appUserId,
-    riderAppUserId: id,
-    viewerPermissions: currentUser.permissions,
-    permission: "rider.update",
-  });
   const editRiderHref =
-    currentUser.role.slug === "rider" ? "/dashboard/profile" : `/dashboard/users/${rider.id}/edit`;
+    currentUser.roleSlug === "rider" ? "/dashboard/profile" : `/dashboard/users/${rider.id}/edit`;
 
   return (
     <section className="mx-auto w-full max-w-3xl space-y-6">
@@ -52,7 +42,7 @@ export default async function RiderDetailPage({ params }: Readonly<RiderDetailPa
         <p className="text-sm text-muted-foreground">Rider detail profile</p>
       </header>
 
-      {canEditRider && (
+      {riderAccess.canUpdate && (
         <div>
           <Button asChild variant="outline">
             <Link href={editRiderHref}>Edit Rider Profile</Link>

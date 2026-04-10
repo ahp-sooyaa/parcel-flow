@@ -5,15 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateAccountProfileAction } from "@/features/users/server/actions";
+import { formatRoleSlug } from "@/lib/roles";
 import { cn } from "@/lib/utils";
+
+import type { RoleSlug } from "@/db/constants";
 
 type AccountEditFormProps = {
   user: {
-    id: string;
+    appUserId: string;
     fullName: string;
     email: string;
     phoneNumber: string | null;
-    roleLabel?: string;
+    roleSlug?: RoleSlug;
   };
   mode: "self" | "admin";
   submitLabel?: string;
@@ -44,7 +47,7 @@ export function AccountEditForm({
 
   return (
     <form action={action} className="space-y-5">
-      {mode === "admin" && <input type="hidden" name="targetUserId" value={user.id} />}
+      {mode === "admin" && <input type="hidden" name="targetUserId" value={user.appUserId} />}
 
       <div className="grid gap-2">
         <Label htmlFor="edit-user-full-name">Full Name</Label>
@@ -70,7 +73,11 @@ export function AccountEditForm({
       {mode === "admin" && (
         <div className="grid gap-2">
           <Label htmlFor="edit-user-role">Role</Label>
-          <Input id="edit-user-role" value={user.roleLabel ?? "-"} disabled />
+          <Input
+            id="edit-user-role"
+            value={user.roleSlug ? formatRoleSlug(user.roleSlug) : "-"}
+            disabled
+          />
         </div>
       )}
 

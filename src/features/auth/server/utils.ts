@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { findAppAccessContextBySupabaseUserId } from "./dal";
+import { getAuthenticatedUser } from "./dal";
 import { toAuthenticatedSession } from "./dto";
 import { PERMISSION_SLUGS, type PermissionSlug } from "@/db/constants";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -26,7 +26,7 @@ export const getCurrentAppAccessContext = cache(async () => {
     return null;
   }
 
-  return findAppAccessContextBySupabaseUserId(session.supabaseUserId);
+  return getAuthenticatedUser(session.supabaseUserId);
 });
 
 export async function requireAppAccessContext() {

@@ -3,7 +3,7 @@
 import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { canAccessRiderResource, parseActiveFlag, updateRiderProfileSchema } from "./utils";
+import { getRiderResourceAccess, parseActiveFlag, updateRiderProfileSchema } from "./utils";
 import { db } from "@/db";
 import { riders } from "@/db/schema";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
@@ -33,15 +33,12 @@ export async function updateRiderProfileAction(
       return { ok: false, message: "Please provide valid rider profile data." };
     }
 
-    const canEditRider = canAccessRiderResource({
-      viewerRoleSlug: currentUser.role.slug,
-      viewerAppUserId: currentUser.appUserId,
+    const riderAccess = getRiderResourceAccess({
+      viewer: currentUser,
       riderAppUserId: parsed.data.riderId,
-      viewerPermissions: currentUser.permissions,
-      permission: "rider.update",
     });
 
-    if (!canEditRider) {
+    if (!riderAccess.canUpdate) {
       return { ok: false, message: "Forbidden" };
     }
 

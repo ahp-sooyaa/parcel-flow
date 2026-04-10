@@ -22,7 +22,7 @@ export default async function CreateUserPage({ searchParams }: Readonly<CreateUs
         </p>
       </header>
       <CreateUserForm
-        canCreateSuperAdmin={currentUser.role.slug === "super_admin"}
+        canCreateSuperAdmin={currentUser.roleSlug === "super_admin"}
         townships={townships}
         defaultRole={defaultRole}
       />

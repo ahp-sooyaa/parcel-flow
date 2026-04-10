@@ -11,11 +11,7 @@ export type AppAccessContext = {
   fullName: string;
   email: string;
   phoneNumber: string | null;
-  role: {
-    id: string;
-    slug: RoleSlug;
-    label: string;
-  };
+  roleSlug: RoleSlug;
   isActive: boolean;
   deletedAt: Date | null;
   mustResetPassword: boolean;
@@ -24,7 +20,7 @@ export type AppAccessContext = {
 
 export type DashboardShellUserDto = {
   name: string;
-  roleLabel: string;
+  roleSlug: RoleSlug;
   navItems: {
     key: "dashboard" | "users" | "merchants" | "riders" | "parcels" | "townships";
     href: string;
@@ -51,14 +47,10 @@ export function toAppAccessContext(input: AppAccessContext): AppAccessContext {
     fullName: input.fullName,
     email: input.email,
     phoneNumber: input.phoneNumber,
+    roleSlug: input.roleSlug,
     isActive: input.isActive,
     deletedAt: input.deletedAt,
     mustResetPassword: input.mustResetPassword,
-    role: {
-      id: input.role.id,
-      slug: input.role.slug,
-      label: input.role.label,
-    },
     permissions: [...input.permissions],
   };
 }
@@ -68,7 +60,7 @@ export function toDashboardShellUserDto(input: {
   fullName: string;
   mustResetPassword: boolean;
   permissions: readonly PermissionSlug[];
-  role: { slug: RoleSlug; label: string };
+  roleSlug: RoleSlug;
 }): DashboardShellUserDto {
   const navItems: DashboardShellUserDto["navItems"] = [];
 
@@ -80,7 +72,7 @@ export function toDashboardShellUserDto(input: {
     navItems.push({ key: "users", href: "/dashboard/users", label: "Users" });
   }
 
-  if (input.role.slug === "merchant") {
+  if (input.roleSlug === "merchant") {
     navItems.push({
       key: "parcels",
       href: `/dashboard/merchants/${input.appUserId}`,
@@ -90,7 +82,7 @@ export function toDashboardShellUserDto(input: {
     navItems.push({ key: "merchants", href: "/dashboard/merchants", label: "Merchants" });
   }
 
-  if (input.role.slug === "rider") {
+  if (input.roleSlug === "rider") {
     navItems.push({
       key: "parcels",
       href: `/dashboard/riders/${input.appUserId}`,
@@ -110,7 +102,7 @@ export function toDashboardShellUserDto(input: {
 
   return {
     name: input.fullName,
-    roleLabel: input.role.label,
+    roleSlug: input.roleSlug,
     navItems,
     mustResetPassword: input.mustResetPassword,
   };

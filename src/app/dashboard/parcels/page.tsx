@@ -3,12 +3,13 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { getParcelsList } from "@/features/parcels/server/dal";
-import { canAccessParcelList, canEditParcel } from "@/features/parcels/server/utils";
+import { getParcelResourceAccess } from "@/features/parcels/server/utils";
 
 export default async function ParcelsPage() {
   const currentUser = await requireAppAccessContext();
+  const parcelAccess = getParcelResourceAccess({ viewer: currentUser });
 
-  if (!canAccessParcelList(currentUser)) {
+  if (!parcelAccess.canViewList) {
     notFound();
   }
 
@@ -23,7 +24,7 @@ export default async function ParcelsPage() {
             Create and manage parcel operations with linked payment states.
           </p>
         </div>
-        {currentUser.permissions.includes("parcel.create") && (
+        {parcelAccess.canCreate && (
           <Button asChild>
             <Link href="/dashboard/parcels/create">Create Parcel</Link>
           </Button>
@@ -59,7 +60,7 @@ export default async function ParcelsPage() {
                     <Button asChild size="sm" variant="outline">
                       <Link href={`/dashboard/parcels/${parcel.id}`}>View</Link>
                     </Button>
-                    {canEditParcel(currentUser) && (
+                    {currentUser.permissions.includes("parcel.update") && (
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/dashboard/parcels/${parcel.id}/edit`}>Edit</Link>
                       </Button>

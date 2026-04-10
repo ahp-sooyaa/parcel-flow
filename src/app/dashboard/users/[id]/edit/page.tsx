@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
 import { IfPermitted } from "@/components/shared/if-permitted";
+import { getUserByAppUserId } from "@/features/auth/server/dal";
 import { requirePermission } from "@/features/auth/server/utils";
 import { SoftDeleteUserForm } from "@/features/users/components/soft-delete-user-form";
 import { UserProfileEditor } from "@/features/users/components/user-profile-editor";
-import { getAppUserDetailById } from "@/features/users/server/dal";
 
 type EditUserPageProps = {
   params: Promise<{ id: string }>;
@@ -14,7 +14,7 @@ export default async function EditUserPage({ params, searchParams }: Readonly<Ed
   const currentUser = await requirePermission("user.update");
   const { id } = await params;
   const { tab } = await searchParams;
-  const user = await getAppUserDetailById(id);
+  const user = await getUserByAppUserId(id);
 
   if (!user) {
     notFound();
@@ -34,7 +34,7 @@ export default async function EditUserPage({ params, searchParams }: Readonly<Ed
         targetUser={user}
         mode="admin"
         activeTab={tab}
-        basePath={`/dashboard/users/${user.id}/edit`}
+        basePath={`/dashboard/users/${user.appUserId}/edit`}
       />
 
       <IfPermitted permission="user.delete">
@@ -44,7 +44,7 @@ export default async function EditUserPage({ params, searchParams }: Readonly<Ed
             This removes the user and any linked merchant or rider profile from normal screens. The
             record is still kept for history and audit purposes.
           </p>
-          <SoftDeleteUserForm userId={user.id} />
+          <SoftDeleteUserForm userId={user.appUserId} />
         </section>
       </IfPermitted>
     </section>

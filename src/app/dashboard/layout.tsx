@@ -3,6 +3,7 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { toDashboardShellUserDto } from "@/features/auth/server/dto";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 
+import type { AppAccessContext } from "@/features/auth/server/dto";
 import type { ReactNode } from "react";
 
 type DashboardLayoutProps = {
@@ -10,7 +11,7 @@ type DashboardLayoutProps = {
 };
 
 export default async function DashboardLayout({ children }: Readonly<DashboardLayoutProps>) {
-  let currentUser;
+  let currentUser: AppAccessContext;
   try {
     currentUser = await requireAppAccessContext();
   } catch {

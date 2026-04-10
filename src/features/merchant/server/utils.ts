@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { optionalNullableTrimmedString, optionalNullableUuid } from "@/lib/validation/zod-helpers";
 
-import type { RoleSlug, PermissionSlug } from "@/db/constants";
+import type { AppAccessContext } from "@/features/auth/server/dto";
 
 const merchantIdSchema = z.string().trim().uuid();
 
@@ -26,24 +26,21 @@ export const updateMerchantProfileSchema = z.object({
   notes: optionalNullableTrimmedString(1000),
 });
 
-export function canAccessMerchantResource(input: {
-  viewerRoleSlug: RoleSlug;
-  viewerAppUserId: string;
-  merchantAppUserId: string;
-  viewerPermissions?: readonly PermissionSlug[];
-  permission?: PermissionSlug;
+export function getMerchantResourceAccess(input: {
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">;
+  merchantAppUserId?: string;
 }) {
-  if (
-    input.viewerRoleSlug !== "merchant" &&
-    input.permission &&
-    input.viewerPermissions?.includes(input.permission)
-  ) {
-    return true;
-  }
+  const { viewer, merchantAppUserId } = input;
+  const isOwnMerchant =
+    viewer.roleSlug === "merchant" &&
+    typeof merchantAppUserId === "string" &&
+    merchantAppUserId === viewer.appUserId;
 
-  if (input.viewerRoleSlug !== "merchant") {
-    return false;
-  }
-
-  return input.merchantAppUserId === input.viewerAppUserId;
+  return {
+    canViewList: viewer.permissions.includes("merchant-list.view"),
+    canCreate: viewer.permissions.includes("user.create"),
+    canView: isOwnMerchant || viewer.permissions.includes("merchant.view"),
+    canUpdate: isOwnMerchant || viewer.permissions.includes("merchant.update"),
+    canDelete: viewer.permissions.includes("merchant.delete"),
+  };
 }

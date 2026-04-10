@@ -1,6 +1,7 @@
 import "server-only";
 import { randomInt } from "node:crypto";
 import { z } from "zod";
+import { findMerchantProfileLinkByAppUserId } from "@/features/merchant/server/dal";
 import {
   COD_STATUSES,
   COLLECTION_STATUSES,
@@ -11,9 +12,11 @@ import {
   PARCEL_TYPES,
   RIDER_PAYOUT_STATUSES,
 } from "@/features/parcels/constants";
+import { getRiderById } from "@/features/rider/server/dal";
+import { findTownshipById } from "@/features/townships/server/dal";
 import { optionalNullableTrimmedString, optionalNullableUuid } from "@/lib/validation/zod-helpers";
 
-import type { RoleSlug } from "@/db/constants";
+import type { AppAccessContext } from "@/features/auth/server/dto";
 
 export {
   COD_STATUSES,
@@ -75,14 +78,18 @@ export const updateParcelSchema = createParcelSchema
     collectedAmount: moneyField,
   });
 
+export const advanceRiderParcelSchema = z.object({
+  parcelId: z.string().trim().uuid(),
+  nextStatus: z.enum(PARCEL_STATUSES),
+});
+
 export type ParcelCreateInput = z.infer<typeof createParcelSchema>;
 export type ParcelUpdateInput = z.infer<typeof updateParcelSchema>;
 
-export type ParcelViewerContext = {
-  appUserId: string;
-  role: {
-    slug: RoleSlug;
-  };
+export type ParcelViewerContext = Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">;
+type ParcelAccessResource = {
+  merchantId?: string | null;
+  riderId?: string | null;
 };
 
 export type RiderNextAction = {
@@ -114,35 +121,36 @@ const riderNextActionByStatus: Partial<Record<(typeof PARCEL_STATUSES)[number], 
     },
   };
 
-export function isAdminDashboardRole(roleSlug: RoleSlug) {
-  return roleSlug === "super_admin" || roleSlug === "office_admin";
-}
+export function getParcelResourceAccess({
+  viewer,
+  parcel,
+}: {
+  viewer: ParcelViewerContext;
+  parcel?: ParcelAccessResource;
+}) {
+  const isRelatedMerchant =
+    viewer.roleSlug === "merchant" &&
+    typeof parcel?.merchantId === "string" &&
+    parcel.merchantId === viewer.appUserId;
+  const isRelatedRider =
+    viewer.roleSlug === "rider" &&
+    typeof parcel?.riderId === "string" &&
+    parcel.riderId === viewer.appUserId;
 
-export function canAccessParcelList(viewer: ParcelViewerContext) {
-  return isAdminDashboardRole(viewer.role.slug);
-}
-
-export function canViewParcel(viewer: ParcelViewerContext) {
-  return (
-    isAdminDashboardRole(viewer.role.slug) ||
-    viewer.role.slug === "merchant" ||
-    viewer.role.slug === "rider"
-  );
-}
-
-export function canCreateParcel(viewer: ParcelViewerContext) {
-  return isAdminDashboardRole(viewer.role.slug) || viewer.role.slug === "merchant";
-}
-
-export function canEditParcel(viewer: ParcelViewerContext) {
-  return isAdminDashboardRole(viewer.role.slug) || viewer.role.slug === "merchant";
+  return {
+    canViewList: viewer.permissions.includes("parcel-list.view"),
+    canCreate: viewer.permissions.includes("parcel.create"),
+    canView: viewer.permissions.includes("parcel.view") || isRelatedMerchant || isRelatedRider,
+    canUpdate: viewer.permissions.includes("parcel.update") || isRelatedMerchant || isRelatedRider,
+    canDelete: viewer.permissions.includes("parcel.delete"),
+  };
 }
 
 export function resolveMerchantScopedParcelOwner(input: {
   viewer: ParcelViewerContext;
   submittedMerchantId: string;
 }) {
-  if (input.viewer.role.slug !== "merchant") {
+  if (input.viewer.roleSlug !== "merchant") {
     return {
       ok: true as const,
       merchantId: input.submittedMerchantId,
@@ -166,41 +174,6 @@ export function getNextRiderParcelAction(
   status: (typeof PARCEL_STATUSES)[number],
 ): RiderNextAction | null {
   return riderNextActionByStatus[status] ?? null;
-}
-
-export function canAdvanceRiderParcel(input: {
-  viewer: ParcelViewerContext;
-  assignedRiderId: string | null;
-  currentStatus: (typeof PARCEL_STATUSES)[number];
-  requestedNextStatus: (typeof PARCEL_STATUSES)[number];
-}) {
-  if (input.viewer.role.slug !== "rider") {
-    return {
-      ok: false as const,
-      message: "Only rider users can perform rider workflow actions.",
-    };
-  }
-
-  if (input.assignedRiderId !== input.viewer.appUserId) {
-    return {
-      ok: false as const,
-      message: "Rider can only perform actions on assigned parcels.",
-    };
-  }
-
-  const nextAction = getNextRiderParcelAction(input.currentStatus);
-
-  if (!nextAction || nextAction.nextStatus !== input.requestedNextStatus) {
-    return {
-      ok: false as const,
-      message: "Parcel status cannot be advanced with this rider action.",
-    };
-  }
-
-  return {
-    ok: true as const,
-    nextAction,
-  };
 }
 
 export function computeTotalAmountToCollect(input: {
@@ -282,4 +255,55 @@ export function validateUpdateCodState(input: {
   }
 
   return { ok: true as const };
+}
+
+export function getDefaultCreateCodStatus(parcelType: (typeof PARCEL_TYPES)[number]) {
+  return parcelType === "non_cod" ? "not_applicable" : "pending";
+}
+
+export async function validateParcelSubmission(input: {
+  merchantId: string;
+  riderId: string | null;
+  recipientTownshipId: string;
+  parcelType: (typeof PARCEL_TYPES)[number];
+  codAmount: number;
+  deliveryFee: number;
+  deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number];
+  codStatus: (typeof COD_STATUSES)[number];
+}) {
+  const merchant = await findMerchantProfileLinkByAppUserId(input.merchantId);
+
+  if (!merchant) {
+    return { ok: false as const, message: "Selected merchant was not found." };
+  }
+
+  if (input.riderId) {
+    const rider = await getRiderById(input.riderId);
+
+    if (!rider?.isActive) {
+      return { ok: false as const, message: "Selected rider was not found." };
+    }
+  }
+
+  const township = await findTownshipById(input.recipientTownshipId);
+
+  if (!township?.isActive) {
+    return { ok: false as const, message: "Selected recipient township was not found." };
+  }
+
+  const deliveryFeeStateGuard = validateCreateDeliveryFeeState({
+    parcelType: input.parcelType,
+    codAmount: input.codAmount,
+    deliveryFee: input.deliveryFee,
+    deliveryFeeStatus: input.deliveryFeeStatus,
+  });
+
+  if (!deliveryFeeStateGuard.ok) {
+    return deliveryFeeStateGuard;
+  }
+
+  return validateUpdateCodState({
+    parcelType: input.parcelType,
+    codStatus: input.codStatus,
+  });
 }

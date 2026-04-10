@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { EditParcelForm } from "@/features/parcels/components/edit-parcel-form";
 import { getParcelById, getParcelFormOptions } from "@/features/parcels/server/dal";
-import { canEditParcel } from "@/features/parcels/server/utils";
+import { getParcelResourceAccess } from "@/features/parcels/server/utils";
 
 type EditParcelPageProps = {
   params: Promise<{ id: string }>;
@@ -11,19 +11,27 @@ type EditParcelPageProps = {
 export default async function EditParcelPage({ params }: Readonly<EditParcelPageProps>) {
   const currentUser = await requireAppAccessContext();
 
-  if (!canEditParcel(currentUser)) {
-    notFound();
-  }
-
   const { id } = await params;
   const [parcel, options] = await Promise.all([
-    getParcelById(id, currentUser),
+    getParcelById(id, currentUser, "update"),
     getParcelFormOptions({
-      merchantId: currentUser.role.slug === "merchant" ? currentUser.appUserId : null,
+      merchantId: currentUser.roleSlug === "merchant" ? currentUser.appUserId : null,
     }),
   ]);
 
   if (!parcel) {
+    notFound();
+  }
+
+  const parcelAccess = getParcelResourceAccess({
+    viewer: currentUser,
+    parcel: {
+      merchantId: parcel.merchantId,
+      riderId: parcel.riderId,
+    },
+  });
+
+  if (!parcelAccess.canUpdate) {
     notFound();
   }
 
@@ -42,8 +50,8 @@ export default async function EditParcelPage({ params }: Readonly<EditParcelPage
         merchants={options.merchants}
         riders={options.riders}
         townships={options.townships}
-        merchantFieldReadOnly={currentUser.role.slug === "merchant"}
-        accountingFieldsReadOnly={currentUser.role.slug === "merchant"}
+        merchantFieldReadOnly={currentUser.roleSlug === "merchant"}
+        accountingFieldsReadOnly={currentUser.roleSlug === "merchant"}
       />
     </section>
   );

@@ -9,16 +9,19 @@ import { getTownshipOptions } from "@/features/townships/server/dal";
 import { cn } from "@/lib/utils";
 
 import type { AppAccessContext } from "@/features/auth/server/dto";
-import type { AppUserDetailDto } from "@/features/users/server/dto";
 
 type EditorMode = "self" | "admin";
+type ProfileEditorUser = Pick<
+  AppAccessContext,
+  "appUserId" | "fullName" | "email" | "phoneNumber" | "roleSlug"
+>;
 
 type UserProfileEditorProps = {
   viewer: AppAccessContext;
   mode: EditorMode;
   activeTab?: string;
   basePath: string;
-  targetUser?: AppUserDetailDto;
+  targetUser?: ProfileEditorUser;
 };
 
 export async function UserProfileEditor({
@@ -31,11 +34,11 @@ export async function UserProfileEditor({
   const accountUser =
     mode === "self"
       ? {
-          id: viewer.appUserId,
+          appUserId: viewer.appUserId,
           fullName: viewer.fullName,
           email: viewer.email,
           phoneNumber: viewer.phoneNumber,
-          roleLabel: viewer.role.label,
+          roleSlug: viewer.roleSlug,
         }
       : targetUser;
 
@@ -43,7 +46,7 @@ export async function UserProfileEditor({
     throw new Error("Target user is required for admin profile editing.");
   }
 
-  const targetUserId = accountUser.id;
+  const targetUserId = accountUser.appUserId;
   let canEditMerchantDetails = false;
   let canEditRiderDetails = false;
   let merchantProfile: Awaited<ReturnType<typeof getMerchantProfileByAppUserId>> = null;
@@ -54,8 +57,8 @@ export async function UserProfileEditor({
     canEditMerchantDetails = viewer.permissions.includes("merchant.update");
     canEditRiderDetails = viewer.permissions.includes("rider.update");
   } else {
-    canEditMerchantDetails = viewer.role.slug === "merchant";
-    canEditRiderDetails = viewer.role.slug === "rider";
+    canEditMerchantDetails = viewer.roleSlug === "merchant";
+    canEditRiderDetails = viewer.roleSlug === "rider";
   }
 
   if (canEditMerchantDetails) {

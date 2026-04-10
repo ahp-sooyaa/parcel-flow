@@ -7,29 +7,24 @@ import {
   buildPaymentPatch,
   createParcelWithPaymentAndAudit,
   getParcelUpdateContext,
-  getRiderParcelById,
   isParcelCodeInUse,
   updateParcelAndPaymentWithAudit,
 } from "./dal";
 import {
-  canAdvanceRiderParcel,
-  canCreateParcel,
-  canEditParcel,
+  advanceRiderParcelSchema,
   createParcelSchema,
   DEFAULT_CREATE_PARCEL_STATE,
   generateParcelCode,
+  getDefaultCreateCodStatus,
+  getParcelResourceAccess,
   getNextRiderParcelAction,
   type ParcelUpdateInput,
   resolveMerchantScopedParcelOwner,
   updateParcelSchema,
-  validateCreateDeliveryFeeState,
-  validateUpdateCodState,
+  validateParcelSubmission,
 } from "./utils";
 import { requireAppAccessContext, requirePermission } from "@/features/auth/server/utils";
-import { findMerchantProfileLinkByAppUserId } from "@/features/merchant/server/dal";
 import { computeTotalAmountToCollect, toMoneyString } from "@/features/parcels/server/utils";
-import { getRiderById } from "@/features/rider/server/dal";
-import { findTownshipById } from "@/features/townships/server/dal";
 
 import type {
   CreateParcelActionResult,
@@ -99,34 +94,6 @@ async function generateUniqueParcelCode(maxAttempts = 10) {
   throw new Error("Could not generate unique parcel code.");
 }
 
-async function validateParcelReferences(input: {
-  merchantId: string;
-  riderId: string | null;
-  recipientTownshipId: string;
-}) {
-  const merchant = await findMerchantProfileLinkByAppUserId(input.merchantId);
-
-  if (!merchant) {
-    return { ok: false as const, message: "Selected merchant was not found." };
-  }
-
-  if (input.riderId) {
-    const rider = await getRiderById(input.riderId);
-
-    if (!rider?.isActive) {
-      return { ok: false as const, message: "Selected rider was not found." };
-    }
-  }
-
-  const township = await findTownshipById(input.recipientTownshipId);
-
-  if (!township?.isActive) {
-    return { ok: false as const, message: "Selected recipient township was not found." };
-  }
-
-  return { ok: true as const };
-}
-
 function revalidateParcelPaths(input: {
   parcelId: string;
   merchantIds?: Array<string | null | undefined>;
@@ -159,7 +126,7 @@ function resolveUpdateSubmissionForActor(input: {
   current: Awaited<ReturnType<typeof getParcelUpdateContext>>;
   merchantId: string;
 }) {
-  if (input.viewer.role.slug !== "merchant") {
+  if (input.viewer.roleSlug !== "merchant") {
     return {
       merchantId: input.merchantId,
       riderId: input.submitted.riderId,
@@ -200,8 +167,9 @@ export async function createParcelAction(
 
   try {
     const currentUser = await requirePermission("parcel.create");
+    const parcelAccess = getParcelResourceAccess({ viewer: currentUser });
 
-    if (!canCreateParcel(currentUser)) {
+    if (!parcelAccess.canCreate) {
       return {
         ok: false,
         message: "You are not allowed to create parcels.",
@@ -228,34 +196,21 @@ export async function createParcelAction(
       return { ok: false, message: merchantScope.message, fields: submittedFields };
     }
 
-    const refs = await validateParcelReferences({
+    const createCodStatus = getDefaultCreateCodStatus(parsed.data.parcelType);
+
+    const submissionGuard = await validateParcelSubmission({
       merchantId: merchantScope.merchantId,
       riderId: parsed.data.riderId,
       recipientTownshipId: parsed.data.recipientTownshipId,
-    });
-
-    if (!refs.ok) {
-      return { ok: false, message: refs.message, fields: submittedFields };
-    }
-
-    const deliveryFeeStateGuard = validateCreateDeliveryFeeState({
       parcelType: parsed.data.parcelType,
       codAmount: parsed.data.codAmount,
       deliveryFee: parsed.data.deliveryFee,
       deliveryFeeStatus: parsed.data.deliveryFeeStatus,
+      codStatus: createCodStatus,
     });
 
-    if (!deliveryFeeStateGuard.ok) {
-      return { ok: false, message: deliveryFeeStateGuard.message, fields: submittedFields };
-    }
-
-    const codStateGuard = validateUpdateCodState({
-      parcelType: parsed.data.parcelType,
-      codStatus: DEFAULT_CREATE_PARCEL_STATE.codStatus,
-    });
-
-    if (!codStateGuard.ok) {
-      return { ok: false, message: codStateGuard.message, fields: submittedFields };
+    if (!submissionGuard.ok) {
+      return { ok: false, message: submissionGuard.message, fields: submittedFields };
     }
 
     const parcelCode = await generateUniqueParcelCode();
@@ -264,7 +219,7 @@ export async function createParcelAction(
       parcelType: parsed.data.parcelType,
       codAmount: parsed.data.codAmount,
       deliveryFee: parsed.data.deliveryFee,
-      deliveryFeePayer: DEFAULT_CREATE_PARCEL_STATE.deliveryFeePayer,
+      deliveryFeePayer: parsed.data.deliveryFeePayer,
     });
 
     const created = await createParcelWithPaymentAndAudit({
@@ -286,7 +241,7 @@ export async function createParcelAction(
       },
       paymentValues: {
         deliveryFeeStatus: parsed.data.deliveryFeeStatus,
-        codStatus: DEFAULT_CREATE_PARCEL_STATE.codStatus,
+        codStatus: createCodStatus,
         collectedAmount: "0.00",
         collectionStatus: DEFAULT_CREATE_PARCEL_STATE.collectionStatus,
         merchantSettlementStatus: DEFAULT_CREATE_PARCEL_STATE.merchantSettlementStatus,
@@ -321,8 +276,9 @@ export async function updateParcelAction(
 
   try {
     const currentUser = await requireAppAccessContext();
+    const parcelAccess = getParcelResourceAccess({ viewer: currentUser });
 
-    if (!canEditParcel(currentUser)) {
+    if (!parcelAccess.canUpdate) {
       return {
         ok: false,
         message: "You are not allowed to update parcels.",
@@ -362,34 +318,19 @@ export async function updateParcelAction(
       merchantId: merchantScope.merchantId,
     });
 
-    const refs = await validateParcelReferences({
+    const submissionGuard = await validateParcelSubmission({
       merchantId: actorScopedUpdate.merchantId,
       riderId: actorScopedUpdate.riderId,
       recipientTownshipId: parsed.data.recipientTownshipId,
-    });
-
-    if (!refs.ok) {
-      return { ok: false, message: refs.message, fields: submittedFields };
-    }
-
-    const deliveryFeeStateGuard = validateCreateDeliveryFeeState({
       parcelType: parsed.data.parcelType,
       codAmount: parsed.data.codAmount,
       deliveryFee: parsed.data.deliveryFee,
       deliveryFeeStatus: actorScopedUpdate.deliveryFeeStatus,
-    });
-
-    if (!deliveryFeeStateGuard.ok) {
-      return { ok: false, message: deliveryFeeStateGuard.message, fields: submittedFields };
-    }
-
-    const codStateGuard = validateUpdateCodState({
-      parcelType: parsed.data.parcelType,
       codStatus: actorScopedUpdate.codStatus,
     });
 
-    if (!codStateGuard.ok) {
-      return { ok: false, message: codStateGuard.message, fields: submittedFields };
+    if (!submissionGuard.ok) {
+      return { ok: false, message: submissionGuard.message, fields: submittedFields };
     }
 
     const totalAmountToCollect = computeTotalAmountToCollect({
@@ -467,56 +408,46 @@ export async function updateParcelAction(
   }
 }
 
-export async function advanceRiderParcelAction(parcelId: string, nextStatus: string) {
+export async function advanceRiderParcelAction(formData: FormData): Promise<void> {
+  const parsed = advanceRiderParcelSchema.safeParse({
+    parcelId: readFormString(formData, "parcelId"),
+    nextStatus: readFormString(formData, "nextStatus"),
+  });
+
+  if (!parsed.success) {
+    return;
+  }
+
+  const { parcelId, nextStatus } = parsed.data;
+
   try {
     const currentUser = await requireAppAccessContext();
 
-    if (currentUser.role.slug !== "rider") {
-      return {
-        ok: false,
-        message: "Only rider users can perform rider parcel actions.",
-      };
+    if (currentUser.roleSlug !== "rider") {
+      return;
     }
 
-    const current = await getParcelUpdateContext(parcelId, currentUser);
+    const current = await getParcelUpdateContext(parcelId, currentUser, "view");
 
     if (!current) {
-      return {
-        ok: false,
-        message: "Parcel was not found.",
-      };
+      return;
     }
 
-    const riderParcel = await getRiderParcelById(parcelId, currentUser);
+    const parcelAccess = getParcelResourceAccess({
+      viewer: currentUser,
+      parcel: {
+        riderId: current.parcel.riderId,
+      },
+    });
 
-    if (!riderParcel) {
-      return {
-        ok: false,
-        message: "Parcel was not found.",
-      };
+    if (!parcelAccess.canView) {
+      return;
     }
 
     const nextAction = getNextRiderParcelAction(current.parcel.status);
 
     if (nextAction?.nextStatus !== nextStatus.trim()) {
-      return {
-        ok: false,
-        message: "Parcel status cannot be advanced with this rider action.",
-      };
-    }
-
-    const allowed = canAdvanceRiderParcel({
-      viewer: currentUser,
-      assignedRiderId: current.parcel.riderId,
-      currentStatus: current.parcel.status,
-      requestedNextStatus: nextAction.nextStatus,
-    });
-
-    if (!allowed.ok) {
-      return {
-        ok: false,
-        message: allowed.message,
-      };
+      return;
     }
 
     await updateParcelAndPaymentWithAudit({
@@ -534,19 +465,11 @@ export async function advanceRiderParcelAction(parcelId: string, nextStatus: str
     });
 
     revalidateParcelPaths({
-      parcelId: riderParcel.id,
+      parcelId,
       merchantIds: [current.parcel.merchantId],
       riderIds: [current.parcel.riderId],
     });
-
-    return {
-      ok: true,
-      message: `${nextAction.label} completed.`,
-    };
   } catch (error) {
-    return {
-      ok: false,
-      message: error instanceof Error ? error.message : "Unable to update parcel status.",
-    };
+    console.error(error instanceof Error ? error.message : "Unable to update parcel status.");
   }
 }

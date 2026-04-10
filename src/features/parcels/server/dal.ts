@@ -22,8 +22,8 @@ import {
   townships,
 } from "@/db/schema";
 import {
+  getParcelResourceAccess,
   getNextRiderParcelAction,
-  isAdminDashboardRole,
   toMoneyString,
   type ParcelViewerContext,
 } from "@/features/parcels/server/utils";
@@ -165,16 +165,30 @@ type ParcelUpdateContext = {
 
 const riderAppUsers = alias(appUsers, "rider_app_users");
 
-function buildParcelViewerAccessFilter(viewer: ParcelViewerContext) {
-  if (isAdminDashboardRole(viewer.role.slug)) {
+function buildParcelViewerAccessFilter(
+  viewer: ParcelViewerContext,
+  mode: "list" | "view" | "update",
+) {
+  if (mode === "list" && viewer.permissions.includes("parcel-list.view")) {
     return undefined;
   }
 
-  if (viewer.role.slug === "merchant") {
+  if (
+    mode === "view" &&
+    (viewer.permissions.includes("parcel.view") || viewer.permissions.includes("parcel.update"))
+  ) {
+    return undefined;
+  }
+
+  if (mode === "update" && viewer.permissions.includes("parcel.update")) {
+    return undefined;
+  }
+
+  if (viewer.roleSlug === "merchant" && (mode === "view" || mode === "update")) {
     return eq(parcels.merchantId, viewer.appUserId);
   }
 
-  if (viewer.role.slug === "rider") {
+  if (viewer.roleSlug === "rider" && mode === "view") {
     return eq(parcels.riderId, viewer.appUserId);
   }
 
@@ -182,11 +196,13 @@ function buildParcelViewerAccessFilter(viewer: ParcelViewerContext) {
 }
 
 export async function getParcelsList(viewer: ParcelViewerContext): Promise<ParcelListItemDto[]> {
-  const accessFilter = buildParcelViewerAccessFilter(viewer);
+  const accessFilter = buildParcelViewerAccessFilter(viewer, "list");
   const rows = await db
     .select({
       id: parcels.id,
       parcelCode: parcels.parcelCode,
+      merchantId: parcels.merchantId,
+      riderId: parcels.riderId,
       merchantLabel: merchants.shopName,
       recipientName: parcels.recipientName,
       recipientTownshipName: townships.name,
@@ -206,6 +222,8 @@ export async function getParcelsList(viewer: ParcelViewerContext): Promise<Parce
     toParcelListItemDto({
       id: row.id,
       parcelCode: row.parcelCode,
+      merchantId: row.merchantId,
+      riderId: row.riderId,
       merchantLabel: row.merchantLabel,
       recipientName: row.recipientName,
       recipientTownshipName: row.recipientTownshipName,
@@ -221,7 +239,7 @@ export async function getMerchantParcelsList(
   viewer: ParcelViewerContext,
   merchantId: string,
 ): Promise<ParcelListItemDto[]> {
-  const accessFilter = buildParcelViewerAccessFilter(viewer);
+  const accessFilter = buildParcelViewerAccessFilter(viewer, "view");
   const whereClause = accessFilter
     ? and(accessFilter, eq(parcels.merchantId, merchantId))
     : eq(parcels.merchantId, merchantId);
@@ -229,6 +247,8 @@ export async function getMerchantParcelsList(
     .select({
       id: parcels.id,
       parcelCode: parcels.parcelCode,
+      merchantId: parcels.merchantId,
+      riderId: parcels.riderId,
       merchantLabel: merchants.shopName,
       recipientName: parcels.recipientName,
       recipientTownshipName: townships.name,
@@ -248,6 +268,8 @@ export async function getMerchantParcelsList(
     toMerchantParcelListItemDto({
       id: row.id,
       parcelCode: row.parcelCode,
+      merchantId: row.merchantId,
+      riderId: row.riderId,
       merchantLabel: row.merchantLabel,
       recipientName: row.recipientName,
       recipientTownshipName: row.recipientTownshipName,
@@ -263,7 +285,7 @@ export async function getAssignedRiderParcelsList(
   viewer: ParcelViewerContext,
   riderId: string,
 ): Promise<ParcelListItemDto[]> {
-  const accessFilter = buildParcelViewerAccessFilter(viewer);
+  const accessFilter = buildParcelViewerAccessFilter(viewer, "view");
   const whereClause = accessFilter
     ? and(accessFilter, eq(parcels.riderId, riderId))
     : eq(parcels.riderId, riderId);
@@ -271,6 +293,8 @@ export async function getAssignedRiderParcelsList(
     .select({
       id: parcels.id,
       parcelCode: parcels.parcelCode,
+      merchantId: parcels.merchantId,
+      riderId: parcels.riderId,
       merchantLabel: merchants.shopName,
       recipientName: parcels.recipientName,
       recipientTownshipName: townships.name,
@@ -290,6 +314,8 @@ export async function getAssignedRiderParcelsList(
     toParcelListItemDto({
       id: row.id,
       parcelCode: row.parcelCode,
+      merchantId: row.merchantId,
+      riderId: row.riderId,
       merchantLabel: row.merchantLabel,
       recipientName: row.recipientName,
       recipientTownshipName: row.recipientTownshipName,
@@ -304,8 +330,9 @@ export async function getAssignedRiderParcelsList(
 export async function getParcelById(
   parcelId: string,
   viewer: ParcelViewerContext,
+  mode: "view" | "update" = "view",
 ): Promise<ParcelDetailDto | null> {
-  const accessFilter = buildParcelViewerAccessFilter(viewer);
+  const accessFilter = buildParcelViewerAccessFilter(viewer, mode);
   const [row] = await db
     .select({
       id: parcels.id,
@@ -509,8 +536,9 @@ export async function createParcelWithPaymentAndAudit(input: {
 export async function getParcelUpdateContext(
   parcelId: string,
   viewer: ParcelViewerContext,
+  mode: "view" | "update" = "update",
 ): Promise<ParcelUpdateContext | null> {
-  const accessFilter = buildParcelViewerAccessFilter(viewer);
+  const accessFilter = buildParcelViewerAccessFilter(viewer, mode);
   const [row] = await db
     .select({
       parcelId: parcels.id,

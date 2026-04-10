@@ -1,17 +1,18 @@
 import { requirePermission } from "@/features/auth/server/utils";
 import { CreateParcelForm } from "@/features/parcels/components/create-parcel-form";
 import { getParcelFormOptions } from "@/features/parcels/server/dal";
-import { canCreateParcel } from "@/features/parcels/server/utils";
+import { getParcelResourceAccess } from "@/features/parcels/server/utils";
 
 export default async function CreateParcelPage() {
   const currentUser = await requirePermission("parcel.create");
+  const parcelAccess = getParcelResourceAccess({ viewer: currentUser });
 
-  if (!canCreateParcel(currentUser)) {
+  if (!parcelAccess.canCreate) {
     throw new Error("Forbidden");
   }
 
   const options = await getParcelFormOptions({
-    merchantId: currentUser.role.slug === "merchant" ? currentUser.appUserId : null,
+    merchantId: currentUser.roleSlug === "merchant" ? currentUser.appUserId : null,
   });
 
   return (
@@ -27,7 +28,7 @@ export default async function CreateParcelPage() {
         merchants={options.merchants}
         riders={options.riders}
         townships={options.townships}
-        merchantFieldReadOnly={currentUser.role.slug === "merchant"}
+        merchantFieldReadOnly={currentUser.roleSlug === "merchant"}
       />
     </section>
   );

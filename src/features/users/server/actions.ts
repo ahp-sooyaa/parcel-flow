@@ -212,7 +212,7 @@ export async function createUserAction(
       return { ok: false, message: "Please provide valid user details." };
     }
 
-    const guards = await validateUserRoleAndTownships(parsed.data, currentUser.role.slug);
+    const guards = await validateUserRoleAndTownships(parsed.data, currentUser.roleSlug);
 
     if (!guards.ok) {
       return { ok: false, message: guards.message };
@@ -271,7 +271,7 @@ export async function resetUserPasswordAction(
 ): Promise<ResetUserPasswordActionResult> {
   try {
     const currentUser = await requirePermission("user-password.reset");
-    if (currentUser.role.slug !== "super_admin") {
+    if (currentUser.roleSlug !== "super_admin") {
       return { ok: false, message: "Only super admin can reset passwords." };
     }
 
@@ -400,7 +400,7 @@ export async function updateAccountProfileAction(
       return { ok: false, message: "Forbidden" };
     }
 
-    if (targetUser.roleSlug === "super_admin" && currentUser.role.slug !== "super_admin") {
+    if (targetUser.roleSlug === "super_admin" && currentUser.roleSlug !== "super_admin") {
       return { ok: false, message: "Only super admin can update super admin users." };
     }
 
@@ -494,7 +494,7 @@ export async function softDeleteUserAction(
   try {
     const currentUser = await requirePermission("user.delete");
 
-    if (currentUser.role.slug !== "super_admin") {
+    if (currentUser.roleSlug !== "super_admin") {
       return { ok: false, message: "Only super admin can delete users." };
     }
 

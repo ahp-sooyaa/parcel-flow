@@ -3,9 +3,9 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { getMerchantById } from "@/features/merchant/server/dal";
-import { canAccessMerchantResource } from "@/features/merchant/server/utils";
+import { getMerchantResourceAccess } from "@/features/merchant/server/utils";
 import { getMerchantParcelsList } from "@/features/parcels/server/dal";
-import { canEditParcel } from "@/features/parcels/server/utils";
+import { getParcelResourceAccess } from "@/features/parcels/server/utils";
 
 type MerchantDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -15,15 +15,12 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
   const currentUser = await requireAppAccessContext();
   const { id } = await params;
 
-  const canAccessMerchant = canAccessMerchantResource({
-    viewerRoleSlug: currentUser.role.slug,
-    viewerAppUserId: currentUser.appUserId,
+  const merchantAccess = getMerchantResourceAccess({
+    viewer: currentUser,
     merchantAppUserId: id,
-    viewerPermissions: currentUser.permissions,
-    permission: "merchant.view",
   });
 
-  if (!canAccessMerchant) {
+  if (!merchantAccess.canView) {
     notFound();
   }
 
@@ -36,17 +33,13 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
     notFound();
   }
 
-  const canEditMerchant = canAccessMerchantResource({
-    viewerRoleSlug: currentUser.role.slug,
-    viewerAppUserId: currentUser.appUserId,
-    merchantAppUserId: id,
-    viewerPermissions: currentUser.permissions,
-    permission: "merchant.update",
-  });
   const editMerchantHref =
-    currentUser.role.slug === "merchant"
+    currentUser.roleSlug === "merchant"
       ? "/dashboard/profile"
       : `/dashboard/users/${merchant.id}/edit`;
+  const parcelAccess = getParcelResourceAccess({
+    viewer: currentUser,
+  });
 
   return (
     <section className="mx-auto w-full max-w-3xl space-y-6">
@@ -55,18 +48,18 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
         <p className="text-sm text-muted-foreground">Merchant detail profile</p>
       </header>
 
-      {canEditMerchant && (
-        <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3">
+        {merchantAccess.canUpdate && (
           <Button asChild variant="outline">
             <Link href={editMerchantHref}>Edit Merchant Profile</Link>
           </Button>
-          {currentUser.permissions.includes("parcel.create") && (
-            <Button asChild>
-              <Link href="/dashboard/parcels/create">Create Parcel</Link>
-            </Button>
-          )}
-        </div>
-      )}
+        )}
+        {parcelAccess.canCreate && (
+          <Button asChild>
+            <Link href="/dashboard/parcels/create">Create Parcel</Link>
+          </Button>
+        )}
+      </div>
 
       <div className="grid gap-4 rounded-xl border bg-card p-5 text-sm">
         <div className="grid gap-1">
@@ -115,32 +108,31 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
               </tr>
             </thead>
             <tbody>
-              {merchantParcels.map((parcel) => (
-                <tr key={parcel.id} className="border-t">
-                  <td className="px-4 py-3">{parcel.parcelCode}</td>
-                  <td className="px-4 py-3">{parcel.recipientName}</td>
-                  <td className="px-4 py-3">{parcel.recipientTownshipName ?? "-"}</td>
-                  <td className="px-4 py-3">{parcel.parcelStatus}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/dashboard/parcels/${parcel.id}`}>View</Link>
-                      </Button>
-                      {canEditParcel(currentUser) && (
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/dashboard/parcels/${parcel.id}/edit`}>Edit</Link>
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {merchantParcels.length === 0 && (
+              {merchantParcels.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-10 text-center text-xs text-muted-foreground">
                     No parcels found for this merchant.
                   </td>
                 </tr>
+              ) : (
+                merchantParcels.map((parcel) => (
+                  <tr key={parcel.id} className="border-t">
+                    <td className="px-4 py-3">{parcel.parcelCode}</td>
+                    <td className="px-4 py-3">{parcel.recipientName}</td>
+                    <td className="px-4 py-3">{parcel.recipientTownshipName ?? "-"}</td>
+                    <td className="px-4 py-3">{parcel.parcelStatus}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/dashboard/parcels/${parcel.id}`}>View</Link>
+                        </Button>
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/dashboard/parcels/${parcel.id}/edit`}>Edit</Link>
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>

@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { optionalNullableTrimmedString, optionalNullableUuid } from "@/lib/validation/zod-helpers";
 
-import type { PermissionSlug, RoleSlug } from "@/db/constants";
+import type { AppAccessContext } from "@/features/auth/server/dto";
 
 const riderIdSchema = z.string().trim().uuid();
 
@@ -30,24 +30,21 @@ export function parseActiveFlag(raw: FormDataEntryValue | null) {
   return raw === "on" || raw === "true";
 }
 
-export function canAccessRiderResource(input: {
-  viewerRoleSlug: RoleSlug;
-  viewerAppUserId: string;
-  riderAppUserId: string;
-  viewerPermissions?: readonly PermissionSlug[];
-  permission?: PermissionSlug;
+export function getRiderResourceAccess(input: {
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">;
+  riderAppUserId?: string;
 }) {
-  if (
-    input.viewerRoleSlug !== "rider" &&
-    input.permission &&
-    input.viewerPermissions?.includes(input.permission)
-  ) {
-    return true;
-  }
+  const { viewer, riderAppUserId } = input;
+  const isOwnRider =
+    viewer.roleSlug === "rider" &&
+    typeof riderAppUserId === "string" &&
+    riderAppUserId === viewer.appUserId;
 
-  if (input.viewerRoleSlug !== "rider") {
-    return false;
-  }
-
-  return input.riderAppUserId === input.viewerAppUserId;
+  return {
+    canViewList: viewer.permissions.includes("rider-list.view"),
+    canCreate: viewer.permissions.includes("user.create"),
+    canView: isOwnRider || viewer.permissions.includes("rider.view"),
+    canUpdate: isOwnRider || viewer.permissions.includes("rider.update"),
+    canDelete: viewer.permissions.includes("rider.delete"),
+  };
 }

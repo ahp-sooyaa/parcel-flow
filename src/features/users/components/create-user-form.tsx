@@ -6,14 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ROLE_SLUGS, type RoleSlug } from "@/db/constants";
 import { createUserAction } from "@/features/users/server/actions";
+import { formatRoleSlug } from "@/lib/roles";
 import { cn } from "@/lib/utils";
-
-const roleLabels: Record<RoleSlug, string> = {
-  super_admin: "Super Admin",
-  office_admin: "Office Admin",
-  rider: "Rider",
-  merchant: "Merchant",
-};
 
 const initialState = {
   ok: true,
@@ -73,7 +67,7 @@ export function CreateUserForm({
         >
           {selectableRoles.map((roleSlug) => (
             <option key={roleSlug} value={roleSlug}>
-              {roleLabels[roleSlug]}
+              {formatRoleSlug(roleSlug)}
             </option>
           ))}
         </select>

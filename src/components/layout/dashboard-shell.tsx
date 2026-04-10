@@ -17,13 +17,16 @@ import { AppBrand } from "@/components/shared/app-brand";
 import { ResetRequiredBanner } from "@/components/shared/reset-required-banner";
 import { UserSummary } from "@/components/shared/user-summary";
 import { Button } from "@/components/ui/button";
+import { formatRoleSlug } from "@/lib/roles";
 import { cn } from "@/lib/utils";
+
+import type { RoleSlug } from "@/db/constants";
 
 type DashboardShellProps = {
   children: ReactNode;
   user: {
     name: string;
-    roleLabel: string;
+    roleSlug: RoleSlug;
     navItems: {
       key: "dashboard" | "users" | "merchants" | "riders" | "parcels" | "townships";
       href: string;
@@ -102,7 +105,7 @@ export function DashboardShell({ children, user }: Readonly<DashboardShellProps>
           })}
         </nav>
         <div className="mt-8 border-t pt-4">
-          <UserSummary name={user.name} role={user.roleLabel} />
+          <UserSummary name={user.name} role={formatRoleSlug(user.roleSlug)} />
         </div>
       </aside>
       <div className="flex min-h-screen flex-1 flex-col">
