@@ -14,10 +14,14 @@ import { createParcelAction } from "@/features/parcels/server/actions";
 import { cn } from "@/lib/utils";
 
 type CreateParcelFormProps = {
-  merchants: { id: string; label: string }[];
-  riders: { id: string; label: string }[];
-  townships: { id: string; label: string }[];
-  merchantFieldReadOnly?: boolean;
+  options: {
+    merchants: { id: string; label: string }[];
+    riders: { id: string; label: string }[];
+    townships: { id: string; label: string }[];
+  };
+  readOnly?: {
+    merchantField?: boolean;
+  };
 };
 
 const initialState = {
@@ -27,13 +31,12 @@ const initialState = {
   fields: undefined,
 };
 
-export function CreateParcelForm({
-  merchants,
-  riders,
-  townships,
-  merchantFieldReadOnly = false,
-}: Readonly<CreateParcelFormProps>) {
+export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFormProps>) {
   const [state, action, isPending] = useActionState(createParcelAction, initialState);
+  const merchants = options.merchants;
+  const riders = options.riders;
+  const townships = options.townships;
+  const merchantFieldReadOnly = readOnly?.merchantField ?? false;
   const selectedMerchant = merchants.find(
     (merchant) => merchant.id === (state.fields?.merchantId ?? ""),
   );

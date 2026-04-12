@@ -49,11 +49,11 @@ export default async function EditParcelPage({ params }: Readonly<EditParcelPage
       <EditParcelForm
         key={parcel.id}
         parcel={parcel}
-        merchants={options.merchants}
-        riders={options.riders}
-        townships={options.townships}
-        merchantFieldReadOnly={currentUser.roleSlug === "merchant"}
-        accountingFieldsReadOnly={currentUser.roleSlug === "merchant"}
+        options={options}
+        readOnly={{
+          merchantField: currentUser.roleSlug === "merchant",
+          accountingFields: currentUser.roleSlug === "merchant",
+        }}
       />
     </section>
   );

@@ -158,14 +158,18 @@ export async function UserProfileEditor({
             </header>
 
             <EditMerchantForm
-              merchantId={merchantProfile.appUserId}
-              shopName={merchantProfile.shopName}
-              contactName={accountUser.fullName}
-              email={accountUser.email}
-              phoneNumber={accountUser.phoneNumber}
-              townshipId={merchantProfile.pickupTownshipId}
-              defaultPickupAddress={merchantProfile.defaultPickupAddress}
-              notes={merchantProfile.notes}
+              merchant={{
+                merchantId: merchantProfile.appUserId,
+                shopName: merchantProfile.shopName,
+                townshipId: merchantProfile.pickupTownshipId,
+                defaultPickupAddress: merchantProfile.defaultPickupAddress,
+                notes: merchantProfile.notes,
+              }}
+              contact={{
+                contactName: accountUser.fullName,
+                email: accountUser.email,
+                phoneNumber: accountUser.phoneNumber,
+              }}
               townships={townships}
             />
           </div>
@@ -183,19 +187,24 @@ export async function UserProfileEditor({
             </header>
 
             <EditRiderForm
-              riderId={riderProfile.appUserId}
-              fullName={accountUser.fullName}
-              email={accountUser.email}
-              phoneNumber={accountUser.phoneNumber}
-              townshipId={riderProfile.townshipId}
-              vehicleType={riderProfile.vehicleType}
-              licensePlate={riderProfile.licensePlate}
-              isActive={riderProfile.isActive}
-              notes={riderProfile.notes}
+              rider={{
+                riderId: riderProfile.appUserId,
+                townshipId: riderProfile.townshipId,
+                vehicleType: riderProfile.vehicleType,
+                licensePlate: riderProfile.licensePlate,
+                isActive: riderProfile.isActive,
+                notes: riderProfile.notes,
+              }}
+              contact={{
+                fullName: accountUser.fullName,
+                email: accountUser.email,
+                phoneNumber: accountUser.phoneNumber,
+              }}
               townships={townships}
-              canEditOperationalStatus={
-                mode === "admin" && viewer.permissions.includes("rider.update")
-              }
+              permissions={{
+                canEditOperationalStatus:
+                  mode === "admin" && viewer.permissions.includes("rider.update"),
+              }}
             />
           </div>
         )}

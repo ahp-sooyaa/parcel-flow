@@ -40,11 +40,15 @@ type EditParcelFormProps = {
     riderPayoutStatus: (typeof RIDER_PAYOUT_STATUSES)[number];
     paymentNote: string | null;
   };
-  merchants: { id: string; label: string }[];
-  riders: { id: string; label: string }[];
-  townships: { id: string; label: string }[];
-  merchantFieldReadOnly?: boolean;
-  accountingFieldsReadOnly?: boolean;
+  options: {
+    merchants: { id: string; label: string }[];
+    riders: { id: string; label: string }[];
+    townships: { id: string; label: string }[];
+  };
+  readOnly?: {
+    merchantField?: boolean;
+    accountingFields?: boolean;
+  };
 };
 
 type FormValues = {
@@ -97,15 +101,13 @@ function buildFormValues(parcel: EditParcelFormProps["parcel"]): FormValues {
   };
 }
 
-export function EditParcelForm({
-  parcel,
-  merchants,
-  riders,
-  townships,
-  merchantFieldReadOnly = false,
-  accountingFieldsReadOnly = false,
-}: Readonly<EditParcelFormProps>) {
+export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParcelFormProps>) {
   const [state, action, isPending] = useActionState(updateParcelAction, initialState);
+  const merchants = options.merchants;
+  const riders = options.riders;
+  const townships = options.townships;
+  const merchantFieldReadOnly = readOnly?.merchantField ?? false;
+  const accountingFieldsReadOnly = readOnly?.accountingFields ?? false;
 
   const fields = state.fields ?? buildFormValues(parcel);
   const selectedMerchant = merchants.find((merchant) => merchant.id === fields.merchantId);

@@ -17,7 +17,6 @@ import {
   createUserSchema,
   deleteAuthUser,
   getUserResourceAccess,
-  mapPasswordUpdateError,
   parseActiveFlag,
   provisionAuthUser,
   updateOwnAuthPassword,
