@@ -35,16 +35,15 @@ export function getRiderResourceAccess(input: {
   riderAppUserId?: string;
 }) {
   const { viewer, riderAppUserId } = input;
-  const isOwnRider =
-    viewer.roleSlug === "rider" &&
-    typeof riderAppUserId === "string" &&
-    riderAppUserId === viewer.appUserId;
+  const isOwnRider = viewer.roleSlug === "rider" && riderAppUserId === viewer.appUserId;
+  const canManageStatus = viewer.permissions.includes("rider.update");
 
   return {
     canViewList: viewer.permissions.includes("rider-list.view"),
     canCreate: viewer.permissions.includes("user.create"),
     canView: viewer.permissions.includes("rider.view") || isOwnRider,
-    canUpdate: viewer.permissions.includes("rider.update") || isOwnRider,
+    canUpdate: canManageStatus || isOwnRider,
+    canManageStatus,
     canDelete: viewer.permissions.includes("rider.delete"),
   };
 }

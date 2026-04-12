@@ -27,7 +27,7 @@ type UserProfileEditorProps = {
 export async function UserProfileEditor({
   viewer,
   mode,
-  activeTab,
+  activeTab = "account-details",
   basePath,
   targetUser,
 }: Readonly<UserProfileEditorProps>) {

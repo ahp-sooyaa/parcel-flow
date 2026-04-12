@@ -276,15 +276,6 @@ export async function updateParcelAction(
 
   try {
     const currentUser = await requireAppAccessContext();
-    const parcelAccess = getParcelResourceAccess({ viewer: currentUser });
-
-    if (!parcelAccess.canUpdate) {
-      return {
-        ok: false,
-        message: "You are not allowed to update parcels.",
-        fields: submittedFields,
-      };
-    }
 
     const parsed = updateParcelSchema.safeParse(submittedFields);
 
@@ -296,10 +287,26 @@ export async function updateParcelAction(
       };
     }
 
-    const current = await getParcelUpdateContext(parsed.data.parcelId, currentUser);
+    const current = await getParcelUpdateContext(parsed.data.parcelId);
 
     if (!current) {
       return { ok: false, message: "Parcel was not found.", fields: submittedFields };
+    }
+
+    const parcelAccess = getParcelResourceAccess({
+      viewer: currentUser,
+      parcel: {
+        merchantId: current.parcel.merchantId,
+        riderId: current.parcel.riderId,
+      },
+    });
+
+    if (!parcelAccess.canUpdate) {
+      return {
+        ok: false,
+        message: "You are not allowed to update parcels.",
+        fields: submittedFields,
+      };
     }
 
     const merchantScope = resolveMerchantScopedParcelOwner({
@@ -427,7 +434,7 @@ export async function advanceRiderParcelAction(formData: FormData): Promise<void
       return;
     }
 
-    const current = await getParcelUpdateContext(parcelId, currentUser, "view");
+    const current = await getParcelUpdateContext(parcelId);
 
     if (!current) {
       return;

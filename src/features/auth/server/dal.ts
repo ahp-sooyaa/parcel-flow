@@ -20,7 +20,7 @@ async function getAppAccessContext(
       deletedAt: appUsers.deletedAt,
       mustResetPassword: appUsers.mustResetPassword,
       roleSlug: roles.slug,
-      permissionSlugs: sql<string[]>`
+      permissions: sql<AppAccessContext["permissions"]>`
         coalesce(
           array_agg(distinct ${permissions.slug}) filter (where ${permissions.slug} is not null),
           '{}'
@@ -48,18 +48,7 @@ async function getAppAccessContext(
     return null;
   }
 
-  return toAppAccessContext({
-    appUserId: row.appUserId,
-    supabaseUserId: row.supabaseUserId,
-    fullName: row.fullName,
-    email: row.email,
-    phoneNumber: row.phoneNumber,
-    roleSlug: row.roleSlug,
-    isActive: row.isActive,
-    deletedAt: row.deletedAt,
-    mustResetPassword: row.mustResetPassword,
-    permissions: row.permissionSlugs as AppAccessContext["permissions"],
-  });
+  return toAppAccessContext(row);
 }
 
 export async function getAuthenticatedUser(
@@ -75,15 +64,9 @@ export async function getUserByAppUserId(appUserId: string): Promise<AppAccessCo
 export async function findRoleBySlug(slug: RoleSlug) {
   const [role] = await db.select().from(roles).where(eq(roles.slug, slug)).limit(1);
 
-  return role ?? null;
-}
+  if (!role) {
+    return null;
+  }
 
-export async function getAppUserRecordById(appUserId: string) {
-  const [row] = await db
-    .select()
-    .from(appUsers)
-    .where(and(eq(appUsers.id, appUserId), isNull(appUsers.deletedAt)))
-    .limit(1);
-
-  return row ?? null;
+  return role;
 }

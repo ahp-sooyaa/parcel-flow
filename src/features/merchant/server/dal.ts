@@ -9,8 +9,10 @@ import {
   type MerchantProfileDto,
 } from "./dto";
 import { isMerchantId, normalizeMerchantSearchQuery, toMerchantSearchPattern } from "./utils";
-import { db } from "@/db";
+import { db, type DbClient } from "@/db";
 import { appUsers, merchants, townships } from "@/db/schema";
+
+type MerchantWriteClient = Pick<DbClient, "insert">;
 
 export async function getMerchantsList(
   input: {
@@ -49,17 +51,7 @@ export async function getMerchantsList(
     .orderBy(asc(merchants.shopName), desc(merchants.createdAt))
     .limit(safeLimit);
 
-  return rows.map((row) =>
-    toMerchantListItemDto({
-      id: row.id,
-      shopName: row.shopName,
-      contactName: row.contactName,
-      phoneNumber: row.phoneNumber,
-      townshipName: row.townshipName,
-      defaultPickupAddress: row.defaultPickupAddress,
-      createdAt: row.createdAt,
-    }),
-  );
+  return rows.map((row) => toMerchantListItemDto(row));
 }
 
 export async function getMerchantById(merchantId: string): Promise<MerchantDetailDto | null> {
@@ -97,19 +89,7 @@ export async function getMerchantById(merchantId: string): Promise<MerchantDetai
     return null;
   }
 
-  return toMerchantDetailDto({
-    id: row.id,
-    shopName: row.shopName,
-    contactName: row.contactName,
-    email: row.email,
-    phoneNumber: row.phoneNumber,
-    pickupTownshipId: row.pickupTownshipId,
-    townshipName: row.townshipName,
-    defaultPickupAddress: row.defaultPickupAddress,
-    notes: row.notes,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  });
+  return toMerchantDetailDto(row);
 }
 
 export async function getMerchantProfileByAppUserId(
@@ -133,7 +113,11 @@ export async function getMerchantProfileByAppUserId(
     .where(and(eq(merchants.appUserId, appUserId), isNull(merchants.deletedAt)))
     .limit(1);
 
-  return row ? toMerchantProfileDto(row) : null;
+  if (!row) {
+    return null;
+  }
+
+  return toMerchantProfileDto(row);
 }
 
 export async function createMerchantProfile(input: {
@@ -142,8 +126,10 @@ export async function createMerchantProfile(input: {
   pickupTownshipId: string | null;
   defaultPickupAddress: string | null;
   notes: string | null;
+  dbClient?: MerchantWriteClient;
 }) {
-  const [created] = await db
+  const client = input.dbClient ?? db;
+  const [created] = await client
     .insert(merchants)
     .values({
       appUserId: input.appUserId,
@@ -157,6 +143,25 @@ export async function createMerchantProfile(input: {
   return created;
 }
 
+export async function updateMerchantProfile(input: {
+  merchantId: string;
+  shopName: string;
+  pickupTownshipId: string | null;
+  defaultPickupAddress: string | null;
+  notes: string | null;
+}) {
+  await db
+    .update(merchants)
+    .set({
+      shopName: input.shopName,
+      pickupTownshipId: input.pickupTownshipId,
+      defaultPickupAddress: input.defaultPickupAddress,
+      notes: input.notes,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(merchants.appUserId, input.merchantId), isNull(merchants.deletedAt)));
+}
+
 export async function findMerchantProfileLinkByAppUserId(appUserId: string) {
   const [row] = await db
     .select({ appUserId: merchants.appUserId })
@@ -164,5 +169,9 @@ export async function findMerchantProfileLinkByAppUserId(appUserId: string) {
     .where(and(eq(merchants.appUserId, appUserId), isNull(merchants.deletedAt)))
     .limit(1);
 
-  return row ?? null;
+  if (!row) {
+    return null;
+  }
+
+  return row;
 }

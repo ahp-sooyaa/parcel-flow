@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { RiderParcelDetail } from "@/features/parcels/components/rider-parcel-detail";
-import { getParcelById, getRiderParcelById } from "@/features/parcels/server/dal";
-import { getParcelResourceAccess } from "@/features/parcels/server/utils";
+import { getParcelById } from "@/features/parcels/server/dal";
+import { toRiderParcelDetailDto } from "@/features/parcels/server/dto";
+import { getNextRiderParcelAction, getParcelResourceAccess } from "@/features/parcels/server/utils";
 
 type ParcelDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -19,16 +20,35 @@ export default async function ParcelDetailPage({ params }: Readonly<ParcelDetail
 
   // rider dedicated form ui
   if (currentUser.roleSlug === "rider") {
-    const riderParcel = await getRiderParcelById(id, currentUser);
+    const parcel = await getParcelById(id);
 
-    if (!riderParcel) {
+    if (!parcel) {
       notFound();
     }
 
-    return <RiderParcelDetail parcel={riderParcel} />;
+    const riderParcelAccess = getParcelResourceAccess({
+      viewer: currentUser,
+      parcel: {
+        merchantId: parcel.merchantId,
+        riderId: parcel.riderId,
+      },
+    });
+
+    if (!riderParcelAccess.canView) {
+      notFound();
+    }
+
+    return (
+      <RiderParcelDetail
+        parcel={toRiderParcelDetailDto({
+          ...parcel,
+          nextAction: getNextRiderParcelAction(parcel.parcelStatus),
+        })}
+      />
+    );
   }
 
-  const parcel = await getParcelById(id, currentUser);
+  const parcel = await getParcelById(id);
 
   if (!parcel) {
     notFound();

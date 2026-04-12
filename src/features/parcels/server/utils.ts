@@ -141,7 +141,7 @@ export function getParcelResourceAccess({
     canViewList: viewer.permissions.includes("parcel-list.view"),
     canCreate: viewer.permissions.includes("parcel.create"),
     canView: viewer.permissions.includes("parcel.view") || isRelatedMerchant || isRelatedRider,
-    canUpdate: viewer.permissions.includes("parcel.update") || isRelatedMerchant || isRelatedRider,
+    canUpdate: viewer.permissions.includes("parcel.update") || isRelatedMerchant,
     canDelete: viewer.permissions.includes("parcel.delete"),
   };
 }

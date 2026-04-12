@@ -63,8 +63,6 @@ export type ParcelDetailDto = {
   updatedAt: Date;
 };
 
-export type MerchantParcelListItemDto = ParcelListItemDto;
-
 export type RiderParcelDetailDto = {
   id: string;
   parcelCode: string;
@@ -81,6 +79,101 @@ export type RiderParcelDetailDto = {
   collectionStatus: (typeof COLLECTION_STATUSES)[number];
   nextAction: RiderParcelActionDto | null;
 };
+
+export type ParcelUpdateContextDto = {
+  parcel: {
+    id: string;
+    parcelCode: string;
+    merchantId: string;
+    riderId: string | null;
+    recipientName: string;
+    recipientPhone: string;
+    recipientTownshipId: string;
+    recipientAddress: string;
+    parcelType: (typeof PARCEL_TYPES)[number];
+    codAmount: string;
+    deliveryFee: string;
+    totalAmountToCollect: string;
+    deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];
+    status: (typeof PARCEL_STATUSES)[number];
+  };
+  payment: {
+    id: string;
+    deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number];
+    codStatus: (typeof COD_STATUSES)[number];
+    collectedAmount: string;
+    collectionStatus: (typeof COLLECTION_STATUSES)[number];
+    merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number];
+    riderPayoutStatus: (typeof RIDER_PAYOUT_STATUSES)[number];
+    note: string | null;
+  };
+};
+
+export type AuditLogInsertInput = {
+  parcelId: string;
+  updatedBy: string;
+  sourceTable: "parcels" | "parcel_payment_records";
+  event: string;
+  oldValues?: Record<string, unknown> | null;
+  newValues?: Record<string, unknown> | null;
+};
+
+export type CreateParcelInsertInput = {
+  parcelCode: string;
+  merchantId: string;
+  riderId: string | null;
+  recipientName: string;
+  recipientPhone: string;
+  recipientTownshipId: string;
+  recipientAddress: string;
+  parcelType: "cod" | "non_cod";
+  codAmount: string;
+  deliveryFee: string;
+  totalAmountToCollect: string;
+  deliveryFeePayer: "merchant" | "receiver";
+  status: "pending";
+};
+
+export type CreatePaymentInsertInput = {
+  deliveryFeeStatus:
+    | "unpaid"
+    | "paid_by_merchant"
+    | "collected_from_receiver"
+    | "deduct_from_settlement"
+    | "bill_merchant"
+    | "waived";
+  codStatus: "not_applicable" | "pending";
+  collectedAmount: string;
+  collectionStatus: "pending";
+  merchantSettlementStatus: "pending";
+  riderPayoutStatus: "pending";
+  note: string | null;
+};
+
+export type ParcelUpdatePatch = Partial<{
+  merchantId: string;
+  riderId: string | null;
+  recipientName: string;
+  recipientPhone: string;
+  recipientTownshipId: string;
+  recipientAddress: string;
+  parcelType: "cod" | "non_cod";
+  codAmount: string;
+  deliveryFee: string;
+  totalAmountToCollect: string;
+  deliveryFeePayer: "merchant" | "receiver";
+  status: (typeof PARCEL_STATUSES)[number];
+}>;
+
+export type ParcelPaymentUpdatePatch = Partial<{
+  deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number];
+  codStatus: (typeof COD_STATUSES)[number];
+  collectedAmount: string;
+  collectionStatus: (typeof COLLECTION_STATUSES)[number];
+  merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number];
+  riderPayoutStatus: (typeof RIDER_PAYOUT_STATUSES)[number];
+  note: string | null;
+}>;
 
 export type CreateParcelActionResult = {
   ok: boolean;
@@ -132,7 +225,19 @@ export type UpdateParcelFormFields = {
   paymentNote: string;
 };
 
-export function toParcelListItemDto(input: ParcelListItemDto): ParcelListItemDto {
+export function toParcelListItemDto(input: {
+  id: string;
+  parcelCode: string;
+  merchantId: string;
+  riderId: string | null;
+  merchantLabel: string;
+  recipientName: string;
+  recipientTownshipName: string | null;
+  parcelStatus: (typeof PARCEL_STATUSES)[number];
+  deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number] | null;
+  collectionStatus: (typeof COLLECTION_STATUSES)[number] | null;
+  createdAt: Date;
+}): ParcelListItemDto {
   return {
     id: input.id,
     parcelCode: input.parcelCode,
@@ -142,17 +247,46 @@ export function toParcelListItemDto(input: ParcelListItemDto): ParcelListItemDto
     recipientName: input.recipientName,
     recipientTownshipName: input.recipientTownshipName,
     parcelStatus: input.parcelStatus,
-    deliveryFeeStatus: input.deliveryFeeStatus,
-    collectionStatus: input.collectionStatus,
+    deliveryFeeStatus: input.deliveryFeeStatus ?? "unpaid",
+    collectionStatus: input.collectionStatus ?? "pending",
     createdAt: input.createdAt,
   };
 }
 
-export function toMerchantParcelListItemDto(input: ParcelListItemDto): MerchantParcelListItemDto {
+export function toMerchantParcelListItemDto(
+  input: Parameters<typeof toParcelListItemDto>[0],
+): ParcelListItemDto {
   return toParcelListItemDto(input);
 }
 
-export function toParcelDetailDto(input: ParcelDetailDto): ParcelDetailDto {
+export function toParcelDetailDto(input: {
+  id: string;
+  parcelCode: string;
+  merchantId: string;
+  merchantLabel: string;
+  riderId: string | null;
+  riderLabel: string | null;
+  recipientName: string;
+  recipientPhone: string;
+  recipientTownshipId: string;
+  recipientTownshipName: string | null;
+  recipientAddress: string;
+  parcelType: (typeof PARCEL_TYPES)[number];
+  codAmount: string;
+  deliveryFee: string;
+  totalAmountToCollect: string;
+  deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];
+  parcelStatus: (typeof PARCEL_STATUSES)[number];
+  deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number] | null;
+  codStatus: (typeof COD_STATUSES)[number] | null;
+  collectedAmount: string | null;
+  collectionStatus: (typeof COLLECTION_STATUSES)[number] | null;
+  merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number] | null;
+  riderPayoutStatus: (typeof RIDER_PAYOUT_STATUSES)[number] | null;
+  paymentNote: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): ParcelDetailDto {
   return {
     id: input.id,
     parcelCode: input.parcelCode,
@@ -171,34 +305,38 @@ export function toParcelDetailDto(input: ParcelDetailDto): ParcelDetailDto {
     totalAmountToCollect: input.totalAmountToCollect,
     deliveryFeePayer: input.deliveryFeePayer,
     parcelStatus: input.parcelStatus,
-    deliveryFeeStatus: input.deliveryFeeStatus,
-    codStatus: input.codStatus,
-    collectedAmount: input.collectedAmount,
-    collectionStatus: input.collectionStatus,
-    merchantSettlementStatus: input.merchantSettlementStatus,
-    riderPayoutStatus: input.riderPayoutStatus,
+    deliveryFeeStatus: input.deliveryFeeStatus ?? "unpaid",
+    codStatus: input.codStatus ?? "pending",
+    collectedAmount: input.collectedAmount ?? "0",
+    collectionStatus: input.collectionStatus ?? "pending",
+    merchantSettlementStatus: input.merchantSettlementStatus ?? "pending",
+    riderPayoutStatus: input.riderPayoutStatus ?? "pending",
     paymentNote: input.paymentNote,
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
   };
 }
 
-export function toRiderParcelDetailDto(input: {
-  id: string;
-  parcelCode: string;
-  merchantLabel: string;
-  riderLabel: string | null;
-  recipientName: string;
-  recipientPhone: string;
-  recipientTownshipName: string | null;
-  recipientAddress: string;
-  parcelType: (typeof PARCEL_TYPES)[number];
-  parcelStatus: (typeof PARCEL_STATUSES)[number];
-  codAmount: string;
-  totalAmountToCollect: string;
-  collectionStatus: (typeof COLLECTION_STATUSES)[number];
-  nextAction: RiderParcelActionDto | null;
-}): RiderParcelDetailDto {
+export function toRiderParcelDetailDto(
+  input: Pick<
+    ParcelDetailDto,
+    | "id"
+    | "parcelCode"
+    | "merchantLabel"
+    | "riderLabel"
+    | "recipientName"
+    | "recipientPhone"
+    | "recipientTownshipName"
+    | "recipientAddress"
+    | "parcelType"
+    | "parcelStatus"
+    | "codAmount"
+    | "totalAmountToCollect"
+    | "collectionStatus"
+  > & {
+    nextAction: RiderParcelActionDto | null;
+  },
+): RiderParcelDetailDto {
   return {
     id: input.id,
     parcelCode: input.parcelCode,
@@ -214,5 +352,59 @@ export function toRiderParcelDetailDto(input: {
     totalAmountToCollect: input.totalAmountToCollect,
     collectionStatus: input.collectionStatus,
     nextAction: input.nextAction,
+  };
+}
+
+export function toParcelUpdateContextDto(input: {
+  parcelId: string;
+  parcelCode: string;
+  merchantId: string;
+  riderId: string | null;
+  recipientName: string;
+  recipientPhone: string;
+  recipientTownshipId: string;
+  recipientAddress: string;
+  parcelType: (typeof PARCEL_TYPES)[number];
+  codAmount: string;
+  deliveryFee: string;
+  totalAmountToCollect: string;
+  deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];
+  parcelStatus: (typeof PARCEL_STATUSES)[number];
+  paymentId: string | null;
+  deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number] | null;
+  codStatus: (typeof COD_STATUSES)[number] | null;
+  collectedAmount: string | null;
+  collectionStatus: (typeof COLLECTION_STATUSES)[number] | null;
+  merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number] | null;
+  riderPayoutStatus: (typeof RIDER_PAYOUT_STATUSES)[number] | null;
+  paymentNote: string | null;
+}): ParcelUpdateContextDto {
+  return {
+    parcel: {
+      id: input.parcelId,
+      parcelCode: input.parcelCode,
+      merchantId: input.merchantId,
+      riderId: input.riderId,
+      recipientName: input.recipientName,
+      recipientPhone: input.recipientPhone,
+      recipientTownshipId: input.recipientTownshipId,
+      recipientAddress: input.recipientAddress,
+      parcelType: input.parcelType,
+      codAmount: input.codAmount,
+      deliveryFee: input.deliveryFee,
+      totalAmountToCollect: input.totalAmountToCollect,
+      deliveryFeePayer: input.deliveryFeePayer,
+      status: input.parcelStatus,
+    },
+    payment: {
+      id: input.paymentId!,
+      deliveryFeeStatus: input.deliveryFeeStatus ?? "unpaid",
+      codStatus: input.codStatus ?? "pending",
+      collectedAmount: input.collectedAmount ?? "0",
+      collectionStatus: input.collectionStatus ?? "pending",
+      merchantSettlementStatus: input.merchantSettlementStatus ?? "pending",
+      riderPayoutStatus: input.riderPayoutStatus ?? "pending",
+      note: input.paymentNote,
+    },
   };
 }

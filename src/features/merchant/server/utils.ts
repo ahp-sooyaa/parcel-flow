@@ -31,10 +31,7 @@ export function getMerchantResourceAccess(input: {
   merchantAppUserId?: string;
 }) {
   const { viewer, merchantAppUserId } = input;
-  const isOwnMerchant =
-    viewer.roleSlug === "merchant" &&
-    typeof merchantAppUserId === "string" &&
-    merchantAppUserId === viewer.appUserId;
+  const isOwnMerchant = viewer.roleSlug === "merchant" && merchantAppUserId === viewer.appUserId;
 
   return {
     canViewList: viewer.permissions.includes("merchant-list.view"),

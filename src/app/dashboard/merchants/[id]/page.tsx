@@ -26,16 +26,14 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
 
   const [merchant, merchantParcels] = await Promise.all([
     getMerchantById(id),
-    getMerchantParcelsList(currentUser, id),
+    getMerchantParcelsList(id),
   ]);
 
   if (!merchant) {
     notFound();
   }
 
-  const parcelAccess = getParcelResourceAccess({
-    viewer: currentUser,
-  });
+  const parcelAccess = getParcelResourceAccess({ viewer: currentUser });
 
   const editMerchantHref =
     currentUser.roleSlug === "merchant"
@@ -120,9 +118,17 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/dashboard/parcels/${parcel.id}`}>View</Link>
                       </Button>
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/dashboard/parcels/${parcel.id}/edit`}>Edit</Link>
-                      </Button>
+                      {getParcelResourceAccess({
+                        viewer: currentUser,
+                        parcel: {
+                          merchantId: parcel.merchantId,
+                          riderId: parcel.riderId,
+                        },
+                      }).canUpdate && (
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/dashboard/parcels/${parcel.id}/edit`}>Edit</Link>
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>

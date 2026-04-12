@@ -28,7 +28,7 @@ export default async function RiderDetailPage({ params }: Readonly<RiderDetailPa
 
   const [rider, riderParcels] = await Promise.all([
     getRiderById(id),
-    getAssignedRiderParcelsList(currentUser, id),
+    getAssignedRiderParcelsList(id),
   ]);
 
   if (!rider) {

@@ -61,5 +61,9 @@ export async function findTownshipById(id: string) {
     .where(eq(townships.id, id))
     .limit(1);
 
-  return row ?? null;
+  if (!row) {
+    return null;
+  }
+
+  return row;
 }

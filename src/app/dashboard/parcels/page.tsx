@@ -16,7 +16,7 @@ export default async function ParcelsPage() {
     notFound();
   }
 
-  const parcels = await getParcelsList(currentUser);
+  const parcels = await getParcelsList();
 
   return (
     <section className="space-y-5">

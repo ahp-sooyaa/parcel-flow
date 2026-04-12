@@ -16,7 +16,7 @@ export default async function EditParcelPage({ params }: Readonly<EditParcelPage
   const { id } = await params;
 
   const [parcel, options] = await Promise.all([
-    getParcelById(id, currentUser, "update"),
+    getParcelById(id),
     getParcelFormOptions({
       merchantId: currentUser.roleSlug === "merchant" ? currentUser.appUserId : null,
     }),

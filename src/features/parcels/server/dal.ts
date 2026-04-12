@@ -1,14 +1,20 @@
 import "server-only";
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
 import {
+  type AuditLogInsertInput,
+  type CreateParcelInsertInput,
+  type CreatePaymentInsertInput,
+  type ParcelPaymentUpdatePatch,
   toMerchantParcelListItemDto,
   toParcelDetailDto,
   toParcelListItemDto,
+  toParcelUpdateContextDto,
+  type ParcelUpdatePatch,
   toRiderParcelDetailDto,
   type ParcelDetailDto,
   type ParcelListItemDto,
   type ParcelOptionDto,
+  type ParcelUpdateContextDto,
   type RiderParcelDetailDto,
 } from "./dto";
 import { db } from "@/db";
@@ -21,182 +27,9 @@ import {
   riders,
   townships,
 } from "@/db/schema";
-import {
-  getParcelResourceAccess,
-  getNextRiderParcelAction,
-  toMoneyString,
-  type ParcelViewerContext,
-} from "@/features/parcels/server/utils";
+import { getNextRiderParcelAction, toMoneyString } from "@/features/parcels/server/utils";
 
-type AuditLogInsertInput = {
-  parcelId: string;
-  updatedBy: string;
-  sourceTable: "parcels" | "parcel_payment_records";
-  event: string;
-  oldValues?: Record<string, unknown> | null;
-  newValues?: Record<string, unknown> | null;
-};
-
-type CreateParcelInsertInput = {
-  parcelCode: string;
-  merchantId: string;
-  riderId: string | null;
-  recipientName: string;
-  recipientPhone: string;
-  recipientTownshipId: string;
-  recipientAddress: string;
-  parcelType: "cod" | "non_cod";
-  codAmount: string;
-  deliveryFee: string;
-  totalAmountToCollect: string;
-  deliveryFeePayer: "merchant" | "receiver";
-  status: "pending";
-};
-
-type CreatePaymentInsertInput = {
-  deliveryFeeStatus:
-    | "unpaid"
-    | "paid_by_merchant"
-    | "collected_from_receiver"
-    | "deduct_from_settlement"
-    | "bill_merchant"
-    | "waived";
-  codStatus: "not_applicable" | "pending";
-  collectedAmount: string;
-  collectionStatus: "pending";
-  merchantSettlementStatus: "pending";
-  riderPayoutStatus: "pending";
-  note: string | null;
-};
-
-type ParcelUpdatePatch = Partial<{
-  merchantId: string;
-  riderId: string | null;
-  recipientName: string;
-  recipientPhone: string;
-  recipientTownshipId: string;
-  recipientAddress: string;
-  parcelType: "cod" | "non_cod";
-  codAmount: string;
-  deliveryFee: string;
-  totalAmountToCollect: string;
-  deliveryFeePayer: "merchant" | "receiver";
-  status:
-    | "pending"
-    | "out_for_pickup"
-    | "at_office"
-    | "out_for_delivery"
-    | "delivered"
-    | "return_to_office"
-    | "return_to_merchant"
-    | "returned"
-    | "cancelled";
-}>;
-
-type ParcelPaymentUpdatePatch = Partial<{
-  deliveryFeeStatus:
-    | "unpaid"
-    | "paid_by_merchant"
-    | "collected_from_receiver"
-    | "deduct_from_settlement"
-    | "bill_merchant"
-    | "waived";
-  codStatus: "not_applicable" | "pending" | "collected" | "not_collected";
-  collectedAmount: string;
-  collectionStatus:
-    | "pending"
-    | "not_collected"
-    | "collected_by_rider"
-    | "received_by_office"
-    | "void";
-  merchantSettlementStatus: "pending" | "in_progress" | "settled";
-  riderPayoutStatus: "pending" | "in_progress" | "paid";
-  note: string | null;
-}>;
-
-type ParcelUpdateContext = {
-  parcel: {
-    id: string;
-    parcelCode: string;
-    merchantId: string;
-    riderId: string | null;
-    recipientName: string;
-    recipientPhone: string;
-    recipientTownshipId: string;
-    recipientAddress: string;
-    parcelType: "cod" | "non_cod";
-    codAmount: string;
-    deliveryFee: string;
-    totalAmountToCollect: string;
-    deliveryFeePayer: "merchant" | "receiver";
-    status:
-      | "pending"
-      | "out_for_pickup"
-      | "at_office"
-      | "out_for_delivery"
-      | "delivered"
-      | "return_to_office"
-      | "return_to_merchant"
-      | "returned"
-      | "cancelled";
-  };
-  payment: {
-    id: string;
-    deliveryFeeStatus:
-      | "unpaid"
-      | "paid_by_merchant"
-      | "collected_from_receiver"
-      | "deduct_from_settlement"
-      | "bill_merchant"
-      | "waived";
-    codStatus: "not_applicable" | "pending" | "collected" | "not_collected";
-    collectedAmount: string;
-    collectionStatus:
-      | "pending"
-      | "not_collected"
-      | "collected_by_rider"
-      | "received_by_office"
-      | "void";
-    merchantSettlementStatus: "pending" | "in_progress" | "settled";
-    riderPayoutStatus: "pending" | "in_progress" | "paid";
-    note: string | null;
-  };
-};
-
-const riderAppUsers = alias(appUsers, "rider_app_users");
-
-function buildParcelViewerAccessFilter(
-  viewer: ParcelViewerContext,
-  mode: "list" | "view" | "update",
-) {
-  if (mode === "list" && viewer.permissions.includes("parcel-list.view")) {
-    return undefined;
-  }
-
-  if (
-    mode === "view" &&
-    (viewer.permissions.includes("parcel.view") || viewer.permissions.includes("parcel.update"))
-  ) {
-    return undefined;
-  }
-
-  if (mode === "update" && viewer.permissions.includes("parcel.update")) {
-    return undefined;
-  }
-
-  if (viewer.roleSlug === "merchant" && (mode === "view" || mode === "update")) {
-    return eq(parcels.merchantId, viewer.appUserId);
-  }
-
-  if (viewer.roleSlug === "rider" && mode === "view") {
-    return eq(parcels.riderId, viewer.appUserId);
-  }
-
-  return eq(parcels.id, "");
-}
-
-export async function getParcelsList(viewer: ParcelViewerContext): Promise<ParcelListItemDto[]> {
-  const accessFilter = buildParcelViewerAccessFilter(viewer, "list");
+export async function getParcelsList(): Promise<ParcelListItemDto[]> {
   const rows = await db
     .select({
       id: parcels.id,
@@ -215,34 +48,12 @@ export async function getParcelsList(viewer: ParcelViewerContext): Promise<Parce
     .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
     .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
     .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
-    .where(accessFilter)
     .orderBy(desc(parcels.createdAt));
 
-  return rows.map((row) =>
-    toParcelListItemDto({
-      id: row.id,
-      parcelCode: row.parcelCode,
-      merchantId: row.merchantId,
-      riderId: row.riderId,
-      merchantLabel: row.merchantLabel,
-      recipientName: row.recipientName,
-      recipientTownshipName: row.recipientTownshipName,
-      parcelStatus: row.parcelStatus,
-      deliveryFeeStatus: row.deliveryFeeStatus ?? "unpaid",
-      collectionStatus: row.collectionStatus ?? "pending",
-      createdAt: row.createdAt,
-    }),
-  );
+  return rows.map((row) => toParcelListItemDto(row));
 }
 
-export async function getMerchantParcelsList(
-  viewer: ParcelViewerContext,
-  merchantId: string,
-): Promise<ParcelListItemDto[]> {
-  const accessFilter = buildParcelViewerAccessFilter(viewer, "view");
-  const whereClause = accessFilter
-    ? and(accessFilter, eq(parcels.merchantId, merchantId))
-    : eq(parcels.merchantId, merchantId);
+export async function getMerchantParcelsList(merchantId: string): Promise<ParcelListItemDto[]> {
   const rows = await db
     .select({
       id: parcels.id,
@@ -261,34 +72,13 @@ export async function getMerchantParcelsList(
     .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
     .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
     .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
-    .where(whereClause)
+    .where(eq(parcels.merchantId, merchantId))
     .orderBy(desc(parcels.createdAt));
 
-  return rows.map((row) =>
-    toMerchantParcelListItemDto({
-      id: row.id,
-      parcelCode: row.parcelCode,
-      merchantId: row.merchantId,
-      riderId: row.riderId,
-      merchantLabel: row.merchantLabel,
-      recipientName: row.recipientName,
-      recipientTownshipName: row.recipientTownshipName,
-      parcelStatus: row.parcelStatus,
-      deliveryFeeStatus: row.deliveryFeeStatus ?? "unpaid",
-      collectionStatus: row.collectionStatus ?? "pending",
-      createdAt: row.createdAt,
-    }),
-  );
+  return rows.map((row) => toMerchantParcelListItemDto(row));
 }
 
-export async function getAssignedRiderParcelsList(
-  viewer: ParcelViewerContext,
-  riderId: string,
-): Promise<ParcelListItemDto[]> {
-  const accessFilter = buildParcelViewerAccessFilter(viewer, "view");
-  const whereClause = accessFilter
-    ? and(accessFilter, eq(parcels.riderId, riderId))
-    : eq(parcels.riderId, riderId);
+export async function getAssignedRiderParcelsList(riderId: string): Promise<ParcelListItemDto[]> {
   const rows = await db
     .select({
       id: parcels.id,
@@ -307,32 +97,13 @@ export async function getAssignedRiderParcelsList(
     .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
     .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
     .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
-    .where(whereClause)
+    .where(eq(parcels.riderId, riderId))
     .orderBy(desc(parcels.createdAt));
 
-  return rows.map((row) =>
-    toParcelListItemDto({
-      id: row.id,
-      parcelCode: row.parcelCode,
-      merchantId: row.merchantId,
-      riderId: row.riderId,
-      merchantLabel: row.merchantLabel,
-      recipientName: row.recipientName,
-      recipientTownshipName: row.recipientTownshipName,
-      parcelStatus: row.parcelStatus,
-      deliveryFeeStatus: row.deliveryFeeStatus ?? "unpaid",
-      collectionStatus: row.collectionStatus ?? "pending",
-      createdAt: row.createdAt,
-    }),
-  );
+  return rows.map((row) => toParcelListItemDto(row));
 }
 
-export async function getParcelById(
-  parcelId: string,
-  viewer: ParcelViewerContext,
-  mode: "view" | "update" = "view",
-): Promise<ParcelDetailDto | null> {
-  const accessFilter = buildParcelViewerAccessFilter(viewer, mode);
+export async function getParcelById(parcelId: string): Promise<ParcelDetailDto | null> {
   const [row] = await db
     .select({
       id: parcels.id,
@@ -340,7 +111,7 @@ export async function getParcelById(
       merchantId: parcels.merchantId,
       merchantLabel: merchants.shopName,
       riderId: parcels.riderId,
-      riderLabel: riderAppUsers.fullName,
+      riderLabel: appUsers.fullName,
       recipientName: parcels.recipientName,
       recipientPhone: parcels.recipientPhone,
       recipientTownshipId: parcels.recipientTownshipId,
@@ -365,70 +136,28 @@ export async function getParcelById(
     .from(parcels)
     .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
     .leftJoin(riders, eq(parcels.riderId, riders.appUserId))
-    .leftJoin(riderAppUsers, eq(riders.appUserId, riderAppUsers.id))
+    .leftJoin(appUsers, eq(riders.appUserId, appUsers.id))
     .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
     .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
-    .where(and(eq(parcels.id, parcelId), accessFilter))
+    .where(eq(parcels.id, parcelId))
     .limit(1);
 
   if (!row) {
     return null;
   }
 
-  return toParcelDetailDto({
-    id: row.id,
-    parcelCode: row.parcelCode,
-    merchantId: row.merchantId,
-    merchantLabel: row.merchantLabel,
-    riderId: row.riderId,
-    riderLabel: row.riderLabel,
-    recipientName: row.recipientName,
-    recipientPhone: row.recipientPhone,
-    recipientTownshipId: row.recipientTownshipId,
-    recipientTownshipName: row.recipientTownshipName,
-    recipientAddress: row.recipientAddress,
-    parcelType: row.parcelType,
-    codAmount: row.codAmount,
-    deliveryFee: row.deliveryFee,
-    totalAmountToCollect: row.totalAmountToCollect,
-    deliveryFeePayer: row.deliveryFeePayer,
-    parcelStatus: row.parcelStatus,
-    deliveryFeeStatus: row.deliveryFeeStatus ?? "unpaid",
-    codStatus: row.codStatus ?? "pending",
-    collectedAmount: row.collectedAmount ?? "0",
-    collectionStatus: row.collectionStatus ?? "pending",
-    merchantSettlementStatus: row.merchantSettlementStatus ?? "pending",
-    riderPayoutStatus: row.riderPayoutStatus ?? "pending",
-    paymentNote: row.paymentNote,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  });
+  return toParcelDetailDto(row);
 }
 
-export async function getRiderParcelById(
-  parcelId: string,
-  viewer: ParcelViewerContext,
-): Promise<RiderParcelDetailDto | null> {
-  const parcel = await getParcelById(parcelId, viewer);
+export async function getRiderParcelById(parcelId: string): Promise<RiderParcelDetailDto | null> {
+  const parcel = await getParcelById(parcelId);
 
   if (!parcel) {
     return null;
   }
 
   return toRiderParcelDetailDto({
-    id: parcel.id,
-    parcelCode: parcel.parcelCode,
-    merchantLabel: parcel.merchantLabel,
-    riderLabel: parcel.riderLabel,
-    recipientName: parcel.recipientName,
-    recipientPhone: parcel.recipientPhone,
-    recipientTownshipName: parcel.recipientTownshipName,
-    recipientAddress: parcel.recipientAddress,
-    parcelType: parcel.parcelType,
-    parcelStatus: parcel.parcelStatus,
-    codAmount: parcel.codAmount,
-    totalAmountToCollect: parcel.totalAmountToCollect,
-    collectionStatus: parcel.collectionStatus,
+    ...parcel,
     nextAction: getNextRiderParcelAction(parcel.parcelStatus),
   });
 }
@@ -535,10 +264,7 @@ export async function createParcelWithPaymentAndAudit(input: {
 
 export async function getParcelUpdateContext(
   parcelId: string,
-  viewer: ParcelViewerContext,
-  mode: "view" | "update" = "update",
-): Promise<ParcelUpdateContext | null> {
-  const accessFilter = buildParcelViewerAccessFilter(viewer, mode);
+): Promise<ParcelUpdateContextDto | null> {
   const [row] = await db
     .select({
       parcelId: parcels.id,
@@ -566,41 +292,14 @@ export async function getParcelUpdateContext(
     })
     .from(parcels)
     .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
-    .where(and(eq(parcels.id, parcelId), accessFilter))
+    .where(eq(parcels.id, parcelId))
     .limit(1);
 
   if (!row?.paymentId) {
     return null;
   }
 
-  return {
-    parcel: {
-      id: row.parcelId,
-      parcelCode: row.parcelCode,
-      merchantId: row.merchantId,
-      riderId: row.riderId,
-      recipientName: row.recipientName,
-      recipientPhone: row.recipientPhone,
-      recipientTownshipId: row.recipientTownshipId,
-      recipientAddress: row.recipientAddress,
-      parcelType: row.parcelType,
-      codAmount: row.codAmount,
-      deliveryFee: row.deliveryFee,
-      totalAmountToCollect: row.totalAmountToCollect,
-      deliveryFeePayer: row.deliveryFeePayer,
-      status: row.parcelStatus,
-    },
-    payment: {
-      id: row.paymentId,
-      deliveryFeeStatus: row.deliveryFeeStatus ?? "unpaid",
-      codStatus: row.codStatus ?? "pending",
-      collectedAmount: row.collectedAmount ?? "0",
-      collectionStatus: row.collectionStatus ?? "pending",
-      merchantSettlementStatus: row.merchantSettlementStatus ?? "pending",
-      riderPayoutStatus: row.riderPayoutStatus ?? "pending",
-      note: row.paymentNote,
-    },
-  };
+  return toParcelUpdateContextDto(row);
 }
 
 export async function updateParcelAndPaymentWithAudit(input: {
@@ -654,7 +353,7 @@ export async function updateParcelAndPaymentWithAudit(input: {
 }
 
 export function buildParcelPatch(input: {
-  current: ParcelUpdateContext["parcel"];
+  current: ParcelUpdateContextDto["parcel"];
   next: {
     merchantId: string;
     riderId: string | null;
@@ -710,7 +409,7 @@ export function buildParcelPatch(input: {
 }
 
 export function buildPaymentPatch(input: {
-  current: ParcelUpdateContext["payment"];
+  current: ParcelUpdateContextDto["payment"];
   next: {
     deliveryFeeStatus:
       | "unpaid"

@@ -9,8 +9,10 @@ import {
   type RiderProfileDto,
 } from "./dto";
 import { isRiderId, normalizeRiderSearchQuery, toRiderSearchPattern } from "./utils";
-import { db } from "@/db";
+import { db, type DbClient } from "@/db";
 import { appUsers, riders, townships } from "@/db/schema";
+
+type RiderWriteClient = Pick<DbClient, "insert">;
 
 export async function getRidersList(
   input: {
@@ -56,19 +58,7 @@ export async function getRidersList(
     .orderBy(asc(appUsers.fullName), desc(riders.createdAt))
     .limit(safeLimit);
 
-  return rows.map((row) =>
-    toRiderListItemDto({
-      id: row.id,
-      fullName: row.fullName,
-      phoneNumber: row.phoneNumber,
-      townshipName: row.townshipName,
-      vehicleType: row.vehicleType,
-      licensePlate: row.licensePlate,
-      isActive: row.isActive,
-      notes: row.notes,
-      createdAt: row.createdAt,
-    }),
-  );
+  return rows.map((row) => toRiderListItemDto(row));
 }
 
 export async function createRiderProfile(input: {
@@ -78,8 +68,10 @@ export async function createRiderProfile(input: {
   licensePlate: string | null;
   isActive: boolean;
   notes: string | null;
+  dbClient?: RiderWriteClient;
 }) {
-  const [created] = await db
+  const client = input.dbClient ?? db;
+  const [created] = await client
     .insert(riders)
     .values({
       appUserId: input.appUserId,
@@ -116,7 +108,11 @@ export async function getRiderProfileByAppUserId(
     .where(and(eq(riders.appUserId, appUserId), isNull(riders.deletedAt)))
     .limit(1);
 
-  return row ? toRiderProfileDto(row) : null;
+  if (!row) {
+    return null;
+  }
+
+  return toRiderProfileDto(row);
 }
 
 export async function getRiderById(riderId: string): Promise<RiderDetailDto | null> {
@@ -149,28 +145,38 @@ export async function getRiderById(riderId: string): Promise<RiderDetailDto | nu
     return null;
   }
 
-  return toRiderDetailDto({
-    id: row.id,
-    fullName: row.fullName,
-    email: row.email,
-    phoneNumber: row.phoneNumber,
-    townshipId: row.townshipId,
-    townshipName: row.townshipName,
-    vehicleType: row.vehicleType,
-    licensePlate: row.licensePlate,
-    isActive: row.isActive,
-    notes: row.notes,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  });
+  return toRiderDetailDto(row);
 }
 
-export async function findRiderProfileLinkByAppUserId(appUserId: string) {
-  const [row] = await db
-    .select({ appUserId: riders.appUserId })
-    .from(riders)
-    .where(and(eq(riders.appUserId, appUserId), isNull(riders.deletedAt)))
-    .limit(1);
+export async function updateRiderProfile(input: {
+  riderId: string;
+  townshipId: string | null;
+  vehicleType: string;
+  licensePlate: string | null;
+  notes: string | null;
+  isActive?: boolean;
+}) {
+  const nextValues: {
+    townshipId: string | null;
+    vehicleType: string;
+    licensePlate: string | null;
+    notes: string | null;
+    updatedAt: Date;
+    isActive?: boolean;
+  } = {
+    townshipId: input.townshipId,
+    vehicleType: input.vehicleType,
+    licensePlate: input.licensePlate,
+    notes: input.notes,
+    updatedAt: new Date(),
+  };
 
-  return row ?? null;
+  if (typeof input.isActive === "boolean") {
+    nextValues.isActive = input.isActive;
+  }
+
+  await db
+    .update(riders)
+    .set(nextValues)
+    .where(and(eq(riders.appUserId, input.riderId), isNull(riders.deletedAt)));
 }

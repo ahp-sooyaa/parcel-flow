@@ -12,6 +12,14 @@ export type AppUserListItemDto = {
   createdAt: Date;
 };
 
+export type UserWithRole = {
+  id: string;
+  email: string;
+  supabaseUserId: string;
+  isActive: boolean;
+  roleSlug: RoleSlug;
+};
+
 export type CreateUserActionResult = {
   ok: boolean;
   message: string;
