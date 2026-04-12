@@ -1,22 +1,22 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { getParcelAccess } from "@/features/auth/server/policies/parcels";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
-import { getParcelsList } from "@/features/parcels/server/dal";
-import { getParcelResourceAccess } from "@/features/parcels/server/utils";
+import { getParcelsListForViewer } from "@/features/parcels/server/dal";
 
 export default async function ParcelsPage() {
   // admin user - permission check
   // rider user - no access
   // merchant user - no access
   const currentUser = await requireAppAccessContext();
-  const parcelAccess = getParcelResourceAccess({ viewer: currentUser });
+  const parcelAccess = getParcelAccess({ viewer: currentUser });
 
   if (!parcelAccess.canViewList) {
     notFound();
   }
 
-  const parcels = await getParcelsList();
+  const parcels = await getParcelsListForViewer(currentUser);
 
   return (
     <section className="space-y-5">

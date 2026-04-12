@@ -8,8 +8,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { optionalNullableTrimmedString, optionalNullableUuid } from "@/lib/validation/zod-helpers";
 
 import type { RoleSlug } from "@/db/constants";
-import type { AppAccessContext } from "@/features/auth/server/dto";
-
 const checkboxBoolean = z.preprocess((value) => value === "on" || value === "true", z.boolean());
 
 export const createUserSchema = z.object({
@@ -186,22 +184,4 @@ export async function updateOwnAuthPassword(password: string) {
   }
 
   return { ok: true as const };
-}
-
-export function getUserResourceAccess(input: {
-  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">;
-  targetUserId?: string;
-}) {
-  const { viewer, targetUserId } = input;
-  const isAdmin = viewer.roleSlug === "super_admin" || viewer.roleSlug === "office_admin";
-  const isOwner = !isAdmin && viewer.appUserId === targetUserId;
-
-  return {
-    canViewList: viewer.permissions.includes("user-list.view"),
-    canCreate: viewer.permissions.includes("user.create"),
-    canView: viewer.permissions.includes("user.view") || isOwner,
-    canUpdate: viewer.permissions.includes("user.update") || isOwner,
-    canDelete: viewer.permissions.includes("user.delete"),
-    canResetPassword: viewer.permissions.includes("user-password.reset"),
-  };
 }

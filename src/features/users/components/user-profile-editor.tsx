@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { ChangePasswordForm } from "./change-password-form";
 import { AccountEditForm } from "./edit-user-form";
+import { getMerchantAccess } from "@/features/auth/server/policies/merchant";
+import { getRiderAccess } from "@/features/auth/server/policies/rider";
 import { EditMerchantForm } from "@/features/merchant/components/edit-merchant-form";
-import { getMerchantProfileByAppUserId } from "@/features/merchant/server/dal";
+import { getMerchantProfileByAppUserIdForViewer } from "@/features/merchant/server/dal";
 import { EditRiderForm } from "@/features/rider/components/edit-rider-form";
-import { getRiderProfileByAppUserId } from "@/features/rider/server/dal";
+import { getRiderProfileByAppUserIdForViewer } from "@/features/rider/server/dal";
 import { getTownshipOptions } from "@/features/townships/server/dal";
 import { cn } from "@/lib/utils";
 
@@ -49,24 +51,25 @@ export async function UserProfileEditor({
   const targetUserId = accountUser.appUserId;
   let canEditMerchantDetails = false;
   let canEditRiderDetails = false;
-  let merchantProfile: Awaited<ReturnType<typeof getMerchantProfileByAppUserId>> = null;
-  let riderProfile: Awaited<ReturnType<typeof getRiderProfileByAppUserId>> = null;
+  let merchantProfile: Awaited<ReturnType<typeof getMerchantProfileByAppUserIdForViewer>> = null;
+  let riderProfile: Awaited<ReturnType<typeof getRiderProfileByAppUserIdForViewer>> = null;
   let townships: Awaited<ReturnType<typeof getTownshipOptions>> = [];
 
-  if (mode === "admin") {
-    canEditMerchantDetails = viewer.permissions.includes("merchant.update");
-    canEditRiderDetails = viewer.permissions.includes("rider.update");
-  } else {
-    canEditMerchantDetails = viewer.roleSlug === "merchant";
-    canEditRiderDetails = viewer.roleSlug === "rider";
-  }
+  canEditMerchantDetails = getMerchantAccess({
+    viewer,
+    merchantAppUserId: targetUserId,
+  }).canUpdate;
+  canEditRiderDetails = getRiderAccess({
+    viewer,
+    riderAppUserId: targetUserId,
+  }).canUpdate;
 
   if (canEditMerchantDetails) {
-    merchantProfile = await getMerchantProfileByAppUserId(targetUserId);
+    merchantProfile = await getMerchantProfileByAppUserIdForViewer(viewer, targetUserId);
   }
 
   if (canEditRiderDetails) {
-    riderProfile = await getRiderProfileByAppUserId(targetUserId);
+    riderProfile = await getRiderProfileByAppUserIdForViewer(viewer, targetUserId);
   }
 
   if (canEditMerchantDetails || canEditRiderDetails) {

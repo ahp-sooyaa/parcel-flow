@@ -1,20 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { getUserManagementAccess } from "@/features/auth/server/policies/user-management";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
-import { getUsersList } from "@/features/users/server/dal";
-import { getUserResourceAccess } from "@/features/users/server/utils";
+import { getUsersListForViewer } from "@/features/users/server/dal";
 import { formatRoleSlug } from "@/lib/roles";
 
 export default async function UsersPage() {
   const currentUser = await requireAppAccessContext();
-  const userAccess = getUserResourceAccess({ viewer: currentUser });
+  const userManagementAccess = getUserManagementAccess(currentUser);
 
-  if (!userAccess.canViewList) {
+  if (!userManagementAccess.canViewList) {
     notFound();
   }
 
-  const users = await getUsersList();
+  const users = await getUsersListForViewer(currentUser);
 
   return (
     <section className="space-y-5">
@@ -25,7 +25,7 @@ export default async function UsersPage() {
             Manage internal app users and account status.
           </p>
         </div>
-        {userAccess.canCreate && (
+        {userManagementAccess.canCreate && (
           <Button asChild>
             <Link href="/dashboard/users/create">Create User</Link>
           </Button>
@@ -57,12 +57,12 @@ export default async function UsersPage() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    {userAccess.canView && (
+                    {userManagementAccess.canViewTarget && (
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/dashboard/users/${user.id}`}>View</Link>
                       </Button>
                     )}
-                    {userAccess.canUpdate && (
+                    {userManagementAccess.canUpdateTarget && (
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/dashboard/users/${user.id}/edit`}>Edit</Link>
                       </Button>

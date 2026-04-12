@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { getRiderAccess } from "@/features/auth/server/policies/rider";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
-import { getAssignedRiderParcelsList } from "@/features/parcels/server/dal";
-import { getRiderById } from "@/features/rider/server/dal";
-import { getRiderResourceAccess } from "@/features/rider/server/utils";
+import { getAssignedRiderParcelsListForViewer } from "@/features/parcels/server/dal";
+import { getRiderByIdForViewer } from "@/features/rider/server/dal";
 
 type RiderDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -17,7 +17,7 @@ export default async function RiderDetailPage({ params }: Readonly<RiderDetailPa
   const currentUser = await requireAppAccessContext();
   const { id } = await params;
 
-  const riderAccess = getRiderResourceAccess({
+  const riderAccess = getRiderAccess({
     viewer: currentUser,
     riderAppUserId: id,
   });
@@ -27,8 +27,8 @@ export default async function RiderDetailPage({ params }: Readonly<RiderDetailPa
   }
 
   const [rider, riderParcels] = await Promise.all([
-    getRiderById(id),
-    getAssignedRiderParcelsList(id),
+    getRiderByIdForViewer(currentUser, id),
+    getAssignedRiderParcelsListForViewer(currentUser, id),
   ]);
 
   if (!rider) {

@@ -5,17 +5,14 @@ import {
   type CreateParcelInsertInput,
   type CreatePaymentInsertInput,
   type ParcelPaymentUpdatePatch,
-  toMerchantParcelListItemDto,
   toParcelDetailDto,
   toParcelListItemDto,
   toParcelUpdateContextDto,
   type ParcelUpdatePatch,
-  toRiderParcelDetailDto,
   type ParcelDetailDto,
   type ParcelListItemDto,
   type ParcelOptionDto,
   type ParcelUpdateContextDto,
-  type RiderParcelDetailDto,
 } from "./dto";
 import { db } from "@/db";
 import {
@@ -27,9 +24,15 @@ import {
   riders,
   townships,
 } from "@/db/schema";
-import { getNextRiderParcelAction, toMoneyString } from "@/features/parcels/server/utils";
+import {
+  getParcelAccess,
+  getRiderParcelActionAccess,
+} from "@/features/auth/server/policies/parcels";
+import { toMoneyString } from "@/features/parcels/server/utils";
 
-export async function getParcelsList(): Promise<ParcelListItemDto[]> {
+import type { AppAccessContext } from "@/features/auth/server/dto";
+
+async function listParcels(): Promise<ParcelListItemDto[]> {
   const rows = await db
     .select({
       id: parcels.id,
@@ -53,7 +56,19 @@ export async function getParcelsList(): Promise<ParcelListItemDto[]> {
   return rows.map((row) => toParcelListItemDto(row));
 }
 
-export async function getMerchantParcelsList(merchantId: string): Promise<ParcelListItemDto[]> {
+export async function getParcelsListForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+): Promise<ParcelListItemDto[]> {
+  const parcelAccess = getParcelAccess({ viewer });
+
+  if (!parcelAccess.canViewList) {
+    return [];
+  }
+
+  return listParcels();
+}
+
+async function listMerchantParcels(merchantId: string): Promise<ParcelListItemDto[]> {
   const rows = await db
     .select({
       id: parcels.id,
@@ -75,10 +90,28 @@ export async function getMerchantParcelsList(merchantId: string): Promise<Parcel
     .where(eq(parcels.merchantId, merchantId))
     .orderBy(desc(parcels.createdAt));
 
-  return rows.map((row) => toMerchantParcelListItemDto(row));
+  return rows.map((row) => toParcelListItemDto(row));
 }
 
-export async function getAssignedRiderParcelsList(riderId: string): Promise<ParcelListItemDto[]> {
+export async function getMerchantParcelsListForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+  merchantId: string,
+): Promise<ParcelListItemDto[]> {
+  const parcelAccess = getParcelAccess({
+    viewer,
+    parcel: {
+      merchantId,
+    },
+  });
+
+  if (!parcelAccess.canView) {
+    return [];
+  }
+
+  return listMerchantParcels(merchantId);
+}
+
+async function listAssignedRiderParcels(riderId: string): Promise<ParcelListItemDto[]> {
   const rows = await db
     .select({
       id: parcels.id,
@@ -103,7 +136,26 @@ export async function getAssignedRiderParcelsList(riderId: string): Promise<Parc
   return rows.map((row) => toParcelListItemDto(row));
 }
 
-export async function getParcelById(parcelId: string): Promise<ParcelDetailDto | null> {
+export async function getAssignedRiderParcelsListForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+  riderId: string,
+): Promise<ParcelListItemDto[]> {
+  const riderParcelActionAccess = getRiderParcelActionAccess({
+    viewer,
+    parcel: {
+      riderId,
+    },
+  });
+  const riderAccess = viewer.permissions.includes("rider.view");
+
+  if (!riderParcelActionAccess.canViewAssignedParcel && !riderAccess) {
+    return [];
+  }
+
+  return listAssignedRiderParcels(riderId);
+}
+
+async function findParcelDetailById(parcelId: string): Promise<ParcelDetailDto | null> {
   const [row] = await db
     .select({
       id: parcels.id,
@@ -149,17 +201,29 @@ export async function getParcelById(parcelId: string): Promise<ParcelDetailDto |
   return toParcelDetailDto(row);
 }
 
-export async function getRiderParcelById(parcelId: string): Promise<RiderParcelDetailDto | null> {
-  const parcel = await getParcelById(parcelId);
+export async function getParcelByIdForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+  parcelId: string,
+): Promise<ParcelDetailDto | null> {
+  const parcel = await findParcelDetailById(parcelId);
 
   if (!parcel) {
     return null;
   }
 
-  return toRiderParcelDetailDto({
-    ...parcel,
-    nextAction: getNextRiderParcelAction(parcel.parcelStatus),
+  const parcelAccess = getParcelAccess({
+    viewer,
+    parcel: {
+      merchantId: parcel.merchantId,
+      riderId: parcel.riderId,
+    },
   });
+
+  if (!parcelAccess.canView) {
+    return null;
+  }
+
+  return parcel;
 }
 
 export async function isParcelCodeInUse(parcelCode: string): Promise<boolean> {
@@ -262,7 +326,7 @@ export async function createParcelWithPaymentAndAudit(input: {
   return created;
 }
 
-export async function getParcelUpdateContext(
+async function findParcelUpdateContextById(
   parcelId: string,
 ): Promise<ParcelUpdateContextDto | null> {
   const [row] = await db
@@ -300,6 +364,31 @@ export async function getParcelUpdateContext(
   }
 
   return toParcelUpdateContextDto(row);
+}
+
+export async function getParcelUpdateContextForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+  parcelId: string,
+): Promise<ParcelUpdateContextDto | null> {
+  const current = await findParcelUpdateContextById(parcelId);
+
+  if (!current) {
+    return null;
+  }
+
+  const parcelAccess = getParcelAccess({
+    viewer,
+    parcel: {
+      merchantId: current.parcel.merchantId,
+      riderId: current.parcel.riderId,
+    },
+  });
+
+  if (!parcelAccess.canView) {
+    return null;
+  }
+
+  return current;
 }
 
 export async function updateParcelAndPaymentWithAudit(input: {

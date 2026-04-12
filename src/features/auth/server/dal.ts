@@ -3,6 +3,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { toAppAccessContext, type AppAccessContext } from "./dto";
 import { db } from "@/db";
 import { appUsers, permissions, rolePermissions, roles } from "@/db/schema";
+import { getUserManagementAccess } from "@/features/auth/server/policies/user-management";
 
 import type { RoleSlug } from "@/db/constants";
 
@@ -57,8 +58,21 @@ export async function getAuthenticatedUser(
   return getAppAccessContext(eq(appUsers.supabaseUserId, supabaseUserId));
 }
 
-export async function getUserByAppUserId(appUserId: string): Promise<AppAccessContext | null> {
+async function findUserByAppUserId(appUserId: string): Promise<AppAccessContext | null> {
   return getAppAccessContext(eq(appUsers.id, appUserId));
+}
+
+export async function getUserByAppUserIdForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+  appUserId: string,
+): Promise<AppAccessContext | null> {
+  const userManagementAccess = getUserManagementAccess(viewer);
+
+  if (!userManagementAccess.canViewTarget) {
+    return null;
+  }
+
+  return findUserByAppUserId(appUserId);
 }
 
 export async function findRoleBySlug(slug: RoleSlug) {

@@ -1,12 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { getMerchantAccess } from "@/features/auth/server/policies/merchant";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
-import { getMerchantsList } from "@/features/merchant/server/dal";
-import {
-  getMerchantResourceAccess,
-  normalizeMerchantSearchQuery,
-} from "@/features/merchant/server/utils";
+import { getMerchantsListForViewer } from "@/features/merchant/server/dal";
+import { normalizeMerchantSearchQuery } from "@/features/merchant/server/utils";
 
 type MerchantsPageProps = {
   searchParams: Promise<{ q?: string }>;
@@ -14,7 +12,7 @@ type MerchantsPageProps = {
 
 export default async function MerchantsPage({ searchParams }: Readonly<MerchantsPageProps>) {
   const currentUser = await requireAppAccessContext();
-  const merchantAccess = getMerchantResourceAccess({ viewer: currentUser });
+  const merchantAccess = getMerchantAccess({ viewer: currentUser });
 
   if (!merchantAccess.canViewList) {
     notFound();
@@ -22,7 +20,7 @@ export default async function MerchantsPage({ searchParams }: Readonly<Merchants
 
   const { q } = await searchParams;
   const query = normalizeMerchantSearchQuery(q);
-  const merchants = await getMerchantsList({ query });
+  const merchants = await getMerchantsListForViewer(currentUser, { query });
 
   return (
     <section className="space-y-5">

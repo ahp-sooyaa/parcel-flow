@@ -2,7 +2,8 @@
 
 import "server-only";
 import { revalidatePath } from "next/cache";
-import { getRiderResourceAccess, parseActiveFlag, updateRiderProfileSchema } from "./utils";
+import { parseActiveFlag, updateRiderProfileSchema } from "./utils";
+import { getRiderAccess } from "@/features/auth/server/policies/rider";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { updateRiderProfile } from "@/features/rider/server/dal";
 import { findTownshipById } from "@/features/townships/server/dal";
@@ -26,7 +27,7 @@ export async function updateRiderProfileAction(
       return { ok: false, message: "Please provide valid rider profile data." };
     }
 
-    const riderAccess = getRiderResourceAccess({
+    const riderAccess = getRiderAccess({
       viewer: currentUser,
       riderAppUserId: parsed.data.riderId,
     });

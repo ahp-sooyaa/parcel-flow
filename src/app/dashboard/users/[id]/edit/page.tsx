@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
-import { getUserByAppUserId } from "@/features/auth/server/dal";
+import { getUserByAppUserIdForViewer } from "@/features/auth/server/dal";
+import { getUserManagementAccess } from "@/features/auth/server/policies/user-management";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { SoftDeleteUserForm } from "@/features/users/components/soft-delete-user-form";
 import { UserProfileEditor } from "@/features/users/components/user-profile-editor";
-import { getUserResourceAccess } from "@/features/users/server/utils";
 
 type EditUserPageProps = {
   params: Promise<{ id: string }>;
@@ -12,14 +12,14 @@ type EditUserPageProps = {
 
 export default async function EditUserPage({ params, searchParams }: Readonly<EditUserPageProps>) {
   const currentUser = await requireAppAccessContext();
-  const userAccess = getUserResourceAccess({ viewer: currentUser });
+  const userManagementAccess = getUserManagementAccess(currentUser);
 
-  if (!userAccess.canUpdate) {
+  if (!userManagementAccess.canUpdateTarget) {
     notFound();
   }
 
   const [{ id }, { tab }] = await Promise.all([params, searchParams]);
-  const user = await getUserByAppUserId(id);
+  const user = await getUserByAppUserIdForViewer(currentUser, id);
 
   if (!user) {
     notFound();
@@ -42,7 +42,7 @@ export default async function EditUserPage({ params, searchParams }: Readonly<Ed
         basePath={`/dashboard/users/${user.appUserId}/edit`}
       />
 
-      {userAccess.canDelete && (
+      {userManagementAccess.canDeleteTarget && (
         <section className="space-y-3 rounded-xl border border-destructive/30 bg-card p-5">
           <h2 className="text-lg font-semibold text-destructive">Delete User</h2>
           <p className="text-xs text-muted-foreground">

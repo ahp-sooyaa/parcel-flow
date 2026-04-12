@@ -2,7 +2,8 @@
 
 import "server-only";
 import { revalidatePath } from "next/cache";
-import { getMerchantResourceAccess, updateMerchantProfileSchema } from "./utils";
+import { updateMerchantProfileSchema } from "./utils";
+import { getMerchantAccess } from "@/features/auth/server/policies/merchant";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { updateMerchantProfile } from "@/features/merchant/server/dal";
 import { findTownshipById } from "@/features/townships/server/dal";
@@ -26,7 +27,7 @@ export async function updateMerchantProfileAction(
       return { ok: false, message: "Please provide valid merchant profile data." };
     }
 
-    const merchantAccess = getMerchantResourceAccess({
+    const merchantAccess = getMerchantAccess({
       viewer: currentUser,
       merchantAppUserId: parsed.data.merchantId,
     });

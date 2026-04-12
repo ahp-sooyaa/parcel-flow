@@ -11,10 +11,13 @@ import {
 import { isRiderId, normalizeRiderSearchQuery, toRiderSearchPattern } from "./utils";
 import { db, type DbClient } from "@/db";
 import { appUsers, riders, townships } from "@/db/schema";
+import { getRiderAccess } from "@/features/auth/server/policies/rider";
+
+import type { AppAccessContext } from "@/features/auth/server/dto";
 
 type RiderWriteClient = Pick<DbClient, "insert">;
 
-export async function getRidersList(
+async function listRiders(
   input: {
     query?: string;
     limit?: number;
@@ -61,6 +64,22 @@ export async function getRidersList(
   return rows.map((row) => toRiderListItemDto(row));
 }
 
+export async function getRidersListForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+  input: {
+    query?: string;
+    limit?: number;
+  } = {},
+): Promise<RiderListItemDto[]> {
+  const riderAccess = getRiderAccess({ viewer });
+
+  if (!riderAccess.canViewList) {
+    return [];
+  }
+
+  return listRiders(input);
+}
+
 export async function createRiderProfile(input: {
   appUserId: string;
   townshipId: string | null;
@@ -86,9 +105,7 @@ export async function createRiderProfile(input: {
   return created;
 }
 
-export async function getRiderProfileByAppUserId(
-  appUserId: string,
-): Promise<RiderProfileDto | null> {
+async function findRiderProfileByAppUserId(appUserId: string): Promise<RiderProfileDto | null> {
   if (!isRiderId(appUserId)) {
     return null;
   }
@@ -115,7 +132,23 @@ export async function getRiderProfileByAppUserId(
   return toRiderProfileDto(row);
 }
 
-export async function getRiderById(riderId: string): Promise<RiderDetailDto | null> {
+export async function getRiderProfileByAppUserIdForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+  appUserId: string,
+): Promise<RiderProfileDto | null> {
+  const riderAccess = getRiderAccess({
+    viewer,
+    riderAppUserId: appUserId,
+  });
+
+  if (!riderAccess.canView) {
+    return null;
+  }
+
+  return findRiderProfileByAppUserId(appUserId);
+}
+
+async function findRiderById(riderId: string): Promise<RiderDetailDto | null> {
   if (!isRiderId(riderId)) {
     return null;
   }
@@ -146,6 +179,26 @@ export async function getRiderById(riderId: string): Promise<RiderDetailDto | nu
   }
 
   return toRiderDetailDto(row);
+}
+
+export async function getRiderById(riderId: string): Promise<RiderDetailDto | null> {
+  return findRiderById(riderId);
+}
+
+export async function getRiderByIdForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+  riderId: string,
+): Promise<RiderDetailDto | null> {
+  const riderAccess = getRiderAccess({
+    viewer,
+    riderAppUserId: riderId,
+  });
+
+  if (!riderAccess.canView) {
+    return null;
+  }
+
+  return findRiderById(riderId);
 }
 
 export async function updateRiderProfile(input: {

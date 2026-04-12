@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import {
+  getNextAssignedRiderAction,
+  getParcelAccess,
+} from "@/features/auth/server/policies/parcels";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { RiderParcelDetail } from "@/features/parcels/components/rider-parcel-detail";
-import { getParcelById } from "@/features/parcels/server/dal";
+import { getParcelByIdForViewer } from "@/features/parcels/server/dal";
 import { toRiderParcelDetailDto } from "@/features/parcels/server/dto";
-import { getNextRiderParcelAction, getParcelResourceAccess } from "@/features/parcels/server/utils";
 
 type ParcelDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -20,21 +23,9 @@ export default async function ParcelDetailPage({ params }: Readonly<ParcelDetail
 
   // rider dedicated form ui
   if (currentUser.roleSlug === "rider") {
-    const parcel = await getParcelById(id);
+    const parcel = await getParcelByIdForViewer(currentUser, id);
 
     if (!parcel) {
-      notFound();
-    }
-
-    const riderParcelAccess = getParcelResourceAccess({
-      viewer: currentUser,
-      parcel: {
-        merchantId: parcel.merchantId,
-        riderId: parcel.riderId,
-      },
-    });
-
-    if (!riderParcelAccess.canView) {
       notFound();
     }
 
@@ -42,20 +33,26 @@ export default async function ParcelDetailPage({ params }: Readonly<ParcelDetail
       <RiderParcelDetail
         parcel={toRiderParcelDetailDto({
           ...parcel,
-          nextAction: getNextRiderParcelAction(parcel.parcelStatus),
+          nextAction: getNextAssignedRiderAction({
+            viewer: currentUser,
+            parcel: {
+              riderId: parcel.riderId,
+              status: parcel.parcelStatus,
+            },
+          }),
         })}
       />
     );
   }
 
-  const parcel = await getParcelById(id);
+  const parcel = await getParcelByIdForViewer(currentUser, id);
 
   if (!parcel) {
     notFound();
   }
 
   // no permission for rider to access parcel detail page
-  const parcelAccess = getParcelResourceAccess({
+  const parcelAccess = getParcelAccess({
     viewer: currentUser,
     parcel: {
       merchantId: parcel.merchantId,

@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { getUserManagementAccess } from "@/features/auth/server/policies/user-management";
 import { requirePermission } from "@/features/auth/server/utils";
-import { getUserResourceAccess } from "@/features/users/server/utils";
 
 export default async function DashboardPage() {
   const currentUser = await requirePermission("dashboard-page.view");
-  const userAccess = getUserResourceAccess({ viewer: currentUser });
+  const userManagementAccess = getUserManagementAccess(currentUser);
 
   return (
     <section className="space-y-6">
@@ -15,7 +15,7 @@ export default async function DashboardPage() {
       </header>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {userAccess.canView && (
+        {userManagementAccess.canViewTarget && (
           <article className="rounded-xl border bg-card p-4">
             <p className="text-xs text-muted-foreground">User Management</p>
             <p className="mt-2 text-sm">Create accounts, manage status, and reset passwords.</p>
@@ -25,7 +25,7 @@ export default async function DashboardPage() {
           </article>
         )}
 
-        {userAccess.canView && (
+        {userManagementAccess.canViewTarget && (
           <article className="rounded-xl border bg-card p-4">
             <p className="text-xs text-muted-foreground">Parcels</p>
             <p className="mt-2 text-sm">View assigned parcel queue.</p>
@@ -35,7 +35,7 @@ export default async function DashboardPage() {
           </article>
         )}
 
-        {userAccess.canView && (
+        {userManagementAccess.canViewTarget && (
           <article className="rounded-xl border bg-card p-4">
             <p className="text-xs text-muted-foreground">Merchant</p>
             <p className="mt-2 text-sm">Review merchant-specific area.</p>
@@ -45,7 +45,7 @@ export default async function DashboardPage() {
           </article>
         )}
 
-        {userAccess.canView && (
+        {userManagementAccess.canViewTarget && (
           <article className="rounded-xl border bg-card p-4">
             <p className="text-xs text-muted-foreground">Townships</p>
             <p className="mt-2 text-sm">Manage township master data used across operations.</p>

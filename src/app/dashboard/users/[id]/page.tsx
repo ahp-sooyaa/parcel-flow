@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { getUserByAppUserId } from "@/features/auth/server/dal";
+import { getUserByAppUserIdForViewer } from "@/features/auth/server/dal";
+import { getUserManagementAccess } from "@/features/auth/server/policies/user-management";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { ResetUserPasswordForm } from "@/features/users/components/reset-user-password-form";
 import { SoftDeleteUserForm } from "@/features/users/components/soft-delete-user-form";
 import { updateUserStatusAction } from "@/features/users/server/actions";
-import { getUserResourceAccess } from "@/features/users/server/utils";
 import { formatRoleSlug } from "@/lib/roles";
 
 type UserDetailPageProps = {
@@ -15,14 +15,14 @@ type UserDetailPageProps = {
 
 export default async function UserDetailPage({ params }: Readonly<UserDetailPageProps>) {
   const currentUser = await requireAppAccessContext();
-  const userAccess = getUserResourceAccess({ viewer: currentUser });
+  const userManagementAccess = getUserManagementAccess(currentUser);
 
-  if (!userAccess.canView) {
+  if (!userManagementAccess.canViewTarget) {
     notFound();
   }
 
   const { id } = await params;
-  const user = await getUserByAppUserId(id);
+  const user = await getUserByAppUserIdForViewer(currentUser, id);
 
   if (!user) {
     notFound();
@@ -36,7 +36,7 @@ export default async function UserDetailPage({ params }: Readonly<UserDetailPage
       </header>
 
       <div className="flex flex-wrap gap-2">
-        {userAccess.canUpdate && (
+        {userManagementAccess.canUpdateTarget && (
           <Button asChild variant="outline">
             <Link href={`/dashboard/users/${user.appUserId}/edit`}>Edit User</Link>
           </Button>
@@ -62,7 +62,7 @@ export default async function UserDetailPage({ params }: Readonly<UserDetailPage
         </div>
       </div>
 
-      {userAccess.canUpdate && (
+      {userManagementAccess.canUpdateTarget && (
         <section className="space-y-3 rounded-xl border bg-card p-5">
           <h2 className="text-lg font-semibold">User Status</h2>
           <form action={updateUserStatusAction} className="flex items-center gap-3">
@@ -75,7 +75,7 @@ export default async function UserDetailPage({ params }: Readonly<UserDetailPage
         </section>
       )}
 
-      {userAccess.canResetPassword && (
+      {userManagementAccess.canResetPasswordTarget && (
         <section className="space-y-3 rounded-xl border bg-card p-5">
           <h2 className="text-lg font-semibold">Admin Password Reset</h2>
           <p className="text-xs text-muted-foreground">
@@ -86,7 +86,7 @@ export default async function UserDetailPage({ params }: Readonly<UserDetailPage
         </section>
       )}
 
-      {userAccess.canDelete && (
+      {userManagementAccess.canDeleteTarget && (
         <section className="space-y-3 rounded-xl border border-destructive/30 bg-card p-5">
           <h2 className="text-lg font-semibold text-destructive">Delete User</h2>
           <p className="text-xs text-muted-foreground">

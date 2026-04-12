@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
+import { getParcelAccess } from "@/features/auth/server/policies/parcels";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { EditParcelForm } from "@/features/parcels/components/edit-parcel-form";
-import { getParcelById, getParcelFormOptions } from "@/features/parcels/server/dal";
-import { getParcelResourceAccess } from "@/features/parcels/server/utils";
+import { getParcelByIdForViewer, getParcelFormOptions } from "@/features/parcels/server/dal";
 
 type EditParcelPageProps = {
   params: Promise<{ id: string }>;
@@ -16,7 +16,7 @@ export default async function EditParcelPage({ params }: Readonly<EditParcelPage
   const { id } = await params;
 
   const [parcel, options] = await Promise.all([
-    getParcelById(id),
+    getParcelByIdForViewer(currentUser, id),
     getParcelFormOptions({
       merchantId: currentUser.roleSlug === "merchant" ? currentUser.appUserId : null,
     }),
@@ -26,7 +26,7 @@ export default async function EditParcelPage({ params }: Readonly<EditParcelPage
     notFound();
   }
 
-  const parcelAccess = getParcelResourceAccess({
+  const parcelAccess = getParcelAccess({
     viewer: currentUser,
     parcel: {
       merchantId: parcel.merchantId,

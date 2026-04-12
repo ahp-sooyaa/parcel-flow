@@ -1,19 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { getTownshipAccess } from "@/features/auth/server/policies/townships";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
-import { getTownshipsList } from "@/features/townships/server/dal";
-import { getTownshipResourceAccess } from "@/features/townships/server/utils";
+import { getTownshipsListForViewer } from "@/features/townships/server/dal";
 
 export default async function TownshipsPage() {
   const currentUser = await requireAppAccessContext();
-  const townshipAccess = getTownshipResourceAccess({ viewer: currentUser });
+  const townshipAccess = getTownshipAccess(currentUser);
 
   if (!townshipAccess.canViewList) {
     notFound();
   }
 
-  const townships = await getTownshipsList();
+  const townships = await getTownshipsListForViewer(currentUser);
 
   return (
     <section className="space-y-5">

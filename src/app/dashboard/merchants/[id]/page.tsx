@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { getMerchantAccess } from "@/features/auth/server/policies/merchant";
+import { getParcelAccess } from "@/features/auth/server/policies/parcels";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
-import { getMerchantById } from "@/features/merchant/server/dal";
-import { getMerchantResourceAccess } from "@/features/merchant/server/utils";
-import { getMerchantParcelsList } from "@/features/parcels/server/dal";
-import { getParcelResourceAccess } from "@/features/parcels/server/utils";
+import { getMerchantByIdForViewer } from "@/features/merchant/server/dal";
+import { getMerchantParcelsListForViewer } from "@/features/parcels/server/dal";
 
 type MerchantDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -15,7 +15,7 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
   const currentUser = await requireAppAccessContext();
   const { id } = await params;
 
-  const merchantAccess = getMerchantResourceAccess({
+  const merchantAccess = getMerchantAccess({
     viewer: currentUser,
     merchantAppUserId: id,
   });
@@ -25,15 +25,15 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
   }
 
   const [merchant, merchantParcels] = await Promise.all([
-    getMerchantById(id),
-    getMerchantParcelsList(id),
+    getMerchantByIdForViewer(currentUser, id),
+    getMerchantParcelsListForViewer(currentUser, id),
   ]);
 
   if (!merchant) {
     notFound();
   }
 
-  const parcelAccess = getParcelResourceAccess({ viewer: currentUser });
+  const parcelAccess = getParcelAccess({ viewer: currentUser });
 
   const editMerchantHref =
     currentUser.roleSlug === "merchant"
@@ -118,7 +118,7 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/dashboard/parcels/${parcel.id}`}>View</Link>
                       </Button>
-                      {getParcelResourceAccess({
+                      {getParcelAccess({
                         viewer: currentUser,
                         parcel: {
                           merchantId: parcel.merchantId,

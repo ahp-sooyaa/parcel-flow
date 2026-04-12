@@ -11,10 +11,13 @@ import {
 import { isMerchantId, normalizeMerchantSearchQuery, toMerchantSearchPattern } from "./utils";
 import { db, type DbClient } from "@/db";
 import { appUsers, merchants, townships } from "@/db/schema";
+import { getMerchantAccess } from "@/features/auth/server/policies/merchant";
+
+import type { AppAccessContext } from "@/features/auth/server/dto";
 
 type MerchantWriteClient = Pick<DbClient, "insert">;
 
-export async function getMerchantsList(
+async function listMerchants(
   input: {
     query?: string;
     limit?: number;
@@ -54,7 +57,23 @@ export async function getMerchantsList(
   return rows.map((row) => toMerchantListItemDto(row));
 }
 
-export async function getMerchantById(merchantId: string): Promise<MerchantDetailDto | null> {
+export async function getMerchantsListForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+  input: {
+    query?: string;
+    limit?: number;
+  } = {},
+): Promise<MerchantListItemDto[]> {
+  const merchantAccess = getMerchantAccess({ viewer });
+
+  if (!merchantAccess.canViewList) {
+    return [];
+  }
+
+  return listMerchants(input);
+}
+
+async function findMerchantById(merchantId: string): Promise<MerchantDetailDto | null> {
   if (!isMerchantId(merchantId)) {
     return null;
   }
@@ -92,7 +111,23 @@ export async function getMerchantById(merchantId: string): Promise<MerchantDetai
   return toMerchantDetailDto(row);
 }
 
-export async function getMerchantProfileByAppUserId(
+export async function getMerchantByIdForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+  merchantId: string,
+): Promise<MerchantDetailDto | null> {
+  const merchantAccess = getMerchantAccess({
+    viewer,
+    merchantAppUserId: merchantId,
+  });
+
+  if (!merchantAccess.canView) {
+    return null;
+  }
+
+  return findMerchantById(merchantId);
+}
+
+async function findMerchantProfileByAppUserId(
   appUserId: string,
 ): Promise<MerchantProfileDto | null> {
   if (!isMerchantId(appUserId)) {
@@ -118,6 +153,22 @@ export async function getMerchantProfileByAppUserId(
   }
 
   return toMerchantProfileDto(row);
+}
+
+export async function getMerchantProfileByAppUserIdForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+  appUserId: string,
+): Promise<MerchantProfileDto | null> {
+  const merchantAccess = getMerchantAccess({
+    viewer,
+    merchantAppUserId: appUserId,
+  });
+
+  if (!merchantAccess.canView) {
+    return null;
+  }
+
+  return findMerchantProfileByAppUserId(appUserId);
 }
 
 export async function createMerchantProfile(input: {

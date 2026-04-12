@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { getRiderAccess } from "@/features/auth/server/policies/rider";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
-import { getRidersList } from "@/features/rider/server/dal";
-import { getRiderResourceAccess, normalizeRiderSearchQuery } from "@/features/rider/server/utils";
+import { getRidersListForViewer } from "@/features/rider/server/dal";
+import { normalizeRiderSearchQuery } from "@/features/rider/server/utils";
 
 type RidersPageProps = {
   searchParams: Promise<{ q?: string }>;
@@ -14,7 +15,7 @@ export default async function RidersPage({ searchParams }: Readonly<RidersPagePr
   // rider user - no access
   // merchant user - no access
   const currentUser = await requireAppAccessContext();
-  const riderAccess = getRiderResourceAccess({ viewer: currentUser });
+  const riderAccess = getRiderAccess({ viewer: currentUser });
 
   if (!riderAccess.canViewList) {
     notFound();
@@ -22,7 +23,7 @@ export default async function RidersPage({ searchParams }: Readonly<RidersPagePr
 
   const { q } = await searchParams;
   const query = normalizeRiderSearchQuery(q);
-  const riders = await getRidersList({ query });
+  const riders = await getRidersListForViewer(currentUser, { query });
 
   return (
     <section className="space-y-5">

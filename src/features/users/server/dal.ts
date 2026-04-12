@@ -3,12 +3,14 @@ import { and, count, desc, eq, isNull } from "drizzle-orm";
 import { toAppUserListItemDto, type AppUserListItemDto, type UserWithRole } from "./dto";
 import { db } from "@/db";
 import { appUsers, merchants, riders, roles } from "@/db/schema";
+import { getUserManagementAccess } from "@/features/auth/server/policies/user-management";
 import { createMerchantProfile } from "@/features/merchant/server/dal";
 import { createRiderProfile } from "@/features/rider/server/dal";
 
 import type { CreateUserInput } from "./utils";
+import type { AppAccessContext } from "@/features/auth/server/dto";
 
-export async function getUsersList(): Promise<AppUserListItemDto[]> {
+async function listUsers(): Promise<AppUserListItemDto[]> {
   const rows = await db
     .select({
       id: appUsers.id,
@@ -28,7 +30,19 @@ export async function getUsersList(): Promise<AppUserListItemDto[]> {
   return rows.map((row) => toAppUserListItemDto(row));
 }
 
-export async function getUserWithRoleById(userId: string): Promise<UserWithRole | null> {
+export async function getUsersListForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+): Promise<AppUserListItemDto[]> {
+  const userManagementAccess = getUserManagementAccess(viewer);
+
+  if (!userManagementAccess.canViewList) {
+    return [];
+  }
+
+  return listUsers();
+}
+
+async function findUserWithRoleById(userId: string): Promise<UserWithRole | null> {
   const [row] = await db
     .select({
       id: appUsers.id,
@@ -43,6 +57,10 @@ export async function getUserWithRoleById(userId: string): Promise<UserWithRole 
     .limit(1);
 
   return row ?? null;
+}
+
+export async function getUserWithRoleById(userId: string): Promise<UserWithRole | null> {
+  return findUserWithRoleById(userId);
 }
 
 export async function countActiveSuperAdminUsers(): Promise<number> {

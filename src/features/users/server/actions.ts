@@ -16,7 +16,6 @@ import {
   changePasswordSchema,
   createUserSchema,
   deleteAuthUser,
-  getUserResourceAccess,
   parseActiveFlag,
   provisionAuthUser,
   updateOwnAuthPassword,
@@ -25,6 +24,8 @@ import {
   updateAccountProfileSchema,
   validateCreateUserInput,
 } from "./utils";
+import { getSelfAccountAccess } from "@/features/auth/server/policies/self-account";
+import { getUserManagementAccess } from "@/features/auth/server/policies/user-management";
 import { requireAppAccessContext, requirePermission } from "@/features/auth/server/utils";
 import { logAuditEvent } from "@/lib/security/audit";
 import { generateStrongPassword } from "@/lib/security/password";
@@ -213,12 +214,13 @@ export async function updateAccountProfileAction(
       return { ok: false, message: "User was not found." };
     }
 
-    const userAccess = getUserResourceAccess({
+    const userManagementAccess = getUserManagementAccess(currentUser);
+    const selfAccountAccess = getSelfAccountAccess({
       viewer: currentUser,
       targetUserId: targetUser.id,
     });
 
-    if (!userAccess.canUpdate) {
+    if (!userManagementAccess.canUpdateTarget && !selfAccountAccess.canUpdateSelf) {
       return { ok: false, message: "Forbidden" };
     }
 

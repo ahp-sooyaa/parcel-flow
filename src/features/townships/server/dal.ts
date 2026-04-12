@@ -8,8 +8,11 @@ import {
 } from "./dto";
 import { db } from "@/db";
 import { townships } from "@/db/schema";
+import { getTownshipAccess } from "@/features/auth/server/policies/townships";
 
-export async function getTownshipsList(): Promise<TownshipListItemDto[]> {
+import type { AppAccessContext } from "@/features/auth/server/dto";
+
+async function listTownships(): Promise<TownshipListItemDto[]> {
   const rows = await db
     .select({
       id: townships.id,
@@ -21,6 +24,18 @@ export async function getTownshipsList(): Promise<TownshipListItemDto[]> {
     .orderBy(asc(townships.name), desc(townships.createdAt));
 
   return rows.map((row) => toTownshipListItemDto(row));
+}
+
+export async function getTownshipsListForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+): Promise<TownshipListItemDto[]> {
+  const townshipAccess = getTownshipAccess(viewer);
+
+  if (!townshipAccess.canViewList) {
+    return [];
+  }
+
+  return listTownships();
 }
 
 export async function getTownshipOptions(

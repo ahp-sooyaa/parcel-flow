@@ -16,8 +16,6 @@ import { getRiderById } from "@/features/rider/server/dal";
 import { findTownshipById } from "@/features/townships/server/dal";
 import { optionalNullableTrimmedString, optionalNullableUuid } from "@/lib/validation/zod-helpers";
 
-import type { AppAccessContext } from "@/features/auth/server/dto";
-
 export {
   COD_STATUSES,
   COLLECTION_STATUSES,
@@ -47,6 +45,36 @@ const moneyField = z.preprocess((value) => {
 
   return Number(normalized);
 }, z.number().finite().min(0).max(999999999));
+
+const formString = z.preprocess((value) => (typeof value === "string" ? value : ""), z.string());
+
+const createParcelFormFieldsShape = {
+  merchantId: formString,
+  riderId: formString,
+  recipientName: formString,
+  recipientPhone: formString,
+  recipientTownshipId: formString,
+  recipientAddress: formString,
+  parcelType: formString,
+  codAmount: formString,
+  deliveryFee: formString,
+  deliveryFeePayer: formString,
+  deliveryFeeStatus: formString,
+  paymentNote: formString,
+};
+
+export const createParcelFormFieldsSchema = z.object(createParcelFormFieldsShape);
+
+export const updateParcelFormFieldsSchema = z.object({
+  ...createParcelFormFieldsShape,
+  parcelId: formString,
+  parcelStatus: formString,
+  codStatus: formString,
+  collectedAmount: formString,
+  collectionStatus: formString,
+  merchantSettlementStatus: formString,
+  riderPayoutStatus: formString,
+});
 
 export const createParcelSchema = z.object({
   merchantId: z.string().trim().uuid(),
@@ -86,12 +114,6 @@ export const advanceRiderParcelSchema = z.object({
 export type ParcelCreateInput = z.infer<typeof createParcelSchema>;
 export type ParcelUpdateInput = z.infer<typeof updateParcelSchema>;
 
-export type ParcelViewerContext = Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">;
-type ParcelAccessResource = {
-  merchantId?: string | null;
-  riderId?: string | null;
-};
-
 export type RiderNextAction = {
   label: string;
   nextStatus: (typeof PARCEL_STATUSES)[number];
@@ -120,55 +142,6 @@ const riderNextActionByStatus: Partial<Record<(typeof PARCEL_STATUSES)[number], 
       nextStatus: "return_to_merchant",
     },
   };
-
-export function getParcelResourceAccess({
-  viewer,
-  parcel,
-}: {
-  viewer: ParcelViewerContext;
-  parcel?: ParcelAccessResource;
-}) {
-  const isRelatedMerchant =
-    viewer.roleSlug === "merchant" &&
-    typeof parcel?.merchantId === "string" &&
-    parcel.merchantId === viewer.appUserId;
-  const isRelatedRider =
-    viewer.roleSlug === "rider" &&
-    typeof parcel?.riderId === "string" &&
-    parcel.riderId === viewer.appUserId;
-
-  return {
-    canViewList: viewer.permissions.includes("parcel-list.view"),
-    canCreate: viewer.permissions.includes("parcel.create"),
-    canView: viewer.permissions.includes("parcel.view") || isRelatedMerchant || isRelatedRider,
-    canUpdate: viewer.permissions.includes("parcel.update") || isRelatedMerchant,
-    canDelete: viewer.permissions.includes("parcel.delete"),
-  };
-}
-
-export function resolveMerchantScopedParcelOwner(input: {
-  viewer: ParcelViewerContext;
-  submittedMerchantId: string;
-}) {
-  if (input.viewer.roleSlug !== "merchant") {
-    return {
-      ok: true as const,
-      merchantId: input.submittedMerchantId,
-    };
-  }
-
-  if (input.submittedMerchantId !== input.viewer.appUserId) {
-    return {
-      ok: false as const,
-      message: "Merchant users can only manage parcels for their own merchant profile.",
-    };
-  }
-
-  return {
-    ok: true as const,
-    merchantId: input.viewer.appUserId,
-  };
-}
 
 export function getNextRiderParcelAction(
   status: (typeof PARCEL_STATUSES)[number],
