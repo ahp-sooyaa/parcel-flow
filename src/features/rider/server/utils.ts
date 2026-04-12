@@ -2,8 +2,6 @@ import "server-only";
 import { z } from "zod";
 import { optionalNullableTrimmedString, optionalNullableUuid } from "@/lib/validation/zod-helpers";
 
-import type { PermissionSlug, RoleSlug } from "@/db/constants";
-
 const riderIdSchema = z.string().trim().uuid();
 
 export function normalizeRiderSearchQuery(raw: string | undefined) {
@@ -28,26 +26,4 @@ export const updateRiderProfileSchema = z.object({
 
 export function parseActiveFlag(raw: FormDataEntryValue | null) {
   return raw === "on" || raw === "true";
-}
-
-export function canAccessRiderResource(input: {
-  viewerRoleSlug: RoleSlug;
-  viewerAppUserId: string;
-  riderAppUserId: string;
-  viewerPermissions?: readonly PermissionSlug[];
-  permission?: PermissionSlug;
-}) {
-  if (
-    input.viewerRoleSlug !== "rider" &&
-    input.permission &&
-    input.viewerPermissions?.includes(input.permission)
-  ) {
-    return true;
-  }
-
-  if (input.viewerRoleSlug !== "rider") {
-    return false;
-  }
-
-  return input.riderAppUserId === input.viewerAppUserId;
 }

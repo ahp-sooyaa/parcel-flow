@@ -1,12 +1,11 @@
 "use server";
 
 import "server-only";
-import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { canAccessMerchantResource, updateMerchantProfileSchema } from "./utils";
-import { db } from "@/db";
-import { merchants } from "@/db/schema";
-import { requireCurrentUser } from "@/features/auth/server/utils";
+import { updateMerchantProfileSchema } from "./utils";
+import { getMerchantAccess } from "@/features/auth/server/policies/merchant";
+import { requireAppAccessContext } from "@/features/auth/server/utils";
+import { updateMerchantProfile } from "@/features/merchant/server/dal";
 import { findTownshipById } from "@/features/townships/server/dal";
 import { logAuditEvent } from "@/lib/security/audit";
 
@@ -20,28 +19,20 @@ export async function updateMerchantProfileAction(
   formData: FormData,
 ): Promise<UpdateMerchantProfileActionResult> {
   try {
-    const currentUser = await requireCurrentUser();
-    const parsed = updateMerchantProfileSchema.safeParse({
-      merchantId: formData.get("merchantId"),
-      shopName: formData.get("shopName"),
-      pickupTownshipId: formData.get("pickupTownshipId"),
-      defaultPickupAddress: formData.get("defaultPickupAddress"),
-      notes: formData.get("notes"),
-    });
+    const currentUser = await requireAppAccessContext();
+
+    const parsed = updateMerchantProfileSchema.safeParse(Object.fromEntries(formData));
 
     if (!parsed.success) {
       return { ok: false, message: "Please provide valid merchant profile data." };
     }
 
-    const canEditMerchant = canAccessMerchantResource({
-      viewerRoleSlug: currentUser.role.slug,
-      viewerAppUserId: currentUser.appUserId,
+    const merchantAccess = getMerchantAccess({
+      viewer: currentUser,
       merchantAppUserId: parsed.data.merchantId,
-      viewerPermissions: currentUser.permissions,
-      permission: "merchant.update",
     });
 
-    if (!canEditMerchant) {
+    if (!merchantAccess.canUpdate) {
       return { ok: false, message: "Forbidden" };
     }
 
@@ -53,16 +44,13 @@ export async function updateMerchantProfileAction(
       }
     }
 
-    await db
-      .update(merchants)
-      .set({
-        shopName: parsed.data.shopName,
-        pickupTownshipId: parsed.data.pickupTownshipId,
-        defaultPickupAddress: parsed.data.defaultPickupAddress,
-        notes: parsed.data.notes,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(merchants.appUserId, parsed.data.merchantId), isNull(merchants.deletedAt)));
+    await updateMerchantProfile({
+      merchantId: parsed.data.merchantId,
+      shopName: parsed.data.shopName,
+      pickupTownshipId: parsed.data.pickupTownshipId,
+      defaultPickupAddress: parsed.data.defaultPickupAddress,
+      notes: parsed.data.notes,
+    });
 
     await logAuditEvent({
       event: "merchant.update",
@@ -74,7 +62,6 @@ export async function updateMerchantProfileAction(
     });
 
     revalidatePath(`/dashboard/merchants/${parsed.data.merchantId}`);
-    revalidatePath(`/dashboard/merchants/${parsed.data.merchantId}/edit`);
     revalidatePath("/dashboard/merchants");
     revalidatePath("/dashboard/profile");
     revalidatePath(`/dashboard/users/${parsed.data.merchantId}`);

@@ -4,15 +4,10 @@ import { useState, useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ROLE_SLUGS } from "@/db/constants";
+import { ROLE_SLUGS, type RoleSlug } from "@/db/constants";
 import { createUserAction } from "@/features/users/server/actions";
-
-const roleLabels: Record<(typeof ROLE_SLUGS)[number], string> = {
-  super_admin: "Super Admin",
-  office_admin: "Office Admin",
-  rider: "Rider",
-  merchant: "Merchant",
-};
+import { formatRoleSlug } from "@/lib/roles";
+import { cn } from "@/lib/utils";
 
 const initialState = {
   ok: true,
@@ -22,7 +17,7 @@ const initialState = {
 
 type CreateUserFormProps = {
   canCreateSuperAdmin: boolean;
-  defaultRole?: (typeof ROLE_SLUGS)[number];
+  defaultRole?: RoleSlug;
   townships: {
     id: string;
     name: string;
@@ -35,11 +30,11 @@ export function CreateUserForm({
   townships,
 }: Readonly<CreateUserFormProps>) {
   const [state, action, isPending] = useActionState(createUserAction, initialState);
-  const selectableRoles: readonly (typeof ROLE_SLUGS)[number][] = canCreateSuperAdmin
+  const selectableRoles: readonly RoleSlug[] = canCreateSuperAdmin
     ? ROLE_SLUGS
     : ROLE_SLUGS.filter((role) => role !== "super_admin");
   const safeDefaultRole = selectableRoles.includes(defaultRole) ? defaultRole : selectableRoles[0];
-  const [selectedRole, setSelectedRole] = useState<(typeof ROLE_SLUGS)[number]>(safeDefaultRole);
+  const [selectedRole, setSelectedRole] = useState<RoleSlug>(safeDefaultRole);
   const showMerchantFields = selectedRole === "merchant";
   const showRiderFields = selectedRole === "rider";
 
@@ -67,12 +62,12 @@ export function CreateUserForm({
           name="role"
           className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           value={selectedRole}
-          onChange={(event) => setSelectedRole(event.target.value as (typeof ROLE_SLUGS)[number])}
+          onChange={(event) => setSelectedRole(event.target.value as RoleSlug)}
           required
         >
           {selectableRoles.map((roleSlug) => (
             <option key={roleSlug} value={roleSlug}>
-              {roleLabels[roleSlug]}
+              {formatRoleSlug(roleSlug)}
             </option>
           ))}
         </select>
@@ -82,7 +77,7 @@ export function CreateUserForm({
         <input type="checkbox" name="isActive" defaultChecked className="h-4 w-4" /> User is active
       </label>
 
-      {showMerchantFields ? (
+      {showMerchantFields && (
         <div className="space-y-5 rounded-xl border bg-muted/30 p-4">
           <div className="space-y-1">
             <h2 className="text-sm font-semibold">Merchant Profile</h2>
@@ -139,9 +134,9 @@ export function CreateUserForm({
             />
           </div>
         </div>
-      ) : null}
+      )}
 
-      {showRiderFields ? (
+      {showRiderFields && (
         <div className="space-y-5 rounded-xl border bg-muted/30 p-4">
           <div className="space-y-1">
             <h2 className="text-sm font-semibold">Rider Profile</h2>
@@ -193,27 +188,31 @@ export function CreateUserForm({
             is operationally active
           </label>
         </div>
-      ) : null}
+      )}
 
-      {state.message ? (
+      {state.message && (
         <div
-          className={
-            state.ok
-              ? "rounded-lg border border-emerald-300 bg-emerald-50 p-3"
-              : "rounded-lg border border-red-300 bg-red-50 p-3"
-          }
+          className={cn("rounded-lg border p-3", {
+            "border-emerald-300 bg-emerald-50": state.ok,
+            "border-red-300 bg-red-50": !state.ok,
+          })}
         >
-          <p className={state.ok ? "text-xs text-emerald-800" : "text-xs text-destructive"}>
+          <p
+            className={cn("text-xs", {
+              "text-emerald-800": state.ok,
+              "text-destructive": !state.ok,
+            })}
+          >
             {state.message}
           </p>
-          {state.temporaryPassword ? (
+          {state.temporaryPassword && (
             <p className="mt-2 text-xs font-semibold text-amber-900">
               Temporary password (show once):{" "}
               <span className="font-mono">{state.temporaryPassword}</span>
             </p>
-          ) : null}
+          )}
         </div>
-      ) : null}
+      )}
 
       <Button type="submit" disabled={isPending}>
         {isPending ? "Creating..." : "Create User"}

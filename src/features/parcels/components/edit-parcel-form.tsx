@@ -15,6 +15,7 @@ import {
   RIDER_PAYOUT_STATUSES,
 } from "@/features/parcels/constants";
 import { updateParcelAction } from "@/features/parcels/server/actions";
+import { cn } from "@/lib/utils";
 
 type EditParcelFormProps = {
   parcel: {
@@ -39,11 +40,15 @@ type EditParcelFormProps = {
     riderPayoutStatus: (typeof RIDER_PAYOUT_STATUSES)[number];
     paymentNote: string | null;
   };
-  merchants: { id: string; label: string }[];
-  riders: { id: string; label: string }[];
-  townships: { id: string; label: string }[];
-  merchantFieldReadOnly?: boolean;
-  accountingFieldsReadOnly?: boolean;
+  options: {
+    merchants: { id: string; label: string }[];
+    riders: { id: string; label: string }[];
+    townships: { id: string; label: string }[];
+  };
+  readOnly?: {
+    merchantField?: boolean;
+    accountingFields?: boolean;
+  };
 };
 
 type FormValues = {
@@ -96,15 +101,13 @@ function buildFormValues(parcel: EditParcelFormProps["parcel"]): FormValues {
   };
 }
 
-export function EditParcelForm({
-  parcel,
-  merchants,
-  riders,
-  townships,
-  merchantFieldReadOnly = false,
-  accountingFieldsReadOnly = false,
-}: Readonly<EditParcelFormProps>) {
+export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParcelFormProps>) {
   const [state, action, isPending] = useActionState(updateParcelAction, initialState);
+  const merchants = options.merchants;
+  const riders = options.riders;
+  const townships = options.townships;
+  const merchantFieldReadOnly = readOnly?.merchantField ?? false;
+  const accountingFieldsReadOnly = readOnly?.accountingFields ?? false;
 
   const fields = state.fields ?? buildFormValues(parcel);
   const selectedMerchant = merchants.find((merchant) => merchant.id === fields.merchantId);
@@ -462,19 +465,23 @@ export function EditParcelForm({
         )}
       </section>
 
-      {state.message ? (
+      {state.message && (
         <div
-          className={
-            state.ok
-              ? "rounded-lg border border-emerald-300 bg-emerald-50 p-3"
-              : "rounded-lg border border-red-300 bg-red-50 p-3"
-          }
+          className={cn("rounded-lg border p-3", {
+            "border-emerald-300 bg-emerald-50": state.ok,
+            "border-red-300 bg-red-50": !state.ok,
+          })}
         >
-          <p className={state.ok ? "text-xs text-emerald-800" : "text-xs text-destructive"}>
+          <p
+            className={cn("text-xs", {
+              "text-emerald-800": state.ok,
+              "text-destructive": !state.ok,
+            })}
+          >
             {state.message}
           </p>
         </div>
-      ) : null}
+      )}
 
       <Button type="submit" disabled={isPending}>
         {isPending ? "Saving..." : "Save Parcel"}

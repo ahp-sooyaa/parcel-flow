@@ -1,6 +1,7 @@
 import "server-only";
 import { randomInt } from "node:crypto";
 import { z } from "zod";
+import { findMerchantProfileLinkByAppUserId } from "@/features/merchant/server/dal";
 import {
   COD_STATUSES,
   COLLECTION_STATUSES,
@@ -11,9 +12,9 @@ import {
   PARCEL_TYPES,
   RIDER_PAYOUT_STATUSES,
 } from "@/features/parcels/constants";
+import { getRiderById } from "@/features/rider/server/dal";
+import { findTownshipById } from "@/features/townships/server/dal";
 import { optionalNullableTrimmedString, optionalNullableUuid } from "@/lib/validation/zod-helpers";
-
-import type { RoleSlug } from "@/db/constants";
 
 export {
   COD_STATUSES,
@@ -45,6 +46,36 @@ const moneyField = z.preprocess((value) => {
   return Number(normalized);
 }, z.number().finite().min(0).max(999999999));
 
+const formString = z.preprocess((value) => (typeof value === "string" ? value : ""), z.string());
+
+const createParcelFormFieldsShape = {
+  merchantId: formString,
+  riderId: formString,
+  recipientName: formString,
+  recipientPhone: formString,
+  recipientTownshipId: formString,
+  recipientAddress: formString,
+  parcelType: formString,
+  codAmount: formString,
+  deliveryFee: formString,
+  deliveryFeePayer: formString,
+  deliveryFeeStatus: formString,
+  paymentNote: formString,
+};
+
+export const createParcelFormFieldsSchema = z.object(createParcelFormFieldsShape);
+
+export const updateParcelFormFieldsSchema = z.object({
+  ...createParcelFormFieldsShape,
+  parcelId: formString,
+  parcelStatus: formString,
+  codStatus: formString,
+  collectedAmount: formString,
+  collectionStatus: formString,
+  merchantSettlementStatus: formString,
+  riderPayoutStatus: formString,
+});
+
 export const createParcelSchema = z.object({
   merchantId: z.string().trim().uuid(),
   riderId: optionalNullableUuid(),
@@ -75,16 +106,13 @@ export const updateParcelSchema = createParcelSchema
     collectedAmount: moneyField,
   });
 
+export const advanceRiderParcelSchema = z.object({
+  parcelId: z.string().trim().uuid(),
+  nextStatus: z.enum(PARCEL_STATUSES),
+});
+
 export type ParcelCreateInput = z.infer<typeof createParcelSchema>;
 export type ParcelUpdateInput = z.infer<typeof updateParcelSchema>;
-
-export type ParcelViewerContext = {
-  linkedMerchantId: string | null;
-  linkedRiderId: string | null;
-  role: {
-    slug: RoleSlug;
-  };
-};
 
 export type RiderNextAction = {
   label: string;
@@ -115,106 +143,10 @@ const riderNextActionByStatus: Partial<Record<(typeof PARCEL_STATUSES)[number], 
     },
   };
 
-export function isAdminDashboardRole(roleSlug: RoleSlug) {
-  return roleSlug === "super_admin" || roleSlug === "office_admin";
-}
-
-export function canAccessParcelList(viewer: ParcelViewerContext) {
-  return isAdminDashboardRole(viewer.role.slug);
-}
-
-export function canViewParcel(viewer: ParcelViewerContext) {
-  return (
-    isAdminDashboardRole(viewer.role.slug) ||
-    (viewer.role.slug === "merchant" && Boolean(viewer.linkedMerchantId)) ||
-    (viewer.role.slug === "rider" && Boolean(viewer.linkedRiderId))
-  );
-}
-
-export function canCreateParcel(viewer: ParcelViewerContext) {
-  return (
-    isAdminDashboardRole(viewer.role.slug) ||
-    (viewer.role.slug === "merchant" && Boolean(viewer.linkedMerchantId))
-  );
-}
-
-export function canEditParcel(viewer: ParcelViewerContext) {
-  return (
-    isAdminDashboardRole(viewer.role.slug) ||
-    (viewer.role.slug === "merchant" && Boolean(viewer.linkedMerchantId))
-  );
-}
-
-export function resolveMerchantScopedParcelOwner(input: {
-  viewer: ParcelViewerContext;
-  submittedMerchantId: string;
-}) {
-  if (input.viewer.role.slug !== "merchant") {
-    return {
-      ok: true as const,
-      merchantId: input.submittedMerchantId,
-    };
-  }
-
-  if (!input.viewer.linkedMerchantId) {
-    return {
-      ok: false as const,
-      message: "Merchant account is not linked to a merchant profile.",
-    };
-  }
-
-  if (input.submittedMerchantId !== input.viewer.linkedMerchantId) {
-    return {
-      ok: false as const,
-      message: "Merchant users can only manage parcels for their own merchant profile.",
-    };
-  }
-
-  return {
-    ok: true as const,
-    merchantId: input.viewer.linkedMerchantId,
-  };
-}
-
 export function getNextRiderParcelAction(
   status: (typeof PARCEL_STATUSES)[number],
 ): RiderNextAction | null {
   return riderNextActionByStatus[status] ?? null;
-}
-
-export function canAdvanceRiderParcel(input: {
-  viewer: ParcelViewerContext;
-  assignedRiderId: string | null;
-  currentStatus: (typeof PARCEL_STATUSES)[number];
-  requestedNextStatus: (typeof PARCEL_STATUSES)[number];
-}) {
-  if (input.viewer.role.slug !== "rider") {
-    return {
-      ok: false as const,
-      message: "Only rider users can perform rider workflow actions.",
-    };
-  }
-
-  if (!input.viewer.linkedRiderId || input.assignedRiderId !== input.viewer.linkedRiderId) {
-    return {
-      ok: false as const,
-      message: "Rider can only perform actions on assigned parcels.",
-    };
-  }
-
-  const nextAction = getNextRiderParcelAction(input.currentStatus);
-
-  if (!nextAction || nextAction.nextStatus !== input.requestedNextStatus) {
-    return {
-      ok: false as const,
-      message: "Parcel status cannot be advanced with this rider action.",
-    };
-  }
-
-  return {
-    ok: true as const,
-    nextAction,
-  };
 }
 
 export function computeTotalAmountToCollect(input: {
@@ -296,4 +228,55 @@ export function validateUpdateCodState(input: {
   }
 
   return { ok: true as const };
+}
+
+export function getDefaultCreateCodStatus(parcelType: (typeof PARCEL_TYPES)[number]) {
+  return parcelType === "non_cod" ? "not_applicable" : "pending";
+}
+
+export async function validateParcelSubmission(input: {
+  merchantId: string;
+  riderId: string | null;
+  recipientTownshipId: string;
+  parcelType: (typeof PARCEL_TYPES)[number];
+  codAmount: number;
+  deliveryFee: number;
+  deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number];
+  codStatus: (typeof COD_STATUSES)[number];
+}) {
+  const merchant = await findMerchantProfileLinkByAppUserId(input.merchantId);
+
+  if (!merchant) {
+    return { ok: false as const, message: "Selected merchant was not found." };
+  }
+
+  if (input.riderId) {
+    const rider = await getRiderById(input.riderId);
+
+    if (!rider?.isActive) {
+      return { ok: false as const, message: "Selected rider was not found." };
+    }
+  }
+
+  const township = await findTownshipById(input.recipientTownshipId);
+
+  if (!township?.isActive) {
+    return { ok: false as const, message: "Selected recipient township was not found." };
+  }
+
+  const deliveryFeeStateGuard = validateCreateDeliveryFeeState({
+    parcelType: input.parcelType,
+    codAmount: input.codAmount,
+    deliveryFee: input.deliveryFee,
+    deliveryFeeStatus: input.deliveryFeeStatus,
+  });
+
+  if (!deliveryFeeStateGuard.ok) {
+    return deliveryFeeStateGuard;
+  }
+
+  return validateUpdateCodState({
+    parcelType: input.parcelType,
+    codStatus: input.codStatus,
+  });
 }

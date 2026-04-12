@@ -5,16 +5,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateMerchantProfileAction } from "@/features/merchant/server/actions";
+import { cn } from "@/lib/utils";
 
 type EditMerchantFormProps = {
-  merchantId: string;
-  shopName: string;
-  contactName: string;
-  email: string;
-  phoneNumber: string | null;
-  townshipId: string | null;
-  defaultPickupAddress: string | null;
-  notes: string | null;
+  merchant: {
+    merchantId: string;
+    shopName: string;
+    townshipId: string | null;
+    defaultPickupAddress: string | null;
+    notes: string | null;
+  };
+  contact: {
+    contactName: string;
+    email: string;
+    phoneNumber: string | null;
+  };
   townships: {
     id: string;
     name: string;
@@ -27,50 +32,44 @@ const initialState = {
 };
 
 export function EditMerchantForm({
-  merchantId,
-  shopName,
-  contactName,
-  email,
-  phoneNumber,
-  townshipId,
-  defaultPickupAddress,
-  notes,
+  merchant,
+  contact,
   townships,
 }: Readonly<EditMerchantFormProps>) {
   const [state, action, isPending] = useActionState(updateMerchantProfileAction, initialState);
   const [values, setValues] = useState({
-    shopName,
-    pickupTownshipId: townshipId ?? "",
-    defaultPickupAddress: defaultPickupAddress ?? "",
-    notes: notes ?? "",
+    shopName: merchant.shopName,
+    pickupTownshipId: merchant.townshipId ?? "",
+    defaultPickupAddress: merchant.defaultPickupAddress ?? "",
+    notes: merchant.notes ?? "",
   });
 
   useEffect(() => {
     setValues({
-      shopName,
-      pickupTownshipId: townshipId ?? "",
-      defaultPickupAddress: defaultPickupAddress ?? "",
-      notes: notes ?? "",
+      shopName: merchant.shopName,
+      pickupTownshipId: merchant.townshipId ?? "",
+      defaultPickupAddress: merchant.defaultPickupAddress ?? "",
+      notes: merchant.notes ?? "",
     });
-  }, [shopName, townshipId, defaultPickupAddress, notes]);
+  }, [merchant]);
 
   return (
     <form action={action} className="space-y-5">
-      <input type="hidden" name="merchantId" value={merchantId} />
+      <input type="hidden" name="merchantId" value={merchant.merchantId} />
 
       <div className="grid gap-2">
         <Label htmlFor="merchant-contact-name">Contact Name</Label>
-        <Input id="merchant-contact-name" value={contactName} disabled />
+        <Input id="merchant-contact-name" value={contact.contactName} disabled />
       </div>
 
       <div className="grid gap-2 md:grid-cols-2 md:gap-4">
         <div className="grid gap-2">
           <Label htmlFor="merchant-email">Email</Label>
-          <Input id="merchant-email" value={email} disabled />
+          <Input id="merchant-email" value={contact.email} disabled />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="merchant-phone">Phone Number</Label>
-          <Input id="merchant-phone" value={phoneNumber ?? "-"} disabled />
+          <Input id="merchant-phone" value={contact.phoneNumber ?? "-"} disabled />
         </div>
       </div>
 
@@ -145,11 +144,16 @@ export function EditMerchantForm({
         />
       </div>
 
-      {state.message ? (
-        <p className={state.ok ? "text-xs text-emerald-700" : "text-xs text-destructive"}>
+      {state.message && (
+        <p
+          className={cn("text-xs", {
+            "text-emerald-700": state.ok,
+            "text-destructive": !state.ok,
+          })}
+        >
           {state.message}
         </p>
-      ) : null}
+      )}
 
       <Button type="submit" disabled={isPending}>
         {isPending ? "Saving..." : "Save Merchant Profile"}

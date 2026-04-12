@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signInAction } from "@/features/auth/server/actions";
+import { cn } from "@/lib/utils";
 
 const initialState = {
   ok: true,
@@ -26,11 +27,16 @@ export function SignInForm() {
         <Input id="password" name="password" type="password" required />
       </div>
 
-      {state.message ? (
-        <p className={state.ok ? "text-xs text-emerald-700" : "text-xs text-destructive"}>
+      {state.message && (
+        <p
+          className={cn("text-xs", {
+            "text-emerald-700": state.ok,
+            "text-destructive": !state.ok,
+          })}
+        >
           {state.message}
         </p>
-      ) : null}
+      )}
 
       <p className="text-xs text-muted-foreground">
         Forgot password is handled by admin-assisted reset in this release.

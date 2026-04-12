@@ -17,23 +17,18 @@ import { AppBrand } from "@/components/shared/app-brand";
 import { ResetRequiredBanner } from "@/components/shared/reset-required-banner";
 import { UserSummary } from "@/components/shared/user-summary";
 import { Button } from "@/components/ui/button";
+import { formatRoleSlug } from "@/lib/roles";
 import { cn } from "@/lib/utils";
+
+import type { RoleSlug } from "@/db/constants";
 
 type DashboardShellProps = {
   children: ReactNode;
   user: {
     name: string;
-    roleLabel: string;
+    roleSlug: RoleSlug;
     navItems: {
-      key:
-        | "dashboard"
-        | "users"
-        | "merchants"
-        | "my-merchant"
-        | "riders"
-        | "my-rider"
-        | "parcels"
-        | "townships";
+      key: "dashboard" | "users" | "merchants" | "riders" | "parcels" | "townships";
       href: string;
       label: string;
     }[];
@@ -45,9 +40,7 @@ const navIconByKey: Record<DashboardShellProps["user"]["navItems"][number]["key"
   dashboard: <LayoutDashboard className="h-4 w-4" />,
   users: <Users className="h-4 w-4" />,
   merchants: <Store className="h-4 w-4" />,
-  "my-merchant": <Store className="h-4 w-4" />,
   riders: <Truck className="h-4 w-4" />,
-  "my-rider": <Truck className="h-4 w-4" />,
   parcels: <PackageSearch className="h-4 w-4" />,
   townships: <MapPinned className="h-4 w-4" />,
 };
@@ -58,20 +51,20 @@ export function DashboardShell({ children, user }: Readonly<DashboardShellProps>
 
   return (
     <div className="flex min-h-screen bg-muted/40">
-      {isSidebarOpen ? (
+      {isSidebarOpen && (
         <button
           type="button"
           className="fixed inset-0 z-40 bg-black/40 md:hidden"
           aria-label="Close menu"
           onClick={() => setIsSidebarOpen(false)}
         />
-      ) : null}
+      )}
 
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-72 border-r bg-sidebar px-4 py-6 transition-transform duration-200",
           "md:static md:translate-x-0",
-          isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+          isSidebarOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
         <div className="mb-4 flex items-center justify-between md:mb-0 md:block">
@@ -112,7 +105,7 @@ export function DashboardShell({ children, user }: Readonly<DashboardShellProps>
           })}
         </nav>
         <div className="mt-8 border-t pt-4">
-          <UserSummary name={user.name} role={user.roleLabel} />
+          <UserSummary name={user.name} role={formatRoleSlug(user.roleSlug)} />
         </div>
       </aside>
       <div className="flex min-h-screen flex-1 flex-col">

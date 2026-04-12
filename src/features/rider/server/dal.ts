@@ -3,14 +3,21 @@ import { and, asc, desc, eq, ilike, isNull, or } from "drizzle-orm";
 import {
   toRiderDetailDto,
   toRiderListItemDto,
+  toRiderProfileDto,
   type RiderDetailDto,
   type RiderListItemDto,
+  type RiderProfileDto,
 } from "./dto";
 import { isRiderId, normalizeRiderSearchQuery, toRiderSearchPattern } from "./utils";
-import { db } from "@/db";
+import { db, type DbClient } from "@/db";
 import { appUsers, riders, townships } from "@/db/schema";
+import { getRiderAccess } from "@/features/auth/server/policies/rider";
 
-export async function getRidersList(
+import type { AppAccessContext } from "@/features/auth/server/dto";
+
+type RiderWriteClient = Pick<DbClient, "insert">;
+
+async function listRiders(
   input: {
     query?: string;
     limit?: number;
@@ -54,19 +61,23 @@ export async function getRidersList(
     .orderBy(asc(appUsers.fullName), desc(riders.createdAt))
     .limit(safeLimit);
 
-  return rows.map((row) =>
-    toRiderListItemDto({
-      id: row.id,
-      fullName: row.fullName,
-      phoneNumber: row.phoneNumber,
-      townshipName: row.townshipName,
-      vehicleType: row.vehicleType,
-      licensePlate: row.licensePlate,
-      isActive: row.isActive,
-      notes: row.notes,
-      createdAt: row.createdAt,
-    }),
-  );
+  return rows.map((row) => toRiderListItemDto(row));
+}
+
+export async function getRidersListForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+  input: {
+    query?: string;
+    limit?: number;
+  } = {},
+): Promise<RiderListItemDto[]> {
+  const riderAccess = getRiderAccess({ viewer });
+
+  if (!riderAccess.canViewList) {
+    return [];
+  }
+
+  return listRiders(input);
 }
 
 export async function createRiderProfile(input: {
@@ -76,8 +87,10 @@ export async function createRiderProfile(input: {
   licensePlate: string | null;
   isActive: boolean;
   notes: string | null;
+  dbClient?: RiderWriteClient;
 }) {
-  const [created] = await db
+  const client = input.dbClient ?? db;
+  const [created] = await client
     .insert(riders)
     .values({
       appUserId: input.appUserId,
@@ -92,7 +105,50 @@ export async function createRiderProfile(input: {
   return created;
 }
 
-export async function getRiderById(riderId: string): Promise<RiderDetailDto | null> {
+async function findRiderProfileByAppUserId(appUserId: string): Promise<RiderProfileDto | null> {
+  if (!isRiderId(appUserId)) {
+    return null;
+  }
+
+  const [row] = await db
+    .select({
+      appUserId: riders.appUserId,
+      townshipId: riders.townshipId,
+      vehicleType: riders.vehicleType,
+      licensePlate: riders.licensePlate,
+      isActive: riders.isActive,
+      notes: riders.notes,
+      createdAt: riders.createdAt,
+      updatedAt: riders.updatedAt,
+    })
+    .from(riders)
+    .where(and(eq(riders.appUserId, appUserId), isNull(riders.deletedAt)))
+    .limit(1);
+
+  if (!row) {
+    return null;
+  }
+
+  return toRiderProfileDto(row);
+}
+
+export async function getRiderProfileByAppUserIdForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+  appUserId: string,
+): Promise<RiderProfileDto | null> {
+  const riderAccess = getRiderAccess({
+    viewer,
+    riderAppUserId: appUserId,
+  });
+
+  if (!riderAccess.canView) {
+    return null;
+  }
+
+  return findRiderProfileByAppUserId(appUserId);
+}
+
+async function findRiderById(riderId: string): Promise<RiderDetailDto | null> {
   if (!isRiderId(riderId)) {
     return null;
   }
@@ -122,28 +178,58 @@ export async function getRiderById(riderId: string): Promise<RiderDetailDto | nu
     return null;
   }
 
-  return toRiderDetailDto({
-    id: row.id,
-    fullName: row.fullName,
-    email: row.email,
-    phoneNumber: row.phoneNumber,
-    townshipId: row.townshipId,
-    townshipName: row.townshipName,
-    vehicleType: row.vehicleType,
-    licensePlate: row.licensePlate,
-    isActive: row.isActive,
-    notes: row.notes,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  });
+  return toRiderDetailDto(row);
 }
 
-export async function findRiderByAppUserId(appUserId: string) {
-  const [row] = await db
-    .select({ id: riders.appUserId })
-    .from(riders)
-    .where(and(eq(riders.appUserId, appUserId), isNull(riders.deletedAt)))
-    .limit(1);
+export async function getRiderById(riderId: string): Promise<RiderDetailDto | null> {
+  return findRiderById(riderId);
+}
 
-  return row ?? null;
+export async function getRiderByIdForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+  riderId: string,
+): Promise<RiderDetailDto | null> {
+  const riderAccess = getRiderAccess({
+    viewer,
+    riderAppUserId: riderId,
+  });
+
+  if (!riderAccess.canView) {
+    return null;
+  }
+
+  return findRiderById(riderId);
+}
+
+export async function updateRiderProfile(input: {
+  riderId: string;
+  townshipId: string | null;
+  vehicleType: string;
+  licensePlate: string | null;
+  notes: string | null;
+  isActive?: boolean;
+}) {
+  const nextValues: {
+    townshipId: string | null;
+    vehicleType: string;
+    licensePlate: string | null;
+    notes: string | null;
+    updatedAt: Date;
+    isActive?: boolean;
+  } = {
+    townshipId: input.townshipId,
+    vehicleType: input.vehicleType,
+    licensePlate: input.licensePlate,
+    notes: input.notes,
+    updatedAt: new Date(),
+  };
+
+  if (typeof input.isActive === "boolean") {
+    nextValues.isActive = input.isActive;
+  }
+
+  await db
+    .update(riders)
+    .set(nextValues)
+    .where(and(eq(riders.appUserId, input.riderId), isNull(riders.deletedAt)));
 }

@@ -1,12 +1,11 @@
 "use server";
 
 import "server-only";
-import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { canAccessRiderResource, parseActiveFlag, updateRiderProfileSchema } from "./utils";
-import { db } from "@/db";
-import { riders } from "@/db/schema";
-import { requireCurrentUser } from "@/features/auth/server/utils";
+import { parseActiveFlag, updateRiderProfileSchema } from "./utils";
+import { getRiderAccess } from "@/features/auth/server/policies/rider";
+import { requireAppAccessContext } from "@/features/auth/server/utils";
+import { updateRiderProfile } from "@/features/rider/server/dal";
 import { findTownshipById } from "@/features/townships/server/dal";
 import { logAuditEvent } from "@/lib/security/audit";
 
@@ -20,28 +19,20 @@ export async function updateRiderProfileAction(
   formData: FormData,
 ): Promise<UpdateRiderProfileActionResult> {
   try {
-    const currentUser = await requireCurrentUser();
-    const parsed = updateRiderProfileSchema.safeParse({
-      riderId: formData.get("riderId"),
-      townshipId: formData.get("townshipId"),
-      vehicleType: formData.get("vehicleType"),
-      licensePlate: formData.get("licensePlate"),
-      notes: formData.get("notes"),
-    });
+    const currentUser = await requireAppAccessContext();
+
+    const parsed = updateRiderProfileSchema.safeParse(Object.fromEntries(formData));
 
     if (!parsed.success) {
       return { ok: false, message: "Please provide valid rider profile data." };
     }
 
-    const canEditRider = canAccessRiderResource({
-      viewerRoleSlug: currentUser.role.slug,
-      viewerAppUserId: currentUser.appUserId,
+    const riderAccess = getRiderAccess({
+      viewer: currentUser,
       riderAppUserId: parsed.data.riderId,
-      viewerPermissions: currentUser.permissions,
-      permission: "rider.update",
     });
 
-    if (!canEditRider) {
+    if (!riderAccess.canUpdate) {
       return { ok: false, message: "Forbidden" };
     }
 
@@ -53,29 +44,14 @@ export async function updateRiderProfileAction(
       }
     }
 
-    const nextValues: {
-      townshipId: string | null;
-      vehicleType: string;
-      licensePlate: string | null;
-      notes: string | null;
-      updatedAt: Date;
-      isActive?: boolean;
-    } = {
+    await updateRiderProfile({
+      riderId: parsed.data.riderId,
       townshipId: parsed.data.townshipId,
       vehicleType: parsed.data.vehicleType,
       licensePlate: parsed.data.licensePlate,
       notes: parsed.data.notes,
-      updatedAt: new Date(),
-    };
-
-    if (currentUser.permissions.includes("rider.update")) {
-      nextValues.isActive = parseActiveFlag(formData.get("isActive"));
-    }
-
-    await db
-      .update(riders)
-      .set(nextValues)
-      .where(and(eq(riders.appUserId, parsed.data.riderId), isNull(riders.deletedAt)));
+      isActive: riderAccess.canManageStatus ? parseActiveFlag(formData.get("isActive")) : undefined,
+    });
 
     await logAuditEvent({
       event: "rider.update",
@@ -83,12 +59,11 @@ export async function updateRiderProfileAction(
       targetAppUserId: parsed.data.riderId,
       metadata: {
         townshipId: parsed.data.townshipId,
-        riderStatusChanged: currentUser.permissions.includes("rider.update"),
+        riderStatusChanged: riderAccess.canManageStatus,
       },
     });
 
     revalidatePath(`/dashboard/riders/${parsed.data.riderId}`);
-    revalidatePath(`/dashboard/riders/${parsed.data.riderId}/edit`);
     revalidatePath("/dashboard/riders");
     revalidatePath("/dashboard/profile");
     revalidatePath(`/dashboard/users/${parsed.data.riderId}`);

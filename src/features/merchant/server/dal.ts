@@ -3,14 +3,21 @@ import { and, asc, desc, eq, ilike, isNull, or } from "drizzle-orm";
 import {
   toMerchantDetailDto,
   toMerchantListItemDto,
+  toMerchantProfileDto,
   type MerchantDetailDto,
   type MerchantListItemDto,
+  type MerchantProfileDto,
 } from "./dto";
 import { isMerchantId, normalizeMerchantSearchQuery, toMerchantSearchPattern } from "./utils";
-import { db } from "@/db";
+import { db, type DbClient } from "@/db";
 import { appUsers, merchants, townships } from "@/db/schema";
+import { getMerchantAccess } from "@/features/auth/server/policies/merchant";
 
-export async function getMerchantsList(
+import type { AppAccessContext } from "@/features/auth/server/dto";
+
+type MerchantWriteClient = Pick<DbClient, "insert">;
+
+async function listMerchants(
   input: {
     query?: string;
     limit?: number;
@@ -47,20 +54,26 @@ export async function getMerchantsList(
     .orderBy(asc(merchants.shopName), desc(merchants.createdAt))
     .limit(safeLimit);
 
-  return rows.map((row) =>
-    toMerchantListItemDto({
-      id: row.id,
-      shopName: row.shopName,
-      contactName: row.contactName,
-      phoneNumber: row.phoneNumber,
-      townshipName: row.townshipName,
-      defaultPickupAddress: row.defaultPickupAddress,
-      createdAt: row.createdAt,
-    }),
-  );
+  return rows.map((row) => toMerchantListItemDto(row));
 }
 
-export async function getMerchantById(merchantId: string): Promise<MerchantDetailDto | null> {
+export async function getMerchantsListForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+  input: {
+    query?: string;
+    limit?: number;
+  } = {},
+): Promise<MerchantListItemDto[]> {
+  const merchantAccess = getMerchantAccess({ viewer });
+
+  if (!merchantAccess.canViewList) {
+    return [];
+  }
+
+  return listMerchants(input);
+}
+
+async function findMerchantById(merchantId: string): Promise<MerchantDetailDto | null> {
   if (!isMerchantId(merchantId)) {
     return null;
   }
@@ -95,19 +108,67 @@ export async function getMerchantById(merchantId: string): Promise<MerchantDetai
     return null;
   }
 
-  return toMerchantDetailDto({
-    id: row.id,
-    shopName: row.shopName,
-    contactName: row.contactName,
-    email: row.email,
-    phoneNumber: row.phoneNumber,
-    pickupTownshipId: row.pickupTownshipId,
-    townshipName: row.townshipName,
-    defaultPickupAddress: row.defaultPickupAddress,
-    notes: row.notes,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
+  return toMerchantDetailDto(row);
+}
+
+export async function getMerchantByIdForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+  merchantId: string,
+): Promise<MerchantDetailDto | null> {
+  const merchantAccess = getMerchantAccess({
+    viewer,
+    merchantAppUserId: merchantId,
   });
+
+  if (!merchantAccess.canView) {
+    return null;
+  }
+
+  return findMerchantById(merchantId);
+}
+
+async function findMerchantProfileByAppUserId(
+  appUserId: string,
+): Promise<MerchantProfileDto | null> {
+  if (!isMerchantId(appUserId)) {
+    return null;
+  }
+
+  const [row] = await db
+    .select({
+      appUserId: merchants.appUserId,
+      shopName: merchants.shopName,
+      pickupTownshipId: merchants.pickupTownshipId,
+      defaultPickupAddress: merchants.defaultPickupAddress,
+      notes: merchants.notes,
+      createdAt: merchants.createdAt,
+      updatedAt: merchants.updatedAt,
+    })
+    .from(merchants)
+    .where(and(eq(merchants.appUserId, appUserId), isNull(merchants.deletedAt)))
+    .limit(1);
+
+  if (!row) {
+    return null;
+  }
+
+  return toMerchantProfileDto(row);
+}
+
+export async function getMerchantProfileByAppUserIdForViewer(
+  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+  appUserId: string,
+): Promise<MerchantProfileDto | null> {
+  const merchantAccess = getMerchantAccess({
+    viewer,
+    merchantAppUserId: appUserId,
+  });
+
+  if (!merchantAccess.canView) {
+    return null;
+  }
+
+  return findMerchantProfileByAppUserId(appUserId);
 }
 
 export async function createMerchantProfile(input: {
@@ -116,8 +177,10 @@ export async function createMerchantProfile(input: {
   pickupTownshipId: string | null;
   defaultPickupAddress: string | null;
   notes: string | null;
+  dbClient?: MerchantWriteClient;
 }) {
-  const [created] = await db
+  const client = input.dbClient ?? db;
+  const [created] = await client
     .insert(merchants)
     .values({
       appUserId: input.appUserId,
@@ -131,12 +194,35 @@ export async function createMerchantProfile(input: {
   return created;
 }
 
-export async function findMerchantByAppUserId(appUserId: string) {
+export async function updateMerchantProfile(input: {
+  merchantId: string;
+  shopName: string;
+  pickupTownshipId: string | null;
+  defaultPickupAddress: string | null;
+  notes: string | null;
+}) {
+  await db
+    .update(merchants)
+    .set({
+      shopName: input.shopName,
+      pickupTownshipId: input.pickupTownshipId,
+      defaultPickupAddress: input.defaultPickupAddress,
+      notes: input.notes,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(merchants.appUserId, input.merchantId), isNull(merchants.deletedAt)));
+}
+
+export async function findMerchantProfileLinkByAppUserId(appUserId: string) {
   const [row] = await db
-    .select({ id: merchants.appUserId })
+    .select({ appUserId: merchants.appUserId })
     .from(merchants)
     .where(and(eq(merchants.appUserId, appUserId), isNull(merchants.deletedAt)))
     .limit(1);
 
-  return row ?? null;
+  if (!row) {
+    return null;
+  }
+
+  return row;
 }

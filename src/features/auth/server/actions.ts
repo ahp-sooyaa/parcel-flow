@@ -17,10 +17,7 @@ export async function signInAction(
   _prevState: AuthActionResult,
   formData: FormData,
 ): Promise<AuthActionResult> {
-  const parsed = signInSchema.safeParse({
-    email: formData.get("email"),
-    password: formData.get("password"),
-  });
+  const parsed = signInSchema.safeParse(Object.fromEntries(formData));
 
   if (!parsed.success) {
     return {

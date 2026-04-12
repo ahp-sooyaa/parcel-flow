@@ -8,7 +8,7 @@ type DashboardErrorPageProps = {
   reset: () => void;
 };
 
-export default function DashboardErrorPage({ error, reset }: DashboardErrorPageProps) {
+export default function DashboardErrorPage({ error, reset }: Readonly<DashboardErrorPageProps>) {
   const isAccessError =
     error.message === "Unauthorized" ||
     error.message === "Forbidden" ||

@@ -4,14 +4,22 @@ import { useActionState, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { updateUserProfileAction } from "@/features/users/server/actions";
+import { updateAccountProfileAction } from "@/features/users/server/actions";
+import { formatRoleSlug } from "@/lib/roles";
+import { cn } from "@/lib/utils";
 
-type EditUserFormProps = {
-  userId: string;
-  fullName: string;
-  email: string;
-  phoneNumber: string | null;
-  roleLabel: string;
+import type { RoleSlug } from "@/db/constants";
+
+type AccountEditFormProps = {
+  user: {
+    appUserId: string;
+    fullName: string;
+    email: string;
+    phoneNumber: string | null;
+    roleSlug?: RoleSlug;
+  };
+  mode: "self" | "admin";
+  submitLabel?: string;
 };
 
 const initialState = {
@@ -19,29 +27,27 @@ const initialState = {
   message: "",
 };
 
-export function EditUserForm({
-  userId,
-  fullName,
-  email,
-  phoneNumber,
-  roleLabel,
-}: Readonly<EditUserFormProps>) {
-  const [state, action, isPending] = useActionState(updateUserProfileAction, initialState);
+export function AccountEditForm({
+  user,
+  mode,
+  submitLabel = "Save Profile",
+}: Readonly<AccountEditFormProps>) {
+  const [state, action, isPending] = useActionState(updateAccountProfileAction, initialState);
   const [values, setValues] = useState({
-    fullName,
-    phoneNumber: phoneNumber ?? "",
+    fullName: user.fullName,
+    phoneNumber: user.phoneNumber ?? "",
   });
 
   useEffect(() => {
     setValues({
-      fullName,
-      phoneNumber: phoneNumber ?? "",
+      fullName: user.fullName,
+      phoneNumber: user.phoneNumber ?? "",
     });
-  }, [fullName, phoneNumber]);
+  }, [user.fullName, user.phoneNumber]);
 
   return (
     <form action={action} className="space-y-5">
-      <input type="hidden" name="userId" value={userId} />
+      {mode === "admin" && <input type="hidden" name="targetUserId" value={user.appUserId} />}
 
       <div className="grid gap-2">
         <Label htmlFor="edit-user-full-name">Full Name</Label>
@@ -61,13 +67,19 @@ export function EditUserForm({
 
       <div className="grid gap-2">
         <Label htmlFor="edit-user-email">Email</Label>
-        <Input id="edit-user-email" value={email} disabled />
+        <Input id="edit-user-email" value={user.email} disabled />
       </div>
 
-      <div className="grid gap-2">
-        <Label htmlFor="edit-user-role">Role</Label>
-        <Input id="edit-user-role" value={roleLabel} disabled />
-      </div>
+      {mode === "admin" && (
+        <div className="grid gap-2">
+          <Label htmlFor="edit-user-role">Role</Label>
+          <Input
+            id="edit-user-role"
+            value={user.roleSlug ? formatRoleSlug(user.roleSlug) : "-"}
+            disabled
+          />
+        </div>
+      )}
 
       <div className="grid gap-2">
         <Label htmlFor="edit-user-phone-number">Phone Number</Label>
@@ -84,14 +96,19 @@ export function EditUserForm({
         />
       </div>
 
-      {state.message ? (
-        <p className={state.ok ? "text-xs text-emerald-700" : "text-xs text-destructive"}>
+      {state.message && (
+        <p
+          className={cn("text-xs", {
+            "text-emerald-700": state.ok,
+            "text-destructive": !state.ok,
+          })}
+        >
           {state.message}
         </p>
-      ) : null}
+      )}
 
       <Button type="submit" disabled={isPending}>
-        {isPending ? "Saving..." : "Save User Profile"}
+        {isPending ? "Saving..." : submitLabel}
       </Button>
     </form>
   );

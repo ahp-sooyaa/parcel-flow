@@ -1,37 +1,7 @@
 import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
-import { canAccessDashboardPath } from "@/lib/auth/route-access";
 import { getSupabasePublicEnv } from "@/lib/env";
-
-import type { RoleSlug } from "@/db/constants";
-
-type PermissionRow = {
-  permission: { slug: string | null } | null;
-};
-
-type RoleRow = {
-  slug: string | null;
-  role_permissions: PermissionRow[] | PermissionRow | null;
-};
-
-type AppUserAccessRow = {
-  id: string;
-  is_active: boolean;
-  must_reset_password: boolean;
-  role: RoleRow | RoleRow[] | null;
-};
-
-type StubAccessContext = {
-  authenticated: boolean;
-  isActive: boolean;
-  mustResetPassword: boolean;
-  permissions: string[];
-  appUserId?: string | null;
-  linkedMerchantId?: string | null;
-  linkedRiderId?: string | null;
-  roleSlug?: RoleSlug;
-};
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -90,118 +60,6 @@ function buildSignInRedirect(request: NextRequest, contentSecurityPolicy: string
   return response;
 }
 
-function redirectToDashboardPath(
-  request: NextRequest,
-  pathname: string,
-  contentSecurityPolicy: string,
-) {
-  const response = NextResponse.redirect(new URL(pathname, request.url));
-  applySecurityHeaders(response, contentSecurityPolicy);
-
-  return response;
-}
-
-function getAccessDeniedResponse(
-  request: NextRequest,
-  context: StubAccessContext,
-  contentSecurityPolicy: string,
-) {
-  if (context.mustResetPassword && request.nextUrl.pathname !== "/dashboard/profile") {
-    return redirectToDashboardPath(request, "/dashboard/profile", contentSecurityPolicy);
-  }
-
-  if (request.nextUrl.pathname !== "/dashboard") {
-    return redirectToDashboardPath(request, "/dashboard", contentSecurityPolicy);
-  }
-
-  return buildSignInRedirect(request, contentSecurityPolicy);
-}
-
-function getStubbedAccessContext(request: NextRequest): StubAccessContext | null {
-  if (process.env.AUTH_E2E_STUB_MODE !== "1") {
-    return null;
-  }
-
-  const raw = request.headers.get("x-parcel-flow-e2e-auth");
-
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Partial<StubAccessContext>;
-
-    return {
-      authenticated: parsed.authenticated === true,
-      isActive: parsed.isActive === true,
-      mustResetPassword: parsed.mustResetPassword === true,
-      appUserId: typeof parsed.appUserId === "string" ? parsed.appUserId : null,
-      linkedMerchantId:
-        typeof parsed.linkedMerchantId === "string" ? parsed.linkedMerchantId : null,
-      linkedRiderId: typeof parsed.linkedRiderId === "string" ? parsed.linkedRiderId : null,
-      roleSlug:
-        parsed.roleSlug === "super_admin" ||
-        parsed.roleSlug === "office_admin" ||
-        parsed.roleSlug === "rider" ||
-        parsed.roleSlug === "merchant"
-          ? parsed.roleSlug
-          : undefined,
-      permissions: Array.isArray(parsed.permissions)
-        ? parsed.permissions.filter((value): value is string => typeof value === "string")
-        : [],
-    };
-  } catch {
-    return {
-      authenticated: false,
-      isActive: false,
-      mustResetPassword: false,
-      permissions: [],
-    };
-  }
-}
-
-function toArray<T>(value: T | T[] | null | undefined): T[] {
-  if (!value) {
-    return [];
-  }
-
-  return Array.isArray(value) ? value : [value];
-}
-
-function extractPermissionSlugs(appUser: AppUserAccessRow) {
-  const role = toArray(appUser.role)[0];
-  const slugs = new Set<string>();
-
-  if (!role) {
-    return [];
-  }
-
-  for (const row of toArray(role.role_permissions)) {
-    const slug = row.permission?.slug;
-
-    if (slug) {
-      slugs.add(slug);
-    }
-  }
-
-  return Array.from(slugs);
-}
-
-function extractRoleSlug(appUser: AppUserAccessRow): RoleSlug | undefined {
-  const role = toArray(appUser.role)[0];
-
-  if (
-    role?.slug === "super_admin" ||
-    role?.slug === "office_admin" ||
-    role?.slug === "rider" ||
-    role?.slug === "merchant"
-  ) {
-    return role.slug;
-  }
-
-  return undefined;
-}
-
 function isDashboardPath(pathname: string) {
   return pathname === "/dashboard" || pathname.startsWith("/dashboard/");
 }
@@ -214,35 +72,6 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set("Content-Security-Policy", contentSecurityPolicy);
 
   if (!isDashboardPath(request.nextUrl.pathname)) {
-    const response = NextResponse.next({
-      request: {
-        headers: requestHeaders,
-      },
-    });
-    applySecurityHeaders(response, contentSecurityPolicy);
-
-    return response;
-  }
-
-  const stubbedContext = getStubbedAccessContext(request);
-
-  if (stubbedContext) {
-    if (!stubbedContext.authenticated || !stubbedContext.isActive) {
-      return buildSignInRedirect(request, contentSecurityPolicy);
-    }
-
-    const allowed = canAccessDashboardPath(request.nextUrl.pathname, {
-      permissions: stubbedContext.permissions,
-      isActive: stubbedContext.isActive,
-      mustResetPassword: stubbedContext.mustResetPassword,
-      appUserId: stubbedContext.appUserId,
-      roleSlug: stubbedContext.roleSlug,
-    });
-
-    if (!allowed) {
-      return getAccessDeniedResponse(request, stubbedContext, contentSecurityPolicy);
-    }
-
     const response = NextResponse.next({
       request: {
         headers: requestHeaders,
@@ -290,51 +119,10 @@ export async function proxy(request: NextRequest) {
   );
 
   const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
-  const userId = typeof claimsData?.claims?.sub === "string" ? claimsData.claims.sub : null;
+  const userId = claimsData?.claims?.sub;
 
-  if (claimsError || !userId) {
+  if (claimsError || typeof userId !== "string") {
     return buildSignInRedirect(request, contentSecurityPolicy);
-  }
-
-  const { data: appUser, error } = await supabase
-    .from("app_users")
-    .select(`
-      is_active,
-      must_reset_password,
-      id,
-      role:role_id (
-        slug,
-        role_permissions (
-          permission:permission_id ( slug )
-        )
-      )
-    `)
-    .eq("supabase_user_id", userId)
-    .maybeSingle<AppUserAccessRow>();
-
-  if (error || !appUser?.is_active) {
-    return buildSignInRedirect(request, contentSecurityPolicy);
-  }
-
-  const allowed = canAccessDashboardPath(request.nextUrl.pathname, {
-    permissions: extractPermissionSlugs(appUser),
-    isActive: appUser.is_active,
-    mustResetPassword: appUser.must_reset_password,
-    appUserId: appUser.id,
-    roleSlug: extractRoleSlug(appUser),
-  });
-
-  if (!allowed) {
-    return getAccessDeniedResponse(
-      request,
-      {
-        authenticated: true,
-        isActive: appUser.is_active,
-        mustResetPassword: appUser.must_reset_password,
-        permissions: extractPermissionSlugs(appUser),
-      },
-      contentSecurityPolicy,
-    );
   }
 
   return response;

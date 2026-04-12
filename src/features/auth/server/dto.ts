@@ -1,37 +1,28 @@
 import "server-only";
 import type { PermissionSlug, RoleSlug } from "@/db/constants";
 
-export type CurrentUserContext = {
+export type AuthenticatedSession = {
+  supabaseUserId: string;
+};
+
+export type AppAccessContext = {
   appUserId: string;
-  linkedMerchantId: string | null;
-  linkedRiderId: string | null;
   supabaseUserId: string;
   fullName: string;
   email: string;
   phoneNumber: string | null;
-  role: {
-    id: string;
-    slug: RoleSlug;
-    label: string;
-  };
+  roleSlug: RoleSlug;
   isActive: boolean;
+  deletedAt: Date | null;
   mustResetPassword: boolean;
   permissions: PermissionSlug[];
 };
 
 export type DashboardShellUserDto = {
   name: string;
-  roleLabel: string;
+  roleSlug: RoleSlug;
   navItems: {
-    key:
-      | "dashboard"
-      | "users"
-      | "merchants"
-      | "my-merchant"
-      | "riders"
-      | "my-rider"
-      | "parcels"
-      | "townships";
+    key: "dashboard" | "users" | "merchants" | "riders" | "parcels" | "townships";
     href: string;
     label: string;
   }[];
@@ -43,34 +34,33 @@ export type AuthActionResult = {
   message: string;
 };
 
-export function toCurrentUserContext(input: CurrentUserContext): CurrentUserContext {
+export function toAuthenticatedSession(input: AuthenticatedSession): AuthenticatedSession {
+  return {
+    supabaseUserId: input.supabaseUserId,
+  };
+}
+
+export function toAppAccessContext(input: AppAccessContext): AppAccessContext {
   return {
     appUserId: input.appUserId,
-    linkedMerchantId: input.linkedMerchantId,
-    linkedRiderId: input.linkedRiderId,
     supabaseUserId: input.supabaseUserId,
     fullName: input.fullName,
     email: input.email,
     phoneNumber: input.phoneNumber,
+    roleSlug: input.roleSlug,
     isActive: input.isActive,
+    deletedAt: input.deletedAt,
     mustResetPassword: input.mustResetPassword,
-    role: {
-      id: input.role.id,
-      slug: input.role.slug,
-      label: input.role.label,
-    },
     permissions: [...input.permissions],
   };
 }
 
 export function toDashboardShellUserDto(input: {
   appUserId: string;
-  linkedMerchantId: string | null;
-  linkedRiderId: string | null;
   fullName: string;
   mustResetPassword: boolean;
   permissions: readonly PermissionSlug[];
-  role: { slug: RoleSlug; label: string };
+  roleSlug: RoleSlug;
 }): DashboardShellUserDto {
   const navItems: DashboardShellUserDto["navItems"] = [];
 
@@ -82,21 +72,21 @@ export function toDashboardShellUserDto(input: {
     navItems.push({ key: "users", href: "/dashboard/users", label: "Users" });
   }
 
-  if (input.role.slug === "merchant" && input.linkedMerchantId) {
+  if (input.roleSlug === "merchant") {
     navItems.push({
-      key: "my-merchant",
-      href: `/dashboard/merchants/${input.linkedMerchantId}`,
-      label: "My Merchant",
+      key: "parcels",
+      href: `/dashboard/merchants/${input.appUserId}`,
+      label: "My Parcels",
     });
   } else if (input.permissions.includes("merchant-list.view")) {
     navItems.push({ key: "merchants", href: "/dashboard/merchants", label: "Merchants" });
   }
 
-  if (input.role.slug === "rider" && input.linkedRiderId) {
+  if (input.roleSlug === "rider") {
     navItems.push({
-      key: "my-rider",
-      href: `/dashboard/riders/${input.linkedRiderId}`,
-      label: "My Rider",
+      key: "parcels",
+      href: `/dashboard/riders/${input.appUserId}`,
+      label: "My Parcels",
     });
   } else if (input.permissions.includes("rider-list.view")) {
     navItems.push({ key: "riders", href: "/dashboard/riders", label: "Riders" });
@@ -112,7 +102,7 @@ export function toDashboardShellUserDto(input: {
 
   return {
     name: input.fullName,
-    roleLabel: input.role.label,
+    roleSlug: input.roleSlug,
     navItems,
     mustResetPassword: input.mustResetPassword,
   };

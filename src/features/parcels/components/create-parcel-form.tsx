@@ -11,12 +11,17 @@ import {
   PARCEL_TYPES,
 } from "@/features/parcels/constants";
 import { createParcelAction } from "@/features/parcels/server/actions";
+import { cn } from "@/lib/utils";
 
 type CreateParcelFormProps = {
-  merchants: { id: string; label: string }[];
-  riders: { id: string; label: string }[];
-  townships: { id: string; label: string }[];
-  merchantFieldReadOnly?: boolean;
+  options: {
+    merchants: { id: string; label: string }[];
+    riders: { id: string; label: string }[];
+    townships: { id: string; label: string }[];
+  };
+  readOnly?: {
+    merchantField?: boolean;
+  };
 };
 
 const initialState = {
@@ -26,13 +31,12 @@ const initialState = {
   fields: undefined,
 };
 
-export function CreateParcelForm({
-  merchants,
-  riders,
-  townships,
-  merchantFieldReadOnly = false,
-}: Readonly<CreateParcelFormProps>) {
+export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFormProps>) {
   const [state, action, isPending] = useActionState(createParcelAction, initialState);
+  const merchants = options.merchants;
+  const riders = options.riders;
+  const townships = options.townships;
+  const merchantFieldReadOnly = readOnly?.merchantField ?? false;
   const selectedMerchant = merchants.find(
     (merchant) => merchant.id === (state.fields?.merchantId ?? ""),
   );
@@ -287,19 +291,23 @@ export function CreateParcelForm({
         </div>
       </section>
 
-      {state.message ? (
+      {state.message && (
         <div
-          className={
-            state.ok
-              ? "rounded-lg border border-emerald-300 bg-emerald-50 p-3"
-              : "rounded-lg border border-red-300 bg-red-50 p-3"
-          }
+          className={cn("rounded-lg border p-3", {
+            "border-emerald-300 bg-emerald-50": state.ok,
+            "border-red-300 bg-red-50": !state.ok,
+          })}
         >
-          <p className={state.ok ? "text-xs text-emerald-800" : "text-xs text-destructive"}>
+          <p
+            className={cn("text-xs", {
+              "text-emerald-800": state.ok,
+              "text-destructive": !state.ok,
+            })}
+          >
             {state.message}
           </p>
         </div>
-      ) : null}
+      )}
 
       <Button type="submit" disabled={isPending}>
         {isPending ? "Creating..." : "Create Parcel"}

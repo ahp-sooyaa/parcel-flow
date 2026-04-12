@@ -16,10 +16,7 @@ export async function createTownshipAction(
   try {
     const currentUser = await requirePermission("township.create");
 
-    const parsed = createTownshipSchema.safeParse({
-      name: formData.get("name"),
-      isActive: formData.get("isActive") === "on" || formData.get("isActive") === "true",
-    });
+    const parsed = createTownshipSchema.safeParse(Object.fromEntries(formData));
 
     if (!parsed.success) {
       return { ok: false, message: "Please provide valid township details." };

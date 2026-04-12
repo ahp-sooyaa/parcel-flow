@@ -5,22 +5,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateRiderProfileAction } from "@/features/rider/server/actions";
+import { cn } from "@/lib/utils";
 
 type EditRiderFormProps = {
-  riderId: string;
-  fullName: string;
-  email: string;
-  phoneNumber: string | null;
-  townshipId: string | null;
-  vehicleType: string;
-  licensePlate: string | null;
-  isActive: boolean;
-  notes: string | null;
+  rider: {
+    riderId: string;
+    townshipId: string | null;
+    vehicleType: string;
+    licensePlate: string | null;
+    isActive: boolean;
+    notes: string | null;
+  };
+  contact: {
+    fullName: string;
+    email: string;
+    phoneNumber: string | null;
+  };
   townships: {
     id: string;
     name: string;
   }[];
-  canEditOperationalStatus: boolean;
+  permissions: {
+    canEditOperationalStatus: boolean;
+  };
 };
 
 const initialState = {
@@ -29,52 +36,45 @@ const initialState = {
 };
 
 export function EditRiderForm({
-  riderId,
-  fullName,
-  email,
-  phoneNumber,
-  townshipId,
-  vehicleType,
-  licensePlate,
-  isActive,
-  notes,
+  rider,
+  contact,
   townships,
-  canEditOperationalStatus,
+  permissions,
 }: Readonly<EditRiderFormProps>) {
   const [state, action, isPending] = useActionState(updateRiderProfileAction, initialState);
   const [values, setValues] = useState({
-    townshipId: townshipId ?? "",
-    vehicleType,
-    licensePlate: licensePlate ?? "",
-    notes: notes ?? "",
+    townshipId: rider.townshipId ?? "",
+    vehicleType: rider.vehicleType,
+    licensePlate: rider.licensePlate ?? "",
+    notes: rider.notes ?? "",
   });
 
   useEffect(() => {
     setValues({
-      townshipId: townshipId ?? "",
-      vehicleType,
-      licensePlate: licensePlate ?? "",
-      notes: notes ?? "",
+      townshipId: rider.townshipId ?? "",
+      vehicleType: rider.vehicleType,
+      licensePlate: rider.licensePlate ?? "",
+      notes: rider.notes ?? "",
     });
-  }, [townshipId, vehicleType, licensePlate, notes]);
+  }, [rider]);
 
   return (
     <form action={action} className="space-y-5">
-      <input type="hidden" name="riderId" value={riderId} />
+      <input type="hidden" name="riderId" value={rider.riderId} />
 
       <div className="grid gap-2">
         <Label htmlFor="rider-full-name">Rider Name</Label>
-        <Input id="rider-full-name" value={fullName} disabled />
+        <Input id="rider-full-name" value={contact.fullName} disabled />
       </div>
 
       <div className="grid gap-2 md:grid-cols-2 md:gap-4">
         <div className="grid gap-2">
           <Label htmlFor="rider-email">Email</Label>
-          <Input id="rider-email" value={email} disabled />
+          <Input id="rider-email" value={contact.email} disabled />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="rider-phone">Phone Number</Label>
-          <Input id="rider-phone" value={phoneNumber ?? "-"} disabled />
+          <Input id="rider-phone" value={contact.phoneNumber ?? "-"} disabled />
         </div>
       </div>
 
@@ -149,18 +149,28 @@ export function EditRiderForm({
         />
       </div>
 
-      {canEditOperationalStatus ? (
+      {permissions.canEditOperationalStatus && (
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="isActive" defaultChecked={isActive} className="h-4 w-4" />{" "}
+          <input
+            type="checkbox"
+            name="isActive"
+            defaultChecked={rider.isActive}
+            className="h-4 w-4"
+          />{" "}
           Rider is operationally active
         </label>
-      ) : null}
+      )}
 
-      {state.message ? (
-        <p className={state.ok ? "text-xs text-emerald-700" : "text-xs text-destructive"}>
+      {state.message && (
+        <p
+          className={cn("text-xs", {
+            "text-emerald-700": state.ok,
+            "text-destructive": !state.ok,
+          })}
+        >
           {state.message}
         </p>
-      ) : null}
+      )}
 
       <Button type="submit" disabled={isPending}>
         {isPending ? "Saving..." : "Save Rider Profile"}

@@ -12,17 +12,12 @@ export type AppUserListItemDto = {
   createdAt: Date;
 };
 
-export type AppUserDetailDto = {
+export type UserWithRole = {
   id: string;
-  fullName: string;
   email: string;
-  phoneNumber: string | null;
+  supabaseUserId: string;
   isActive: boolean;
-  mustResetPassword: boolean;
   roleSlug: RoleSlug;
-  roleLabel: string;
-  createdAt: Date;
-  updatedAt: Date;
 };
 
 export type CreateUserActionResult = {
@@ -31,7 +26,7 @@ export type CreateUserActionResult = {
   temporaryPassword?: string;
 };
 
-export type UpdateUserProfileActionResult = {
+export type AccountActionResult = {
   ok: boolean;
   message: string;
 };
@@ -57,20 +52,5 @@ export function toAppUserListItemDto(input: AppUserListItemDto): AppUserListItem
     isActive: input.isActive,
     mustResetPassword: input.mustResetPassword,
     createdAt: input.createdAt,
-  };
-}
-
-export function toAppUserDetailDto(input: AppUserDetailDto): AppUserDetailDto {
-  return {
-    id: input.id,
-    fullName: input.fullName,
-    email: input.email,
-    phoneNumber: input.phoneNumber,
-    isActive: input.isActive,
-    mustResetPassword: input.mustResetPassword,
-    roleSlug: input.roleSlug,
-    roleLabel: input.roleLabel,
-    createdAt: input.createdAt,
-    updatedAt: input.updatedAt,
   };
 }
