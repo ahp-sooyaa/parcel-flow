@@ -51,34 +51,13 @@ type EditParcelFormProps = {
   };
 };
 
-type FormValues = {
-  merchantId: string;
-  riderId: string;
-  recipientName: string;
-  recipientPhone: string;
-  recipientTownshipId: string;
-  recipientAddress: string;
-  parcelType: string;
-  codAmount: string;
-  deliveryFee: string;
-  deliveryFeePayer: string;
-  parcelStatus: string;
-  deliveryFeeStatus: string;
-  codStatus: string;
-  collectedAmount: string;
-  collectionStatus: string;
-  merchantSettlementStatus: string;
-  riderPayoutStatus: string;
-  paymentNote: string;
-};
-
 const initialState = {
   ok: true,
   message: "",
   fields: undefined,
 };
 
-function buildFormValues(parcel: EditParcelFormProps["parcel"]): FormValues {
+function buildFormValues(parcel: EditParcelFormProps["parcel"]) {
   return {
     merchantId: parcel.merchantId,
     riderId: parcel.riderId ?? "",
@@ -109,7 +88,8 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
   const merchantFieldReadOnly = readOnly?.merchantField ?? false;
   const accountingFieldsReadOnly = readOnly?.accountingFields ?? false;
 
-  const fields = state.fields ?? buildFormValues(parcel);
+  const defaultFields = buildFormValues(parcel);
+  const fields: ReturnType<typeof buildFormValues> = { ...defaultFields, ...state.fields };
   const selectedMerchant = merchants.find((merchant) => merchant.id === fields.merchantId);
   const selectedRider = riders.find((rider) => rider.id === fields.riderId);
 

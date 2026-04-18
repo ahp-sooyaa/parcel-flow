@@ -179,50 +179,13 @@ export type CreateParcelActionResult = {
   ok: boolean;
   message: string;
   parcelId?: string;
-  fields?: CreateParcelFormFields;
+  fields?: Record<string, string>;
 };
 
 export type UpdateParcelActionResult = {
   ok: boolean;
   message: string;
-  fields?: UpdateParcelFormFields;
-};
-
-export type CreateParcelFormFields = {
-  merchantId: string;
-  riderId: string;
-  recipientName: string;
-  recipientPhone: string;
-  recipientTownshipId: string;
-  recipientAddress: string;
-  parcelType: string;
-  codAmount: string;
-  deliveryFee: string;
-  deliveryFeePayer: string;
-  deliveryFeeStatus: string;
-  paymentNote: string;
-};
-
-export type UpdateParcelFormFields = {
-  parcelId: string;
-  merchantId: string;
-  riderId: string;
-  recipientName: string;
-  recipientPhone: string;
-  recipientTownshipId: string;
-  recipientAddress: string;
-  parcelType: string;
-  codAmount: string;
-  deliveryFee: string;
-  deliveryFeePayer: string;
-  parcelStatus: string;
-  deliveryFeeStatus: string;
-  codStatus: string;
-  collectedAmount: string;
-  collectionStatus: string;
-  merchantSettlementStatus: string;
-  riderPayoutStatus: string;
-  paymentNote: string;
+  fields?: Record<string, string>;
 };
 
 export function toParcelListItemDto(input: {

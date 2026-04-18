@@ -12,12 +12,10 @@ import {
 } from "./dal";
 import {
   advanceRiderParcelSchema,
-  createParcelFormFieldsSchema,
   createParcelSchema,
   DEFAULT_CREATE_PARCEL_STATE,
   generateParcelCode,
   getDefaultCreateCodStatus,
-  updateParcelFormFieldsSchema,
   updateParcelSchema,
   validateParcelSubmission,
 } from "./utils";
@@ -30,12 +28,7 @@ import {
 import { requireAppAccessContext, requirePermission } from "@/features/auth/server/utils";
 import { computeTotalAmountToCollect, toMoneyString } from "@/features/parcels/server/utils";
 
-import type {
-  CreateParcelActionResult,
-  CreateParcelFormFields,
-  UpdateParcelFormFields,
-  UpdateParcelActionResult,
-} from "./dto";
+import type { CreateParcelActionResult, UpdateParcelActionResult } from "./dto";
 
 async function generateUniqueParcelCode(maxAttempts = 10) {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
@@ -81,7 +74,7 @@ export async function createParcelAction(
   formData: FormData,
 ): Promise<CreateParcelActionResult> {
   const rawFormData = Object.fromEntries(formData.entries());
-  const submittedFields: CreateParcelFormFields = createParcelFormFieldsSchema.parse(rawFormData);
+  const submittedFields = rawFormData as Record<string, string>;
 
   try {
     const currentUser = await requirePermission("parcel.create");
@@ -114,7 +107,6 @@ export async function createParcelAction(
       parcelType: parsed.data.parcelType,
       codAmount: parsed.data.codAmount,
       deliveryFee: parsed.data.deliveryFee,
-      deliveryFeeStatus: parsed.data.deliveryFeeStatus,
       codStatus: createCodStatus,
     });
 
@@ -149,7 +141,7 @@ export async function createParcelAction(
         status: DEFAULT_CREATE_PARCEL_STATE.parcelStatus,
       },
       paymentValues: {
-        deliveryFeeStatus: parsed.data.deliveryFeeStatus,
+        deliveryFeeStatus: DEFAULT_CREATE_PARCEL_STATE.deliveryFeeStatus,
         codStatus: createCodStatus,
         collectedAmount: "0.00",
         collectionStatus: DEFAULT_CREATE_PARCEL_STATE.collectionStatus,
@@ -182,7 +174,7 @@ export async function updateParcelAction(
   formData: FormData,
 ): Promise<UpdateParcelActionResult> {
   const rawFormData = Object.fromEntries(formData.entries());
-  const submittedFields: UpdateParcelFormFields = updateParcelFormFieldsSchema.parse(rawFormData);
+  const submittedFields = rawFormData as Record<string, string>;
 
   try {
     const currentUser = await requireAppAccessContext();

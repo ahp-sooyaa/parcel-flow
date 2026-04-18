@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import {
   DEFAULT_CREATE_PARCEL_STATE,
   DELIVERY_FEE_PAYERS,
-  DELIVERY_FEE_STATUSES,
   PARCEL_TYPES,
 } from "@/features/parcels/constants";
 import { createParcelAction } from "@/features/parcels/server/actions";
@@ -241,27 +240,10 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
           </select>
         </div>
 
-        <div className="grid gap-2">
-          <Label htmlFor="deliveryFeeStatus">Delivery Fee Status</Label>
-          <select
-            key={state.fields?.deliveryFeeStatus ?? DEFAULT_CREATE_PARCEL_STATE.deliveryFeeStatus}
-            id="deliveryFeeStatus"
-            name="deliveryFeeStatus"
-            defaultValue={
-              state.fields?.deliveryFeeStatus ?? DEFAULT_CREATE_PARCEL_STATE.deliveryFeeStatus
-            }
-            className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            required
-          >
-            <option value="" disabled>
-              Select delivery fee status
-            </option>
-            {DELIVERY_FEE_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
+        <div className="rounded-lg border bg-background p-3 text-xs text-muted-foreground">
+          Delivery fee status starts as <span className="font-medium text-foreground">unpaid</span>{" "}
+          on create. Update it later when payment is actually collected, billed, waived, or
+          deducted.
         </div>
 
         <div className="space-y-2 rounded-lg border bg-background p-3 text-xs">
@@ -275,7 +257,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
             </li>
             <li>Rider Payout Status: {DEFAULT_CREATE_PARCEL_STATE.riderPayoutStatus}</li>
             <li>Delivery Fee Payer: selectable (default: receiver)</li>
-            <li>Delivery Fee Status: selectable (default: unpaid)</li>
+            <li>Delivery Fee Status: unpaid</li>
           </ul>
         </div>
 

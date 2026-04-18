@@ -46,36 +46,6 @@ const moneyField = z.preprocess((value) => {
   return Number(normalized);
 }, z.number().finite().min(0).max(999999999));
 
-const formString = z.preprocess((value) => (typeof value === "string" ? value : ""), z.string());
-
-const createParcelFormFieldsShape = {
-  merchantId: formString,
-  riderId: formString,
-  recipientName: formString,
-  recipientPhone: formString,
-  recipientTownshipId: formString,
-  recipientAddress: formString,
-  parcelType: formString,
-  codAmount: formString,
-  deliveryFee: formString,
-  deliveryFeePayer: formString,
-  deliveryFeeStatus: formString,
-  paymentNote: formString,
-};
-
-export const createParcelFormFieldsSchema = z.object(createParcelFormFieldsShape);
-
-export const updateParcelFormFieldsSchema = z.object({
-  ...createParcelFormFieldsShape,
-  parcelId: formString,
-  parcelStatus: formString,
-  codStatus: formString,
-  collectedAmount: formString,
-  collectionStatus: formString,
-  merchantSettlementStatus: formString,
-  riderPayoutStatus: formString,
-});
-
 export const createParcelSchema = z.object({
   merchantId: z.string().trim().uuid(),
   riderId: optionalNullableUuid(),
@@ -87,24 +57,19 @@ export const createParcelSchema = z.object({
   codAmount: moneyField,
   deliveryFee: moneyField,
   deliveryFeePayer: z.enum(DELIVERY_FEE_PAYERS),
-  deliveryFeeStatus: z.enum(DELIVERY_FEE_STATUSES),
   paymentNote: optionalNullableTrimmedString(1000),
 });
 
-export const updateParcelSchema = createParcelSchema
-  .omit({
-    deliveryFeeStatus: true,
-  })
-  .extend({
-    parcelId: z.string().trim().uuid(),
-    parcelStatus: z.enum(PARCEL_STATUSES),
-    deliveryFeeStatus: z.enum(DELIVERY_FEE_STATUSES),
-    codStatus: z.enum(COD_STATUSES),
-    collectionStatus: z.enum(COLLECTION_STATUSES),
-    merchantSettlementStatus: z.enum(MERCHANT_SETTLEMENT_STATUSES),
-    riderPayoutStatus: z.enum(RIDER_PAYOUT_STATUSES),
-    collectedAmount: moneyField,
-  });
+export const updateParcelSchema = createParcelSchema.extend({
+  parcelId: z.string().trim().uuid(),
+  parcelStatus: z.enum(PARCEL_STATUSES),
+  deliveryFeeStatus: z.enum(DELIVERY_FEE_STATUSES),
+  codStatus: z.enum(COD_STATUSES),
+  collectionStatus: z.enum(COLLECTION_STATUSES),
+  merchantSettlementStatus: z.enum(MERCHANT_SETTLEMENT_STATUSES),
+  riderPayoutStatus: z.enum(RIDER_PAYOUT_STATUSES),
+  collectedAmount: moneyField,
+});
 
 export const advanceRiderParcelSchema = z.object({
   parcelId: z.string().trim().uuid(),
@@ -181,7 +146,7 @@ export function generateParcelCode(date = new Date()) {
   return `PF-${year}${month}${day}-${random}`;
 }
 
-export function validateCreateDeliveryFeeState(input: {
+export function validateDeliveryFeeState(input: {
   parcelType: (typeof PARCEL_TYPES)[number];
   codAmount: number;
   deliveryFee: number;
@@ -241,7 +206,7 @@ export async function validateParcelSubmission(input: {
   parcelType: (typeof PARCEL_TYPES)[number];
   codAmount: number;
   deliveryFee: number;
-  deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number];
+  deliveryFeeStatus?: (typeof DELIVERY_FEE_STATUSES)[number];
   codStatus: (typeof COD_STATUSES)[number];
 }) {
   const merchant = await findMerchantProfileLinkByAppUserId(input.merchantId);
@@ -264,15 +229,17 @@ export async function validateParcelSubmission(input: {
     return { ok: false as const, message: "Selected recipient township was not found." };
   }
 
-  const deliveryFeeStateGuard = validateCreateDeliveryFeeState({
-    parcelType: input.parcelType,
-    codAmount: input.codAmount,
-    deliveryFee: input.deliveryFee,
-    deliveryFeeStatus: input.deliveryFeeStatus,
-  });
+  if (input.deliveryFeeStatus) {
+    const deliveryFeeStateGuard = validateDeliveryFeeState({
+      parcelType: input.parcelType,
+      codAmount: input.codAmount,
+      deliveryFee: input.deliveryFee,
+      deliveryFeeStatus: input.deliveryFeeStatus,
+    });
 
-  if (!deliveryFeeStateGuard.ok) {
-    return deliveryFeeStateGuard;
+    if (!deliveryFeeStateGuard.ok) {
+      return deliveryFeeStateGuard;
+    }
   }
 
   return validateUpdateCodState({
