@@ -3,13 +3,43 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { getMerchantAccess } from "@/features/auth/server/policies/merchant";
 import { getParcelAccess } from "@/features/auth/server/policies/parcels";
+import { isAdminRole } from "@/features/auth/server/policies/shared";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { getMerchantByIdForViewer } from "@/features/merchant/server/dal";
-import { getMerchantParcelsListForViewer } from "@/features/parcels/server/dal";
+import {
+    getMerchantParcelStatsForViewer,
+    getMerchantParcelsListForViewer,
+} from "@/features/parcels/server/dal";
 
 type MerchantDetailPageProps = {
     params: Promise<{ id: string }>;
 };
+
+const countFormatter = new Intl.NumberFormat("en-US");
+const moneyFormatter = new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+});
+
+function formatCount(value: number) {
+    return countFormatter.format(value);
+}
+
+function formatMmk(value: string) {
+    const amount = Number(value);
+
+    if (!Number.isFinite(amount)) {
+        return "0 MMK";
+    }
+
+    return `${moneyFormatter.format(amount)} MMK`;
+}
+
+function formatStatus(value: string) {
+    const label = value.replaceAll("_", " ");
+
+    return label.charAt(0).toUpperCase() + label.slice(1);
+}
 
 export default async function MerchantDetailPage({ params }: Readonly<MerchantDetailPageProps>) {
     const currentUser = await requireAppAccessContext();
@@ -24,9 +54,10 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
         notFound();
     }
 
-    const [merchant, merchantParcels] = await Promise.all([
+    const [merchant, merchantParcels, merchantStats] = await Promise.all([
         getMerchantByIdForViewer(currentUser, id),
         getMerchantParcelsListForViewer(currentUser, id),
+        getMerchantParcelStatsForViewer(currentUser, id),
     ]);
 
     if (!merchant) {
@@ -34,62 +65,88 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
     }
 
     const parcelAccess = getParcelAccess({ viewer: currentUser });
+    const showInternalPaymentColumns = isAdminRole(currentUser.roleSlug);
+    const emptyColumnCount = showInternalPaymentColumns ? 9 : 7;
 
     const editMerchantHref =
         currentUser.roleSlug === "merchant"
             ? "/dashboard/profile"
             : `/dashboard/users/${merchant.id}/edit`;
+    const statCards = [
+        {
+            label: "Total Parcels",
+            value: formatCount(merchantStats.totalParcels),
+        },
+        {
+            label: "Delivered",
+            value: formatCount(merchantStats.deliveredParcels),
+        },
+        {
+            label: "Returned",
+            value: formatCount(merchantStats.returnedParcels),
+        },
+        {
+            label: "Total COD Collected",
+            value: formatMmk(merchantStats.totalCodCollected),
+        },
+        {
+            label: "COD Remitted",
+            value: formatMmk(merchantStats.codRemitted),
+        },
+        {
+            label: "COD in Held",
+            value: formatMmk(merchantStats.codInHeld),
+        },
+        {
+            label: "Pending Delivery Fee",
+            value: formatMmk(merchantStats.pendingDeliveryFee),
+        },
+    ];
 
     return (
-        <section className="mx-auto w-full max-w-3xl space-y-6">
-            <header className="space-y-1">
-                <h1 className="text-2xl font-semibold tracking-tight">{merchant.shopName}</h1>
-                <p className="text-sm text-muted-foreground">Merchant detail profile</p>
+        <section className="mx-auto w-full max-w-5xl space-y-6">
+            <header className="rounded-xl border bg-card p-5">
+                <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+                    <div className="min-w-0 space-y-3">
+                        <h1 className="text-2xl font-semibold break-words">{merchant.shopName}</h1>
+                        <div className="flex flex-col gap-1 text-sm text-muted-foreground sm:flex-row sm:items-center sm:gap-4">
+                            <p className="font-medium text-foreground">{merchant.contactName}</p>
+                            <p>{merchant.phoneNumber ?? "-"}</p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                        {merchantAccess.canUpdate && (
+                            <Button asChild variant="outline">
+                                <Link href={editMerchantHref}>Edit Merchant Profile</Link>
+                            </Button>
+                        )}
+                        {parcelAccess.canCreate && (
+                            <Button asChild>
+                                <Link href="/dashboard/parcels/create">Create Parcel</Link>
+                            </Button>
+                        )}
+                    </div>
+                </div>
             </header>
 
-            <div className="flex items-center gap-3">
-                {merchantAccess.canUpdate && (
-                    <Button asChild variant="outline">
-                        <Link href={editMerchantHref}>Edit Merchant Profile</Link>
-                    </Button>
-                )}
-                {parcelAccess.canCreate && (
-                    <Button asChild>
-                        <Link href="/dashboard/parcels/create">Create Parcel</Link>
-                    </Button>
-                )}
-            </div>
-
-            <div className="grid gap-4 rounded-xl border bg-card p-5 text-sm">
-                <div className="grid gap-1">
-                    <p className="text-xs text-muted-foreground">Contact Name</p>
-                    <p>{merchant.contactName}</p>
+            <section className="space-y-3">
+                <h2 className="text-lg font-semibold">Stats</h2>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {statCards.map((stat) => (
+                        <article key={stat.label} className="rounded-xl border bg-card p-4">
+                            <p className="text-xs font-medium text-muted-foreground uppercase">
+                                {stat.label}
+                            </p>
+                            <p className="mt-2 text-2xl font-semibold tabular-nums">{stat.value}</p>
+                        </article>
+                    ))}
                 </div>
-                <div className="grid gap-1">
-                    <p className="text-xs text-muted-foreground">Email</p>
-                    <p>{merchant.email}</p>
-                </div>
-                <div className="grid gap-1">
-                    <p className="text-xs text-muted-foreground">Phone Number</p>
-                    <p>{merchant.phoneNumber ?? "-"}</p>
-                </div>
-                <div className="grid gap-1">
-                    <p className="text-xs text-muted-foreground">Township</p>
-                    <p>{merchant.townshipName ?? "-"}</p>
-                </div>
-                <div className="grid gap-1">
-                    <p className="text-xs text-muted-foreground">Default Pickup Address</p>
-                    <p>{merchant.defaultPickupAddress ?? "-"}</p>
-                </div>
-                <div className="grid gap-1">
-                    <p className="text-xs text-muted-foreground">Notes</p>
-                    <p>{merchant.notes ?? "-"}</p>
-                </div>
-            </div>
+            </section>
 
             <section className="space-y-3">
                 <div>
-                    <h2 className="text-lg font-semibold tracking-tight">Parcels</h2>
+                    <h2 className="text-lg font-semibold">Parcels</h2>
                     <p className="text-sm text-muted-foreground">
                         Only parcels related to this merchant are listed here.
                     </p>
@@ -102,7 +159,15 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
                                 <th className="px-4 py-3">Parcel Code</th>
                                 <th className="px-4 py-3">Recipient</th>
                                 <th className="px-4 py-3">Township</th>
-                                <th className="px-4 py-3">Status</th>
+                                <th className="px-4 py-3">Parcel Status</th>
+                                <th className="px-4 py-3">COD Status</th>
+                                {showInternalPaymentColumns && (
+                                    <>
+                                        <th className="px-4 py-3">Collection Status</th>
+                                        <th className="px-4 py-3">Delivery Fee Status</th>
+                                    </>
+                                )}
+                                <th className="px-4 py-3">Settlement</th>
                                 <th className="px-4 py-3">Actions</th>
                             </tr>
                         </thead>
@@ -114,7 +179,23 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
                                     <td className="px-4 py-3">
                                         {parcel.recipientTownshipName ?? "-"}
                                     </td>
-                                    <td className="px-4 py-3">{parcel.parcelStatus}</td>
+                                    <td className="px-4 py-3">
+                                        {formatStatus(parcel.parcelStatus)}
+                                    </td>
+                                    <td className="px-4 py-3">{formatStatus(parcel.codStatus)}</td>
+                                    {showInternalPaymentColumns && (
+                                        <>
+                                            <td className="px-4 py-3">
+                                                {formatStatus(parcel.collectionStatus)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {formatStatus(parcel.deliveryFeeStatus)}
+                                            </td>
+                                        </>
+                                    )}
+                                    <td className="px-4 py-3">
+                                        {formatStatus(parcel.merchantSettlementStatus)}
+                                    </td>
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-2">
                                             <Button asChild size="sm" variant="outline">
@@ -144,7 +225,7 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
                             {merchantParcels.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={5}
+                                        colSpan={emptyColumnCount}
                                         className="px-4 py-10 text-center text-xs text-muted-foreground"
                                     >
                                         No parcels found for this merchant.

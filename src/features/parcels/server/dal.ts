@@ -1,8 +1,9 @@
 import "server-only";
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull, sql } from "drizzle-orm";
 import {
     type AuditLogInsertInput,
     type CreateParcelInsertInput,
+    type MerchantParcelStatsDto,
     type CreatePaymentInsertInput,
     type ParcelDetailDto,
     type ParcelListItemDto,
@@ -10,6 +11,7 @@ import {
     type ParcelPaymentUpdatePatch,
     type ParcelUpdateContextDto,
     type ParcelUpdatePatch,
+    toMerchantParcelStatsDto,
     toParcelDetailDto,
     toParcelListItemDto,
     toParcelUpdateContextDto,
@@ -45,7 +47,9 @@ async function listParcels(): Promise<ParcelListItemDto[]> {
             recipientTownshipName: townships.name,
             parcelStatus: parcels.status,
             deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
+            codStatus: parcelPaymentRecords.codStatus,
             collectionStatus: parcelPaymentRecords.collectionStatus,
+            merchantSettlementStatus: parcelPaymentRecords.merchantSettlementStatus,
             createdAt: parcels.createdAt,
         })
         .from(parcels)
@@ -81,7 +85,9 @@ async function listMerchantParcels(merchantId: string): Promise<ParcelListItemDt
             recipientTownshipName: townships.name,
             parcelStatus: parcels.status,
             deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
+            codStatus: parcelPaymentRecords.codStatus,
             collectionStatus: parcelPaymentRecords.collectionStatus,
+            merchantSettlementStatus: parcelPaymentRecords.merchantSettlementStatus,
             createdAt: parcels.createdAt,
         })
         .from(parcels)
@@ -92,6 +98,90 @@ async function listMerchantParcels(merchantId: string): Promise<ParcelListItemDt
         .orderBy(desc(parcels.createdAt));
 
     return rows.map((row) => toParcelListItemDto(row));
+}
+
+async function getMerchantParcelStats(merchantId: string): Promise<MerchantParcelStatsDto> {
+    const [row] = await db
+        .select({
+            totalParcels: count(parcels.id),
+            deliveredParcels: sql<number>`
+                count(*) filter (where ${parcels.status} = 'delivered')::int
+            `,
+            returnedParcels: sql<number>`
+                count(*) filter (where ${parcels.status} = 'returned')::int
+            `,
+            totalCodCollected: sql<string>`
+                coalesce(
+                    sum(
+                        case
+                            when ${parcelPaymentRecords.codStatus} = 'collected'
+                            then ${parcels.codAmount}
+                            else 0
+                        end
+                    ),
+                    0
+                )::numeric(12, 2)::text
+            `,
+            codRemitted: sql<string>`
+                coalesce(
+                    sum(
+                        case
+                            when ${parcelPaymentRecords.codStatus} = 'collected'
+                                and ${parcelPaymentRecords.merchantSettlementStatus} = 'settled'
+                            then ${parcels.codAmount}
+                            else 0
+                        end
+                    ),
+                    0
+                )::numeric(12, 2)::text
+            `,
+            codInHeld: sql<string>`
+                coalesce(
+                    sum(
+                        case
+                            when ${parcelPaymentRecords.codStatus} = 'collected'
+                                and ${parcelPaymentRecords.merchantSettlementStatus}
+                                    in ('pending', 'in_progress')
+                            then ${parcels.codAmount}
+                            else 0
+                        end
+                    ),
+                    0
+                )::numeric(12, 2)::text
+            `,
+            pendingDeliveryFee: sql<string>`
+                coalesce(
+                    sum(
+                        case
+                            when ${parcelPaymentRecords.deliveryFeeStatus} = 'bill_merchant'
+                                or (
+                                    ${parcels.deliveryFeePayer} = 'merchant'
+                                    and ${parcelPaymentRecords.deliveryFeeStatus}
+                                        in ('unpaid', 'bill_merchant')
+                                )
+                            then ${parcels.deliveryFee}
+                            else 0
+                        end
+                    ),
+                    0
+                )::numeric(12, 2)::text
+            `,
+        })
+        .from(parcels)
+        .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
+        .where(eq(parcels.merchantId, merchantId));
+
+    return toMerchantParcelStatsDto(
+        row ?? {
+            totalParcels: 0,
+            deliveredParcels: 0,
+            returnedParcels: 0,
+            totalCodCollected: "0",
+            codRemitted: "0",
+            codInHeld: "0",
+            pendingDeliveryFee: "0",
+        },
+    );
 }
 
 export async function getMerchantParcelsListForViewer(
@@ -112,6 +202,32 @@ export async function getMerchantParcelsListForViewer(
     return listMerchantParcels(merchantId);
 }
 
+export async function getMerchantParcelStatsForViewer(
+    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    merchantId: string,
+): Promise<MerchantParcelStatsDto> {
+    const parcelAccess = getParcelAccess({
+        viewer,
+        parcel: {
+            merchantId,
+        },
+    });
+
+    if (!parcelAccess.canView) {
+        return toMerchantParcelStatsDto({
+            totalParcels: 0,
+            deliveredParcels: 0,
+            returnedParcels: 0,
+            totalCodCollected: "0",
+            codRemitted: "0",
+            codInHeld: "0",
+            pendingDeliveryFee: "0",
+        });
+    }
+
+    return getMerchantParcelStats(merchantId);
+}
+
 async function listAssignedRiderParcels(riderId: string): Promise<ParcelListItemDto[]> {
     const rows = await db
         .select({
@@ -124,7 +240,9 @@ async function listAssignedRiderParcels(riderId: string): Promise<ParcelListItem
             recipientTownshipName: townships.name,
             parcelStatus: parcels.status,
             deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
+            codStatus: parcelPaymentRecords.codStatus,
             collectionStatus: parcelPaymentRecords.collectionStatus,
+            merchantSettlementStatus: parcelPaymentRecords.merchantSettlementStatus,
             createdAt: parcels.createdAt,
         })
         .from(parcels)
