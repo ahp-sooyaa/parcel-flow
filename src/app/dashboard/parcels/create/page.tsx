@@ -23,7 +23,10 @@ export default async function CreateParcelPage() {
 
       <CreateParcelForm
         options={options}
-        readOnly={{ merchantField: currentUser.roleSlug === "merchant" }}
+        readOnly={{
+          merchantField: currentUser.roleSlug === "merchant",
+          hidePaymentSlipField: currentUser.roleSlug === "merchant",
+        }}
       />
     </section>
   );

@@ -12,11 +12,17 @@ import {
 } from "./dal";
 import {
   advanceRiderParcelSchema,
-  createParcelSchema,
+  buildParcelPaymentWriteValues,
+  buildParcelWriteValues,
   DEFAULT_CREATE_PARCEL_STATE,
   generateParcelCode,
   getDefaultCreateCodStatus,
-  updateParcelSchema,
+  mergeParcelImageKeys,
+  parseCreateParcelFormData,
+  parseRiderParcelImageUploadFormData,
+  parseUpdateParcelFormData,
+  uploadParcelMediaFiles,
+  validateParcelImageAppendLimits,
   validateParcelSubmission,
 } from "./utils";
 import {
@@ -26,9 +32,13 @@ import {
   getRiderParcelActionAccess,
 } from "@/features/auth/server/policies/parcels";
 import { requireAppAccessContext, requirePermission } from "@/features/auth/server/utils";
-import { computeTotalAmountToCollect, toMoneyString } from "@/features/parcels/server/utils";
+import { computeTotalAmountToCollect } from "@/features/parcels/server/utils";
 
-import type { CreateParcelActionResult, UpdateParcelActionResult } from "./dto";
+import type {
+  CreateParcelActionResult,
+  RiderParcelImageUploadActionResult,
+  UpdateParcelActionResult,
+} from "./dto";
 
 async function generateUniqueParcelCode(maxAttempts = 10) {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
@@ -69,24 +79,72 @@ function revalidateParcelPaths(input: {
   }
 }
 
+function rejectMerchantPaymentSlipUpload(
+  roleSlug: string,
+  paymentSlipImageCount: number,
+  fields: Record<string, string>,
+) {
+  if (roleSlug === "merchant" && paymentSlipImageCount > 0) {
+    return {
+      ok: false as const,
+      message: "Merchant users cannot upload payment slip images.",
+      fields,
+      fieldErrors: {
+        paymentSlipImages: ["Merchant users cannot upload payment slip images."],
+      },
+    };
+  }
+
+  return null;
+}
+
+function rejectRiderPaymentSlipUpload(
+  paymentSlipImageCount: number,
+  fields: Record<string, string>,
+) {
+  if (paymentSlipImageCount > 0) {
+    return {
+      ok: false as const,
+      message: "Rider users cannot upload payment slip images.",
+      fields,
+      fieldErrors: {
+        paymentSlipImages: ["Rider users cannot upload payment slip images."],
+      },
+    };
+  }
+
+  return null;
+}
+
 export async function createParcelAction(
   _prevState: CreateParcelActionResult,
   formData: FormData,
 ): Promise<CreateParcelActionResult> {
-  const rawFormData = Object.fromEntries(formData.entries());
-  const submittedFields = rawFormData as Record<string, string>;
+  let submittedFields: Record<string, string> = {};
 
   try {
     const currentUser = await requirePermission("parcel.create");
+    const parsed = parseCreateParcelFormData(formData);
 
-    const parsed = createParcelSchema.safeParse(rawFormData);
+    submittedFields = parsed.fields;
 
-    if (!parsed.success) {
+    if (!parsed.ok) {
       return {
         ok: false,
-        message: "Please provide valid parcel and payment details.",
+        message: parsed.message,
         fields: submittedFields,
+        fieldErrors: parsed.fieldErrors,
       };
+    }
+
+    const merchantUploadGuard = rejectMerchantPaymentSlipUpload(
+      currentUser.roleSlug,
+      parsed.files.paymentSlipImages.length,
+      submittedFields,
+    );
+
+    if (merchantUploadGuard) {
+      return merchantUploadGuard;
     }
 
     const createAuthorization = authorizeParcelCreate({
@@ -114,6 +172,22 @@ export async function createParcelAction(
       return { ok: false, message: submissionGuard.message, fields: submittedFields };
     }
 
+    const appendLimitGuard = validateParcelImageAppendLimits({
+      currentPickupImageCount: 0,
+      currentProofOfDeliveryImageCount: 0,
+      currentPaymentSlipImageCount: 0,
+      files: parsed.files,
+    });
+
+    if (!appendLimitGuard.ok) {
+      return {
+        ok: false,
+        message: appendLimitGuard.message,
+        fields: submittedFields,
+        fieldErrors: appendLimitGuard.fieldErrors,
+      };
+    }
+
     const parcelCode = await generateUniqueParcelCode();
 
     const totalAmountToCollect = computeTotalAmountToCollect({
@@ -122,33 +196,35 @@ export async function createParcelAction(
       deliveryFee: parsed.data.deliveryFee,
       deliveryFeePayer: parsed.data.deliveryFeePayer,
     });
+    const uploadedMedia = await uploadParcelMediaFiles({
+      parcelCode,
+      files: parsed.files,
+    });
 
     const created = await createParcelWithPaymentAndAudit({
       actorAppUserId: currentUser.appUserId,
       parcelValues: {
         parcelCode,
-        merchantId: createAuthorization.merchantId,
-        riderId: parsed.data.riderId,
-        recipientName: parsed.data.recipientName,
-        recipientPhone: parsed.data.recipientPhone,
-        recipientTownshipId: parsed.data.recipientTownshipId,
-        recipientAddress: parsed.data.recipientAddress,
-        parcelType: parsed.data.parcelType,
-        codAmount: toMoneyString(parsed.data.parcelType === "cod" ? parsed.data.codAmount : 0),
-        deliveryFee: toMoneyString(parsed.data.deliveryFee),
-        totalAmountToCollect: toMoneyString(totalAmountToCollect),
-        deliveryFeePayer: parsed.data.deliveryFeePayer,
-        status: DEFAULT_CREATE_PARCEL_STATE.parcelStatus,
+        ...buildParcelWriteValues({
+          data: parsed.data,
+          merchantId: createAuthorization.merchantId,
+          riderId: parsed.data.riderId,
+          totalAmountToCollect,
+          parcelStatus: DEFAULT_CREATE_PARCEL_STATE.parcelStatus,
+          pickupImageKeys: uploadedMedia.pickupImageKeys,
+          proofOfDeliveryImageKeys: uploadedMedia.proofOfDeliveryImageKeys,
+        }),
       },
-      paymentValues: {
+      paymentValues: buildParcelPaymentWriteValues({
         deliveryFeeStatus: DEFAULT_CREATE_PARCEL_STATE.deliveryFeeStatus,
         codStatus: createCodStatus,
-        collectedAmount: "0.00",
+        collectedAmount: 0,
         collectionStatus: DEFAULT_CREATE_PARCEL_STATE.collectionStatus,
         merchantSettlementStatus: DEFAULT_CREATE_PARCEL_STATE.merchantSettlementStatus,
         riderPayoutStatus: DEFAULT_CREATE_PARCEL_STATE.riderPayoutStatus,
-        note: parsed.data.paymentNote,
-      },
+        paymentNote: parsed.data.paymentNote,
+        paymentSlipImageKeys: uploadedMedia.paymentSlipImageKeys,
+      }),
     });
 
     revalidateParcelPaths({
@@ -173,26 +249,53 @@ export async function updateParcelAction(
   _prevState: UpdateParcelActionResult,
   formData: FormData,
 ): Promise<UpdateParcelActionResult> {
-  const rawFormData = Object.fromEntries(formData.entries());
-  const submittedFields = rawFormData as Record<string, string>;
+  let submittedFields: Record<string, string> = {};
 
   try {
     const currentUser = await requireAppAccessContext();
+    const parsed = parseUpdateParcelFormData(formData);
 
-    const parsed = updateParcelSchema.safeParse(rawFormData);
+    submittedFields = parsed.fields;
 
-    if (!parsed.success) {
+    if (!parsed.ok) {
       return {
         ok: false,
-        message: "Please provide valid parcel and payment update details.",
+        message: parsed.message,
         fields: submittedFields,
+        fieldErrors: parsed.fieldErrors,
       };
+    }
+
+    const merchantUploadGuard = rejectMerchantPaymentSlipUpload(
+      currentUser.roleSlug,
+      parsed.files.paymentSlipImages.length,
+      submittedFields,
+    );
+
+    if (merchantUploadGuard) {
+      return merchantUploadGuard;
     }
 
     const current = await getParcelUpdateContextForViewer(currentUser, parsed.data.parcelId);
 
     if (!current) {
       return { ok: false, message: "Parcel was not found.", fields: submittedFields };
+    }
+
+    const appendLimitGuard = validateParcelImageAppendLimits({
+      currentPickupImageCount: current.parcel.pickupImageKeys.length,
+      currentProofOfDeliveryImageCount: current.parcel.proofOfDeliveryImageKeys.length,
+      currentPaymentSlipImageCount: current.payment.paymentSlipImageKeys.length,
+      files: parsed.files,
+    });
+
+    if (!appendLimitGuard.ok) {
+      return {
+        ok: false,
+        message: appendLimitGuard.message,
+        fields: submittedFields,
+        fieldErrors: appendLimitGuard.fieldErrors,
+      };
     }
 
     const updateAuthorization = authorizeParcelUpdate({
@@ -228,27 +331,32 @@ export async function updateParcelAction(
       deliveryFee: parsed.data.deliveryFee,
       deliveryFeePayer: parsed.data.deliveryFeePayer,
     });
+    const uploadedMedia = await uploadParcelMediaFiles({
+      parcelCode: current.parcel.parcelCode,
+      files: parsed.files,
+    });
 
     const parcelPatch = buildParcelPatch({
       current: current.parcel,
-      next: {
+      next: buildParcelWriteValues({
+        data: parsed.data,
         merchantId: actorScopedUpdate.merchantId,
         riderId: actorScopedUpdate.riderId,
-        recipientName: parsed.data.recipientName,
-        recipientPhone: parsed.data.recipientPhone,
-        recipientTownshipId: parsed.data.recipientTownshipId,
-        recipientAddress: parsed.data.recipientAddress,
-        parcelType: parsed.data.parcelType,
-        codAmount: parsed.data.parcelType === "cod" ? parsed.data.codAmount : 0,
-        deliveryFee: parsed.data.deliveryFee,
         totalAmountToCollect,
-        deliveryFeePayer: parsed.data.deliveryFeePayer,
         parcelStatus: actorScopedUpdate.parcelStatus,
-      },
+        pickupImageKeys: mergeParcelImageKeys(
+          current.parcel.pickupImageKeys,
+          uploadedMedia.pickupImageKeys,
+        ),
+        proofOfDeliveryImageKeys: mergeParcelImageKeys(
+          current.parcel.proofOfDeliveryImageKeys,
+          uploadedMedia.proofOfDeliveryImageKeys,
+        ),
+      }),
     });
     const paymentPatch = buildPaymentPatch({
       current: current.payment,
-      next: {
+      next: buildParcelPaymentWriteValues({
         deliveryFeeStatus: actorScopedUpdate.deliveryFeeStatus,
         codStatus: actorScopedUpdate.codStatus,
         collectedAmount: actorScopedUpdate.collectedAmount,
@@ -256,7 +364,11 @@ export async function updateParcelAction(
         merchantSettlementStatus: actorScopedUpdate.merchantSettlementStatus,
         riderPayoutStatus: actorScopedUpdate.riderPayoutStatus,
         paymentNote: actorScopedUpdate.paymentNote,
-      },
+        paymentSlipImageKeys: mergeParcelImageKeys(
+          current.payment.paymentSlipImageKeys,
+          uploadedMedia.paymentSlipImageKeys,
+        ),
+      }),
     });
 
     if (
@@ -358,5 +470,133 @@ export async function advanceRiderParcelAction(formData: FormData): Promise<void
     });
   } catch (error) {
     console.error(error instanceof Error ? error.message : "Unable to update parcel status.");
+  }
+}
+
+export async function uploadRiderParcelImagesAction(
+  _prevState: RiderParcelImageUploadActionResult,
+  formData: FormData,
+): Promise<RiderParcelImageUploadActionResult> {
+  let submittedFields: Record<string, string> = {};
+
+  try {
+    const currentUser = await requireAppAccessContext();
+    const parsed = parseRiderParcelImageUploadFormData(formData);
+
+    submittedFields = parsed.fields;
+
+    if (!parsed.ok) {
+      return {
+        ok: false,
+        message: parsed.message,
+        fields: submittedFields,
+        fieldErrors: parsed.fieldErrors,
+      };
+    }
+
+    const riderUploadGuard = rejectRiderPaymentSlipUpload(
+      parsed.files.paymentSlipImages.length,
+      submittedFields,
+    );
+
+    if (riderUploadGuard) {
+      return riderUploadGuard;
+    }
+
+    const current = await getParcelUpdateContextForViewer(currentUser, parsed.data.parcelId);
+
+    if (!current) {
+      return { ok: false, message: "Parcel was not found.", fields: submittedFields };
+    }
+
+    const riderParcelActionAccess = getRiderParcelActionAccess({
+      viewer: currentUser,
+      parcel: {
+        riderId: current.parcel.riderId,
+      },
+    });
+
+    if (!riderParcelActionAccess.canUploadProofOfDelivery) {
+      return { ok: false, message: "You are not allowed to upload parcel images." };
+    }
+
+    const appendLimitGuard = validateParcelImageAppendLimits({
+      currentPickupImageCount: current.parcel.pickupImageKeys.length,
+      currentProofOfDeliveryImageCount: current.parcel.proofOfDeliveryImageKeys.length,
+      currentPaymentSlipImageCount: current.payment.paymentSlipImageKeys.length,
+      files: parsed.files,
+    });
+
+    if (!appendLimitGuard.ok) {
+      return {
+        ok: false,
+        message: appendLimitGuard.message,
+        fields: submittedFields,
+        fieldErrors: appendLimitGuard.fieldErrors,
+      };
+    }
+
+    if (parsed.files.pickupImages.length === 0 && parsed.files.proofOfDeliveryImages.length === 0) {
+      return {
+        ok: false,
+        message: "Please select at least one pickup or proof of delivery image.",
+        fields: submittedFields,
+        fieldErrors: {
+          pickupImages: ["Select at least one image to upload."],
+          proofOfDeliveryImages: ["Select at least one image to upload."],
+        },
+      };
+    }
+
+    const uploadedMedia = await uploadParcelMediaFiles({
+      parcelCode: current.parcel.parcelCode,
+      files: parsed.files,
+    });
+
+    const { id: _id, parcelCode: _parcelCode, ...currentParcelValues } = current.parcel;
+    const parcelPatch = buildParcelPatch({
+      current: current.parcel,
+      next: {
+        ...currentParcelValues,
+        pickupImageKeys: mergeParcelImageKeys(
+          current.parcel.pickupImageKeys,
+          uploadedMedia.pickupImageKeys,
+        ),
+        proofOfDeliveryImageKeys: mergeParcelImageKeys(
+          current.parcel.proofOfDeliveryImageKeys,
+          uploadedMedia.proofOfDeliveryImageKeys,
+        ),
+      },
+    });
+
+    if (Object.keys(parcelPatch.patch).length === 0) {
+      return { ok: true, message: "No changes detected.", fields: submittedFields };
+    }
+
+    await updateParcelAndPaymentWithAudit({
+      actorAppUserId: currentUser.appUserId,
+      parcelId: parsed.data.parcelId,
+      parcelPatch: parcelPatch.patch,
+      paymentPatch: {},
+      parcelOldValues: parcelPatch.oldValues,
+      paymentOldValues: null,
+      parcelEvent: "parcel.rider_images_uploaded",
+    });
+
+    revalidateParcelPaths({
+      parcelId: parsed.data.parcelId,
+      merchantIds: [current.parcel.merchantId],
+      riderIds: [current.parcel.riderId],
+    });
+
+    return {
+      ok: true,
+      message: "Parcel images uploaded successfully.",
+      fields: submittedFields,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to upload parcel images.";
+
+    return { ok: false, message, fields: submittedFields };
   }
 }

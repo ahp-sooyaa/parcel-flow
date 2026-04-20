@@ -6,6 +6,7 @@ import {
   getParcelAccess,
 } from "@/features/auth/server/policies/parcels";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
+import { ParcelImageList } from "@/features/parcels/components/parcel-image-list";
 import { RiderParcelDetail } from "@/features/parcels/components/rider-parcel-detail";
 import { getParcelByIdForViewer } from "@/features/parcels/server/dal";
 import { toRiderParcelDetailDto } from "@/features/parcels/server/dto";
@@ -100,6 +101,30 @@ export default async function ParcelDetailPage({ params }: Readonly<ParcelDetail
           <p>{parcel.recipientAddress}</p>
         </div>
         <div className="grid gap-1">
+          <p className="text-xs text-muted-foreground">Parcel Description</p>
+          <p>{parcel.parcelDescription}</p>
+        </div>
+        <div className="grid gap-1">
+          <p className="text-xs text-muted-foreground">Package Count</p>
+          <p>{parcel.packageCount}</p>
+        </div>
+        <div className="grid gap-1">
+          <p className="text-xs text-muted-foreground">Special Handling Note</p>
+          <p>{parcel.specialHandlingNote ?? "-"}</p>
+        </div>
+        <div className="grid gap-1">
+          <p className="text-xs text-muted-foreground">Estimated Weight</p>
+          <p>{parcel.estimatedWeightKg ? `${parcel.estimatedWeightKg} kg` : "-"}</p>
+        </div>
+        <div className="grid gap-1">
+          <p className="text-xs text-muted-foreground">Dimensions</p>
+          <p>
+            {parcel.packageWidthCm && parcel.packageHeightCm && parcel.packageLengthCm
+              ? `${parcel.packageWidthCm} x ${parcel.packageHeightCm} x ${parcel.packageLengthCm} cm`
+              : "-"}
+          </p>
+        </div>
+        <div className="grid gap-1">
           <p className="text-xs text-muted-foreground">Parcel Status</p>
           <p>{parcel.parcelStatus}</p>
         </div>
@@ -135,6 +160,14 @@ export default async function ParcelDetailPage({ params }: Readonly<ParcelDetail
           <p className="text-xs text-muted-foreground">Total Amount To Collect</p>
           <p>{parcel.totalAmountToCollect}</p>
         </div>
+      </div>
+
+      <div className="space-y-4 rounded-xl border bg-card p-5">
+        <ParcelImageList title="Pickup Images" images={parcel.pickupImages} />
+        <ParcelImageList title="Proof Of Delivery Images" images={parcel.proofOfDeliveryImages} />
+        {currentUser.roleSlug !== "merchant" && (
+          <ParcelImageList title="Payment Slip Images" images={parcel.paymentSlipImages} />
+        )}
       </div>
     </section>
   );

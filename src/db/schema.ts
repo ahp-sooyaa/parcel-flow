@@ -1,5 +1,6 @@
 import {
   boolean,
+  integer,
   index,
   jsonb,
   numeric,
@@ -194,6 +195,18 @@ export const parcels = pgTable(
       .notNull()
       .references(() => townships.id, { onDelete: "restrict" }),
     recipientAddress: text("recipient_address").notNull(),
+    parcelDescription: text("parcel_description").notNull().default(""),
+    packageCount: integer("package_count").notNull().default(1),
+    specialHandlingNote: text("special_handling_note"),
+    estimatedWeightKg: numeric("estimated_weight_kg", { precision: 12, scale: 2 }),
+    packageWidthCm: numeric("package_width_cm", { precision: 12, scale: 2 }),
+    packageHeightCm: numeric("package_height_cm", { precision: 12, scale: 2 }),
+    packageLengthCm: numeric("package_length_cm", { precision: 12, scale: 2 }),
+    pickupImageKeys: jsonb("pickup_image_keys").$type<string[]>().notNull().default([]),
+    proofOfDeliveryImageKeys: jsonb("proof_of_delivery_image_keys")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
     codAmount: numeric("cod_amount", { precision: 12, scale: 2 }).notNull().default("0"),
     deliveryFee: numeric("delivery_fee", { precision: 12, scale: 2 }).notNull().default("0"),
     deliveryFeePayer: text("delivery_fee_payer", { enum: DELIVERY_FEE_PAYER_VALUES })
@@ -241,6 +254,7 @@ export const parcelPaymentRecords = pgTable(
       .notNull()
       .default("pending"),
     note: text("note"),
+    paymentSlipImageKeys: jsonb("payment_slip_image_keys").$type<string[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

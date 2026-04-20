@@ -4,15 +4,15 @@ import {
   type AuditLogInsertInput,
   type CreateParcelInsertInput,
   type CreatePaymentInsertInput,
-  type ParcelPaymentUpdatePatch,
-  toParcelDetailDto,
-  toParcelListItemDto,
-  toParcelUpdateContextDto,
-  type ParcelUpdatePatch,
   type ParcelDetailDto,
   type ParcelListItemDto,
   type ParcelOptionDto,
+  type ParcelPaymentUpdatePatch,
   type ParcelUpdateContextDto,
+  type ParcelUpdatePatch,
+  toParcelDetailDto,
+  toParcelListItemDto,
+  toParcelUpdateContextDto,
 } from "./dto";
 import { db } from "@/db";
 import {
@@ -28,8 +28,9 @@ import {
   getParcelAccess,
   getRiderParcelActionAccess,
 } from "@/features/auth/server/policies/parcels";
-import { toMoneyString } from "@/features/parcels/server/utils";
+import { normalizePatchValue, signParcelImageKeys } from "@/features/parcels/server/utils";
 
+import type { ParcelPaymentWriteValues, ParcelWriteValues } from "./utils";
 import type { AppAccessContext } from "@/features/auth/server/dto";
 
 async function listParcels(): Promise<ParcelListItemDto[]> {
@@ -155,7 +156,7 @@ export async function getAssignedRiderParcelsListForViewer(
   return listAssignedRiderParcels(riderId);
 }
 
-async function findParcelDetailById(parcelId: string): Promise<ParcelDetailDto | null> {
+async function findParcelDetailRowById(parcelId: string) {
   const [row] = await db
     .select({
       id: parcels.id,
@@ -169,6 +170,15 @@ async function findParcelDetailById(parcelId: string): Promise<ParcelDetailDto |
       recipientTownshipId: parcels.recipientTownshipId,
       recipientTownshipName: townships.name,
       recipientAddress: parcels.recipientAddress,
+      parcelDescription: parcels.parcelDescription,
+      packageCount: parcels.packageCount,
+      specialHandlingNote: parcels.specialHandlingNote,
+      estimatedWeightKg: parcels.estimatedWeightKg,
+      packageWidthCm: parcels.packageWidthCm,
+      packageHeightCm: parcels.packageHeightCm,
+      packageLengthCm: parcels.packageLengthCm,
+      pickupImageKeys: parcels.pickupImageKeys,
+      proofOfDeliveryImageKeys: parcels.proofOfDeliveryImageKeys,
       parcelType: parcels.parcelType,
       codAmount: parcels.codAmount,
       deliveryFee: parcels.deliveryFee,
@@ -182,6 +192,7 @@ async function findParcelDetailById(parcelId: string): Promise<ParcelDetailDto |
       merchantSettlementStatus: parcelPaymentRecords.merchantSettlementStatus,
       riderPayoutStatus: parcelPaymentRecords.riderPayoutStatus,
       paymentNote: parcelPaymentRecords.note,
+      paymentSlipImageKeys: parcelPaymentRecords.paymentSlipImageKeys,
       createdAt: parcels.createdAt,
       updatedAt: parcels.updatedAt,
     })
@@ -194,28 +205,24 @@ async function findParcelDetailById(parcelId: string): Promise<ParcelDetailDto |
     .where(eq(parcels.id, parcelId))
     .limit(1);
 
-  if (!row) {
-    return null;
-  }
-
-  return toParcelDetailDto(row);
+  return row ?? null;
 }
 
 export async function getParcelByIdForViewer(
   viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
   parcelId: string,
 ): Promise<ParcelDetailDto | null> {
-  const parcel = await findParcelDetailById(parcelId);
+  const row = await findParcelDetailRowById(parcelId);
 
-  if (!parcel) {
+  if (!row) {
     return null;
   }
 
   const parcelAccess = getParcelAccess({
     viewer,
     parcel: {
-      merchantId: parcel.merchantId,
-      riderId: parcel.riderId,
+      merchantId: row.merchantId,
+      riderId: row.riderId,
     },
   });
 
@@ -223,7 +230,17 @@ export async function getParcelByIdForViewer(
     return null;
   }
 
-  return parcel;
+  const pickupImageKeys = row.pickupImageKeys ?? [];
+  const proofOfDeliveryImageKeys = row.proofOfDeliveryImageKeys ?? [];
+  const paymentSlipImageKeys = row.paymentSlipImageKeys ?? [];
+
+  return toParcelDetailDto({
+    ...row,
+    pickupImages: await signParcelImageKeys(pickupImageKeys),
+    proofOfDeliveryImages: await signParcelImageKeys(proofOfDeliveryImageKeys),
+    paymentSlipImages:
+      viewer.roleSlug === "merchant" ? [] : await signParcelImageKeys(paymentSlipImageKeys),
+  });
 }
 
 export async function isParcelCodeInUse(parcelCode: string): Promise<boolean> {
@@ -339,6 +356,15 @@ async function findParcelUpdateContextById(
       recipientPhone: parcels.recipientPhone,
       recipientTownshipId: parcels.recipientTownshipId,
       recipientAddress: parcels.recipientAddress,
+      parcelDescription: parcels.parcelDescription,
+      packageCount: parcels.packageCount,
+      specialHandlingNote: parcels.specialHandlingNote,
+      estimatedWeightKg: parcels.estimatedWeightKg,
+      packageWidthCm: parcels.packageWidthCm,
+      packageHeightCm: parcels.packageHeightCm,
+      packageLengthCm: parcels.packageLengthCm,
+      pickupImageKeys: parcels.pickupImageKeys,
+      proofOfDeliveryImageKeys: parcels.proofOfDeliveryImageKeys,
       parcelType: parcels.parcelType,
       codAmount: parcels.codAmount,
       deliveryFee: parcels.deliveryFee,
@@ -353,6 +379,7 @@ async function findParcelUpdateContextById(
       merchantSettlementStatus: parcelPaymentRecords.merchantSettlementStatus,
       riderPayoutStatus: parcelPaymentRecords.riderPayoutStatus,
       paymentNote: parcelPaymentRecords.note,
+      paymentSlipImageKeys: parcelPaymentRecords.paymentSlipImageKeys,
     })
     .from(parcels)
     .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
@@ -443,52 +470,16 @@ export async function updateParcelAndPaymentWithAudit(input: {
 
 export function buildParcelPatch(input: {
   current: ParcelUpdateContextDto["parcel"];
-  next: {
-    merchantId: string;
-    riderId: string | null;
-    recipientName: string;
-    recipientPhone: string;
-    recipientTownshipId: string;
-    recipientAddress: string;
-    parcelType: "cod" | "non_cod";
-    codAmount: number;
-    deliveryFee: number;
-    totalAmountToCollect: number;
-    deliveryFeePayer: "merchant" | "receiver";
-    parcelStatus:
-      | "pending"
-      | "out_for_pickup"
-      | "at_office"
-      | "out_for_delivery"
-      | "delivered"
-      | "return_to_office"
-      | "return_to_merchant"
-      | "returned"
-      | "cancelled";
-  };
+  next: ParcelWriteValues;
 }) {
-  const nextValues: ParcelUpdatePatch = {
-    merchantId: input.next.merchantId,
-    riderId: input.next.riderId,
-    recipientName: input.next.recipientName,
-    recipientPhone: input.next.recipientPhone,
-    recipientTownshipId: input.next.recipientTownshipId,
-    recipientAddress: input.next.recipientAddress,
-    parcelType: input.next.parcelType,
-    codAmount: toMoneyString(input.next.codAmount),
-    deliveryFee: toMoneyString(input.next.deliveryFee),
-    totalAmountToCollect: toMoneyString(input.next.totalAmountToCollect),
-    deliveryFeePayer: input.next.deliveryFeePayer,
-    status: input.next.parcelStatus,
-  };
   const patch: ParcelUpdatePatch = {};
   const oldValues: Record<string, unknown> = {};
 
-  for (const [key, value] of Object.entries(nextValues)) {
+  for (const [key, value] of Object.entries(input.next)) {
     const keyName = key as keyof ParcelUpdatePatch;
     const currentValue = input.current[keyName];
 
-    if (currentValue !== value) {
+    if (normalizePatchValue(currentValue) !== normalizePatchValue(value)) {
       patch[keyName] = value as never;
       oldValues[keyName] = currentValue;
     }
@@ -499,44 +490,16 @@ export function buildParcelPatch(input: {
 
 export function buildPaymentPatch(input: {
   current: ParcelUpdateContextDto["payment"];
-  next: {
-    deliveryFeeStatus:
-      | "unpaid"
-      | "paid_by_merchant"
-      | "collected_from_receiver"
-      | "deduct_from_settlement"
-      | "bill_merchant"
-      | "waived";
-    codStatus: "not_applicable" | "pending" | "collected" | "not_collected";
-    collectedAmount: number;
-    collectionStatus:
-      | "pending"
-      | "not_collected"
-      | "collected_by_rider"
-      | "received_by_office"
-      | "void";
-    merchantSettlementStatus: "pending" | "in_progress" | "settled";
-    riderPayoutStatus: "pending" | "in_progress" | "paid";
-    paymentNote: string | null;
-  };
+  next: ParcelPaymentWriteValues;
 }) {
-  const nextValues: ParcelPaymentUpdatePatch = {
-    deliveryFeeStatus: input.next.deliveryFeeStatus,
-    codStatus: input.next.codStatus,
-    collectedAmount: toMoneyString(input.next.collectedAmount),
-    collectionStatus: input.next.collectionStatus,
-    merchantSettlementStatus: input.next.merchantSettlementStatus,
-    riderPayoutStatus: input.next.riderPayoutStatus,
-    note: input.next.paymentNote,
-  };
   const patch: ParcelPaymentUpdatePatch = {};
   const oldValues: Record<string, unknown> = {};
 
-  for (const [key, value] of Object.entries(nextValues)) {
+  for (const [key, value] of Object.entries(input.next)) {
     const keyName = key as keyof ParcelPaymentUpdatePatch;
     const currentValue = input.current[keyName];
 
-    if (currentValue !== value) {
+    if (normalizePatchValue(currentValue) !== normalizePatchValue(value)) {
       patch[keyName] = value as never;
       oldValues[keyName] = currentValue;
     }

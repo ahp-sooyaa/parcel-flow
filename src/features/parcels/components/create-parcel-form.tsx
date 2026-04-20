@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { FormFieldError } from "@/components/shared/form-field-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +21,7 @@ type CreateParcelFormProps = {
   };
   readOnly?: {
     merchantField?: boolean;
+    hidePaymentSlipField?: boolean;
   };
 };
 
@@ -28,6 +30,7 @@ const initialState = {
   message: "",
   parcelId: undefined,
   fields: undefined,
+  fieldErrors: undefined,
 };
 
 export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFormProps>) {
@@ -36,17 +39,21 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
   const riders = options.riders;
   const townships = options.townships;
   const merchantFieldReadOnly = readOnly?.merchantField ?? false;
+  const hidePaymentSlipField = readOnly?.hidePaymentSlipField ?? false;
   const selectedMerchant = merchants.find(
     (merchant) => merchant.id === (state.fields?.merchantId ?? ""),
   );
   const defaultMerchantId = state.fields?.merchantId ?? merchants[0]?.id ?? "";
+  const getFieldError = (fieldName: string) => state.fieldErrors?.[fieldName]?.[0];
 
   return (
     <form action={action} className="space-y-6">
       <section className="space-y-4 rounded-xl border bg-muted/20 p-4">
         <div className="space-y-1">
           <h2 className="text-sm font-semibold">Parcel Info</h2>
-          <p className="text-xs text-muted-foreground">Core parcel and receiver fields.</p>
+          <p className="text-xs text-muted-foreground">
+            Core parcel, receiver, and package fields.
+          </p>
         </div>
 
         <p className="rounded-lg border bg-background p-3 text-xs text-muted-foreground">
@@ -54,7 +61,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
         </p>
 
         <div className="grid gap-2">
-          <Label htmlFor="merchantId">Merchant</Label>
+          <Label htmlFor="merchantId">Merchant *</Label>
           {merchantFieldReadOnly ? (
             <>
               <Input
@@ -84,6 +91,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
               ))}
             </select>
           )}
+          <FormFieldError message={getFieldError("merchantId")} />
         </div>
 
         <div className="grid gap-2">
@@ -95,19 +103,18 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
             className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             defaultValue={state.fields?.riderId ?? ""}
           >
-            <option value="" disabled>
-              Select rider
-            </option>
+            <option value="">No rider assigned</option>
             {riders.map((rider) => (
               <option key={rider.id} value={rider.id}>
                 {rider.label}
               </option>
             ))}
           </select>
+          <FormFieldError message={getFieldError("riderId")} />
         </div>
 
         <div className="grid gap-2">
-          <Label htmlFor="recipientName">Recipient Name</Label>
+          <Label htmlFor="recipientName">Recipient Name *</Label>
           <Input
             id="recipientName"
             name="recipientName"
@@ -115,10 +122,11 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
             defaultValue={state.fields?.recipientName}
             required
           />
+          <FormFieldError message={getFieldError("recipientName")} />
         </div>
 
         <div className="grid gap-2">
-          <Label htmlFor="recipientPhone">Recipient Phone</Label>
+          <Label htmlFor="recipientPhone">Recipient Phone *</Label>
           <Input
             id="recipientPhone"
             name="recipientPhone"
@@ -126,10 +134,11 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
             defaultValue={state.fields?.recipientPhone}
             required
           />
+          <FormFieldError message={getFieldError("recipientPhone")} />
         </div>
 
         <div className="grid gap-2">
-          <Label htmlFor="recipientTownshipId">Recipient Township</Label>
+          <Label htmlFor="recipientTownshipId">Recipient Township *</Label>
           <select
             key={state.fields?.recipientTownshipId ?? ""}
             id="recipientTownshipId"
@@ -147,10 +156,11 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
               </option>
             ))}
           </select>
+          <FormFieldError message={getFieldError("recipientTownshipId")} />
         </div>
 
         <div className="grid gap-2">
-          <Label htmlFor="recipientAddress">Recipient Address</Label>
+          <Label htmlFor="recipientAddress">Recipient Address *</Label>
           <textarea
             id="recipientAddress"
             name="recipientAddress"
@@ -159,7 +169,148 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
             required
             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           />
+          <FormFieldError message={getFieldError("recipientAddress")} />
         </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="parcelDescription">Parcel Description *</Label>
+          <textarea
+            id="parcelDescription"
+            name="parcelDescription"
+            rows={3}
+            defaultValue={state.fields?.parcelDescription}
+            required
+            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          />
+          <FormFieldError message={getFieldError("parcelDescription")} />
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="packageCount">Package Count *</Label>
+          <Input
+            id="packageCount"
+            name="packageCount"
+            type="number"
+            min="1"
+            step="1"
+            defaultValue={state.fields?.packageCount ?? 1}
+            required
+          />
+          <FormFieldError message={getFieldError("packageCount")} />
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="specialHandlingNote">Special Handling Note (Optional)</Label>
+          <textarea
+            id="specialHandlingNote"
+            name="specialHandlingNote"
+            rows={3}
+            defaultValue={state.fields?.specialHandlingNote}
+            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          />
+          <FormFieldError message={getFieldError("specialHandlingNote")} />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-2">
+            <Label htmlFor="estimatedWeightKg">Estimated Weight (kg)</Label>
+            <Input
+              id="estimatedWeightKg"
+              name="estimatedWeightKg"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={state.fields?.estimatedWeightKg}
+            />
+            <FormFieldError message={getFieldError("estimatedWeightKg")} />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="packageWidthCm">Width (cm)</Label>
+            <Input
+              id="packageWidthCm"
+              name="packageWidthCm"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={state.fields?.packageWidthCm}
+            />
+            <FormFieldError message={getFieldError("packageWidthCm")} />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="packageHeightCm">Height (cm)</Label>
+            <Input
+              id="packageHeightCm"
+              name="packageHeightCm"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={state.fields?.packageHeightCm}
+            />
+            <FormFieldError message={getFieldError("packageHeightCm")} />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="packageLengthCm">Length (cm)</Label>
+            <Input
+              id="packageLengthCm"
+              name="packageLengthCm"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={state.fields?.packageLengthCm}
+            />
+            <FormFieldError message={getFieldError("packageLengthCm")} />
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-4 rounded-xl border bg-muted/20 p-4">
+        <div className="space-y-1">
+          <h2 className="text-sm font-semibold">Parcel Images</h2>
+          <p className="text-xs text-muted-foreground">
+            JPG, PNG, or WebP only. Up to 5 files per field, 5 MB each.
+          </p>
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="pickupImages">Pickup Images</Label>
+          <Input
+            id="pickupImages"
+            name="pickupImages"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+          />
+          <FormFieldError message={getFieldError("pickupImages")} />
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="proofOfDeliveryImages">Proof Of Delivery Images</Label>
+          <Input
+            id="proofOfDeliveryImages"
+            name="proofOfDeliveryImages"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+          />
+          <FormFieldError message={getFieldError("proofOfDeliveryImages")} />
+        </div>
+
+        {!hidePaymentSlipField && (
+          <div className="grid gap-2">
+            <Label htmlFor="paymentSlipImages">Payment Slip Images</Label>
+            <Input
+              id="paymentSlipImages"
+              name="paymentSlipImages"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+            />
+            <FormFieldError message={getFieldError("paymentSlipImages")} />
+          </div>
+        )}
       </section>
 
       <section className="space-y-4 rounded-xl border bg-muted/20 p-4">
@@ -171,7 +322,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
         </div>
 
         <div className="grid gap-2">
-          <Label htmlFor="parcelType">Parcel Type</Label>
+          <Label htmlFor="parcelType">Parcel Type *</Label>
           <select
             key={state.fields?.parcelType ?? ""}
             id="parcelType"
@@ -189,10 +340,11 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
               </option>
             ))}
           </select>
+          <FormFieldError message={getFieldError("parcelType")} />
         </div>
 
         <div className="grid gap-2">
-          <Label htmlFor="codAmount">COD Amount</Label>
+          <Label htmlFor="codAmount">COD Amount *</Label>
           <Input
             id="codAmount"
             name="codAmount"
@@ -202,10 +354,11 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
             defaultValue={state.fields?.codAmount ?? 0}
             required
           />
+          <FormFieldError message={getFieldError("codAmount")} />
         </div>
 
         <div className="grid gap-2">
-          <Label htmlFor="deliveryFee">Delivery Fee</Label>
+          <Label htmlFor="deliveryFee">Delivery Fee *</Label>
           <Input
             id="deliveryFee"
             name="deliveryFee"
@@ -215,10 +368,11 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
             defaultValue={state.fields?.deliveryFee ?? 0}
             required
           />
+          <FormFieldError message={getFieldError("deliveryFee")} />
         </div>
 
         <div className="grid gap-2">
-          <Label htmlFor="deliveryFeePayer">Delivery Fee Payer</Label>
+          <Label htmlFor="deliveryFeePayer">Delivery Fee Payer *</Label>
           <select
             key={state.fields?.deliveryFeePayer ?? DEFAULT_CREATE_PARCEL_STATE.deliveryFeePayer}
             id="deliveryFeePayer"
@@ -238,6 +392,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
               </option>
             ))}
           </select>
+          <FormFieldError message={getFieldError("deliveryFeePayer")} />
         </div>
 
         <div className="rounded-lg border bg-background p-3 text-xs text-muted-foreground">
@@ -270,6 +425,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
             defaultValue={state.fields?.paymentNote}
             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           />
+          <FormFieldError message={getFieldError("paymentNote")} />
         </div>
       </section>
 

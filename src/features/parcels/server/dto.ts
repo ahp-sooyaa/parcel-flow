@@ -8,6 +8,9 @@ import {
   PARCEL_STATUSES,
   PARCEL_TYPES,
   RIDER_PAYOUT_STATUSES,
+  type ParcelImageAsset,
+  type ParcelPaymentWriteValues,
+  type ParcelWriteValues,
 } from "./utils";
 
 export type ParcelOptionDto = {
@@ -46,6 +49,13 @@ export type ParcelDetailDto = {
   recipientTownshipId: string;
   recipientTownshipName: string | null;
   recipientAddress: string;
+  parcelDescription: string;
+  packageCount: number;
+  specialHandlingNote: string | null;
+  estimatedWeightKg: string | null;
+  packageWidthCm: string | null;
+  packageHeightCm: string | null;
+  packageLengthCm: string | null;
   parcelType: (typeof PARCEL_TYPES)[number];
   codAmount: string;
   deliveryFee: string;
@@ -59,6 +69,9 @@ export type ParcelDetailDto = {
   merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number];
   riderPayoutStatus: (typeof RIDER_PAYOUT_STATUSES)[number];
   paymentNote: string | null;
+  pickupImages: ParcelImageAsset[];
+  proofOfDeliveryImages: ParcelImageAsset[];
+  paymentSlipImages: ParcelImageAsset[];
   createdAt: Date;
   updatedAt: Date;
 };
@@ -72,11 +85,20 @@ export type RiderParcelDetailDto = {
   recipientPhone: string;
   recipientTownshipName: string | null;
   recipientAddress: string;
+  parcelDescription: string;
+  packageCount: number;
+  specialHandlingNote: string | null;
+  estimatedWeightKg: string | null;
+  packageWidthCm: string | null;
+  packageHeightCm: string | null;
+  packageLengthCm: string | null;
   parcelType: (typeof PARCEL_TYPES)[number];
   parcelStatus: (typeof PARCEL_STATUSES)[number];
   codAmount: string;
   totalAmountToCollect: string;
   collectionStatus: (typeof COLLECTION_STATUSES)[number];
+  pickupImages: ParcelImageAsset[];
+  proofOfDeliveryImages: ParcelImageAsset[];
   nextAction: RiderParcelActionDto | null;
 };
 
@@ -84,29 +106,10 @@ export type ParcelUpdateContextDto = {
   parcel: {
     id: string;
     parcelCode: string;
-    merchantId: string;
-    riderId: string | null;
-    recipientName: string;
-    recipientPhone: string;
-    recipientTownshipId: string;
-    recipientAddress: string;
-    parcelType: (typeof PARCEL_TYPES)[number];
-    codAmount: string;
-    deliveryFee: string;
-    totalAmountToCollect: string;
-    deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];
-    status: (typeof PARCEL_STATUSES)[number];
-  };
+  } & ParcelWriteValues;
   payment: {
     id: string;
-    deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number];
-    codStatus: (typeof COD_STATUSES)[number];
-    collectedAmount: string;
-    collectionStatus: (typeof COLLECTION_STATUSES)[number];
-    merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number];
-    riderPayoutStatus: (typeof RIDER_PAYOUT_STATUSES)[number];
-    note: string | null;
-  };
+  } & ParcelPaymentWriteValues;
 };
 
 export type AuditLogInsertInput = {
@@ -118,74 +121,38 @@ export type AuditLogInsertInput = {
   newValues?: Record<string, unknown> | null;
 };
 
-export type CreateParcelInsertInput = {
+export type CreateParcelInsertInput = ParcelWriteValues & {
   parcelCode: string;
-  merchantId: string;
-  riderId: string | null;
-  recipientName: string;
-  recipientPhone: string;
-  recipientTownshipId: string;
-  recipientAddress: string;
-  parcelType: "cod" | "non_cod";
-  codAmount: string;
-  deliveryFee: string;
-  totalAmountToCollect: string;
-  deliveryFeePayer: "merchant" | "receiver";
-  status: "pending";
 };
 
-export type CreatePaymentInsertInput = {
-  deliveryFeeStatus:
-    | "unpaid"
-    | "paid_by_merchant"
-    | "collected_from_receiver"
-    | "deduct_from_settlement"
-    | "bill_merchant"
-    | "waived";
-  codStatus: "not_applicable" | "pending";
-  collectedAmount: string;
-  collectionStatus: "pending";
-  merchantSettlementStatus: "pending";
-  riderPayoutStatus: "pending";
-  note: string | null;
-};
+export type CreatePaymentInsertInput = ParcelPaymentWriteValues;
 
-export type ParcelUpdatePatch = Partial<{
-  merchantId: string;
-  riderId: string | null;
-  recipientName: string;
-  recipientPhone: string;
-  recipientTownshipId: string;
-  recipientAddress: string;
-  parcelType: "cod" | "non_cod";
-  codAmount: string;
-  deliveryFee: string;
-  totalAmountToCollect: string;
-  deliveryFeePayer: "merchant" | "receiver";
-  status: (typeof PARCEL_STATUSES)[number];
-}>;
+export type ParcelUpdatePatch = Partial<ParcelWriteValues>;
 
-export type ParcelPaymentUpdatePatch = Partial<{
-  deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number];
-  codStatus: (typeof COD_STATUSES)[number];
-  collectedAmount: string;
-  collectionStatus: (typeof COLLECTION_STATUSES)[number];
-  merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number];
-  riderPayoutStatus: (typeof RIDER_PAYOUT_STATUSES)[number];
-  note: string | null;
-}>;
+export type ParcelPaymentUpdatePatch = Partial<ParcelPaymentWriteValues>;
+
+export type ParcelFormFieldErrors = Partial<Record<string, string[]>>;
 
 export type CreateParcelActionResult = {
   ok: boolean;
   message: string;
   parcelId?: string;
   fields?: Record<string, string>;
+  fieldErrors?: ParcelFormFieldErrors;
 };
 
 export type UpdateParcelActionResult = {
   ok: boolean;
   message: string;
   fields?: Record<string, string>;
+  fieldErrors?: ParcelFormFieldErrors;
+};
+
+export type RiderParcelImageUploadActionResult = {
+  ok: boolean;
+  message: string;
+  fields?: Record<string, string>;
+  fieldErrors?: ParcelFormFieldErrors;
 };
 
 export function toParcelListItemDto(input: {
@@ -234,6 +201,13 @@ export function toParcelDetailDto(input: {
   recipientTownshipId: string;
   recipientTownshipName: string | null;
   recipientAddress: string;
+  parcelDescription: string;
+  packageCount: number;
+  specialHandlingNote: string | null;
+  estimatedWeightKg: string | null;
+  packageWidthCm: string | null;
+  packageHeightCm: string | null;
+  packageLengthCm: string | null;
   parcelType: (typeof PARCEL_TYPES)[number];
   codAmount: string;
   deliveryFee: string;
@@ -247,6 +221,9 @@ export function toParcelDetailDto(input: {
   merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number] | null;
   riderPayoutStatus: (typeof RIDER_PAYOUT_STATUSES)[number] | null;
   paymentNote: string | null;
+  pickupImages?: ParcelImageAsset[];
+  proofOfDeliveryImages?: ParcelImageAsset[];
+  paymentSlipImages?: ParcelImageAsset[];
   createdAt: Date;
   updatedAt: Date;
 }): ParcelDetailDto {
@@ -262,6 +239,13 @@ export function toParcelDetailDto(input: {
     recipientTownshipId: input.recipientTownshipId,
     recipientTownshipName: input.recipientTownshipName,
     recipientAddress: input.recipientAddress,
+    parcelDescription: input.parcelDescription,
+    packageCount: input.packageCount,
+    specialHandlingNote: input.specialHandlingNote,
+    estimatedWeightKg: input.estimatedWeightKg,
+    packageWidthCm: input.packageWidthCm,
+    packageHeightCm: input.packageHeightCm,
+    packageLengthCm: input.packageLengthCm,
     parcelType: input.parcelType,
     codAmount: input.codAmount,
     deliveryFee: input.deliveryFee,
@@ -275,6 +259,9 @@ export function toParcelDetailDto(input: {
     merchantSettlementStatus: input.merchantSettlementStatus ?? "pending",
     riderPayoutStatus: input.riderPayoutStatus ?? "pending",
     paymentNote: input.paymentNote,
+    pickupImages: input.pickupImages ?? [],
+    proofOfDeliveryImages: input.proofOfDeliveryImages ?? [],
+    paymentSlipImages: input.paymentSlipImages ?? [],
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
   };
@@ -291,11 +278,20 @@ export function toRiderParcelDetailDto(
     | "recipientPhone"
     | "recipientTownshipName"
     | "recipientAddress"
+    | "parcelDescription"
+    | "packageCount"
+    | "specialHandlingNote"
+    | "estimatedWeightKg"
+    | "packageWidthCm"
+    | "packageHeightCm"
+    | "packageLengthCm"
     | "parcelType"
     | "parcelStatus"
     | "codAmount"
     | "totalAmountToCollect"
     | "collectionStatus"
+    | "pickupImages"
+    | "proofOfDeliveryImages"
   > & {
     nextAction: RiderParcelActionDto | null;
   },
@@ -309,11 +305,20 @@ export function toRiderParcelDetailDto(
     recipientPhone: input.recipientPhone,
     recipientTownshipName: input.recipientTownshipName,
     recipientAddress: input.recipientAddress,
+    parcelDescription: input.parcelDescription,
+    packageCount: input.packageCount,
+    specialHandlingNote: input.specialHandlingNote,
+    estimatedWeightKg: input.estimatedWeightKg,
+    packageWidthCm: input.packageWidthCm,
+    packageHeightCm: input.packageHeightCm,
+    packageLengthCm: input.packageLengthCm,
     parcelType: input.parcelType,
     parcelStatus: input.parcelStatus,
     codAmount: input.codAmount,
     totalAmountToCollect: input.totalAmountToCollect,
     collectionStatus: input.collectionStatus,
+    pickupImages: input.pickupImages,
+    proofOfDeliveryImages: input.proofOfDeliveryImages,
     nextAction: input.nextAction,
   };
 }
@@ -327,6 +332,15 @@ export function toParcelUpdateContextDto(input: {
   recipientPhone: string;
   recipientTownshipId: string;
   recipientAddress: string;
+  parcelDescription: string;
+  packageCount: number;
+  specialHandlingNote: string | null;
+  estimatedWeightKg: string | null;
+  packageWidthCm: string | null;
+  packageHeightCm: string | null;
+  packageLengthCm: string | null;
+  pickupImageKeys: string[] | null;
+  proofOfDeliveryImageKeys: string[] | null;
   parcelType: (typeof PARCEL_TYPES)[number];
   codAmount: string;
   deliveryFee: string;
@@ -341,6 +355,7 @@ export function toParcelUpdateContextDto(input: {
   merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number] | null;
   riderPayoutStatus: (typeof RIDER_PAYOUT_STATUSES)[number] | null;
   paymentNote: string | null;
+  paymentSlipImageKeys: string[] | null;
 }): ParcelUpdateContextDto {
   return {
     parcel: {
@@ -352,11 +367,20 @@ export function toParcelUpdateContextDto(input: {
       recipientPhone: input.recipientPhone,
       recipientTownshipId: input.recipientTownshipId,
       recipientAddress: input.recipientAddress,
+      parcelDescription: input.parcelDescription,
+      packageCount: input.packageCount,
+      specialHandlingNote: input.specialHandlingNote,
+      estimatedWeightKg: input.estimatedWeightKg,
+      packageWidthCm: input.packageWidthCm,
+      packageHeightCm: input.packageHeightCm,
+      packageLengthCm: input.packageLengthCm,
       parcelType: input.parcelType,
       codAmount: input.codAmount,
       deliveryFee: input.deliveryFee,
       totalAmountToCollect: input.totalAmountToCollect,
       deliveryFeePayer: input.deliveryFeePayer,
+      pickupImageKeys: input.pickupImageKeys ?? [],
+      proofOfDeliveryImageKeys: input.proofOfDeliveryImageKeys ?? [],
       status: input.parcelStatus,
     },
     payment: {
@@ -368,6 +392,7 @@ export function toParcelUpdateContextDto(input: {
       merchantSettlementStatus: input.merchantSettlementStatus ?? "pending",
       riderPayoutStatus: input.riderPayoutStatus ?? "pending",
       note: input.paymentNote,
+      paymentSlipImageKeys: input.paymentSlipImageKeys ?? [],
     },
   };
 }

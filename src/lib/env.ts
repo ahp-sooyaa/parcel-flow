@@ -21,6 +21,12 @@ const superAdminSeedSchema = z.object({
 });
 
 const safeEnvSchema = superAdminSeedSchema.partial();
+const r2EnvSchema = z.object({
+  CLOUDFLARE_R2_ACCOUNT_ID: z.string().min(1),
+  CLOUDFLARE_R2_ACCESS_KEY_ID: z.string().min(1),
+  CLOUDFLARE_R2_SECRET_ACCESS_KEY: z.string().min(1),
+  CLOUDFLARE_R2_BUCKET: z.string().min(1),
+});
 
 export function getDatabaseUrlEnv() {
   return databaseEnvSchema.parse(process.env);
@@ -57,4 +63,8 @@ export function getSupabaseAdminEnv() {
 
 export function getSafeEnv() {
   return safeEnvSchema.parse(process.env);
+}
+
+export function getR2Env() {
+  return r2EnvSchema.parse(process.env);
 }
