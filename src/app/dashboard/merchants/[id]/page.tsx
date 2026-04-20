@@ -99,7 +99,7 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
     ];
 
     return (
-        <section className="mx-auto w-full max-w-5xl space-y-6">
+        <section className="mx-auto w-full space-y-6">
             <header className="rounded-xl border bg-card p-5">
                 <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
                     <div className="min-w-0 space-y-3">
