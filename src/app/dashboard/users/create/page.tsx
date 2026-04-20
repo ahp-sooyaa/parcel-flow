@@ -4,28 +4,28 @@ import { getTownshipOptions } from "@/features/townships/server/dal";
 import { CreateUserForm } from "@/features/users/components/create-user-form";
 
 type CreateUserPageProps = {
-  searchParams: Promise<{ role?: string }>;
+    searchParams: Promise<{ role?: string }>;
 };
 
 export default async function CreateUserPage({ searchParams }: Readonly<CreateUserPageProps>) {
-  const currentUser = await requirePermission("user.create");
-  const townships = await getTownshipOptions();
-  const { role } = await searchParams;
-  const defaultRole: RoleSlug = role && isRoleSlug(role) ? role : "office_admin";
+    const currentUser = await requirePermission("user.create");
+    const townships = await getTownshipOptions();
+    const { role } = await searchParams;
+    const defaultRole: RoleSlug = role && isRoleSlug(role) ? role : "office_admin";
 
-  return (
-    <section className="mx-auto w-full max-w-3xl space-y-6 rounded-xl border bg-card p-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Create User</h1>
-        <p className="text-sm text-muted-foreground">
-          Create internal users with role assignment and secure temporary credentials.
-        </p>
-      </header>
-      <CreateUserForm
-        canCreateSuperAdmin={currentUser.roleSlug === "super_admin"}
-        townships={townships}
-        defaultRole={defaultRole}
-      />
-    </section>
-  );
+    return (
+        <section className="mx-auto w-full max-w-3xl space-y-6 rounded-xl border bg-card p-6">
+            <header className="space-y-1">
+                <h1 className="text-2xl font-semibold tracking-tight">Create User</h1>
+                <p className="text-sm text-muted-foreground">
+                    Create internal users with role assignment and secure temporary credentials.
+                </p>
+            </header>
+            <CreateUserForm
+                canCreateSuperAdmin={currentUser.roleSlug === "super_admin"}
+                townships={townships}
+                defaultRole={defaultRole}
+            />
+        </section>
+    );
 }

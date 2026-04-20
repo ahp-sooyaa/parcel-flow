@@ -1,7 +1,7 @@
 {
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["unicorn", "typescript", "oxc", "import"],
-  "rules": {
-    "import/no-duplicates": "error"
-  }
+    "$schema": "./node_modules/oxlint/configuration_schema.json",
+    "plugins": ["unicorn", "typescript", "oxc", "import"],
+    "rules": {
+        "import/no-duplicates": "error"
+    }
 }

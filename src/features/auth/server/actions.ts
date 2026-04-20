@@ -9,49 +9,49 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { AuthActionResult } from "./dto";
 
 const signInSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
+    email: z.string().email(),
+    password: z.string().min(8),
 });
 
 export async function signInAction(
-  _prevState: AuthActionResult,
-  formData: FormData,
+    _prevState: AuthActionResult,
+    formData: FormData,
 ): Promise<AuthActionResult> {
-  const parsed = signInSchema.safeParse(Object.fromEntries(formData));
+    const parsed = signInSchema.safeParse(Object.fromEntries(formData));
 
-  if (!parsed.success) {
-    return {
-      ok: false,
-      message: "Please provide a valid email and password.",
-    };
-  }
+    if (!parsed.success) {
+        return {
+            ok: false,
+            message: "Please provide a valid email and password.",
+        };
+    }
 
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.auth.signInWithPassword(parsed.data);
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.auth.signInWithPassword(parsed.data);
 
-  if (error) {
+    if (error) {
+        await logAuditEvent({
+            event: "auth.sign_in_failed",
+        });
+
+        return {
+            ok: false,
+            message: "Unable to sign in with those credentials.",
+        };
+    }
+
     await logAuditEvent({
-      event: "auth.sign_in_failed",
+        event: "auth.sign_in_success",
     });
 
-    return {
-      ok: false,
-      message: "Unable to sign in with those credentials.",
-    };
-  }
-
-  await logAuditEvent({
-    event: "auth.sign_in_success",
-  });
-
-  redirect("/dashboard");
+    redirect("/dashboard");
 }
 
 export async function signOutAction() {
-  const supabase = await createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient();
 
-  await supabase.auth.signOut();
-  await logAuditEvent({ event: "auth.sign_out" });
+    await supabase.auth.signOut();
+    await logAuditEvent({ event: "auth.sign_out" });
 
-  redirect("/sign-in");
+    redirect("/sign-in");
 }

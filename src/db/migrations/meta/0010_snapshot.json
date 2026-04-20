@@ -1,6 +1,6 @@
 {
-    "id": "3bc63fa4-43c4-4fc7-a6df-0b3b8e32f0d2",
-    "prevId": "c0ca5f24-d71c-473f-8f9e-f03a04d9b4e5",
+    "id": "d3297f3f-ae8f-435a-9582-3df5001a6ad0",
+    "prevId": "9a5e879d-ae26-41d2-a256-9ec639efcd6b",
     "version": "7",
     "dialect": "postgresql",
     "tables": {
@@ -58,6 +58,12 @@
                     "primaryKey": false,
                     "notNull": true,
                     "default": true
+                },
+                "deleted_at": {
+                    "name": "deleted_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": false
                 },
                 "created_at": {
                     "name": "created_at",
@@ -134,6 +140,21 @@
                     "concurrently": false,
                     "method": "btree",
                     "with": {}
+                },
+                "app_users_deleted_at_idx": {
+                    "name": "app_users_deleted_at_idx",
+                    "columns": [
+                        {
+                            "expression": "deleted_at",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
                 }
             },
             "foreignKeys": {
@@ -190,6 +211,12 @@
                 "notes": {
                     "name": "notes",
                     "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "deleted_at": {
+                    "name": "deleted_at",
+                    "type": "timestamp with time zone",
                     "primaryKey": false,
                     "notNull": false
                 },
@@ -253,6 +280,21 @@
                     "concurrently": false,
                     "method": "btree",
                     "with": {}
+                },
+                "merchants_deleted_at_idx": {
+                    "name": "merchants_deleted_at_idx",
+                    "columns": [
+                        {
+                            "expression": "deleted_at",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
                 }
             },
             "foreignKeys": {
@@ -270,6 +312,625 @@
                     "tableFrom": "merchants",
                     "tableTo": "townships",
                     "columnsFrom": ["pickup_township_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "restrict",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.parcel_audit_logs": {
+            "name": "parcel_audit_logs",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "parcel_id": {
+                    "name": "parcel_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "updated_by": {
+                    "name": "updated_by",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "source_table": {
+                    "name": "source_table",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "event": {
+                    "name": "event",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "old_values": {
+                    "name": "old_values",
+                    "type": "jsonb",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "new_values": {
+                    "name": "new_values",
+                    "type": "jsonb",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {
+                "parcel_audit_logs_parcel_idx": {
+                    "name": "parcel_audit_logs_parcel_idx",
+                    "columns": [
+                        {
+                            "expression": "parcel_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "parcel_audit_logs_updated_by_idx": {
+                    "name": "parcel_audit_logs_updated_by_idx",
+                    "columns": [
+                        {
+                            "expression": "updated_by",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "parcel_audit_logs_source_table_idx": {
+                    "name": "parcel_audit_logs_source_table_idx",
+                    "columns": [
+                        {
+                            "expression": "source_table",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "parcel_audit_logs_created_at_idx": {
+                    "name": "parcel_audit_logs_created_at_idx",
+                    "columns": [
+                        {
+                            "expression": "created_at",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
+            "foreignKeys": {
+                "parcel_audit_logs_parcel_id_parcels_id_fk": {
+                    "name": "parcel_audit_logs_parcel_id_parcels_id_fk",
+                    "tableFrom": "parcel_audit_logs",
+                    "tableTo": "parcels",
+                    "columnsFrom": ["parcel_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                },
+                "parcel_audit_logs_updated_by_app_users_id_fk": {
+                    "name": "parcel_audit_logs_updated_by_app_users_id_fk",
+                    "tableFrom": "parcel_audit_logs",
+                    "tableTo": "app_users",
+                    "columnsFrom": ["updated_by"],
+                    "columnsTo": ["id"],
+                    "onDelete": "restrict",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.parcel_payment_records": {
+            "name": "parcel_payment_records",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "parcel_id": {
+                    "name": "parcel_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "delivery_fee_status": {
+                    "name": "delivery_fee_status",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'unpaid'"
+                },
+                "cod_status": {
+                    "name": "cod_status",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'pending'"
+                },
+                "collected_amount": {
+                    "name": "collected_amount",
+                    "type": "numeric(12, 2)",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'0'"
+                },
+                "collection_status": {
+                    "name": "collection_status",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'pending'"
+                },
+                "merchant_settlement_status": {
+                    "name": "merchant_settlement_status",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'pending'"
+                },
+                "rider_payout_status": {
+                    "name": "rider_payout_status",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'pending'"
+                },
+                "note": {
+                    "name": "note",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "payment_slip_image_keys": {
+                    "name": "payment_slip_image_keys",
+                    "type": "jsonb",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'[]'::jsonb"
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                },
+                "updated_at": {
+                    "name": "updated_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {
+                "parcel_payment_records_parcel_uidx": {
+                    "name": "parcel_payment_records_parcel_uidx",
+                    "columns": [
+                        {
+                            "expression": "parcel_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": true,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "parcel_payment_records_delivery_fee_status_idx": {
+                    "name": "parcel_payment_records_delivery_fee_status_idx",
+                    "columns": [
+                        {
+                            "expression": "delivery_fee_status",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "parcel_payment_records_collection_status_idx": {
+                    "name": "parcel_payment_records_collection_status_idx",
+                    "columns": [
+                        {
+                            "expression": "collection_status",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "parcel_payment_records_merchant_settlement_idx": {
+                    "name": "parcel_payment_records_merchant_settlement_idx",
+                    "columns": [
+                        {
+                            "expression": "merchant_settlement_status",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "parcel_payment_records_rider_payout_idx": {
+                    "name": "parcel_payment_records_rider_payout_idx",
+                    "columns": [
+                        {
+                            "expression": "rider_payout_status",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
+            "foreignKeys": {
+                "parcel_payment_records_parcel_id_parcels_id_fk": {
+                    "name": "parcel_payment_records_parcel_id_parcels_id_fk",
+                    "tableFrom": "parcel_payment_records",
+                    "tableTo": "parcels",
+                    "columnsFrom": ["parcel_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.parcels": {
+            "name": "parcels",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "parcel_code": {
+                    "name": "parcel_code",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "merchant_id": {
+                    "name": "merchant_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "rider_id": {
+                    "name": "rider_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "recipient_name": {
+                    "name": "recipient_name",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "recipient_phone": {
+                    "name": "recipient_phone",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "recipient_township_id": {
+                    "name": "recipient_township_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "recipient_address": {
+                    "name": "recipient_address",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "parcel_description": {
+                    "name": "parcel_description",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "''"
+                },
+                "package_count": {
+                    "name": "package_count",
+                    "type": "integer",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 1
+                },
+                "special_handling_note": {
+                    "name": "special_handling_note",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "estimated_weight_kg": {
+                    "name": "estimated_weight_kg",
+                    "type": "numeric(12, 2)",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "package_width_cm": {
+                    "name": "package_width_cm",
+                    "type": "numeric(12, 2)",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "package_height_cm": {
+                    "name": "package_height_cm",
+                    "type": "numeric(12, 2)",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "package_length_cm": {
+                    "name": "package_length_cm",
+                    "type": "numeric(12, 2)",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "pickup_image_keys": {
+                    "name": "pickup_image_keys",
+                    "type": "jsonb",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'[]'::jsonb"
+                },
+                "proof_of_delivery_image_keys": {
+                    "name": "proof_of_delivery_image_keys",
+                    "type": "jsonb",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'[]'::jsonb"
+                },
+                "cod_amount": {
+                    "name": "cod_amount",
+                    "type": "numeric(12, 2)",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'0'"
+                },
+                "delivery_fee": {
+                    "name": "delivery_fee",
+                    "type": "numeric(12, 2)",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'0'"
+                },
+                "delivery_fee_payer": {
+                    "name": "delivery_fee_payer",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'receiver'"
+                },
+                "parcel_type": {
+                    "name": "parcel_type",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'cod'"
+                },
+                "total_amount_to_collect": {
+                    "name": "total_amount_to_collect",
+                    "type": "numeric(12, 2)",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'0'"
+                },
+                "status": {
+                    "name": "status",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'pending'"
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                },
+                "updated_at": {
+                    "name": "updated_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {
+                "parcels_code_uidx": {
+                    "name": "parcels_code_uidx",
+                    "columns": [
+                        {
+                            "expression": "parcel_code",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": true,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "parcels_merchant_idx": {
+                    "name": "parcels_merchant_idx",
+                    "columns": [
+                        {
+                            "expression": "merchant_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "parcels_rider_idx": {
+                    "name": "parcels_rider_idx",
+                    "columns": [
+                        {
+                            "expression": "rider_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "parcels_recipient_township_idx": {
+                    "name": "parcels_recipient_township_idx",
+                    "columns": [
+                        {
+                            "expression": "recipient_township_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "parcels_status_idx": {
+                    "name": "parcels_status_idx",
+                    "columns": [
+                        {
+                            "expression": "status",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "parcels_created_at_idx": {
+                    "name": "parcels_created_at_idx",
+                    "columns": [
+                        {
+                            "expression": "created_at",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
+            "foreignKeys": {
+                "parcels_merchant_id_merchants_app_user_id_fk": {
+                    "name": "parcels_merchant_id_merchants_app_user_id_fk",
+                    "tableFrom": "parcels",
+                    "tableTo": "merchants",
+                    "columnsFrom": ["merchant_id"],
+                    "columnsTo": ["app_user_id"],
+                    "onDelete": "restrict",
+                    "onUpdate": "no action"
+                },
+                "parcels_rider_id_riders_app_user_id_fk": {
+                    "name": "parcels_rider_id_riders_app_user_id_fk",
+                    "tableFrom": "parcels",
+                    "tableTo": "riders",
+                    "columnsFrom": ["rider_id"],
+                    "columnsTo": ["app_user_id"],
+                    "onDelete": "set null",
+                    "onUpdate": "no action"
+                },
+                "parcels_recipient_township_id_townships_id_fk": {
+                    "name": "parcels_recipient_township_id_townships_id_fk",
+                    "tableFrom": "parcels",
+                    "tableTo": "townships",
+                    "columnsFrom": ["recipient_township_id"],
                     "columnsTo": ["id"],
                     "onDelete": "restrict",
                     "onUpdate": "no action"
@@ -391,6 +1052,12 @@
                     "primaryKey": false,
                     "notNull": false
                 },
+                "deleted_at": {
+                    "name": "deleted_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": false
+                },
                 "created_at": {
                     "name": "created_at",
                     "type": "timestamp with time zone",
@@ -457,6 +1124,21 @@
                     "columns": [
                         {
                             "expression": "created_at",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "riders_deleted_at_idx": {
+                    "name": "riders_deleted_at_idx",
+                    "columns": [
+                        {
+                            "expression": "deleted_at",
                             "isExpression": false,
                             "asc": true,
                             "nulls": "last"

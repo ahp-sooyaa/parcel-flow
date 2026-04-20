@@ -85,14 +85,21 @@ erDiagram
         string recipient_phone
         uuid recipient_township_id FK
         text recipient_address
+        text parcel_description
+        int package_count
+        text special_handling_note
+        decimal estimated_weight_kg
+        decimal package_width_cm
+        decimal package_height_cm
+        decimal package_length_cm
         decimal cod_amount
         decimal delivery_fee
         string delivery_fee_payer "merchant | receiver"
         string type "cod | non-cod"
         decimal total_amount_to_collect
         string status "pending | out_for_pickup | at_office | out_for_delivery | delivered | return_to_office | return_to_merchant | returned | cancelled"
-        jsonb pickup_image_url
-        jsonb proof_of_delivery_image_url
+        jsonb pickup_image_keys
+        jsonb proof_of_delivery_image_keys
         timestamp created_at
         timestamp updated_at
     }
@@ -107,7 +114,7 @@ erDiagram
         string merchant_settlement_status "pending | in_progress | settled"
         string rider_payout_status "pending | in_progress | paid"
         text note
-        jsonb payment_slip_url
+        jsonb payment_slip_image_keys
         timestamp created_at
         timestamp updated_at
     }

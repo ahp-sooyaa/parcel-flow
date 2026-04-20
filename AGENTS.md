@@ -74,7 +74,6 @@ Required structure:
 - Never expose secrets to the client.
 - Never expose unnecessary sensitive fields to the client.
 - Validate file type and size on the server for uploads.
-- Do not pass raw form objects directly into database writes; only allow explicit fields.
 - Keep money-related logic explicit and easy to audit.
 - COD is not company revenue.
 

@@ -5,21 +5,21 @@ import { optionalNullableTrimmedString, optionalNullableUuid } from "@/lib/valid
 const merchantIdSchema = z.string().trim().uuid();
 
 export function normalizeMerchantSearchQuery(raw: string | undefined) {
-  return raw?.trim() ?? "";
+    return raw?.trim() ?? "";
 }
 
 export function toMerchantSearchPattern(query: string) {
-  return `%${query.replaceAll("%", "").replaceAll("_", "")}%`;
+    return `%${query.replaceAll("%", "").replaceAll("_", "")}%`;
 }
 
 export function isMerchantId(value: string) {
-  return merchantIdSchema.safeParse(value).success;
+    return merchantIdSchema.safeParse(value).success;
 }
 
 export const updateMerchantProfileSchema = z.object({
-  merchantId: z.string().trim().uuid(),
-  shopName: z.string().trim().min(2).max(120),
-  pickupTownshipId: optionalNullableUuid(),
-  defaultPickupAddress: optionalNullableTrimmedString(255),
-  notes: optionalNullableTrimmedString(1000),
+    merchantId: z.string().trim().uuid(),
+    shopName: z.string().trim().min(2).max(120),
+    pickupTownshipId: optionalNullableUuid(),
+    defaultPickupAddress: optionalNullableTrimmedString(255),
+    notes: optionalNullableTrimmedString(1000),
 });
