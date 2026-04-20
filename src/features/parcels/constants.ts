@@ -30,6 +30,14 @@ export const COLLECTION_STATUSES = [
 export const MERCHANT_SETTLEMENT_STATUSES = ["pending", "in_progress", "settled"] as const;
 export const RIDER_PAYOUT_STATUSES = ["pending", "in_progress", "paid"] as const;
 
+export type ParcelStatusLabelValue =
+    | (typeof PARCEL_STATUSES)[number]
+    | (typeof DELIVERY_FEE_STATUSES)[number]
+    | (typeof COD_STATUSES)[number]
+    | (typeof COLLECTION_STATUSES)[number]
+    | (typeof MERCHANT_SETTLEMENT_STATUSES)[number]
+    | (typeof RIDER_PAYOUT_STATUSES)[number];
+
 export const DEFAULT_CREATE_PARCEL_STATE = {
     parcelStatus: "pending",
     deliveryFeeStatus: "unpaid",
@@ -39,3 +47,10 @@ export const DEFAULT_CREATE_PARCEL_STATE = {
     riderPayoutStatus: "pending",
     deliveryFeePayer: "receiver",
 } as const;
+
+export function formatParcelStatusLabel(value: ParcelStatusLabelValue) {
+    return value
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+}

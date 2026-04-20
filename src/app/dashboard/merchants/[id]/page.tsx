@@ -1,19 +1,26 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ListPagination } from "@/components/shared/list-pagination";
 import { Button } from "@/components/ui/button";
 import { getMerchantAccess } from "@/features/auth/server/policies/merchant";
 import { getParcelAccess } from "@/features/auth/server/policies/parcels";
 import { isAdminRole } from "@/features/auth/server/policies/shared";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { getMerchantByIdForViewer } from "@/features/merchant/server/dal";
+import { ParcelListSearchAndFiltersForm } from "@/features/parcels/components/parcel-list-search-and-filters-form";
 import { ParcelStatusPill } from "@/features/parcels/components/parcel-status-pill";
 import {
     getMerchantParcelStatsForViewer,
     getMerchantParcelsListForViewer,
 } from "@/features/parcels/server/dal";
+import {
+    hasActiveParcelListFilters,
+    normalizeParcelListQueryParams,
+} from "@/features/parcels/server/utils";
 
 type MerchantDetailPageProps = {
     params: Promise<{ id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 const countFormatter = new Intl.NumberFormat("en-US");
@@ -36,9 +43,16 @@ function formatMmk(value: string) {
     return `${moneyFormatter.format(amount)} MMK`;
 }
 
-export default async function MerchantDetailPage({ params }: Readonly<MerchantDetailPageProps>) {
+export default async function MerchantDetailPage({
+    params,
+    searchParams,
+}: Readonly<MerchantDetailPageProps>) {
     const currentUser = await requireAppAccessContext();
-    const { id } = await params;
+    const [{ id }, rawSearchParams] = await Promise.all([params, searchParams]);
+    const showInternalPaymentColumns = isAdminRole(currentUser.roleSlug);
+    const parcelListQuery = normalizeParcelListQueryParams(rawSearchParams, {
+        includeInternalPaymentFilters: showInternalPaymentColumns,
+    });
 
     const merchantAccess = getMerchantAccess({
         viewer: currentUser,
@@ -51,7 +65,7 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
 
     const [merchant, merchantParcels, merchantStats] = await Promise.all([
         getMerchantByIdForViewer(currentUser, id),
-        getMerchantParcelsListForViewer(currentUser, id),
+        getMerchantParcelsListForViewer(currentUser, id, parcelListQuery),
         getMerchantParcelStatsForViewer(currentUser, id),
     ]);
 
@@ -60,8 +74,18 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
     }
 
     const parcelAccess = getParcelAccess({ viewer: currentUser });
-    const showInternalPaymentColumns = isAdminRole(currentUser.roleSlug);
     const emptyColumnCount = showInternalPaymentColumns ? 9 : 7;
+    const hasActiveParcelFilters = hasActiveParcelListFilters(parcelListQuery);
+    const merchantParcelItems = merchantParcels.items;
+    const merchantDetailHref = `/dashboard/merchants/${merchant.id}`;
+    const parcelPaginationQuery = {
+        q: parcelListQuery.query || undefined,
+        parcelStatus: parcelListQuery.parcelStatus,
+        codStatus: parcelListQuery.codStatus,
+        collectionStatus: parcelListQuery.collectionStatus,
+        deliveryFeeStatus: parcelListQuery.deliveryFeeStatus,
+        merchantSettlementStatus: parcelListQuery.merchantSettlementStatus,
+    };
 
     const editMerchantHref =
         currentUser.roleSlug === "merchant"
@@ -147,6 +171,12 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
                     </p>
                 </div>
 
+                <ParcelListSearchAndFiltersForm
+                    query={parcelListQuery}
+                    clearHref={merchantDetailHref}
+                    includeInternalPaymentFilters={showInternalPaymentColumns}
+                />
+
                 <div className="overflow-x-auto rounded-xl border bg-card">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-muted/40 text-xs uppercase">
@@ -167,7 +197,7 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
                             </tr>
                         </thead>
                         <tbody>
-                            {merchantParcels.map((parcel) => (
+                            {merchantParcelItems.map((parcel) => (
                                 <tr key={parcel.id} className="border-t">
                                     <td className="px-4 py-3">{parcel.parcelCode}</td>
                                     <td className="px-4 py-3">{parcel.recipientName}</td>
@@ -221,19 +251,28 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
                                     </td>
                                 </tr>
                             ))}
-                            {merchantParcels.length === 0 && (
+                            {merchantParcelItems.length === 0 && (
                                 <tr>
                                     <td
                                         colSpan={emptyColumnCount}
                                         className="px-4 py-10 text-center text-xs text-muted-foreground"
                                     >
-                                        No parcels found for this merchant.
+                                        {hasActiveParcelFilters
+                                            ? "No parcels match the current search or filters."
+                                            : "No parcels found for this merchant."}
                                     </td>
                                 </tr>
                             )}
                         </tbody>
                     </table>
                 </div>
+
+                <ListPagination
+                    basePath={merchantDetailHref}
+                    query={parcelPaginationQuery}
+                    pagination={merchantParcels}
+                    itemLabel="parcels"
+                />
             </section>
         </section>
     );

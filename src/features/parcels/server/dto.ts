@@ -34,6 +34,14 @@ export type ParcelListItemDto = {
     createdAt: Date;
 };
 
+export type PaginatedParcelListDto = {
+    items: ParcelListItemDto[];
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+};
+
 export type MerchantParcelStatsDto = {
     totalParcels: number;
     deliveredParcels: number;

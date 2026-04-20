@@ -5,6 +5,7 @@ import {
     MERCHANT_SETTLEMENT_STATUSES,
     PARCEL_STATUSES,
     RIDER_PAYOUT_STATUSES,
+    formatParcelStatusLabel,
 } from "@/features/parcels/constants";
 import { cn } from "@/lib/utils";
 
@@ -62,13 +63,6 @@ const statusToneClasses = {
     danger: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-300",
 } satisfies Record<ParcelStatusTone, string>;
 
-function formatStatusLabel(value: ParcelStatusPillValue) {
-    return value
-        .split("_")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ");
-}
-
 export function ParcelStatusPill({ value, className }: Readonly<ParcelStatusPillProps>) {
     return (
         <span
@@ -78,7 +72,7 @@ export function ParcelStatusPill({ value, className }: Readonly<ParcelStatusPill
                 className,
             )}
         >
-            {formatStatusLabel(value)}
+            {formatParcelStatusLabel(value)}
         </span>
     );
 }
