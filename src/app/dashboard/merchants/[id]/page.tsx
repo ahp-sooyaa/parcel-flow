@@ -6,6 +6,7 @@ import { getParcelAccess } from "@/features/auth/server/policies/parcels";
 import { isAdminRole } from "@/features/auth/server/policies/shared";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { getMerchantByIdForViewer } from "@/features/merchant/server/dal";
+import { ParcelStatusPill } from "@/features/parcels/components/parcel-status-pill";
 import {
     getMerchantParcelStatsForViewer,
     getMerchantParcelsListForViewer,
@@ -33,12 +34,6 @@ function formatMmk(value: string) {
     }
 
     return `${moneyFormatter.format(amount)} MMK`;
-}
-
-function formatStatus(value: string) {
-    const label = value.replaceAll("_", " ");
-
-    return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 export default async function MerchantDetailPage({ params }: Readonly<MerchantDetailPageProps>) {
@@ -152,7 +147,7 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
                     </p>
                 </div>
 
-                <div className="overflow-hidden rounded-xl border bg-card">
+                <div className="overflow-x-auto rounded-xl border bg-card">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-muted/40 text-xs uppercase">
                             <tr>
@@ -180,21 +175,25 @@ export default async function MerchantDetailPage({ params }: Readonly<MerchantDe
                                         {parcel.recipientTownshipName ?? "-"}
                                     </td>
                                     <td className="px-4 py-3">
-                                        {formatStatus(parcel.parcelStatus)}
+                                        <ParcelStatusPill value={parcel.parcelStatus} />
                                     </td>
-                                    <td className="px-4 py-3">{formatStatus(parcel.codStatus)}</td>
+                                    <td className="px-4 py-3">
+                                        <ParcelStatusPill value={parcel.codStatus} />
+                                    </td>
                                     {showInternalPaymentColumns && (
                                         <>
                                             <td className="px-4 py-3">
-                                                {formatStatus(parcel.collectionStatus)}
+                                                <ParcelStatusPill value={parcel.collectionStatus} />
                                             </td>
                                             <td className="px-4 py-3">
-                                                {formatStatus(parcel.deliveryFeeStatus)}
+                                                <ParcelStatusPill
+                                                    value={parcel.deliveryFeeStatus}
+                                                />
                                             </td>
                                         </>
                                     )}
                                     <td className="px-4 py-3">
-                                        {formatStatus(parcel.merchantSettlementStatus)}
+                                        <ParcelStatusPill value={parcel.merchantSettlementStatus} />
                                     </td>
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-2">

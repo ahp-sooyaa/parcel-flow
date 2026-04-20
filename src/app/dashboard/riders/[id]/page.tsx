@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { getRiderAccess } from "@/features/auth/server/policies/rider";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
+import { ParcelStatusPill } from "@/features/parcels/components/parcel-status-pill";
 import { getAssignedRiderParcelsListForViewer } from "@/features/parcels/server/dal";
 import { getRiderByIdForViewer } from "@/features/rider/server/dal";
 
@@ -94,7 +95,7 @@ export default async function RiderDetailPage({ params }: Readonly<RiderDetailPa
                     </p>
                 </div>
 
-                <div className="overflow-hidden rounded-xl border bg-card">
+                <div className="overflow-x-auto rounded-xl border bg-card">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-muted/40 text-xs uppercase">
                             <tr>
@@ -111,7 +112,9 @@ export default async function RiderDetailPage({ params }: Readonly<RiderDetailPa
                                     <td className="px-4 py-3">{parcel.parcelCode}</td>
                                     <td className="px-4 py-3">{parcel.merchantLabel}</td>
                                     <td className="px-4 py-3">{parcel.recipientName}</td>
-                                    <td className="px-4 py-3">{parcel.parcelStatus}</td>
+                                    <td className="px-4 py-3">
+                                        <ParcelStatusPill value={parcel.parcelStatus} />
+                                    </td>
                                     <td className="px-4 py-3">
                                         <Button asChild size="sm" variant="outline">
                                             <Link href={`/dashboard/parcels/${parcel.id}`}>
