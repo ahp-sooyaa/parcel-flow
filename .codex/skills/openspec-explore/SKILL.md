@@ -4,9 +4,9 @@ description: Enter explore mode - a thinking partner for exploring ideas, invest
 license: MIT
 compatibility: Requires openspec CLI.
 metadata:
-  author: openspec
-  version: "1.0"
-  generatedBy: "1.2.0"
+    author: openspec
+    version: "1.0"
+    generatedBy: "1.2.0"
 ---
 
 Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
@@ -110,30 +110,30 @@ Think freely. When insights crystallize, you might offer:
 If the user mentions a change or you detect one is relevant:
 
 1. **Read existing artifacts for context**
-   - `openspec/changes/<name>/proposal.md`
-   - `openspec/changes/<name>/design.md`
-   - `openspec/changes/<name>/tasks.md`
-   - etc.
+    - `openspec/changes/<name>/proposal.md`
+    - `openspec/changes/<name>/design.md`
+    - `openspec/changes/<name>/tasks.md`
+    - etc.
 
 2. **Reference them naturally in conversation**
-   - "Your design mentions using Redis, but we just realized SQLite fits better..."
-   - "The proposal scopes this to premium users, but we're now thinking everyone..."
+    - "Your design mentions using Redis, but we just realized SQLite fits better..."
+    - "The proposal scopes this to premium users, but we're now thinking everyone..."
 
 3. **Offer to capture when decisions are made**
 
-   | Insight Type               | Where to Capture             |
-   | -------------------------- | ---------------------------- |
-   | New requirement discovered | `specs/<capability>/spec.md` |
-   | Requirement changed        | `specs/<capability>/spec.md` |
-   | Design decision made       | `design.md`                  |
-   | Scope changed              | `proposal.md`                |
-   | New work identified        | `tasks.md`                   |
-   | Assumption invalidated     | Relevant artifact            |
+    | Insight Type               | Where to Capture             |
+    | -------------------------- | ---------------------------- |
+    | New requirement discovered | `specs/<capability>/spec.md` |
+    | Requirement changed        | `specs/<capability>/spec.md` |
+    | Design decision made       | `design.md`                  |
+    | Scope changed              | `proposal.md`                |
+    | New work identified        | `tasks.md`                   |
+    | Assumption invalidated     | Relevant artifact            |
 
-   Example offers:
-   - "That's a design decision. Capture it in design.md?"
-   - "This is a new requirement. Add it to specs?"
-   - "This changes scope. Update the proposal?"
+    Example offers:
+    - "That's a design decision. Capture it in design.md?"
+    - "This is a new requirement. Add it to specs?"
+    - "This changes scope. Update the proposal?"
 
 4. **The user decides** - Offer and move on. Don't pressure. Don't auto-capture.
 

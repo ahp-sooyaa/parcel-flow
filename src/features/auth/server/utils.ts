@@ -6,64 +6,64 @@ import { PERMISSION_SLUGS, type PermissionSlug } from "@/db/constants";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const getAuthenticatedSession = cache(async () => {
-  const supabase = await createSupabaseServerClient();
-  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
-  const userId = claimsData?.claims?.sub;
+    const supabase = await createSupabaseServerClient();
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+    const userId = claimsData?.claims?.sub;
 
-  if (claimsError || typeof userId !== "string") {
-    return null;
-  }
+    if (claimsError || typeof userId !== "string") {
+        return null;
+    }
 
-  return toAuthenticatedSession({
-    supabaseUserId: userId,
-  });
+    return toAuthenticatedSession({
+        supabaseUserId: userId,
+    });
 });
 
 export const getCurrentAppAccessContext = cache(async () => {
-  const session = await getAuthenticatedSession();
+    const session = await getAuthenticatedSession();
 
-  if (!session) {
-    return null;
-  }
+    if (!session) {
+        return null;
+    }
 
-  return getAuthenticatedUser(session.supabaseUserId);
+    return getAuthenticatedUser(session.supabaseUserId);
 });
 
 export async function requireAppAccessContext() {
-  const currentUser = await getCurrentAppAccessContext();
+    const currentUser = await getCurrentAppAccessContext();
 
-  if (!currentUser) {
-    throw new Error("Unauthorized");
-  }
+    if (!currentUser) {
+        throw new Error("Unauthorized");
+    }
 
-  if (!currentUser.isActive || currentUser.deletedAt) {
-    throw new Error("Unauthorized");
-  }
+    if (!currentUser.isActive || currentUser.deletedAt) {
+        throw new Error("Unauthorized");
+    }
 
-  return currentUser;
+    return currentUser;
 }
 
 export function hasPermission(
-  userPermissions: readonly PermissionSlug[],
-  permission: PermissionSlug,
+    userPermissions: readonly PermissionSlug[],
+    permission: PermissionSlug,
 ): boolean {
-  return userPermissions.includes(permission);
+    return userPermissions.includes(permission);
 }
 
 export async function requirePermission(permission: PermissionSlug) {
-  if (!PERMISSION_SLUGS.includes(permission)) {
-    throw new Error(`Unknown permission: ${permission}`);
-  }
+    if (!PERMISSION_SLUGS.includes(permission)) {
+        throw new Error(`Unknown permission: ${permission}`);
+    }
 
-  const currentUser = await requireAppAccessContext();
+    const currentUser = await requireAppAccessContext();
 
-  if (currentUser.mustResetPassword && permission !== "dashboard-page.view") {
-    throw new Error("Password reset required before this action is allowed");
-  }
+    if (currentUser.mustResetPassword && permission !== "dashboard-page.view") {
+        throw new Error("Password reset required before this action is allowed");
+    }
 
-  if (!hasPermission(currentUser.permissions, permission)) {
-    throw new Error("Forbidden");
-  }
+    if (!hasPermission(currentUser.permissions, permission)) {
+        throw new Error("Forbidden");
+    }
 
-  return currentUser;
+    return currentUser;
 }

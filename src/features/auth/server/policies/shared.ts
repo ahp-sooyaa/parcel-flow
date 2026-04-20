@@ -5,13 +5,13 @@ import type { AppAccessContext } from "@/features/auth/server/dto";
 export type PolicyViewer = Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">;
 
 export function hasViewerPermission(viewer: PolicyViewer, permission: PermissionSlug) {
-  return viewer.permissions.includes(permission);
+    return viewer.permissions.includes(permission);
 }
 
 export function isAdminRole(roleSlug: RoleSlug) {
-  return roleSlug === "super_admin" || roleSlug === "office_admin";
+    return roleSlug === "super_admin" || roleSlug === "office_admin";
 }
 
 export function isViewerSelf(viewer: PolicyViewer, targetUserId?: string) {
-  return typeof targetUserId === "string" && viewer.appUserId === targetUserId;
+    return typeof targetUserId === "string" && viewer.appUserId === targetUserId;
 }

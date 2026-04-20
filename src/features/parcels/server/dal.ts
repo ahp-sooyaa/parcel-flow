@@ -1,32 +1,32 @@
 import "server-only";
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import {
-  type AuditLogInsertInput,
-  type CreateParcelInsertInput,
-  type CreatePaymentInsertInput,
-  type ParcelDetailDto,
-  type ParcelListItemDto,
-  type ParcelOptionDto,
-  type ParcelPaymentUpdatePatch,
-  type ParcelUpdateContextDto,
-  type ParcelUpdatePatch,
-  toParcelDetailDto,
-  toParcelListItemDto,
-  toParcelUpdateContextDto,
+    type AuditLogInsertInput,
+    type CreateParcelInsertInput,
+    type CreatePaymentInsertInput,
+    type ParcelDetailDto,
+    type ParcelListItemDto,
+    type ParcelOptionDto,
+    type ParcelPaymentUpdatePatch,
+    type ParcelUpdateContextDto,
+    type ParcelUpdatePatch,
+    toParcelDetailDto,
+    toParcelListItemDto,
+    toParcelUpdateContextDto,
 } from "./dto";
 import { db } from "@/db";
 import {
-  appUsers,
-  merchants,
-  parcelAuditLogs,
-  parcelPaymentRecords,
-  parcels,
-  riders,
-  townships,
+    appUsers,
+    merchants,
+    parcelAuditLogs,
+    parcelPaymentRecords,
+    parcels,
+    riders,
+    townships,
 } from "@/db/schema";
 import {
-  getParcelAccess,
-  getRiderParcelActionAccess,
+    getParcelAccess,
+    getRiderParcelActionAccess,
 } from "@/features/auth/server/policies/parcels";
 import { normalizePatchValue, signParcelImageKeys } from "@/features/parcels/server/utils";
 
@@ -34,476 +34,482 @@ import type { ParcelPaymentWriteValues, ParcelWriteValues } from "./utils";
 import type { AppAccessContext } from "@/features/auth/server/dto";
 
 async function listParcels(): Promise<ParcelListItemDto[]> {
-  const rows = await db
-    .select({
-      id: parcels.id,
-      parcelCode: parcels.parcelCode,
-      merchantId: parcels.merchantId,
-      riderId: parcels.riderId,
-      merchantLabel: merchants.shopName,
-      recipientName: parcels.recipientName,
-      recipientTownshipName: townships.name,
-      parcelStatus: parcels.status,
-      deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
-      collectionStatus: parcelPaymentRecords.collectionStatus,
-      createdAt: parcels.createdAt,
-    })
-    .from(parcels)
-    .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
-    .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
-    .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
-    .orderBy(desc(parcels.createdAt));
+    const rows = await db
+        .select({
+            id: parcels.id,
+            parcelCode: parcels.parcelCode,
+            merchantId: parcels.merchantId,
+            riderId: parcels.riderId,
+            merchantLabel: merchants.shopName,
+            recipientName: parcels.recipientName,
+            recipientTownshipName: townships.name,
+            parcelStatus: parcels.status,
+            deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
+            collectionStatus: parcelPaymentRecords.collectionStatus,
+            createdAt: parcels.createdAt,
+        })
+        .from(parcels)
+        .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
+        .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
+        .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
+        .orderBy(desc(parcels.createdAt));
 
-  return rows.map((row) => toParcelListItemDto(row));
+    return rows.map((row) => toParcelListItemDto(row));
 }
 
 export async function getParcelsListForViewer(
-  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
 ): Promise<ParcelListItemDto[]> {
-  const parcelAccess = getParcelAccess({ viewer });
+    const parcelAccess = getParcelAccess({ viewer });
 
-  if (!parcelAccess.canViewList) {
-    return [];
-  }
+    if (!parcelAccess.canViewList) {
+        return [];
+    }
 
-  return listParcels();
+    return listParcels();
 }
 
 async function listMerchantParcels(merchantId: string): Promise<ParcelListItemDto[]> {
-  const rows = await db
-    .select({
-      id: parcels.id,
-      parcelCode: parcels.parcelCode,
-      merchantId: parcels.merchantId,
-      riderId: parcels.riderId,
-      merchantLabel: merchants.shopName,
-      recipientName: parcels.recipientName,
-      recipientTownshipName: townships.name,
-      parcelStatus: parcels.status,
-      deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
-      collectionStatus: parcelPaymentRecords.collectionStatus,
-      createdAt: parcels.createdAt,
-    })
-    .from(parcels)
-    .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
-    .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
-    .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
-    .where(eq(parcels.merchantId, merchantId))
-    .orderBy(desc(parcels.createdAt));
+    const rows = await db
+        .select({
+            id: parcels.id,
+            parcelCode: parcels.parcelCode,
+            merchantId: parcels.merchantId,
+            riderId: parcels.riderId,
+            merchantLabel: merchants.shopName,
+            recipientName: parcels.recipientName,
+            recipientTownshipName: townships.name,
+            parcelStatus: parcels.status,
+            deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
+            collectionStatus: parcelPaymentRecords.collectionStatus,
+            createdAt: parcels.createdAt,
+        })
+        .from(parcels)
+        .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
+        .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
+        .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
+        .where(eq(parcels.merchantId, merchantId))
+        .orderBy(desc(parcels.createdAt));
 
-  return rows.map((row) => toParcelListItemDto(row));
+    return rows.map((row) => toParcelListItemDto(row));
 }
 
 export async function getMerchantParcelsListForViewer(
-  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
-  merchantId: string,
+    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    merchantId: string,
 ): Promise<ParcelListItemDto[]> {
-  const parcelAccess = getParcelAccess({
-    viewer,
-    parcel: {
-      merchantId,
-    },
-  });
+    const parcelAccess = getParcelAccess({
+        viewer,
+        parcel: {
+            merchantId,
+        },
+    });
 
-  if (!parcelAccess.canView) {
-    return [];
-  }
+    if (!parcelAccess.canView) {
+        return [];
+    }
 
-  return listMerchantParcels(merchantId);
+    return listMerchantParcels(merchantId);
 }
 
 async function listAssignedRiderParcels(riderId: string): Promise<ParcelListItemDto[]> {
-  const rows = await db
-    .select({
-      id: parcels.id,
-      parcelCode: parcels.parcelCode,
-      merchantId: parcels.merchantId,
-      riderId: parcels.riderId,
-      merchantLabel: merchants.shopName,
-      recipientName: parcels.recipientName,
-      recipientTownshipName: townships.name,
-      parcelStatus: parcels.status,
-      deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
-      collectionStatus: parcelPaymentRecords.collectionStatus,
-      createdAt: parcels.createdAt,
-    })
-    .from(parcels)
-    .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
-    .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
-    .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
-    .where(eq(parcels.riderId, riderId))
-    .orderBy(desc(parcels.createdAt));
+    const rows = await db
+        .select({
+            id: parcels.id,
+            parcelCode: parcels.parcelCode,
+            merchantId: parcels.merchantId,
+            riderId: parcels.riderId,
+            merchantLabel: merchants.shopName,
+            recipientName: parcels.recipientName,
+            recipientTownshipName: townships.name,
+            parcelStatus: parcels.status,
+            deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
+            collectionStatus: parcelPaymentRecords.collectionStatus,
+            createdAt: parcels.createdAt,
+        })
+        .from(parcels)
+        .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
+        .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
+        .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
+        .where(eq(parcels.riderId, riderId))
+        .orderBy(desc(parcels.createdAt));
 
-  return rows.map((row) => toParcelListItemDto(row));
+    return rows.map((row) => toParcelListItemDto(row));
 }
 
 export async function getAssignedRiderParcelsListForViewer(
-  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
-  riderId: string,
+    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    riderId: string,
 ): Promise<ParcelListItemDto[]> {
-  const riderParcelActionAccess = getRiderParcelActionAccess({
-    viewer,
-    parcel: {
-      riderId,
-    },
-  });
-  const riderAccess = viewer.permissions.includes("rider.view");
+    const riderParcelActionAccess = getRiderParcelActionAccess({
+        viewer,
+        parcel: {
+            riderId,
+        },
+    });
+    const riderAccess = viewer.permissions.includes("rider.view");
 
-  if (!riderParcelActionAccess.canViewAssignedParcel && !riderAccess) {
-    return [];
-  }
+    if (!riderParcelActionAccess.canViewAssignedParcel && !riderAccess) {
+        return [];
+    }
 
-  return listAssignedRiderParcels(riderId);
+    return listAssignedRiderParcels(riderId);
 }
 
 async function findParcelDetailRowById(parcelId: string) {
-  const [row] = await db
-    .select({
-      id: parcels.id,
-      parcelCode: parcels.parcelCode,
-      merchantId: parcels.merchantId,
-      merchantLabel: merchants.shopName,
-      riderId: parcels.riderId,
-      riderLabel: appUsers.fullName,
-      recipientName: parcels.recipientName,
-      recipientPhone: parcels.recipientPhone,
-      recipientTownshipId: parcels.recipientTownshipId,
-      recipientTownshipName: townships.name,
-      recipientAddress: parcels.recipientAddress,
-      parcelDescription: parcels.parcelDescription,
-      packageCount: parcels.packageCount,
-      specialHandlingNote: parcels.specialHandlingNote,
-      estimatedWeightKg: parcels.estimatedWeightKg,
-      packageWidthCm: parcels.packageWidthCm,
-      packageHeightCm: parcels.packageHeightCm,
-      packageLengthCm: parcels.packageLengthCm,
-      pickupImageKeys: parcels.pickupImageKeys,
-      proofOfDeliveryImageKeys: parcels.proofOfDeliveryImageKeys,
-      parcelType: parcels.parcelType,
-      codAmount: parcels.codAmount,
-      deliveryFee: parcels.deliveryFee,
-      totalAmountToCollect: parcels.totalAmountToCollect,
-      deliveryFeePayer: parcels.deliveryFeePayer,
-      parcelStatus: parcels.status,
-      deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
-      codStatus: parcelPaymentRecords.codStatus,
-      collectedAmount: parcelPaymentRecords.collectedAmount,
-      collectionStatus: parcelPaymentRecords.collectionStatus,
-      merchantSettlementStatus: parcelPaymentRecords.merchantSettlementStatus,
-      riderPayoutStatus: parcelPaymentRecords.riderPayoutStatus,
-      paymentNote: parcelPaymentRecords.note,
-      paymentSlipImageKeys: parcelPaymentRecords.paymentSlipImageKeys,
-      createdAt: parcels.createdAt,
-      updatedAt: parcels.updatedAt,
-    })
-    .from(parcels)
-    .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
-    .leftJoin(riders, eq(parcels.riderId, riders.appUserId))
-    .leftJoin(appUsers, eq(riders.appUserId, appUsers.id))
-    .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
-    .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
-    .where(eq(parcels.id, parcelId))
-    .limit(1);
+    const [row] = await db
+        .select({
+            id: parcels.id,
+            parcelCode: parcels.parcelCode,
+            merchantId: parcels.merchantId,
+            merchantLabel: merchants.shopName,
+            riderId: parcels.riderId,
+            riderLabel: appUsers.fullName,
+            recipientName: parcels.recipientName,
+            recipientPhone: parcels.recipientPhone,
+            recipientTownshipId: parcels.recipientTownshipId,
+            recipientTownshipName: townships.name,
+            recipientAddress: parcels.recipientAddress,
+            parcelDescription: parcels.parcelDescription,
+            packageCount: parcels.packageCount,
+            specialHandlingNote: parcels.specialHandlingNote,
+            estimatedWeightKg: parcels.estimatedWeightKg,
+            packageWidthCm: parcels.packageWidthCm,
+            packageHeightCm: parcels.packageHeightCm,
+            packageLengthCm: parcels.packageLengthCm,
+            pickupImageKeys: parcels.pickupImageKeys,
+            proofOfDeliveryImageKeys: parcels.proofOfDeliveryImageKeys,
+            parcelType: parcels.parcelType,
+            codAmount: parcels.codAmount,
+            deliveryFee: parcels.deliveryFee,
+            totalAmountToCollect: parcels.totalAmountToCollect,
+            deliveryFeePayer: parcels.deliveryFeePayer,
+            parcelStatus: parcels.status,
+            deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
+            codStatus: parcelPaymentRecords.codStatus,
+            collectedAmount: parcelPaymentRecords.collectedAmount,
+            collectionStatus: parcelPaymentRecords.collectionStatus,
+            merchantSettlementStatus: parcelPaymentRecords.merchantSettlementStatus,
+            riderPayoutStatus: parcelPaymentRecords.riderPayoutStatus,
+            paymentNote: parcelPaymentRecords.note,
+            paymentSlipImageKeys: parcelPaymentRecords.paymentSlipImageKeys,
+            createdAt: parcels.createdAt,
+            updatedAt: parcels.updatedAt,
+        })
+        .from(parcels)
+        .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
+        .leftJoin(riders, eq(parcels.riderId, riders.appUserId))
+        .leftJoin(appUsers, eq(riders.appUserId, appUsers.id))
+        .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
+        .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
+        .where(eq(parcels.id, parcelId))
+        .limit(1);
 
-  return row ?? null;
+    return row ?? null;
 }
 
 export async function getParcelByIdForViewer(
-  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
-  parcelId: string,
+    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    parcelId: string,
 ): Promise<ParcelDetailDto | null> {
-  const row = await findParcelDetailRowById(parcelId);
+    const row = await findParcelDetailRowById(parcelId);
 
-  if (!row) {
-    return null;
-  }
+    if (!row) {
+        return null;
+    }
 
-  const parcelAccess = getParcelAccess({
-    viewer,
-    parcel: {
-      merchantId: row.merchantId,
-      riderId: row.riderId,
-    },
-  });
+    const parcelAccess = getParcelAccess({
+        viewer,
+        parcel: {
+            merchantId: row.merchantId,
+            riderId: row.riderId,
+        },
+    });
 
-  if (!parcelAccess.canView) {
-    return null;
-  }
+    if (!parcelAccess.canView) {
+        return null;
+    }
 
-  const pickupImageKeys = row.pickupImageKeys ?? [];
-  const proofOfDeliveryImageKeys = row.proofOfDeliveryImageKeys ?? [];
-  const paymentSlipImageKeys = row.paymentSlipImageKeys ?? [];
+    const pickupImageKeys = row.pickupImageKeys ?? [];
+    const proofOfDeliveryImageKeys = row.proofOfDeliveryImageKeys ?? [];
+    const paymentSlipImageKeys = row.paymentSlipImageKeys ?? [];
 
-  return toParcelDetailDto({
-    ...row,
-    pickupImages: await signParcelImageKeys(pickupImageKeys),
-    proofOfDeliveryImages: await signParcelImageKeys(proofOfDeliveryImageKeys),
-    paymentSlipImages:
-      viewer.roleSlug === "merchant" ? [] : await signParcelImageKeys(paymentSlipImageKeys),
-  });
+    return toParcelDetailDto({
+        ...row,
+        pickupImages: await signParcelImageKeys(pickupImageKeys),
+        proofOfDeliveryImages: await signParcelImageKeys(proofOfDeliveryImageKeys),
+        paymentSlipImages:
+            viewer.roleSlug === "merchant" ? [] : await signParcelImageKeys(paymentSlipImageKeys),
+    });
 }
 
 export async function isParcelCodeInUse(parcelCode: string): Promise<boolean> {
-  const [row] = await db
-    .select({ id: parcels.id })
-    .from(parcels)
-    .where(eq(parcels.parcelCode, parcelCode))
-    .limit(1);
+    const [row] = await db
+        .select({ id: parcels.id })
+        .from(parcels)
+        .where(eq(parcels.parcelCode, parcelCode))
+        .limit(1);
 
-  return Boolean(row?.id);
+    return Boolean(row?.id);
 }
 
 export async function getParcelFormOptions(input?: { merchantId?: string | null }): Promise<{
-  merchants: ParcelOptionDto[];
-  riders: ParcelOptionDto[];
-  townships: ParcelOptionDto[];
+    merchants: ParcelOptionDto[];
+    riders: ParcelOptionDto[];
+    townships: ParcelOptionDto[];
 }> {
-  const [merchantRows, riderRows, townshipRows] = await Promise.all([
-    db
-      .select({
-        id: merchants.appUserId,
-        label: merchants.shopName,
-      })
-      .from(merchants)
-      .where(
-        input?.merchantId
-          ? and(isNull(merchants.deletedAt), eq(merchants.appUserId, input.merchantId))
-          : isNull(merchants.deletedAt),
-      )
-      .orderBy(asc(merchants.shopName)),
-    db
-      .select({
-        id: riders.appUserId,
-        label: appUsers.fullName,
-      })
-      .from(riders)
-      .innerJoin(appUsers, eq(riders.appUserId, appUsers.id))
-      .where(and(isNull(riders.deletedAt), isNull(appUsers.deletedAt), eq(riders.isActive, true)))
-      .orderBy(asc(appUsers.fullName)),
-    db
-      .select({
-        id: townships.id,
-        label: townships.name,
-      })
-      .from(townships)
-      .where(eq(townships.isActive, true))
-      .orderBy(asc(townships.name)),
-  ]);
+    const [merchantRows, riderRows, townshipRows] = await Promise.all([
+        db
+            .select({
+                id: merchants.appUserId,
+                label: merchants.shopName,
+            })
+            .from(merchants)
+            .where(
+                input?.merchantId
+                    ? and(isNull(merchants.deletedAt), eq(merchants.appUserId, input.merchantId))
+                    : isNull(merchants.deletedAt),
+            )
+            .orderBy(asc(merchants.shopName)),
+        db
+            .select({
+                id: riders.appUserId,
+                label: appUsers.fullName,
+            })
+            .from(riders)
+            .innerJoin(appUsers, eq(riders.appUserId, appUsers.id))
+            .where(
+                and(
+                    isNull(riders.deletedAt),
+                    isNull(appUsers.deletedAt),
+                    eq(riders.isActive, true),
+                ),
+            )
+            .orderBy(asc(appUsers.fullName)),
+        db
+            .select({
+                id: townships.id,
+                label: townships.name,
+            })
+            .from(townships)
+            .where(eq(townships.isActive, true))
+            .orderBy(asc(townships.name)),
+    ]);
 
-  return {
-    merchants: merchantRows,
-    riders: riderRows,
-    townships: townshipRows,
-  };
+    return {
+        merchants: merchantRows,
+        riders: riderRows,
+        townships: townshipRows,
+    };
 }
 
 export async function createParcelWithPaymentAndAudit(input: {
-  actorAppUserId: string;
-  parcelValues: CreateParcelInsertInput;
-  paymentValues: CreatePaymentInsertInput;
+    actorAppUserId: string;
+    parcelValues: CreateParcelInsertInput;
+    paymentValues: CreatePaymentInsertInput;
 }) {
-  const created = await db.transaction(async (tx) => {
-    const [parcel] = await tx
-      .insert(parcels)
-      .values({
-        ...input.parcelValues,
-      })
-      .returning({ id: parcels.id });
+    const created = await db.transaction(async (tx) => {
+        const [parcel] = await tx
+            .insert(parcels)
+            .values({
+                ...input.parcelValues,
+            })
+            .returning({ id: parcels.id });
 
-    const [payment] = await tx
-      .insert(parcelPaymentRecords)
-      .values({
-        parcelId: parcel.id,
-        ...input.paymentValues,
-      })
-      .returning({ id: parcelPaymentRecords.id });
+        const [payment] = await tx
+            .insert(parcelPaymentRecords)
+            .values({
+                parcelId: parcel.id,
+                ...input.paymentValues,
+            })
+            .returning({ id: parcelPaymentRecords.id });
 
-    const parcelAuditPayload: AuditLogInsertInput = {
-      parcelId: parcel.id,
-      updatedBy: input.actorAppUserId,
-      sourceTable: "parcels",
-      event: "parcel.create",
-      oldValues: null,
-      newValues: input.parcelValues,
-    };
-    const paymentAuditPayload: AuditLogInsertInput = {
-      parcelId: parcel.id,
-      updatedBy: input.actorAppUserId,
-      sourceTable: "parcel_payment_records",
-      event: "parcel_payment_record.create",
-      oldValues: null,
-      newValues: input.paymentValues,
-    };
+        const parcelAuditPayload: AuditLogInsertInput = {
+            parcelId: parcel.id,
+            updatedBy: input.actorAppUserId,
+            sourceTable: "parcels",
+            event: "parcel.create",
+            oldValues: null,
+            newValues: input.parcelValues,
+        };
+        const paymentAuditPayload: AuditLogInsertInput = {
+            parcelId: parcel.id,
+            updatedBy: input.actorAppUserId,
+            sourceTable: "parcel_payment_records",
+            event: "parcel_payment_record.create",
+            oldValues: null,
+            newValues: input.paymentValues,
+        };
 
-    await tx.insert(parcelAuditLogs).values([parcelAuditPayload, paymentAuditPayload]);
+        await tx.insert(parcelAuditLogs).values([parcelAuditPayload, paymentAuditPayload]);
 
-    return { parcelId: parcel.id, paymentRecordId: payment.id };
-  });
+        return { parcelId: parcel.id, paymentRecordId: payment.id };
+    });
 
-  return created;
+    return created;
 }
 
 async function findParcelUpdateContextById(
-  parcelId: string,
+    parcelId: string,
 ): Promise<ParcelUpdateContextDto | null> {
-  const [row] = await db
-    .select({
-      parcelId: parcels.id,
-      parcelCode: parcels.parcelCode,
-      merchantId: parcels.merchantId,
-      riderId: parcels.riderId,
-      recipientName: parcels.recipientName,
-      recipientPhone: parcels.recipientPhone,
-      recipientTownshipId: parcels.recipientTownshipId,
-      recipientAddress: parcels.recipientAddress,
-      parcelDescription: parcels.parcelDescription,
-      packageCount: parcels.packageCount,
-      specialHandlingNote: parcels.specialHandlingNote,
-      estimatedWeightKg: parcels.estimatedWeightKg,
-      packageWidthCm: parcels.packageWidthCm,
-      packageHeightCm: parcels.packageHeightCm,
-      packageLengthCm: parcels.packageLengthCm,
-      pickupImageKeys: parcels.pickupImageKeys,
-      proofOfDeliveryImageKeys: parcels.proofOfDeliveryImageKeys,
-      parcelType: parcels.parcelType,
-      codAmount: parcels.codAmount,
-      deliveryFee: parcels.deliveryFee,
-      totalAmountToCollect: parcels.totalAmountToCollect,
-      deliveryFeePayer: parcels.deliveryFeePayer,
-      parcelStatus: parcels.status,
-      paymentId: parcelPaymentRecords.id,
-      deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
-      codStatus: parcelPaymentRecords.codStatus,
-      collectedAmount: parcelPaymentRecords.collectedAmount,
-      collectionStatus: parcelPaymentRecords.collectionStatus,
-      merchantSettlementStatus: parcelPaymentRecords.merchantSettlementStatus,
-      riderPayoutStatus: parcelPaymentRecords.riderPayoutStatus,
-      paymentNote: parcelPaymentRecords.note,
-      paymentSlipImageKeys: parcelPaymentRecords.paymentSlipImageKeys,
-    })
-    .from(parcels)
-    .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
-    .where(eq(parcels.id, parcelId))
-    .limit(1);
+    const [row] = await db
+        .select({
+            parcelId: parcels.id,
+            parcelCode: parcels.parcelCode,
+            merchantId: parcels.merchantId,
+            riderId: parcels.riderId,
+            recipientName: parcels.recipientName,
+            recipientPhone: parcels.recipientPhone,
+            recipientTownshipId: parcels.recipientTownshipId,
+            recipientAddress: parcels.recipientAddress,
+            parcelDescription: parcels.parcelDescription,
+            packageCount: parcels.packageCount,
+            specialHandlingNote: parcels.specialHandlingNote,
+            estimatedWeightKg: parcels.estimatedWeightKg,
+            packageWidthCm: parcels.packageWidthCm,
+            packageHeightCm: parcels.packageHeightCm,
+            packageLengthCm: parcels.packageLengthCm,
+            pickupImageKeys: parcels.pickupImageKeys,
+            proofOfDeliveryImageKeys: parcels.proofOfDeliveryImageKeys,
+            parcelType: parcels.parcelType,
+            codAmount: parcels.codAmount,
+            deliveryFee: parcels.deliveryFee,
+            totalAmountToCollect: parcels.totalAmountToCollect,
+            deliveryFeePayer: parcels.deliveryFeePayer,
+            parcelStatus: parcels.status,
+            paymentId: parcelPaymentRecords.id,
+            deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
+            codStatus: parcelPaymentRecords.codStatus,
+            collectedAmount: parcelPaymentRecords.collectedAmount,
+            collectionStatus: parcelPaymentRecords.collectionStatus,
+            merchantSettlementStatus: parcelPaymentRecords.merchantSettlementStatus,
+            riderPayoutStatus: parcelPaymentRecords.riderPayoutStatus,
+            paymentNote: parcelPaymentRecords.note,
+            paymentSlipImageKeys: parcelPaymentRecords.paymentSlipImageKeys,
+        })
+        .from(parcels)
+        .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
+        .where(eq(parcels.id, parcelId))
+        .limit(1);
 
-  if (!row?.paymentId) {
-    return null;
-  }
+    if (!row?.paymentId) {
+        return null;
+    }
 
-  return toParcelUpdateContextDto(row);
+    return toParcelUpdateContextDto(row);
 }
 
 export async function getParcelUpdateContextForViewer(
-  viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
-  parcelId: string,
+    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    parcelId: string,
 ): Promise<ParcelUpdateContextDto | null> {
-  const current = await findParcelUpdateContextById(parcelId);
+    const current = await findParcelUpdateContextById(parcelId);
 
-  if (!current) {
-    return null;
-  }
+    if (!current) {
+        return null;
+    }
 
-  const parcelAccess = getParcelAccess({
-    viewer,
-    parcel: {
-      merchantId: current.parcel.merchantId,
-      riderId: current.parcel.riderId,
-    },
-  });
+    const parcelAccess = getParcelAccess({
+        viewer,
+        parcel: {
+            merchantId: current.parcel.merchantId,
+            riderId: current.parcel.riderId,
+        },
+    });
 
-  if (!parcelAccess.canView) {
-    return null;
-  }
+    if (!parcelAccess.canView) {
+        return null;
+    }
 
-  return current;
+    return current;
 }
 
 export async function updateParcelAndPaymentWithAudit(input: {
-  actorAppUserId: string;
-  parcelId: string;
-  parcelPatch: ParcelUpdatePatch;
-  paymentPatch: ParcelPaymentUpdatePatch;
-  parcelOldValues: Record<string, unknown> | null;
-  paymentOldValues: Record<string, unknown> | null;
-  parcelEvent: string;
+    actorAppUserId: string;
+    parcelId: string;
+    parcelPatch: ParcelUpdatePatch;
+    paymentPatch: ParcelPaymentUpdatePatch;
+    parcelOldValues: Record<string, unknown> | null;
+    paymentOldValues: Record<string, unknown> | null;
+    parcelEvent: string;
 }) {
-  await db.transaction(async (tx) => {
-    if (Object.keys(input.parcelPatch).length > 0) {
-      await tx
-        .update(parcels)
-        .set({
-          ...input.parcelPatch,
-          updatedAt: new Date(),
-        })
-        .where(eq(parcels.id, input.parcelId));
+    await db.transaction(async (tx) => {
+        if (Object.keys(input.parcelPatch).length > 0) {
+            await tx
+                .update(parcels)
+                .set({
+                    ...input.parcelPatch,
+                    updatedAt: new Date(),
+                })
+                .where(eq(parcels.id, input.parcelId));
 
-      await tx.insert(parcelAuditLogs).values({
-        parcelId: input.parcelId,
-        updatedBy: input.actorAppUserId,
-        sourceTable: "parcels",
-        event: input.parcelEvent,
-        oldValues: input.parcelOldValues,
-        newValues: input.parcelPatch,
-      });
-    }
+            await tx.insert(parcelAuditLogs).values({
+                parcelId: input.parcelId,
+                updatedBy: input.actorAppUserId,
+                sourceTable: "parcels",
+                event: input.parcelEvent,
+                oldValues: input.parcelOldValues,
+                newValues: input.parcelPatch,
+            });
+        }
 
-    if (Object.keys(input.paymentPatch).length > 0) {
-      await tx
-        .update(parcelPaymentRecords)
-        .set({
-          ...input.paymentPatch,
-          updatedAt: new Date(),
-        })
-        .where(eq(parcelPaymentRecords.parcelId, input.parcelId));
+        if (Object.keys(input.paymentPatch).length > 0) {
+            await tx
+                .update(parcelPaymentRecords)
+                .set({
+                    ...input.paymentPatch,
+                    updatedAt: new Date(),
+                })
+                .where(eq(parcelPaymentRecords.parcelId, input.parcelId));
 
-      await tx.insert(parcelAuditLogs).values({
-        parcelId: input.parcelId,
-        updatedBy: input.actorAppUserId,
-        sourceTable: "parcel_payment_records",
-        event: "parcel_payment_record.update",
-        oldValues: input.paymentOldValues,
-        newValues: input.paymentPatch,
-      });
-    }
-  });
+            await tx.insert(parcelAuditLogs).values({
+                parcelId: input.parcelId,
+                updatedBy: input.actorAppUserId,
+                sourceTable: "parcel_payment_records",
+                event: "parcel_payment_record.update",
+                oldValues: input.paymentOldValues,
+                newValues: input.paymentPatch,
+            });
+        }
+    });
 }
 
 export function buildParcelPatch(input: {
-  current: ParcelUpdateContextDto["parcel"];
-  next: ParcelWriteValues;
+    current: ParcelUpdateContextDto["parcel"];
+    next: ParcelWriteValues;
 }) {
-  const patch: ParcelUpdatePatch = {};
-  const oldValues: Record<string, unknown> = {};
+    const patch: ParcelUpdatePatch = {};
+    const oldValues: Record<string, unknown> = {};
 
-  for (const [key, value] of Object.entries(input.next)) {
-    const keyName = key as keyof ParcelUpdatePatch;
-    const currentValue = input.current[keyName];
+    for (const [key, value] of Object.entries(input.next)) {
+        const keyName = key as keyof ParcelUpdatePatch;
+        const currentValue = input.current[keyName];
 
-    if (normalizePatchValue(currentValue) !== normalizePatchValue(value)) {
-      patch[keyName] = value as never;
-      oldValues[keyName] = currentValue;
+        if (normalizePatchValue(currentValue) !== normalizePatchValue(value)) {
+            patch[keyName] = value as never;
+            oldValues[keyName] = currentValue;
+        }
     }
-  }
 
-  return { patch, oldValues: Object.keys(oldValues).length > 0 ? oldValues : null };
+    return { patch, oldValues: Object.keys(oldValues).length > 0 ? oldValues : null };
 }
 
 export function buildPaymentPatch(input: {
-  current: ParcelUpdateContextDto["payment"];
-  next: ParcelPaymentWriteValues;
+    current: ParcelUpdateContextDto["payment"];
+    next: ParcelPaymentWriteValues;
 }) {
-  const patch: ParcelPaymentUpdatePatch = {};
-  const oldValues: Record<string, unknown> = {};
+    const patch: ParcelPaymentUpdatePatch = {};
+    const oldValues: Record<string, unknown> = {};
 
-  for (const [key, value] of Object.entries(input.next)) {
-    const keyName = key as keyof ParcelPaymentUpdatePatch;
-    const currentValue = input.current[keyName];
+    for (const [key, value] of Object.entries(input.next)) {
+        const keyName = key as keyof ParcelPaymentUpdatePatch;
+        const currentValue = input.current[keyName];
 
-    if (normalizePatchValue(currentValue) !== normalizePatchValue(value)) {
-      patch[keyName] = value as never;
-      oldValues[keyName] = currentValue;
+        if (normalizePatchValue(currentValue) !== normalizePatchValue(value)) {
+            patch[keyName] = value as never;
+            oldValues[keyName] = currentValue;
+        }
     }
-  }
 
-  return { patch, oldValues: Object.keys(oldValues).length > 0 ? oldValues : null };
+    return { patch, oldValues: Object.keys(oldValues).length > 0 ? oldValues : null };
 }

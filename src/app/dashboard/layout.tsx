@@ -7,18 +7,18 @@ import type { AppAccessContext } from "@/features/auth/server/dto";
 import type { ReactNode } from "react";
 
 type DashboardLayoutProps = {
-  children: ReactNode;
+    children: ReactNode;
 };
 
 export default async function DashboardLayout({ children }: Readonly<DashboardLayoutProps>) {
-  let currentUser: AppAccessContext;
-  try {
-    currentUser = await requireAppAccessContext();
-  } catch {
-    redirect("/sign-in");
-  }
+    let currentUser: AppAccessContext;
+    try {
+        currentUser = await requireAppAccessContext();
+    } catch {
+        redirect("/sign-in");
+    }
 
-  const shellUser = toDashboardShellUserDto(currentUser);
+    const shellUser = toDashboardShellUserDto(currentUser);
 
-  return <DashboardShell user={shellUser}>{children}</DashboardShell>;
+    return <DashboardShell user={shellUser}>{children}</DashboardShell>;
 }

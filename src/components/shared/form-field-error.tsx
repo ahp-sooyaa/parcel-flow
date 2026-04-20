@@ -1,11 +1,11 @@
 type FormFieldErrorProps = {
-  message?: string;
+    message?: string;
 };
 
 export function FormFieldError({ message }: Readonly<FormFieldErrorProps>) {
-  if (!message) {
-    return null;
-  }
+    if (!message) {
+        return null;
+    }
 
-  return <p className="text-xs text-destructive">{message}</p>;
+    return <p className="text-xs text-destructive">{message}</p>;
 }

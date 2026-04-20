@@ -1,76 +1,76 @@
 {
-  "version": "7",
-  "dialect": "postgresql",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1774968630752,
-      "tag": "0000_natural_ben_parker",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1775047191856,
-      "tag": "0001_auth_rls_policies",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1775047196334,
-      "tag": "0002_seed_data_template",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1775130739922,
-      "tag": "0003_messy_rockslide",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1775132425416,
-      "tag": "0004_rider_rls_policies",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1775211179646,
-      "tag": "0005_tiny_leader",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1775212793484,
-      "tag": "0006_township_rls",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1775229170752,
-      "tag": "0007_clean_strong_guy",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1775290804511,
-      "tag": "0008_breezy_korath",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1776562452713,
-      "tag": "0010_magical_lionheart",
-      "breakpoints": true
-    }
-  ]
+    "version": "7",
+    "dialect": "postgresql",
+    "entries": [
+        {
+            "idx": 0,
+            "version": "7",
+            "when": 1774968630752,
+            "tag": "0000_natural_ben_parker",
+            "breakpoints": true
+        },
+        {
+            "idx": 1,
+            "version": "7",
+            "when": 1775047191856,
+            "tag": "0001_auth_rls_policies",
+            "breakpoints": true
+        },
+        {
+            "idx": 2,
+            "version": "7",
+            "when": 1775047196334,
+            "tag": "0002_seed_data_template",
+            "breakpoints": true
+        },
+        {
+            "idx": 3,
+            "version": "7",
+            "when": 1775130739922,
+            "tag": "0003_messy_rockslide",
+            "breakpoints": true
+        },
+        {
+            "idx": 4,
+            "version": "7",
+            "when": 1775132425416,
+            "tag": "0004_rider_rls_policies",
+            "breakpoints": true
+        },
+        {
+            "idx": 5,
+            "version": "7",
+            "when": 1775211179646,
+            "tag": "0005_tiny_leader",
+            "breakpoints": true
+        },
+        {
+            "idx": 6,
+            "version": "7",
+            "when": 1775212793484,
+            "tag": "0006_township_rls",
+            "breakpoints": true
+        },
+        {
+            "idx": 7,
+            "version": "7",
+            "when": 1775229170752,
+            "tag": "0007_clean_strong_guy",
+            "breakpoints": true
+        },
+        {
+            "idx": 8,
+            "version": "7",
+            "when": 1775290804511,
+            "tag": "0008_breezy_korath",
+            "breakpoints": true
+        },
+        {
+            "idx": 10,
+            "version": "7",
+            "when": 1776562452713,
+            "tag": "0010_magical_lionheart",
+            "breakpoints": true
+        }
+    ]
 }
