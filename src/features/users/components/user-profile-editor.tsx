@@ -5,7 +5,10 @@ import { getBankAccountAccess } from "@/features/auth/server/policies/bank-accou
 import { getMerchantAccess } from "@/features/auth/server/policies/merchant";
 import { getRiderAccess } from "@/features/auth/server/policies/rider";
 import { BankAccountsPanel } from "@/features/bank-accounts/components/bank-accounts-panel";
-import { getOwnerDisplayLabel } from "@/features/bank-accounts/server/utils";
+import {
+    getOwnerDisplayLabel,
+    isBankAccountUserOwnerRole,
+} from "@/features/bank-accounts/server/utils";
 import { EditMerchantForm } from "@/features/merchant/components/edit-merchant-form";
 import { getMerchantProfileByAppUserIdForViewer } from "@/features/merchant/server/dal";
 import { EditRiderForm } from "@/features/rider/components/edit-rider-form";
@@ -14,6 +17,7 @@ import { getTownshipOptions } from "@/features/townships/server/dal";
 import { cn } from "@/lib/utils";
 
 import type { AppAccessContext } from "@/features/auth/server/dto";
+import type { BankAccountOwnerDto } from "@/features/bank-accounts/server/dto";
 
 type EditorMode = "self" | "admin";
 type ProfileEditorUser = Pick<
@@ -28,6 +32,42 @@ type UserProfileEditorProps = {
     basePath: string;
     targetUser?: ProfileEditorUser;
 };
+
+function getProfileBankAccountOwner(user: ProfileEditorUser): BankAccountOwnerDto | null {
+    if (user.roleSlug === "super_admin") {
+        return {
+            appUserId: null,
+            isCompanyAccount: true,
+        };
+    }
+
+    if (isBankAccountUserOwnerRole(user.roleSlug)) {
+        return {
+            appUserId: user.appUserId,
+            isCompanyAccount: false,
+        };
+    }
+
+    return null;
+}
+
+function getBankAccountDescription(input: {
+    owner: BankAccountOwnerDto;
+    mode: EditorMode;
+    canManage: boolean;
+}) {
+    if (input.owner.isCompanyAccount) {
+        return input.canManage
+            ? "Manage shared company bank accounts used for internal settlement workflows."
+            : "View shared company bank accounts used for internal settlement workflows.";
+    }
+
+    if (input.mode === "admin") {
+        return "View or manage this user's bank accounts based on your permissions.";
+    }
+
+    return "Manage your own bank accounts for settlement and payout workflows.";
+}
 
 export async function UserProfileEditor({
     viewer,
@@ -57,18 +97,7 @@ export async function UserProfileEditor({
     let merchantProfile: Awaited<ReturnType<typeof getMerchantProfileByAppUserIdForViewer>> = null;
     let riderProfile: Awaited<ReturnType<typeof getRiderProfileByAppUserIdForViewer>> = null;
     let townships: Awaited<ReturnType<typeof getTownshipOptions>> = [];
-    const bankAccountOwner =
-        accountUser.roleSlug === "super_admin"
-            ? {
-                  appUserId: null,
-                  isCompanyAccount: true,
-              }
-            : accountUser.roleSlug === "merchant" || accountUser.roleSlug === "rider"
-              ? {
-                    appUserId: targetUserId,
-                    isCompanyAccount: false,
-                }
-              : null;
+    const bankAccountOwner = getProfileBankAccountOwner(accountUser);
     const bankAccountAccess = bankAccountOwner
         ? getBankAccountAccess({
               viewer,
@@ -76,6 +105,16 @@ export async function UserProfileEditor({
           })
         : null;
     const canViewBankAccounts = bankAccountAccess?.canView ?? false;
+    const canManageBankAccounts = Boolean(
+        bankAccountAccess?.canCreate || bankAccountAccess?.canUpdate,
+    );
+    const bankAccountDescription = bankAccountOwner
+        ? getBankAccountDescription({
+              owner: bankAccountOwner,
+              mode,
+              canManage: canManageBankAccounts,
+          })
+        : "";
 
     canEditMerchantDetails = getMerchantAccess({
         viewer,
@@ -275,15 +314,7 @@ export async function UserProfileEditor({
                             roleSlug: accountUser.roleSlug,
                             fullName: accountUser.fullName,
                         })}
-                        description={
-                            bankAccountOwner.isCompanyAccount
-                                ? bankAccountAccess?.canCreate || bankAccountAccess?.canUpdate
-                                    ? "Manage shared company bank accounts used for internal settlement workflows."
-                                    : "View shared company bank accounts used for internal settlement workflows."
-                                : mode === "admin"
-                                  ? "View or manage this user's bank accounts based on your permissions."
-                                  : "Manage your own bank accounts for settlement and payout workflows."
-                        }
+                        description={bankAccountDescription}
                         basePath={basePath}
                     />
                 )}
