@@ -44,6 +44,10 @@ values
   ('rider.view', 'View rider details'),
   ('rider.update', 'Update rider'),
   ('rider.delete', 'Delete rider'),
+  ('bank-account.view', 'View bank accounts'),
+  ('bank-account.create', 'Create bank account'),
+  ('bank-account.update', 'Update bank account'),
+  ('bank-account.delete', 'Delete bank account'),
   ('parcel-list.view', 'View parcel list'),
   ('parcel.view', 'View parcel details'),
   ('parcel.create', 'Create parcel'),
@@ -63,6 +67,9 @@ values
   ('township.delete'),
   ('merchant.delete'),
   ('rider.delete'),
+  ('bank-account.create'),
+  ('bank-account.update'),
+  ('bank-account.delete'),
   ('parcel.delete');
 
 drop table if exists pg_temp.seed_rider_allowed_permissions;

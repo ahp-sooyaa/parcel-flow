@@ -2,7 +2,7 @@ import "server-only";
 import { and, count, desc, eq, isNull } from "drizzle-orm";
 import { toAppUserListItemDto, type AppUserListItemDto, type UserWithRole } from "./dto";
 import { db } from "@/db";
-import { appUsers, merchants, riders, roles } from "@/db/schema";
+import { appUsers, bankAccounts, merchants, riders, roles } from "@/db/schema";
 import { getUserManagementAccess } from "@/features/auth/server/policies/user-management";
 import { createMerchantProfile } from "@/features/merchant/server/dal";
 import { createRiderProfile } from "@/features/rider/server/dal";
@@ -189,5 +189,19 @@ export async function softDeleteUserWithProfiles(input: {
                 updatedAt: input.deletedAt,
             })
             .where(and(eq(riders.appUserId, input.userId), isNull(riders.deletedAt)));
+
+        await tx
+            .update(bankAccounts)
+            .set({
+                deletedAt: input.deletedAt,
+                updatedAt: input.deletedAt,
+            })
+            .where(
+                and(
+                    eq(bankAccounts.appUserId, input.userId),
+                    eq(bankAccounts.isCompanyAccount, false),
+                    isNull(bankAccounts.deletedAt),
+                ),
+            );
     });
 }

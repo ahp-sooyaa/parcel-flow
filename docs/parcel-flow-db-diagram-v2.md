@@ -221,6 +221,7 @@ erDiagram
         string bank_account_name
         string bank_account_number
         boolean is_company_account
+        boolean is_primary
         timestamp deleted_at
         timestamp created_at
         timestamp updated_at

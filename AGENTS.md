@@ -79,7 +79,8 @@ Required structure:
 
 ## Coding style
 
-- Prefer explicit, boring, maintainable code over clever abstractions.
+- Avoid over-engineering, verbose field-by-field mapping, and unnecessary abstractions.
+- Prefer maintainable code over clever abstractions.
 - Use domain-first naming.
 - Make small, reviewable changes.
 - Follow existing project patterns when adding new code.

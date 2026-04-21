@@ -1,9 +1,12 @@
+import { sql } from "drizzle-orm";
 import {
     boolean,
+    check,
     integer,
     index,
     jsonb,
     numeric,
+    pgPolicy,
     pgTable,
     text,
     timestamp,
@@ -180,6 +183,143 @@ export const riders = pgTable(
     ],
 );
 
+export const bankAccounts = pgTable(
+    "bank_accounts",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        appUserId: uuid("app_user_id").references(() => appUsers.id, { onDelete: "cascade" }),
+        bankName: text("bank_name").notNull(),
+        bankAccountName: text("bank_account_name").notNull(),
+        bankAccountNumber: text("bank_account_number").notNull(),
+        isCompanyAccount: boolean("is_company_account").default(false).notNull(),
+        isPrimary: boolean("is_primary").default(false).notNull(),
+        deletedAt: timestamp("deleted_at", { withTimezone: true }),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    },
+    (table) => [
+        index("bank_accounts_app_user_idx").on(table.appUserId),
+        index("bank_accounts_company_idx").on(table.isCompanyAccount),
+        index("bank_accounts_created_at_idx").on(table.createdAt),
+        index("bank_accounts_deleted_at_idx").on(table.deletedAt),
+        uniqueIndex("bank_accounts_user_primary_uidx")
+            .on(table.appUserId)
+            .where(
+                sql`${table.deletedAt} is null and ${table.isCompanyAccount} = false and ${table.isPrimary} = true`,
+            ),
+        uniqueIndex("bank_accounts_company_primary_uidx")
+            .on(table.isCompanyAccount)
+            .where(
+                sql`${table.deletedAt} is null and ${table.isCompanyAccount} = true and ${table.isPrimary} = true`,
+            ),
+        check(
+            "bank_accounts_owner_check",
+            sql`(
+                (${table.isCompanyAccount} = true and ${table.appUserId} is null)
+                or
+                (${table.isCompanyAccount} = false and ${table.appUserId} is not null)
+            )`,
+        ),
+        pgPolicy("bank_accounts_select_admin_or_owner", {
+            for: "select",
+            to: "authenticated",
+            using: sql`
+                public.is_super_admin()
+                or public.is_office_admin()
+                or (
+                    ${table.isCompanyAccount} = false
+                    and exists (
+                        select 1
+                        from public.app_users u
+                        join public.roles r on r.id = u.role_id
+                        where u.supabase_user_id = auth.uid()
+                          and u.is_active = true
+                          and u.deleted_at is null
+                          and r.slug in ('merchant', 'rider')
+                          and u.id = ${table.appUserId}
+                    )
+                )
+            `,
+        }),
+        pgPolicy("bank_accounts_insert_super_admin_or_owner", {
+            for: "insert",
+            to: "authenticated",
+            withCheck: sql`
+                public.is_super_admin()
+                or (
+                    ${table.isCompanyAccount} = false
+                    and exists (
+                        select 1
+                        from public.app_users u
+                        join public.roles r on r.id = u.role_id
+                        where u.supabase_user_id = auth.uid()
+                          and u.is_active = true
+                          and u.deleted_at is null
+                          and r.slug in ('merchant', 'rider')
+                          and u.id = ${table.appUserId}
+                    )
+                )
+            `,
+        }),
+        pgPolicy("bank_accounts_update_super_admin_or_owner", {
+            for: "update",
+            to: "authenticated",
+            using: sql`
+                public.is_super_admin()
+                or (
+                    ${table.isCompanyAccount} = false
+                    and exists (
+                        select 1
+                        from public.app_users u
+                        join public.roles r on r.id = u.role_id
+                        where u.supabase_user_id = auth.uid()
+                          and u.is_active = true
+                          and u.deleted_at is null
+                          and r.slug in ('merchant', 'rider')
+                          and u.id = ${table.appUserId}
+                    )
+                )
+            `,
+            withCheck: sql`
+                public.is_super_admin()
+                or (
+                    ${table.isCompanyAccount} = false
+                    and exists (
+                        select 1
+                        from public.app_users u
+                        join public.roles r on r.id = u.role_id
+                        where u.supabase_user_id = auth.uid()
+                          and u.is_active = true
+                          and u.deleted_at is null
+                          and r.slug in ('merchant', 'rider')
+                          and u.id = ${table.appUserId}
+                    )
+                )
+            `,
+        }),
+        pgPolicy("bank_accounts_delete_super_admin_or_owner", {
+            for: "delete",
+            to: "authenticated",
+            using: sql`
+                public.is_super_admin()
+                or (
+                    ${table.isCompanyAccount} = false
+                    and exists (
+                        select 1
+                        from public.app_users u
+                        join public.roles r on r.id = u.role_id
+                        where u.supabase_user_id = auth.uid()
+                          and u.is_active = true
+                          and u.deleted_at is null
+                          and r.slug in ('merchant', 'rider')
+                          and u.id = ${table.appUserId}
+                    )
+                )
+            `,
+        }),
+    ],
+).enableRLS();
+
 export const parcels = pgTable(
     "parcels",
     {
@@ -306,6 +446,8 @@ export type Merchant = typeof merchants.$inferSelect;
 export type NewMerchant = typeof merchants.$inferInsert;
 export type Rider = typeof riders.$inferSelect;
 export type NewRider = typeof riders.$inferInsert;
+export type BankAccount = typeof bankAccounts.$inferSelect;
+export type NewBankAccount = typeof bankAccounts.$inferInsert;
 export type Parcel = typeof parcels.$inferSelect;
 export type NewParcel = typeof parcels.$inferInsert;
 export type ParcelPaymentRecord = typeof parcelPaymentRecords.$inferSelect;

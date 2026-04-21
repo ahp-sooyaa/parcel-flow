@@ -71,6 +71,13 @@
             "when": 1776562452713,
             "tag": "0010_magical_lionheart",
             "breakpoints": true
+        },
+        {
+            "idx": 11,
+            "version": "7",
+            "when": 1776737032931,
+            "tag": "0011_fat_peter_parker",
+            "breakpoints": true
         }
     ]
 }

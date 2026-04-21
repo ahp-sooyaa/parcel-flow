@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { ChangePasswordForm } from "./change-password-form";
 import { AccountEditForm } from "./edit-user-form";
+import { getBankAccountAccess } from "@/features/auth/server/policies/bank-accounts";
 import { getMerchantAccess } from "@/features/auth/server/policies/merchant";
 import { getRiderAccess } from "@/features/auth/server/policies/rider";
+import { BankAccountsPanel } from "@/features/bank-accounts/components/bank-accounts-panel";
+import { getOwnerDisplayLabel } from "@/features/bank-accounts/server/utils";
 import { EditMerchantForm } from "@/features/merchant/components/edit-merchant-form";
 import { getMerchantProfileByAppUserIdForViewer } from "@/features/merchant/server/dal";
 import { EditRiderForm } from "@/features/rider/components/edit-rider-form";
@@ -54,6 +57,25 @@ export async function UserProfileEditor({
     let merchantProfile: Awaited<ReturnType<typeof getMerchantProfileByAppUserIdForViewer>> = null;
     let riderProfile: Awaited<ReturnType<typeof getRiderProfileByAppUserIdForViewer>> = null;
     let townships: Awaited<ReturnType<typeof getTownshipOptions>> = [];
+    const bankAccountOwner =
+        accountUser.roleSlug === "super_admin"
+            ? {
+                  appUserId: null,
+                  isCompanyAccount: true,
+              }
+            : accountUser.roleSlug === "merchant" || accountUser.roleSlug === "rider"
+              ? {
+                    appUserId: targetUserId,
+                    isCompanyAccount: false,
+                }
+              : null;
+    const bankAccountAccess = bankAccountOwner
+        ? getBankAccountAccess({
+              viewer,
+              owner: bankAccountOwner,
+          })
+        : null;
+    const canViewBankAccounts = bankAccountAccess?.canView ?? false;
 
     canEditMerchantDetails = getMerchantAccess({
         viewer,
@@ -78,7 +100,10 @@ export async function UserProfileEditor({
 
     return (
         <section className="space-y-4">
-            <nav className="flex items-center gap-1 border-b" aria-label="Profile edit tabs">
+            <nav
+                className="flex items-center gap-1 overflow-x-auto border-b"
+                aria-label="Profile edit tabs"
+            >
                 <Link
                     href={`${basePath}?tab=account-details`}
                     className={cn("border-b-2 px-4 py-2 text-sm font-medium transition-colors", {
@@ -119,6 +144,22 @@ export async function UserProfileEditor({
                         )}
                     >
                         Rider Details
+                    </Link>
+                )}
+
+                {canViewBankAccounts && (
+                    <Link
+                        href={`${basePath}?tab=bank-accounts`}
+                        className={cn(
+                            "border-b-2 px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors",
+                            {
+                                "border-primary text-foreground": activeTab === "bank-accounts",
+                                "border-transparent text-muted-foreground hover:text-foreground":
+                                    activeTab !== "bank-accounts",
+                            },
+                        )}
+                    >
+                        Bank Accounts
                     </Link>
                 )}
             </nav>
@@ -224,6 +265,27 @@ export async function UserProfileEditor({
                             }}
                         />
                     </div>
+                )}
+
+                {activeTab === "bank-accounts" && bankAccountOwner && canViewBankAccounts && (
+                    <BankAccountsPanel
+                        viewer={viewer}
+                        owner={bankAccountOwner}
+                        title={getOwnerDisplayLabel({
+                            roleSlug: accountUser.roleSlug,
+                            fullName: accountUser.fullName,
+                        })}
+                        description={
+                            bankAccountOwner.isCompanyAccount
+                                ? bankAccountAccess?.canCreate || bankAccountAccess?.canUpdate
+                                    ? "Manage shared company bank accounts used for internal settlement workflows."
+                                    : "View shared company bank accounts used for internal settlement workflows."
+                                : mode === "admin"
+                                  ? "View or manage this user's bank accounts based on your permissions."
+                                  : "Manage your own bank accounts for settlement and payout workflows."
+                        }
+                        basePath={basePath}
+                    />
                 )}
             </section>
         </section>
