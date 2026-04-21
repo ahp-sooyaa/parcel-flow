@@ -40,7 +40,7 @@ import {
 } from "@/features/parcels/server/utils";
 
 import type { ParcelListQuery, ParcelPaymentWriteValues, ParcelWriteValues } from "./utils";
-import type { AppAccessContext } from "@/features/auth/server/dto";
+import type { AppAccessViewer } from "@/features/auth/server/dto";
 
 const deliveryFeeStatusValue = sql<ParcelListItemDto["deliveryFeeStatus"]>`
     coalesce(${parcelPaymentRecords.deliveryFeeStatus}, 'unpaid')
@@ -82,7 +82,7 @@ async function listParcels(): Promise<ParcelListItemDto[]> {
 }
 
 export async function getParcelsListForViewer(
-    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    viewer: AppAccessViewer,
 ): Promise<ParcelListItemDto[]> {
     const parcelAccess = getParcelAccess({ viewer });
 
@@ -249,7 +249,7 @@ async function getMerchantParcelStats(merchantId: string): Promise<MerchantParce
 }
 
 export async function getMerchantParcelsListForViewer(
-    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    viewer: AppAccessViewer,
     merchantId: string,
     input: ParcelListQuery = getDefaultParcelListQuery(),
 ): Promise<PaginatedParcelListDto> {
@@ -282,7 +282,7 @@ export async function getMerchantParcelsListForViewer(
 }
 
 export async function getMerchantParcelStatsForViewer(
-    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    viewer: AppAccessViewer,
     merchantId: string,
 ): Promise<MerchantParcelStatsDto> {
     const parcelAccess = getParcelAccess({
@@ -335,7 +335,7 @@ async function listAssignedRiderParcels(riderId: string): Promise<ParcelListItem
 }
 
 export async function getAssignedRiderParcelsListForViewer(
-    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    viewer: AppAccessViewer,
     riderId: string,
 ): Promise<ParcelListItemDto[]> {
     const riderParcelActionAccess = getRiderParcelActionAccess({
@@ -406,7 +406,7 @@ async function findParcelDetailRowById(parcelId: string) {
 }
 
 export async function getParcelByIdForViewer(
-    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    viewer: AppAccessViewer,
     parcelId: string,
 ): Promise<ParcelDetailDto | null> {
     const row = await findParcelDetailRowById(parcelId);
@@ -597,7 +597,7 @@ async function findParcelUpdateContextById(
 }
 
 export async function getParcelUpdateContextForViewer(
-    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    viewer: AppAccessViewer,
     parcelId: string,
 ): Promise<ParcelUpdateContextDto | null> {
     const current = await findParcelUpdateContextById(parcelId);

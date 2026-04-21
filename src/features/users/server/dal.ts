@@ -8,7 +8,7 @@ import { createMerchantProfile } from "@/features/merchant/server/dal";
 import { createRiderProfile } from "@/features/rider/server/dal";
 
 import type { CreateUserInput } from "./utils";
-import type { AppAccessContext } from "@/features/auth/server/dto";
+import type { AppAccessViewer } from "@/features/auth/server/dto";
 
 async function listUsers(): Promise<AppUserListItemDto[]> {
     const rows = await db
@@ -31,7 +31,7 @@ async function listUsers(): Promise<AppUserListItemDto[]> {
 }
 
 export async function getUsersListForViewer(
-    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    viewer: AppAccessViewer,
 ): Promise<AppUserListItemDto[]> {
     const userManagementAccess = getUserManagementAccess(viewer);
 

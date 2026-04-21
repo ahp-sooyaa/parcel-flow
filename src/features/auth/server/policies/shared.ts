@@ -1,8 +1,8 @@
 import "server-only";
 import type { PermissionSlug, RoleSlug } from "@/db/constants";
-import type { AppAccessContext } from "@/features/auth/server/dto";
+import type { AppAccessViewer } from "@/features/auth/server/dto";
 
-export type PolicyViewer = Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">;
+export type PolicyViewer = AppAccessViewer;
 
 export function hasViewerPermission(viewer: PolicyViewer, permission: PermissionSlug) {
     return viewer.permissions.includes(permission);

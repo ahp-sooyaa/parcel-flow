@@ -1,6 +1,6 @@
 import "server-only";
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { toAppAccessContext, type AppAccessContext } from "./dto";
+import { toAppAccessContext, type AppAccessContext, type AppAccessViewer } from "./dto";
 import { db } from "@/db";
 import { appUsers, permissions, rolePermissions, roles } from "@/db/schema";
 import { getUserManagementAccess } from "@/features/auth/server/policies/user-management";
@@ -63,7 +63,7 @@ async function findUserByAppUserId(appUserId: string): Promise<AppAccessContext 
 }
 
 export async function getUserByAppUserIdForViewer(
-    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    viewer: AppAccessViewer,
     appUserId: string,
 ): Promise<AppAccessContext | null> {
     const userManagementAccess = getUserManagementAccess(viewer);

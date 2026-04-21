@@ -10,7 +10,7 @@ import { db } from "@/db";
 import { townships } from "@/db/schema";
 import { getTownshipAccess } from "@/features/auth/server/policies/townships";
 
-import type { AppAccessContext } from "@/features/auth/server/dto";
+import type { AppAccessViewer } from "@/features/auth/server/dto";
 
 async function listTownships(): Promise<TownshipListItemDto[]> {
     const rows = await db
@@ -27,7 +27,7 @@ async function listTownships(): Promise<TownshipListItemDto[]> {
 }
 
 export async function getTownshipsListForViewer(
-    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    viewer: AppAccessViewer,
 ): Promise<TownshipListItemDto[]> {
     const townshipAccess = getTownshipAccess(viewer);
 

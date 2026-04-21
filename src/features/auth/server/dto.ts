@@ -18,6 +18,8 @@ export type AppAccessContext = {
     permissions: PermissionSlug[];
 };
 
+export type AppAccessViewer = Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">;
+
 export type DashboardShellUserDto = {
     name: string;
     roleSlug: RoleSlug;

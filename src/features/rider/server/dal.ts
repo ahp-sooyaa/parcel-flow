@@ -13,7 +13,7 @@ import { db, type DbClient } from "@/db";
 import { appUsers, riders, townships } from "@/db/schema";
 import { getRiderAccess } from "@/features/auth/server/policies/rider";
 
-import type { AppAccessContext } from "@/features/auth/server/dto";
+import type { AppAccessViewer } from "@/features/auth/server/dto";
 
 type RiderWriteClient = Pick<DbClient, "insert">;
 
@@ -65,7 +65,7 @@ async function listRiders(
 }
 
 export async function getRidersListForViewer(
-    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    viewer: AppAccessViewer,
     input: {
         query?: string;
         limit?: number;
@@ -133,7 +133,7 @@ async function findRiderProfileByAppUserId(appUserId: string): Promise<RiderProf
 }
 
 export async function getRiderProfileByAppUserIdForViewer(
-    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    viewer: AppAccessViewer,
     appUserId: string,
 ): Promise<RiderProfileDto | null> {
     const riderAccess = getRiderAccess({
@@ -192,7 +192,7 @@ export async function getRiderById(riderId: string): Promise<RiderDetailDto | nu
 }
 
 export async function getRiderByIdForViewer(
-    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    viewer: AppAccessViewer,
     riderId: string,
 ): Promise<RiderDetailDto | null> {
     const riderAccess = getRiderAccess({
