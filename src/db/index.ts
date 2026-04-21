@@ -7,10 +7,10 @@ import { getDatabaseUrlEnv } from "@/lib/env";
 let dbInstance: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
 function initDb() {
-    const { DATABASE_URL } = getDatabaseUrlEnv();
+    const { DATABASE_URL, DATABASE_POOL_MAX } = getDatabaseUrlEnv();
 
     const queryClient = postgres(DATABASE_URL, {
-        max: 10,
+        max: DATABASE_POOL_MAX,
         prepare: false,
     });
 
