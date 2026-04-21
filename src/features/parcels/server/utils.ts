@@ -182,6 +182,16 @@ export type ParcelImageAsset = {
     key: string;
     url: string;
 };
+export type ParcelListQuery = {
+    query: string;
+    page: number;
+    pageSize: number;
+    parcelStatus: (typeof PARCEL_STATUSES)[number] | null;
+    codStatus: (typeof COD_STATUSES)[number] | null;
+    collectionStatus: (typeof COLLECTION_STATUSES)[number] | null;
+    deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number] | null;
+    merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number] | null;
+};
 export type ParcelWriteValues = {
     merchantId: string;
     riderId: string | null;
@@ -216,6 +226,10 @@ export type ParcelPaymentWriteValues = {
     paymentSlipImageKeys: string[];
 };
 
+export const PARCEL_LIST_PAGE_SIZE = 25;
+
+type ParcelListSearchParams = Record<string, string | string[] | undefined>;
+
 type ParcelFormParseSuccess<T> = {
     ok: true;
     data: T;
@@ -234,6 +248,119 @@ export type RiderNextAction = {
     label: string;
     nextStatus: (typeof PARCEL_STATUSES)[number];
 };
+
+function getSearchParamValue(searchParams: ParcelListSearchParams, key: string) {
+    const value = searchParams[key];
+
+    if (Array.isArray(value)) {
+        return value[0] ?? "";
+    }
+
+    return value ?? "";
+}
+
+function normalizeParcelSearchQuery(raw: string | undefined) {
+    return raw?.trim().replaceAll("%", "").replaceAll("_", "").trim() ?? "";
+}
+
+function parseParcelListPage(raw: string | undefined) {
+    const page = Number(raw);
+
+    if (!Number.isSafeInteger(page) || page < 1) {
+        return 1;
+    }
+
+    return page;
+}
+
+function isAllowedValue<TValues extends readonly string[]>(
+    values: TValues,
+    value: string,
+): value is TValues[number] {
+    return values.includes(value);
+}
+
+function parseNullableEnumValue<TValues extends readonly string[]>(
+    raw: string | undefined,
+    values: TValues,
+) {
+    const value = raw?.trim() ?? "";
+
+    if (!value || !isAllowedValue(values, value)) {
+        return null;
+    }
+
+    return value;
+}
+
+export function getDefaultParcelListQuery(): ParcelListQuery {
+    return {
+        query: "",
+        page: 1,
+        pageSize: PARCEL_LIST_PAGE_SIZE,
+        parcelStatus: null,
+        codStatus: null,
+        collectionStatus: null,
+        deliveryFeeStatus: null,
+        merchantSettlementStatus: null,
+    };
+}
+
+export function normalizeParcelListQueryParams(
+    searchParams: ParcelListSearchParams,
+    options: {
+        includeInternalPaymentFilters?: boolean;
+    } = {},
+): ParcelListQuery {
+    const includeInternalPaymentFilters = options.includeInternalPaymentFilters ?? true;
+
+    return {
+        query: normalizeParcelSearchQuery(getSearchParamValue(searchParams, "q")),
+        page: parseParcelListPage(getSearchParamValue(searchParams, "page")),
+        pageSize: PARCEL_LIST_PAGE_SIZE,
+        parcelStatus: parseNullableEnumValue(
+            getSearchParamValue(searchParams, "parcelStatus"),
+            PARCEL_STATUSES,
+        ),
+        codStatus: parseNullableEnumValue(
+            getSearchParamValue(searchParams, "codStatus"),
+            COD_STATUSES,
+        ),
+        collectionStatus: includeInternalPaymentFilters
+            ? parseNullableEnumValue(
+                  getSearchParamValue(searchParams, "collectionStatus"),
+                  COLLECTION_STATUSES,
+              )
+            : null,
+        deliveryFeeStatus: includeInternalPaymentFilters
+            ? parseNullableEnumValue(
+                  getSearchParamValue(searchParams, "deliveryFeeStatus"),
+                  DELIVERY_FEE_STATUSES,
+              )
+            : null,
+        merchantSettlementStatus: parseNullableEnumValue(
+            getSearchParamValue(searchParams, "merchantSettlementStatus"),
+            MERCHANT_SETTLEMENT_STATUSES,
+        ),
+    };
+}
+
+export function hasActiveParcelListFilters(input: ParcelListQuery) {
+    return Boolean(
+        input.query ||
+        input.parcelStatus ||
+        input.codStatus ||
+        input.collectionStatus ||
+        input.deliveryFeeStatus ||
+        input.merchantSettlementStatus,
+    );
+}
+
+export function toParcelSearchPattern(query: string) {
+    const normalizedQuery = normalizeParcelSearchQuery(query);
+
+    return normalizedQuery ? `%${normalizedQuery}%` : "";
+}
 
 const riderNextActionByStatus: Partial<Record<(typeof PARCEL_STATUSES)[number], RiderNextAction>> =
     {

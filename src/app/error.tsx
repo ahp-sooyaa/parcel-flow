@@ -18,6 +18,7 @@ export default function DashboardErrorPage({ error, reset }: Readonly<DashboardE
     const description = isAccessError
         ? "You do not have access to perform this action. If this seems wrong, contact an administrator."
         : "An unexpected issue occurred while loading this dashboard screen.";
+    const errorReference = error.digest;
 
     return (
         <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
@@ -26,6 +27,12 @@ export default function DashboardErrorPage({ error, reset }: Readonly<DashboardE
             </p>
             <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
             <p className="max-w-md text-sm text-muted-foreground">{description}</p>
+            {errorReference && (
+                <p className="text-xs text-muted-foreground">
+                    Error reference:{" "}
+                    <span className="font-mono text-foreground">{errorReference}</span>
+                </p>
+            )}
             <div className="flex flex-wrap items-center justify-center gap-3">
                 <Button type="button" onClick={reset}>
                     Try Again

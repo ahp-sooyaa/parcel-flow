@@ -50,7 +50,7 @@ export function DashboardShell({ children, user }: Readonly<DashboardShellProps>
     const pathname = usePathname();
 
     return (
-        <div className="flex min-h-screen bg-muted/40">
+        <div className="flex h-dvh overflow-hidden bg-muted/40">
             {isSidebarOpen && (
                 <button
                     type="button"
@@ -62,7 +62,7 @@ export function DashboardShell({ children, user }: Readonly<DashboardShellProps>
 
             <aside
                 className={cn(
-                    "fixed inset-y-0 left-0 z-50 w-72 border-r bg-sidebar px-4 py-6 transition-transform duration-200",
+                    "fixed inset-y-0 left-0 z-50 flex w-72 flex-col overflow-y-auto border-r bg-sidebar px-4 py-6 transition-transform duration-200",
                     "md:static md:translate-x-0",
                     isSidebarOpen ? "translate-x-0" : "-translate-x-full",
                 )}
@@ -108,8 +108,8 @@ export function DashboardShell({ children, user }: Readonly<DashboardShellProps>
                     <UserSummary name={user.name} role={formatRoleSlug(user.roleSlug)} />
                 </div>
             </aside>
-            <div className="flex min-h-screen flex-1 flex-col">
-                <header className="flex items-center gap-3 border-b bg-card px-4 py-3 md:px-6 md:py-4">
+            <div className="flex min-w-0 flex-1 flex-col">
+                <header className="flex shrink-0 items-center gap-3 border-b bg-card px-4 py-3 md:px-6 md:py-4">
                     <Button
                         type="button"
                         variant="ghost"
@@ -122,7 +122,7 @@ export function DashboardShell({ children, user }: Readonly<DashboardShellProps>
                     </Button>
                     <p className="text-sm text-muted-foreground">Delivery Operations Dashboard</p>
                 </header>
-                <main className="flex-1 px-4 py-4 md:px-6 md:py-6">
+                <main className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-6">
                     <ResetRequiredBanner enabled={user.mustResetPassword} />
                     {children}
                 </main>

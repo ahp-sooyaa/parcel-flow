@@ -28,8 +28,28 @@ export type ParcelListItemDto = {
     recipientTownshipName: string | null;
     parcelStatus: (typeof PARCEL_STATUSES)[number];
     deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number];
+    codStatus: (typeof COD_STATUSES)[number];
     collectionStatus: (typeof COLLECTION_STATUSES)[number];
+    merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number];
     createdAt: Date;
+};
+
+export type PaginatedParcelListDto = {
+    items: ParcelListItemDto[];
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+};
+
+export type MerchantParcelStatsDto = {
+    totalParcels: number;
+    deliveredParcels: number;
+    returnedParcels: number;
+    totalCodCollected: string;
+    codRemitted: string;
+    codInHeld: string;
+    pendingDeliveryFee: string;
 };
 
 export type RiderParcelActionDto = {
@@ -165,7 +185,9 @@ export function toParcelListItemDto(input: {
     recipientTownshipName: string | null;
     parcelStatus: (typeof PARCEL_STATUSES)[number];
     deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number] | null;
+    codStatus: (typeof COD_STATUSES)[number] | null;
     collectionStatus: (typeof COLLECTION_STATUSES)[number] | null;
+    merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number] | null;
     createdAt: Date;
 }): ParcelListItemDto {
     return {
@@ -178,7 +200,9 @@ export function toParcelListItemDto(input: {
         recipientTownshipName: input.recipientTownshipName,
         parcelStatus: input.parcelStatus,
         deliveryFeeStatus: input.deliveryFeeStatus ?? "unpaid",
+        codStatus: input.codStatus ?? "pending",
         collectionStatus: input.collectionStatus ?? "pending",
+        merchantSettlementStatus: input.merchantSettlementStatus ?? "pending",
         createdAt: input.createdAt,
     };
 }
@@ -187,6 +211,26 @@ export function toMerchantParcelListItemDto(
     input: Parameters<typeof toParcelListItemDto>[0],
 ): ParcelListItemDto {
     return toParcelListItemDto(input);
+}
+
+export function toMerchantParcelStatsDto(input: {
+    totalParcels: number | null;
+    deliveredParcels: number | null;
+    returnedParcels: number | null;
+    totalCodCollected: string | null;
+    codRemitted: string | null;
+    codInHeld: string | null;
+    pendingDeliveryFee: string | null;
+}): MerchantParcelStatsDto {
+    return {
+        totalParcels: Number(input.totalParcels ?? 0),
+        deliveredParcels: Number(input.deliveredParcels ?? 0),
+        returnedParcels: Number(input.returnedParcels ?? 0),
+        totalCodCollected: input.totalCodCollected ?? "0",
+        codRemitted: input.codRemitted ?? "0",
+        codInHeld: input.codInHeld ?? "0",
+        pendingDeliveryFee: input.pendingDeliveryFee ?? "0",
+    };
 }
 
 export function toParcelDetailDto(input: {

@@ -1,8 +1,10 @@
 import "server-only";
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import {
     type AuditLogInsertInput,
     type CreateParcelInsertInput,
+    type MerchantParcelStatsDto,
+    type PaginatedParcelListDto,
     type CreatePaymentInsertInput,
     type ParcelDetailDto,
     type ParcelListItemDto,
@@ -10,6 +12,7 @@ import {
     type ParcelPaymentUpdatePatch,
     type ParcelUpdateContextDto,
     type ParcelUpdatePatch,
+    toMerchantParcelStatsDto,
     toParcelDetailDto,
     toParcelListItemDto,
     toParcelUpdateContextDto,
@@ -28,10 +31,29 @@ import {
     getParcelAccess,
     getRiderParcelActionAccess,
 } from "@/features/auth/server/policies/parcels";
-import { normalizePatchValue, signParcelImageKeys } from "@/features/parcels/server/utils";
+import { isAdminRole } from "@/features/auth/server/policies/shared";
+import {
+    getDefaultParcelListQuery,
+    normalizePatchValue,
+    signParcelImageKeys,
+    toParcelSearchPattern,
+} from "@/features/parcels/server/utils";
 
-import type { ParcelPaymentWriteValues, ParcelWriteValues } from "./utils";
+import type { ParcelListQuery, ParcelPaymentWriteValues, ParcelWriteValues } from "./utils";
 import type { AppAccessContext } from "@/features/auth/server/dto";
+
+const deliveryFeeStatusValue = sql<ParcelListItemDto["deliveryFeeStatus"]>`
+    coalesce(${parcelPaymentRecords.deliveryFeeStatus}, 'unpaid')
+`;
+const codStatusValue = sql<ParcelListItemDto["codStatus"]>`
+    coalesce(${parcelPaymentRecords.codStatus}, 'pending')
+`;
+const collectionStatusValue = sql<ParcelListItemDto["collectionStatus"]>`
+    coalesce(${parcelPaymentRecords.collectionStatus}, 'pending')
+`;
+const merchantSettlementStatusValue = sql<ParcelListItemDto["merchantSettlementStatus"]>`
+    coalesce(${parcelPaymentRecords.merchantSettlementStatus}, 'pending')
+`;
 
 async function listParcels(): Promise<ParcelListItemDto[]> {
     const rows = await db
@@ -45,7 +67,9 @@ async function listParcels(): Promise<ParcelListItemDto[]> {
             recipientTownshipName: townships.name,
             parcelStatus: parcels.status,
             deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
+            codStatus: parcelPaymentRecords.codStatus,
             collectionStatus: parcelPaymentRecords.collectionStatus,
+            merchantSettlementStatus: parcelPaymentRecords.merchantSettlementStatus,
             createdAt: parcels.createdAt,
         })
         .from(parcels)
@@ -69,35 +93,166 @@ export async function getParcelsListForViewer(
     return listParcels();
 }
 
-async function listMerchantParcels(merchantId: string): Promise<ParcelListItemDto[]> {
-    const rows = await db
-        .select({
-            id: parcels.id,
-            parcelCode: parcels.parcelCode,
-            merchantId: parcels.merchantId,
-            riderId: parcels.riderId,
-            merchantLabel: merchants.shopName,
-            recipientName: parcels.recipientName,
-            recipientTownshipName: townships.name,
-            parcelStatus: parcels.status,
-            deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
-            collectionStatus: parcelPaymentRecords.collectionStatus,
-            createdAt: parcels.createdAt,
-        })
+async function listMerchantParcels(
+    merchantId: string,
+    input: ParcelListQuery = getDefaultParcelListQuery(),
+): Promise<PaginatedParcelListDto> {
+    const searchPattern = toParcelSearchPattern(input.query);
+    const filters = and(
+        eq(parcels.merchantId, merchantId),
+        searchPattern
+            ? or(
+                  ilike(parcels.parcelCode, searchPattern),
+                  ilike(parcels.recipientName, searchPattern),
+                  ilike(parcels.recipientPhone, searchPattern),
+                  ilike(townships.name, searchPattern),
+              )
+            : undefined,
+        input.parcelStatus ? eq(parcels.status, input.parcelStatus) : undefined,
+        input.codStatus ? eq(codStatusValue, input.codStatus) : undefined,
+        input.collectionStatus ? eq(collectionStatusValue, input.collectionStatus) : undefined,
+        input.deliveryFeeStatus ? eq(deliveryFeeStatusValue, input.deliveryFeeStatus) : undefined,
+        input.merchantSettlementStatus
+            ? eq(merchantSettlementStatusValue, input.merchantSettlementStatus)
+            : undefined,
+    );
+    const [totalRow] = await db
+        .select({ totalItems: count(parcels.id) })
         .from(parcels)
         .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
         .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
         .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
-        .where(eq(parcels.merchantId, merchantId))
-        .orderBy(desc(parcels.createdAt));
+        .where(filters);
+    const totalItems = totalRow?.totalItems ?? 0;
+    const totalPages = Math.max(1, Math.ceil(totalItems / input.pageSize));
+    const page = Math.min(input.page, totalPages);
+    const offset = (page - 1) * input.pageSize;
+    const rows =
+        totalItems === 0
+            ? []
+            : await db
+                  .select({
+                      id: parcels.id,
+                      parcelCode: parcels.parcelCode,
+                      merchantId: parcels.merchantId,
+                      riderId: parcels.riderId,
+                      merchantLabel: merchants.shopName,
+                      recipientName: parcels.recipientName,
+                      recipientTownshipName: townships.name,
+                      parcelStatus: parcels.status,
+                      deliveryFeeStatus: deliveryFeeStatusValue,
+                      codStatus: codStatusValue,
+                      collectionStatus: collectionStatusValue,
+                      merchantSettlementStatus: merchantSettlementStatusValue,
+                      createdAt: parcels.createdAt,
+                  })
+                  .from(parcels)
+                  .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
+                  .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
+                  .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
+                  .where(filters)
+                  .orderBy(desc(parcels.createdAt), desc(parcels.id))
+                  .limit(input.pageSize)
+                  .offset(offset);
 
-    return rows.map((row) => toParcelListItemDto(row));
+    return {
+        items: rows.map((row) => toParcelListItemDto(row)),
+        page,
+        pageSize: input.pageSize,
+        totalItems,
+        totalPages,
+    };
+}
+
+async function getMerchantParcelStats(merchantId: string): Promise<MerchantParcelStatsDto> {
+    const [row] = await db
+        .select({
+            totalParcels: count(parcels.id),
+            deliveredParcels: sql<number>`
+                count(*) filter (where ${parcels.status} = 'delivered')::int
+            `,
+            returnedParcels: sql<number>`
+                count(*) filter (where ${parcels.status} = 'returned')::int
+            `,
+            totalCodCollected: sql<string>`
+                coalesce(
+                    sum(
+                        case
+                            when ${parcelPaymentRecords.codStatus} = 'collected'
+                            then ${parcels.codAmount}
+                            else 0
+                        end
+                    ),
+                    0
+                )::numeric(12, 2)::text
+            `,
+            codRemitted: sql<string>`
+                coalesce(
+                    sum(
+                        case
+                            when ${parcelPaymentRecords.codStatus} = 'collected'
+                                and ${parcelPaymentRecords.merchantSettlementStatus} = 'settled'
+                            then ${parcels.codAmount}
+                            else 0
+                        end
+                    ),
+                    0
+                )::numeric(12, 2)::text
+            `,
+            codInHeld: sql<string>`
+                coalesce(
+                    sum(
+                        case
+                            when ${parcelPaymentRecords.codStatus} = 'collected'
+                                and ${parcelPaymentRecords.merchantSettlementStatus}
+                                    in ('pending', 'in_progress')
+                            then ${parcels.codAmount}
+                            else 0
+                        end
+                    ),
+                    0
+                )::numeric(12, 2)::text
+            `,
+            pendingDeliveryFee: sql<string>`
+                coalesce(
+                    sum(
+                        case
+                            when ${parcelPaymentRecords.deliveryFeeStatus} = 'bill_merchant'
+                                or (
+                                    ${parcels.deliveryFeePayer} = 'merchant'
+                                    and ${parcelPaymentRecords.deliveryFeeStatus}
+                                        in ('unpaid', 'bill_merchant')
+                                )
+                            then ${parcels.deliveryFee}
+                            else 0
+                        end
+                    ),
+                    0
+                )::numeric(12, 2)::text
+            `,
+        })
+        .from(parcels)
+        .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
+        .where(eq(parcels.merchantId, merchantId));
+
+    return toMerchantParcelStatsDto(
+        row ?? {
+            totalParcels: 0,
+            deliveredParcels: 0,
+            returnedParcels: 0,
+            totalCodCollected: "0",
+            codRemitted: "0",
+            codInHeld: "0",
+            pendingDeliveryFee: "0",
+        },
+    );
 }
 
 export async function getMerchantParcelsListForViewer(
     viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
     merchantId: string,
-): Promise<ParcelListItemDto[]> {
+    input: ParcelListQuery = getDefaultParcelListQuery(),
+): Promise<PaginatedParcelListDto> {
     const parcelAccess = getParcelAccess({
         viewer,
         parcel: {
@@ -106,10 +261,50 @@ export async function getMerchantParcelsListForViewer(
     });
 
     if (!parcelAccess.canView) {
-        return [];
+        return {
+            items: [],
+            page: 1,
+            pageSize: input.pageSize,
+            totalItems: 0,
+            totalPages: 1,
+        };
     }
 
-    return listMerchantParcels(merchantId);
+    const safeInput = isAdminRole(viewer.roleSlug)
+        ? input
+        : {
+              ...input,
+              collectionStatus: null,
+              deliveryFeeStatus: null,
+          };
+
+    return listMerchantParcels(merchantId, safeInput);
+}
+
+export async function getMerchantParcelStatsForViewer(
+    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    merchantId: string,
+): Promise<MerchantParcelStatsDto> {
+    const parcelAccess = getParcelAccess({
+        viewer,
+        parcel: {
+            merchantId,
+        },
+    });
+
+    if (!parcelAccess.canView) {
+        return toMerchantParcelStatsDto({
+            totalParcels: 0,
+            deliveredParcels: 0,
+            returnedParcels: 0,
+            totalCodCollected: "0",
+            codRemitted: "0",
+            codInHeld: "0",
+            pendingDeliveryFee: "0",
+        });
+    }
+
+    return getMerchantParcelStats(merchantId);
 }
 
 async function listAssignedRiderParcels(riderId: string): Promise<ParcelListItemDto[]> {
@@ -124,7 +319,9 @@ async function listAssignedRiderParcels(riderId: string): Promise<ParcelListItem
             recipientTownshipName: townships.name,
             parcelStatus: parcels.status,
             deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
+            codStatus: parcelPaymentRecords.codStatus,
             collectionStatus: parcelPaymentRecords.collectionStatus,
+            merchantSettlementStatus: parcelPaymentRecords.merchantSettlementStatus,
             createdAt: parcels.createdAt,
         })
         .from(parcels)

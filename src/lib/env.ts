@@ -3,6 +3,7 @@ import { z } from "zod";
 
 const databaseEnvSchema = z.object({
     DATABASE_URL: z.string().min(1),
+    DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(10).optional(),
 });
 
 const supabaseKeySchema = z.object({
@@ -29,7 +30,12 @@ const r2EnvSchema = z.object({
 });
 
 export function getDatabaseUrlEnv() {
-    return databaseEnvSchema.parse(process.env);
+    const env = databaseEnvSchema.parse(process.env);
+
+    return {
+        DATABASE_URL: env.DATABASE_URL,
+        DATABASE_POOL_MAX: env.DATABASE_POOL_MAX ?? (process.env.NODE_ENV === "production" ? 1 : 5),
+    };
 }
 
 export function getSupabasePublicEnv() {
