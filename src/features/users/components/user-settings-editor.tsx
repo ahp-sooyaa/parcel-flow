@@ -20,20 +20,20 @@ import type { AppAccessContext } from "@/features/auth/server/dto";
 import type { BankAccountOwnerDto } from "@/features/bank-accounts/server/dto";
 
 type EditorMode = "self" | "admin";
-type ProfileEditorUser = Pick<
+type SettingsEditorUser = Pick<
     AppAccessContext,
     "appUserId" | "fullName" | "email" | "phoneNumber" | "roleSlug"
 >;
 
-type UserProfileEditorProps = {
+type UserSettingsEditorProps = {
     viewer: AppAccessContext;
     mode: EditorMode;
     activeTab?: string;
     basePath: string;
-    targetUser?: ProfileEditorUser;
+    targetUser?: SettingsEditorUser;
 };
 
-function getProfileBankAccountOwner(user: ProfileEditorUser): BankAccountOwnerDto | null {
+function getSettingsBankAccountOwner(user: SettingsEditorUser): BankAccountOwnerDto | null {
     if (user.roleSlug === "super_admin") {
         return {
             appUserId: null,
@@ -69,13 +69,13 @@ function getBankAccountDescription(input: {
     return "Manage your own bank accounts for settlement and payout workflows.";
 }
 
-export async function UserProfileEditor({
+export async function UserSettingsEditor({
     viewer,
     mode,
     activeTab = "account-details",
     basePath,
     targetUser,
-}: Readonly<UserProfileEditorProps>) {
+}: Readonly<UserSettingsEditorProps>) {
     const accountUser =
         mode === "self"
             ? {
@@ -88,7 +88,7 @@ export async function UserProfileEditor({
             : targetUser;
 
     if (!accountUser) {
-        throw new Error("Target user is required for admin profile editing.");
+        throw new Error("Target user is required for admin settings editing.");
     }
 
     const targetUserId = accountUser.appUserId;
@@ -97,7 +97,7 @@ export async function UserProfileEditor({
     let merchantProfile: Awaited<ReturnType<typeof getMerchantProfileByAppUserIdForViewer>> = null;
     let riderProfile: Awaited<ReturnType<typeof getRiderProfileByAppUserIdForViewer>> = null;
     let townships: Awaited<ReturnType<typeof getTownshipOptions>> = [];
-    const bankAccountOwner = getProfileBankAccountOwner(accountUser);
+    const bankAccountOwner = getSettingsBankAccountOwner(accountUser);
     const bankAccountAccess = bankAccountOwner
         ? getBankAccountAccess({
               viewer,
@@ -141,7 +141,7 @@ export async function UserProfileEditor({
         <section className="space-y-4">
             <nav
                 className="flex items-center gap-1 overflow-x-auto border-b"
-                aria-label="Profile edit tabs"
+                aria-label="Settings tabs"
             >
                 <Link
                     href={`${basePath}?tab=account-details`}
@@ -213,17 +213,15 @@ export async function UserProfileEditor({
                                 </h2>
                                 <p className="text-xs text-muted-foreground">
                                     {mode === "admin"
-                                        ? "Update shared app user profile fields and contact information."
-                                        : "Update your own profile contact details."}
+                                        ? "Update shared app user account fields and contact information."
+                                        : "Update your own account contact details."}
                                 </p>
                             </header>
 
                             <AccountEditForm
                                 user={accountUser}
                                 mode={mode}
-                                submitLabel={
-                                    mode === "admin" ? "Save User Profile" : "Save Profile"
-                                }
+                                submitLabel="Save Account Details"
                             />
                         </section>
 
@@ -249,8 +247,8 @@ export async function UserProfileEditor({
                             </h2>
                             <p className="text-xs text-muted-foreground">
                                 {mode === "admin"
-                                    ? "Update merchant-only business profile fields for this user account."
-                                    : "Update your merchant-only business profile fields."}
+                                    ? "Update merchant-only business details for this user account."
+                                    : "Update your merchant-only business details."}
                             </p>
                         </header>
 
@@ -278,8 +276,8 @@ export async function UserProfileEditor({
                             <h2 className="text-lg font-semibold tracking-tight">Rider Details</h2>
                             <p className="text-xs text-muted-foreground">
                                 {mode === "admin"
-                                    ? "Update rider-only operational profile fields for this user account."
-                                    : "Update your rider-only operational profile fields."}
+                                    ? "Update rider-only operational details for this user account."
+                                    : "Update your rider-only operational details."}
                             </p>
                         </header>
 

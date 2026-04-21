@@ -30,7 +30,7 @@ const initialState = {
 export function AccountEditForm({
     user,
     mode,
-    submitLabel = "Save Profile",
+    submitLabel = "Save Account Details",
 }: Readonly<AccountEditFormProps>) {
     const [state, action, isPending] = useActionState(updateAccountProfileAction, initialState);
     const [values, setValues] = useState({

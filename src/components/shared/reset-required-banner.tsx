@@ -19,7 +19,7 @@ export function ResetRequiredBanner({ enabled }: ResetRequiredBannerProps) {
                 </p>
             </div>
             <Button asChild size="sm" className="w-fit">
-                <Link href="/dashboard/profile">Change Password</Link>
+                <Link href="/dashboard/settings?tab=account-details">Change Password</Link>
             </Button>
         </div>
     );

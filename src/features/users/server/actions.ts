@@ -207,7 +207,7 @@ export async function updateAccountProfileAction(
         const parsed = updateAccountProfileSchema.safeParse(Object.fromEntries(formData));
 
         if (!parsed.success) {
-            return { ok: false, message: "Please provide valid profile data." };
+            return { ok: false, message: "Please provide valid account details." };
         }
 
         const targetUserId = parsed.data.targetUserId ?? currentUser.appUserId;
@@ -251,17 +251,18 @@ export async function updateAccountProfileAction(
         revalidatePath(`/dashboard/users/${targetUser.id}`);
         revalidatePath(`/dashboard/users/${targetUser.id}/edit`);
         revalidatePath("/dashboard/users");
-        revalidatePath("/dashboard/profile");
+        revalidatePath("/dashboard/settings");
 
         return {
             ok: true,
             message:
                 targetUser.id === currentUser.appUserId
-                    ? "Profile updated."
-                    : "User profile updated.",
+                    ? "Account details updated."
+                    : "User account details updated.",
         };
     } catch (error) {
-        const message = error instanceof Error ? error.message : "Unable to update profile.";
+        const message =
+            error instanceof Error ? error.message : "Unable to update account details.";
 
         return { ok: false, message };
     }
@@ -297,7 +298,7 @@ export async function changeOwnPasswordAction(
             actorAppUserId: currentUser.appUserId,
         });
 
-        revalidatePath("/dashboard/profile");
+        revalidatePath("/dashboard/settings");
         revalidatePath("/dashboard");
 
         return { ok: true, message: "Password changed successfully." };
@@ -375,7 +376,7 @@ export async function softDeleteUserAction(
     revalidatePath(`/dashboard/users/${deletedUserId}/edit`);
     revalidatePath("/dashboard/merchants");
     revalidatePath("/dashboard/riders");
-    revalidatePath("/dashboard/profile");
+    revalidatePath("/dashboard/settings");
 
     redirect("/dashboard/users");
 }

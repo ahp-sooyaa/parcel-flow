@@ -70,7 +70,7 @@ export function getSafeBankAccountRevalidatePaths(input: {
     owner: BankAccountOwnerDto;
     basePath?: string | null;
 }) {
-    const paths = new Set<string>(["/dashboard/profile"]);
+    const paths = new Set<string>(["/dashboard/settings"]);
 
     if (input.owner.appUserId) {
         paths.add(`/dashboard/users/${input.owner.appUserId}`);
@@ -82,7 +82,7 @@ export function getSafeBankAccountRevalidatePaths(input: {
     const basePath = input.basePath ?? "";
 
     if (
-        basePath === "/dashboard/profile" ||
+        basePath === "/dashboard/settings" ||
         /^\/dashboard\/users\/[0-9a-f-]{36}\/edit$/i.test(basePath)
     ) {
         paths.add(basePath);

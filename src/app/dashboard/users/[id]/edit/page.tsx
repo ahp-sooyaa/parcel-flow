@@ -3,7 +3,7 @@ import { getUserByAppUserIdForViewer } from "@/features/auth/server/dal";
 import { getUserManagementAccess } from "@/features/auth/server/policies/user-management";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { SoftDeleteUserForm } from "@/features/users/components/soft-delete-user-form";
-import { UserProfileEditor } from "@/features/users/components/user-profile-editor";
+import { UserSettingsEditor } from "@/features/users/components/user-settings-editor";
 
 type EditUserPageProps = {
     params: Promise<{ id: string }>;
@@ -30,11 +30,11 @@ export default async function EditUserPage({ params, searchParams }: Readonly<Ed
             <header className="space-y-1">
                 <h1 className="text-2xl font-semibold tracking-tight">Edit User</h1>
                 <p className="text-sm text-muted-foreground">
-                    Update shared app user profile data for {user.fullName}.
+                    Update account details and role-specific settings for {user.fullName}.
                 </p>
             </header>
 
-            <UserProfileEditor
+            <UserSettingsEditor
                 viewer={currentUser}
                 targetUser={user}
                 mode="admin"

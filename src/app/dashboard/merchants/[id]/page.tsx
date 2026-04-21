@@ -89,7 +89,7 @@ export default async function MerchantDetailPage({
 
     const editMerchantHref =
         currentUser.roleSlug === "merchant"
-            ? "/dashboard/profile"
+            ? "/dashboard/settings?tab=merchant-details"
             : `/dashboard/users/${merchant.id}/edit`;
     const statCards = [
         {
