@@ -37,7 +37,7 @@
 
 ## 7. Verification
 
-- [ ] 7.1 Verify admin edit flows for shared user fields and linked merchant or rider profile entry points from user-management pages
+- [x] 7.1 Verify admin edit flows for shared user fields and linked merchant or rider profile entry points from user-management pages
 - [x] 7.2 Verify merchant and rider self-service users can update only their own allowed records from profile-linked routes and cannot edit another user’s role profile
-- [ ] 7.3 Verify soft-delete behavior for self-delete protection, last-active-super-admin protection, and hidden-from-UI deleted records
+- [x] 7.3 Verify soft-delete behavior for self-delete protection, last-active-super-admin protection, and hidden-from-UI deleted records
 - [x] 7.4 Add or update automated tests for authorization guards, soft-delete filtering, DTO navigation shaping, and the new server-action validation paths

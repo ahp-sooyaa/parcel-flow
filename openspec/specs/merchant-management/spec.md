@@ -64,15 +64,19 @@ The system SHALL store merchant profile data in a way that supports later parcel
 - **THEN** the merchant pickup township is stored and resolved through the township table rather than a free-text township field
 
 ### Requirement: Merchant detail access supports self-scope for merchant role
-The system SHALL define merchant-role detail access as self-scope only and SHALL enforce this rule on the server using the required merchant-profile-to-app-user ownership relationship.
+The system SHALL define merchant-role detail access as self-scope only and SHALL allow parcel-related content to appear only when the requested merchant record belongs to the current merchant user. The system SHALL require `merchant.view` for merchant self-detail access and MUST NOT require `parcel-list.view` in order to show the merchant-owned parcel list inside that same detail page.
 
-#### Scenario: Merchant-role requests own merchant detail
-- **WHEN** an authenticated merchant-role user requests detail for the merchant profile owned by their app user record
-- **THEN** the system allows access
+#### Scenario: Merchant owner opens own merchant detail with parcel list
+- **WHEN** an authenticated merchant user with `merchant.view` requests the merchant profile linked to their account
+- **THEN** the system allows access and returns the merchant detail view with only that merchant's related parcels
 
-#### Scenario: Merchant-role requests other merchant detail
-- **WHEN** an authenticated merchant-role user requests detail for a different merchant profile
-- **THEN** the system denies access
+#### Scenario: Merchant user requests another merchant detail
+- **WHEN** an authenticated merchant user requests a merchant detail page for a different merchant record
+- **THEN** the system denies access to that route and does not return parcel data
+
+#### Scenario: Merchant user without merchant view cannot access self detail
+- **WHEN** an authenticated merchant-linked user without `merchant.view` requests their own merchant detail page
+- **THEN** the system denies access even if the merchant linkage is valid
 
 ### Requirement: Merchant list and detail reflect business-only merchant fields
 The system SHALL shape merchant list and detail responses so merchant-table fields contain business profile data only, while shared user identity data is joined from the related app user.
@@ -84,4 +88,56 @@ The system SHALL shape merchant list and detail responses so merchant-table fiel
 #### Scenario: Merchant detail includes linked app user context
 - **WHEN** an authorized internal user opens merchant detail
 - **THEN** the detail response includes the owning app user's shared identity fields alongside merchant-specific profile fields
+
+### Requirement: Merchant profiles can be edited from dedicated merchant routes
+The system SHALL provide a merchant profile edit workflow at `/dashboard/merchants/[id]/edit`. The workflow MUST load merchant business-profile fields from merchant feature DAL functions, MUST validate updates on the server, and MUST keep shared identity fields separate from merchant-only fields.
+
+#### Scenario: Admin edits merchant profile from dedicated route
+- **WHEN** a super admin or office admin with `merchant.update` opens `/dashboard/merchants/[id]/edit` for an existing merchant user
+- **THEN** the system SHALL load the merchant edit form with the current merchant profile values
+
+#### Scenario: Merchant user edits owned merchant profile
+- **WHEN** an authenticated merchant opens `/dashboard/merchants/[id]/edit` for their own merchant record
+- **THEN** the system SHALL allow access to the edit workflow and persist valid merchant-only updates
+
+#### Scenario: Merchant user cannot edit another merchant profile
+- **WHEN** a merchant user opens `/dashboard/merchants/[id]/edit` for a merchant record they do not own
+- **THEN** the system SHALL deny access to that route
+
+### Requirement: Merchant detail views expose the edit entry point only when authorized
+The system SHALL expose merchant profile edit entry points from merchant detail and user-management flows only to authorized actors. Unauthorized users MUST NOT receive edit controls or successful mutation paths.
+
+#### Scenario: Admin sees merchant edit entry point
+- **WHEN** a super admin or office admin can access a merchant detail page
+- **THEN** the system SHALL display a path to the merchant edit workflow
+
+#### Scenario: Merchant owner sees self edit entry point
+- **WHEN** a merchant user can access their own merchant detail page
+- **THEN** the system SHALL display a path to the merchant edit workflow for that same merchant record
+
+### Requirement: Merchant detail exposes COD settlement entry points for authorized staff
+The system SHALL show COD settlement entry points on merchant detail only to authorized internal users. The `COD in Held` stat card SHALL provide the settle action that enters settlement mode for the current merchant, and merchant detail SHALL expose settlement history for review and fulfillment.
+
+#### Scenario: Authorized staff sees settle action on COD in Held
+- **WHEN** an authorized internal user opens a merchant detail page with COD funds in held state
+- **THEN** the `COD in Held` stat card exposes a settle action for that merchant
+
+#### Scenario: Unauthorized user does not see settlement controls
+- **WHEN** a user without merchant settlement permissions opens a merchant detail page
+- **THEN** the system does not render settlement mode controls or settlement history actions for that user
+
+#### Scenario: Merchant detail opens settlement history
+- **WHEN** an authorized internal user opens the settlement history tab or view on merchant detail
+- **THEN** the system returns settlement history scoped to the current merchant only
+
+### Requirement: Merchant detail settlement mode preserves merchant scope
+The system SHALL keep settlement mode scoped to the merchant detail record that launched it. Settlement mode MUST NOT allow selecting parcels from another merchant, and settlement history MUST NOT include settlements for another merchant.
+
+#### Scenario: Settlement mode lists only current merchant parcels
+- **WHEN** an authorized user enters settlement mode from a merchant detail page
+- **THEN** every available parcel row belongs to that merchant
+
+#### Scenario: Cross-merchant settlement selection is rejected
+- **WHEN** a settlement generation request includes a parcel that belongs to another merchant
+- **THEN** the system rejects the request and does not create a settlement
 
