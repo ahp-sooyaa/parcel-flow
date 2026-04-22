@@ -47,6 +47,14 @@ const COLLECTION_STATUS_VALUES = [
 const SETTLEMENT_STATUS_VALUES = ["pending", "in_progress", "settled"] as const;
 const PAYOUT_STATUS_VALUES = ["pending", "in_progress", "paid"] as const;
 const PARCEL_AUDIT_SOURCE_VALUES = ["parcels", "parcel_payment_records"] as const;
+const MERCHANT_SETTLEMENT_TYPE_VALUES = ["invoice", "remit"] as const;
+const MERCHANT_SETTLEMENT_RECORD_STATUS_VALUES = [
+    "pending",
+    "in_progress",
+    "paid",
+    "cancelled",
+    "rejected",
+] as const;
 
 export const roles = pgTable(
     "roles",
@@ -320,6 +328,50 @@ export const bankAccounts = pgTable(
     ],
 ).enableRLS();
 
+export const merchantSettlements = pgTable(
+    "merchant_settlements",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        referenceNo: text("reference_no"),
+        merchantId: uuid("merchant_id")
+            .notNull()
+            .references(() => merchants.appUserId, { onDelete: "restrict" }),
+        bankAccountId: uuid("bank_account_id")
+            .notNull()
+            .references(() => bankAccounts.id, { onDelete: "restrict" }),
+        totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+        method: text("method").notNull().default("bank_transfer"),
+        snapshotBankName: text("snapshot_bank_name").notNull(),
+        snapshotBankAccountNumber: text("snapshot_bank_account_number").notNull(),
+        createdBy: uuid("created_by")
+            .notNull()
+            .references(() => appUsers.id, { onDelete: "restrict" }),
+        confirmedBy: uuid("confirmed_by").references(() => appUsers.id, { onDelete: "restrict" }),
+        paymentSlipImageKeys: jsonb("payment_slip_image_keys")
+            .$type<string[]>()
+            .notNull()
+            .default([]),
+        note: text("note"),
+        type: text("type", { enum: MERCHANT_SETTLEMENT_TYPE_VALUES }).notNull().default("remit"),
+        status: text("status", { enum: MERCHANT_SETTLEMENT_RECORD_STATUS_VALUES })
+            .notNull()
+            .default("pending"),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    },
+    (table) => [
+        index("merchant_settlements_merchant_idx").on(table.merchantId),
+        index("merchant_settlements_bank_account_idx").on(table.bankAccountId),
+        index("merchant_settlements_status_idx").on(table.status),
+        index("merchant_settlements_created_by_idx").on(table.createdBy),
+        index("merchant_settlements_confirmed_by_idx").on(table.confirmedBy),
+        index("merchant_settlements_created_at_idx").on(table.createdAt),
+        uniqueIndex("merchant_settlements_reference_no_uidx")
+            .on(table.referenceNo)
+            .where(sql`${table.referenceNo} is not null`),
+    ],
+);
+
 export const parcels = pgTable(
     "parcels",
     {
@@ -392,6 +444,10 @@ export const parcelPaymentRecords = pgTable(
         })
             .notNull()
             .default("pending"),
+        merchantSettlementId: uuid("merchant_settlement_id").references(
+            () => merchantSettlements.id,
+            { onDelete: "set null" },
+        ),
         riderPayoutStatus: text("rider_payout_status", { enum: PAYOUT_STATUS_VALUES })
             .notNull()
             .default("pending"),
@@ -408,7 +464,41 @@ export const parcelPaymentRecords = pgTable(
         index("parcel_payment_records_delivery_fee_status_idx").on(table.deliveryFeeStatus),
         index("parcel_payment_records_collection_status_idx").on(table.collectionStatus),
         index("parcel_payment_records_merchant_settlement_idx").on(table.merchantSettlementStatus),
+        index("parcel_payment_records_merchant_settlement_id_idx").on(table.merchantSettlementId),
         index("parcel_payment_records_rider_payout_idx").on(table.riderPayoutStatus),
+    ],
+);
+
+export const merchantSettlementItems = pgTable(
+    "merchant_settlement_items",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        merchantSettlementId: uuid("merchant_settlement_id")
+            .notNull()
+            .references(() => merchantSettlements.id, { onDelete: "cascade" }),
+        parcelPaymentRecordId: uuid("parcel_payment_record_id")
+            .notNull()
+            .references(() => parcelPaymentRecords.id, { onDelete: "restrict" }),
+        snapshotCodAmount: numeric("snapshot_cod_amount", { precision: 12, scale: 2 })
+            .notNull()
+            .default("0"),
+        snapshotDeliveryFee: numeric("snapshot_delivery_fee", { precision: 12, scale: 2 })
+            .notNull()
+            .default("0"),
+        isDeliveryFeeDeducted: boolean("is_delivery_fee_deducted").notNull().default(false),
+        netPayableAmount: numeric("net_payable_amount", { precision: 12, scale: 2 })
+            .notNull()
+            .default("0"),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    },
+    (table) => [
+        index("merchant_settlement_items_settlement_idx").on(table.merchantSettlementId),
+        index("merchant_settlement_items_payment_record_idx").on(table.parcelPaymentRecordId),
+        uniqueIndex("merchant_settlement_items_settlement_payment_uidx").on(
+            table.merchantSettlementId,
+            table.parcelPaymentRecordId,
+        ),
     ],
 );
 
@@ -448,6 +538,10 @@ export type Rider = typeof riders.$inferSelect;
 export type NewRider = typeof riders.$inferInsert;
 export type BankAccount = typeof bankAccounts.$inferSelect;
 export type NewBankAccount = typeof bankAccounts.$inferInsert;
+export type MerchantSettlement = typeof merchantSettlements.$inferSelect;
+export type NewMerchantSettlement = typeof merchantSettlements.$inferInsert;
+export type MerchantSettlementItem = typeof merchantSettlementItems.$inferSelect;
+export type NewMerchantSettlementItem = typeof merchantSettlementItems.$inferInsert;
 export type Parcel = typeof parcels.$inferSelect;
 export type NewParcel = typeof parcels.$inferInsert;
 export type ParcelPaymentRecord = typeof parcelPaymentRecords.$inferSelect;

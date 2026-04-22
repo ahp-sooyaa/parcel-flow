@@ -204,8 +204,10 @@ async function getMerchantParcelStats(merchantId: string): Promise<MerchantParce
                     sum(
                         case
                             when ${parcelPaymentRecords.codStatus} = 'collected'
-                                and ${parcelPaymentRecords.merchantSettlementStatus}
-                                    in ('pending', 'in_progress')
+                                and ${parcels.status} = 'delivered'
+                                and ${parcels.parcelType} = 'cod'
+                                and ${parcelPaymentRecords.merchantSettlementStatus} = 'pending'
+                                and ${parcelPaymentRecords.merchantSettlementId} is null
                             then ${parcels.codAmount}
                             else 0
                         end
@@ -387,6 +389,7 @@ async function findParcelDetailRowById(parcelId: string) {
             collectedAmount: parcelPaymentRecords.collectedAmount,
             collectionStatus: parcelPaymentRecords.collectionStatus,
             merchantSettlementStatus: parcelPaymentRecords.merchantSettlementStatus,
+            merchantSettlementId: parcelPaymentRecords.merchantSettlementId,
             riderPayoutStatus: parcelPaymentRecords.riderPayoutStatus,
             paymentNote: parcelPaymentRecords.note,
             paymentSlipImageKeys: parcelPaymentRecords.paymentSlipImageKeys,
@@ -580,6 +583,7 @@ async function findParcelUpdateContextById(
             collectedAmount: parcelPaymentRecords.collectedAmount,
             collectionStatus: parcelPaymentRecords.collectionStatus,
             merchantSettlementStatus: parcelPaymentRecords.merchantSettlementStatus,
+            merchantSettlementId: parcelPaymentRecords.merchantSettlementId,
             riderPayoutStatus: parcelPaymentRecords.riderPayoutStatus,
             paymentNote: parcelPaymentRecords.note,
             paymentSlipImageKeys: parcelPaymentRecords.paymentSlipImageKeys,

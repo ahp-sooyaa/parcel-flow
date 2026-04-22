@@ -52,7 +52,11 @@ values
   ('parcel.view', 'View parcel details'),
   ('parcel.create', 'Create parcel'),
   ('parcel.update', 'Update parcel'),
-  ('parcel.delete', 'Delete parcel');
+  ('parcel.delete', 'Delete parcel'),
+  ('merchant-settlement.view', 'View merchant settlements'),
+  ('merchant-settlement.create', 'Create merchant settlements'),
+  ('merchant-settlement.confirm', 'Confirm merchant settlement payments'),
+  ('merchant-settlement.cancel', 'Cancel merchant settlements');
 
 drop table if exists pg_temp.seed_office_admin_denied_permissions;
 create temporary table seed_office_admin_denied_permissions (
@@ -70,7 +74,8 @@ values
   ('bank-account.create'),
   ('bank-account.update'),
   ('bank-account.delete'),
-  ('parcel.delete');
+  ('parcel.delete'),
+  ('merchant-settlement.confirm');
 
 drop table if exists pg_temp.seed_rider_allowed_permissions;
 create temporary table seed_rider_allowed_permissions (

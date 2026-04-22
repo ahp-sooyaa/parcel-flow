@@ -1,0 +1,51 @@
+import "server-only";
+import type {
+    MERCHANT_SETTLEMENT_RECORD_STATUSES,
+    MERCHANT_SETTLEMENT_TYPES,
+} from "@/features/merchant-settlements/constants";
+import type { DELIVERY_FEE_STATUSES } from "@/features/parcels/constants";
+import type { ParcelImageAsset } from "@/features/parcels/server/utils";
+
+export type MerchantSettlementStatus = (typeof MERCHANT_SETTLEMENT_RECORD_STATUSES)[number];
+export type MerchantSettlementType = (typeof MERCHANT_SETTLEMENT_TYPES)[number];
+
+export type EligibleMerchantSettlementParcelDto = {
+    parcelId: string;
+    parcelCode: string;
+    paymentRecordId: string;
+    recipientName: string;
+    recipientTownshipName: string | null;
+    codAmount: string;
+    deliveryFee: string;
+    deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number];
+    isDeliveryFeeDeducted: boolean;
+    netPayableAmount: string;
+};
+
+export type MerchantSettlementHistoryDto = {
+    id: string;
+    referenceNo: string | null;
+    merchantId: string;
+    totalAmount: string;
+    method: string;
+    snapshotBankName: string;
+    snapshotBankAccountNumber: string;
+    createdBy: string;
+    createdByName: string;
+    confirmedBy: string | null;
+    confirmedByName: string | null;
+    paymentSlipImages: ParcelImageAsset[];
+    note: string | null;
+    type: MerchantSettlementType;
+    status: MerchantSettlementStatus;
+    itemCount: number;
+    createdAt: Date;
+    updatedAt: Date;
+};
+
+export type MerchantSettlementActionResult = {
+    ok: boolean;
+    message: string;
+    settlementId?: string;
+    fieldErrors?: Partial<Record<string, string[]>>;
+};

@@ -94,6 +94,22 @@ function verifyPermissionModel() {
     assert(officeAdminPermissions.has("merchant.update"), "office_admin must have merchant.update");
     assert(officeAdminPermissions.has("rider.view"), "office_admin must have rider.view");
     assert(officeAdminPermissions.has("rider.update"), "office_admin must have rider.update");
+    assert(
+        officeAdminPermissions.has("merchant-settlement.view"),
+        "office_admin must have merchant-settlement.view",
+    );
+    assert(
+        officeAdminPermissions.has("merchant-settlement.create"),
+        "office_admin must have merchant-settlement.create",
+    );
+    assert(
+        !officeAdminPermissions.has("merchant-settlement.confirm"),
+        "office_admin must not have merchant-settlement.confirm",
+    );
+    assert(
+        officeAdminPermissions.has("merchant-settlement.cancel"),
+        "office_admin must have merchant-settlement.cancel",
+    );
 
     const merchantPermissions = new Set(ROLE_PERMISSION_MATRIX.merchant);
     assert(!merchantPermissions.has("merchant.view"), "merchant must not have merchant.view");
@@ -124,6 +140,22 @@ function verifyPermissionModel() {
         !merchantPermissions.has("bank-account.delete"),
         "merchant must not have bank-account.delete",
     );
+    assert(
+        !merchantPermissions.has("merchant-settlement.view"),
+        "merchant must not have merchant-settlement.view",
+    );
+    assert(
+        !merchantPermissions.has("merchant-settlement.create"),
+        "merchant must not have merchant-settlement.create",
+    );
+    assert(
+        !merchantPermissions.has("merchant-settlement.confirm"),
+        "merchant must not have merchant-settlement.confirm",
+    );
+    assert(
+        !merchantPermissions.has("merchant-settlement.cancel"),
+        "merchant must not have merchant-settlement.cancel",
+    );
 
     const riderPermissions = new Set(ROLE_PERMISSION_MATRIX.rider);
     assert(!riderPermissions.has("parcel-list.view"), "rider must not have parcel-list.view");
@@ -139,6 +171,22 @@ function verifyPermissionModel() {
     assert(!riderPermissions.has("bank-account.create"), "rider must not have bank-account.create");
     assert(!riderPermissions.has("bank-account.update"), "rider must not have bank-account.update");
     assert(!riderPermissions.has("bank-account.delete"), "rider must not have bank-account.delete");
+    assert(
+        !riderPermissions.has("merchant-settlement.view"),
+        "rider must not have merchant-settlement.view",
+    );
+    assert(
+        !riderPermissions.has("merchant-settlement.create"),
+        "rider must not have merchant-settlement.create",
+    );
+    assert(
+        !riderPermissions.has("merchant-settlement.confirm"),
+        "rider must not have merchant-settlement.confirm",
+    );
+    assert(
+        !riderPermissions.has("merchant-settlement.cancel"),
+        "rider must not have merchant-settlement.cancel",
+    );
 
     const superAdminPermissions = new Set(ROLE_PERMISSION_MATRIX.super_admin);
     for (const permission of PERMISSION_SLUGS) {
@@ -177,6 +225,11 @@ function verifySharedPermissionCodesExistAcrossRoles() {
     const bankAccountViewRoles = new Set(
         Object.entries(ROLE_PERMISSION_MATRIX)
             .filter(([, permissions]) => new Set(permissions).has("bank-account.view"))
+            .map(([role]) => role),
+    );
+    const settlementConfirmRoles = new Set(
+        Object.entries(ROLE_PERMISSION_MATRIX)
+            .filter(([, permissions]) => new Set(permissions).has("merchant-settlement.confirm"))
             .map(([role]) => role),
     );
 
@@ -227,6 +280,22 @@ function verifySharedPermissionCodesExistAcrossRoles() {
     assert(
         !bankAccountViewRoles.has("rider"),
         "bank-account.view must not be assigned to rider role",
+    );
+    assert(
+        settlementConfirmRoles.has("super_admin"),
+        "merchant-settlement.confirm must be assigned to super_admin role",
+    );
+    assert(
+        !settlementConfirmRoles.has("office_admin"),
+        "merchant-settlement.confirm must not be assigned to office_admin role",
+    );
+    assert(
+        !settlementConfirmRoles.has("merchant"),
+        "merchant-settlement.confirm must not be assigned to merchant role",
+    );
+    assert(
+        !settlementConfirmRoles.has("rider"),
+        "merchant-settlement.confirm must not be assigned to rider role",
     );
 }
 
