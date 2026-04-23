@@ -132,18 +132,33 @@ export function getSafeSettlementReturnHref(value: string | null | undefined) {
     return fallback;
 }
 
+function trimHyphens(value: string) {
+    let start = 0;
+    let end = value.length;
+
+    while (start < end && value[start] === "-") {
+        start += 1;
+    }
+
+    while (end > start && value[end - 1] === "-") {
+        end -= 1;
+    }
+
+    return value.slice(start, end);
+}
+
 export function buildSettlementInvoiceFileName(input: {
     settlementId: string;
     referenceNo: string | null;
 }) {
     const rawIdentifier = input.referenceNo || input.settlementId.slice(0, 8);
     const identifier =
-        rawIdentifier
-            .trim()
-            .toLowerCase()
-            .replaceAll(/[^a-z0-9.-]+/g, "-")
-            .replaceAll(/^-+|-+$/g, "")
-            .slice(0, 80) || input.settlementId.slice(0, 8);
+        trimHyphens(
+            rawIdentifier
+                .trim()
+                .toLowerCase()
+                .replaceAll(/[^a-z0-9.-]+/g, "-"),
+        ).slice(0, 80) || input.settlementId.slice(0, 8);
 
     return `settlement-${identifier}.pdf`;
 }
