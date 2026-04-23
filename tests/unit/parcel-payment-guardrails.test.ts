@@ -5,6 +5,13 @@ import {
     calculateSettlementItemAmounts,
 } from "../../src/features/merchant-settlements/server/settlement-calculations";
 import { validateParcelPaymentState } from "../../src/features/parcels/server/payment-guardrails";
+import {
+    adminCorrectParcelStateSchema,
+    getDeliveryFeeResolutionOptions,
+    getOfficeParcelMovementActions,
+    getParcelOperationSummary,
+    updateParcelDetailSchema,
+} from "../../src/features/parcels/server/utils";
 
 const validState = {
     parcelType: "cod",
@@ -176,5 +183,177 @@ describe("merchant settlement guardrails", () => {
             "COD not received by office.",
             "Delivery fee is unresolved.",
         ]);
+    });
+});
+
+const validOperationState = {
+    parcelType: "cod",
+    parcelStatus: "delivered",
+    codAmount: "10000.00",
+    deliveryFee: "1000.00",
+    totalAmountToCollect: "10000.00",
+    deliveryFeePayer: "merchant",
+    deliveryFeeStatus: "deduct_from_settlement",
+    codStatus: "collected",
+    collectedAmount: "10000.00",
+    collectionStatus: "received_by_office",
+    merchantSettlementStatus: "pending",
+    merchantSettlementId: null,
+    paymentNote: null,
+} satisfies Parameters<typeof getParcelOperationSummary>[0];
+
+describe("parcel operation helpers", () => {
+    it("returns valid office movement actions by status", () => {
+        expect(
+            getOfficeParcelMovementActions({
+                ...validOperationState,
+                parcelStatus: "pending",
+            }),
+        ).toEqual([{ label: "Start Pickup", nextStatus: "out_for_pickup" }]);
+        expect(
+            getOfficeParcelMovementActions({
+                ...validOperationState,
+                parcelStatus: "out_for_delivery",
+            }),
+        ).toEqual([
+            { label: "Mark Delivered", nextStatus: "delivered" },
+            { label: "Return To Office", nextStatus: "return_to_office" },
+        ]);
+    });
+
+    it("does not return movement actions for terminal or locked states", () => {
+        expect(
+            getOfficeParcelMovementActions({
+                ...validOperationState,
+                parcelStatus: "returned",
+            }),
+        ).toEqual([]);
+        expect(
+            getOfficeParcelMovementActions({
+                ...validOperationState,
+                parcelStatus: "delivered",
+                merchantSettlementStatus: "in_progress",
+                merchantSettlementId: "00000000-0000-0000-0000-000000000001",
+            }),
+        ).toEqual([]);
+    });
+
+    it("shows receive cash for delivered COD held by rider", () => {
+        expect(
+            getParcelOperationSummary({
+                ...validOperationState,
+                deliveryFeeStatus: "unpaid",
+                collectionStatus: "collected_by_rider",
+            }),
+        ).toMatchObject({
+            cash: {
+                canReceiveAtOffice: true,
+                label: "Receive rider cash",
+            },
+            primaryActionLabel: "Receive Cash",
+        });
+    });
+
+    it("shows resolve fee for office-received merchant-paid unpaid delivery fee", () => {
+        expect(
+            getParcelOperationSummary({
+                ...validOperationState,
+                deliveryFeeStatus: "unpaid",
+            }),
+        ).toMatchObject({
+            deliveryFee: {
+                canResolve: true,
+                label: "Resolve fee",
+            },
+            primaryActionLabel: "Resolve Fee",
+        });
+    });
+
+    it("suppresses financial operations for locked settlement states", () => {
+        expect(
+            getParcelOperationSummary({
+                ...validOperationState,
+                deliveryFeeStatus: "unpaid",
+                merchantSettlementStatus: "in_progress",
+                merchantSettlementId: "00000000-0000-0000-0000-000000000001",
+            }),
+        ).toMatchObject({
+            deliveryFee: {
+                canResolve: false,
+            },
+            settlement: {
+                label: "Locked by settlement",
+            },
+        });
+    });
+
+    it("only exposes settlement deduction when guardrail conditions are satisfied", () => {
+        expect(
+            getDeliveryFeeResolutionOptions({
+                ...validOperationState,
+                deliveryFeeStatus: "unpaid",
+            }),
+        ).toContain("deduct_from_settlement");
+        expect(
+            getDeliveryFeeResolutionOptions({
+                ...validOperationState,
+                parcelStatus: "at_office",
+                deliveryFeeStatus: "unpaid",
+                collectionStatus: "pending",
+            }),
+        ).not.toContain("deduct_from_settlement");
+    });
+
+    it("requires an admin correction note", () => {
+        expect(
+            adminCorrectParcelStateSchema.safeParse({
+                parcelId: "00000000-0000-0000-0000-000000000001",
+                parcelStatus: "delivered",
+                deliveryFeeStatus: "paid_by_merchant",
+                codStatus: "collected",
+                collectionStatus: "received_by_office",
+                collectedAmount: "10000",
+                paymentNote: "",
+                correctionNote: "",
+            }).success,
+        ).toBe(false);
+    });
+
+    it("strips operation and payment fields from parcel detail edits", () => {
+        const parsed = updateParcelDetailSchema.safeParse({
+            parcelId: "00000000-0000-0000-0000-000000000001",
+            merchantId: "00000000-0000-0000-0000-000000000002",
+            riderId: "",
+            recipientName: "Receiver",
+            recipientPhone: "09123456",
+            recipientTownshipId: "00000000-0000-0000-0000-000000000003",
+            recipientAddress: "Yangon",
+            parcelDescription: "Box",
+            packageCount: "1",
+            specialHandlingNote: "",
+            estimatedWeightKg: "",
+            packageWidthCm: "",
+            packageHeightCm: "",
+            packageLengthCm: "",
+            parcelType: "cod",
+            codAmount: "10000",
+            deliveryFee: "1000",
+            deliveryFeePayer: "merchant",
+            parcelStatus: "cancelled",
+            deliveryFeeStatus: "waived",
+            codStatus: "not_collected",
+            collectionStatus: "void",
+            collectedAmount: "0",
+        });
+
+        expect(parsed.success).toBe(true);
+
+        if (parsed.success) {
+            expect("parcelStatus" in parsed.data).toBe(false);
+            expect("deliveryFeeStatus" in parsed.data).toBe(false);
+            expect("codStatus" in parsed.data).toBe(false);
+            expect("collectionStatus" in parsed.data).toBe(false);
+            expect("collectedAmount" in parsed.data).toBe(false);
+        }
     });
 });

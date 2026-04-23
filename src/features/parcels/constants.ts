@@ -31,6 +31,8 @@ export const MERCHANT_SETTLEMENT_STATUSES = ["pending", "in_progress", "settled"
 export const RIDER_PAYOUT_STATUSES = ["pending", "in_progress", "paid"] as const;
 
 export type ParcelStatusLabelValue =
+    | (typeof PARCEL_TYPES)[number]
+    | (typeof DELIVERY_FEE_PAYERS)[number]
     | (typeof PARCEL_STATUSES)[number]
     | (typeof DELIVERY_FEE_STATUSES)[number]
     | (typeof COD_STATUSES)[number]

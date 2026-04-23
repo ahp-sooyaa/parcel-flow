@@ -55,42 +55,101 @@ const merchantSettlementStatusValue = sql<ParcelListItemDto["merchantSettlementS
     coalesce(${parcelPaymentRecords.merchantSettlementStatus}, 'pending')
 `;
 
-async function listParcels(): Promise<ParcelListItemDto[]> {
-    const rows = await db
-        .select({
-            id: parcels.id,
-            parcelCode: parcels.parcelCode,
-            merchantId: parcels.merchantId,
-            riderId: parcels.riderId,
-            merchantLabel: merchants.shopName,
-            recipientName: parcels.recipientName,
-            recipientTownshipName: townships.name,
-            parcelStatus: parcels.status,
-            deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
-            codStatus: parcelPaymentRecords.codStatus,
-            collectionStatus: parcelPaymentRecords.collectionStatus,
-            merchantSettlementStatus: parcelPaymentRecords.merchantSettlementStatus,
-            createdAt: parcels.createdAt,
-        })
+async function listParcels(
+    input: ParcelListQuery = getDefaultParcelListQuery(),
+): Promise<PaginatedParcelListDto> {
+    const searchPattern = toParcelSearchPattern(input.query);
+    const filters = and(
+        searchPattern
+            ? or(
+                  ilike(parcels.parcelCode, searchPattern),
+                  ilike(parcels.recipientName, searchPattern),
+                  ilike(parcels.recipientPhone, searchPattern),
+                  ilike(townships.name, searchPattern),
+                  ilike(merchants.shopName, searchPattern),
+              )
+            : undefined,
+        input.parcelStatus ? eq(parcels.status, input.parcelStatus) : undefined,
+        input.codStatus ? eq(codStatusValue, input.codStatus) : undefined,
+        input.collectionStatus ? eq(collectionStatusValue, input.collectionStatus) : undefined,
+        input.deliveryFeeStatus ? eq(deliveryFeeStatusValue, input.deliveryFeeStatus) : undefined,
+        input.merchantSettlementStatus
+            ? eq(merchantSettlementStatusValue, input.merchantSettlementStatus)
+            : undefined,
+    );
+    const [totalRow] = await db
+        .select({ totalItems: count(parcels.id) })
         .from(parcels)
         .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
         .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
         .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
-        .orderBy(desc(parcels.createdAt));
+        .where(filters);
+    const totalItems = totalRow?.totalItems ?? 0;
+    const totalPages = Math.max(1, Math.ceil(totalItems / input.pageSize));
+    const page = Math.min(input.page, totalPages);
+    const offset = (page - 1) * input.pageSize;
+    const rows =
+        totalItems === 0
+            ? []
+            : await db
+                  .select({
+                      id: parcels.id,
+                      parcelCode: parcels.parcelCode,
+                      merchantId: parcels.merchantId,
+                      riderId: parcels.riderId,
+                      merchantLabel: merchants.shopName,
+                      recipientName: parcels.recipientName,
+                      recipientPhone: parcels.recipientPhone,
+                      recipientTownshipName: townships.name,
+                      parcelType: parcels.parcelType,
+                      codAmount: parcels.codAmount,
+                      deliveryFee: parcels.deliveryFee,
+                      totalAmountToCollect: parcels.totalAmountToCollect,
+                      deliveryFeePayer: parcels.deliveryFeePayer,
+                      parcelStatus: parcels.status,
+                      deliveryFeeStatus: deliveryFeeStatusValue,
+                      codStatus: codStatusValue,
+                      collectedAmount: parcelPaymentRecords.collectedAmount,
+                      collectionStatus: collectionStatusValue,
+                      merchantSettlementStatus: merchantSettlementStatusValue,
+                      merchantSettlementId: parcelPaymentRecords.merchantSettlementId,
+                      createdAt: parcels.createdAt,
+                  })
+                  .from(parcels)
+                  .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
+                  .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
+                  .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
+                  .where(filters)
+                  .orderBy(desc(parcels.createdAt), desc(parcels.id))
+                  .limit(input.pageSize)
+                  .offset(offset);
 
-    return rows.map((row) => toParcelListItemDto(row));
+    return {
+        items: rows.map((row) => toParcelListItemDto(row)),
+        page,
+        pageSize: input.pageSize,
+        totalItems,
+        totalPages,
+    };
 }
 
 export async function getParcelsListForViewer(
     viewer: AppAccessViewer,
-): Promise<ParcelListItemDto[]> {
+    input: ParcelListQuery = getDefaultParcelListQuery(),
+): Promise<PaginatedParcelListDto> {
     const parcelAccess = getParcelAccess({ viewer });
 
     if (!parcelAccess.canViewList) {
-        return [];
+        return {
+            items: [],
+            page: 1,
+            pageSize: input.pageSize,
+            totalItems: 0,
+            totalPages: 1,
+        };
     }
 
-    return listParcels();
+    return listParcels(input);
 }
 
 async function listMerchantParcels(
@@ -138,12 +197,20 @@ async function listMerchantParcels(
                       riderId: parcels.riderId,
                       merchantLabel: merchants.shopName,
                       recipientName: parcels.recipientName,
+                      recipientPhone: parcels.recipientPhone,
                       recipientTownshipName: townships.name,
+                      parcelType: parcels.parcelType,
+                      codAmount: parcels.codAmount,
+                      deliveryFee: parcels.deliveryFee,
+                      totalAmountToCollect: parcels.totalAmountToCollect,
+                      deliveryFeePayer: parcels.deliveryFeePayer,
                       parcelStatus: parcels.status,
                       deliveryFeeStatus: deliveryFeeStatusValue,
                       codStatus: codStatusValue,
+                      collectedAmount: parcelPaymentRecords.collectedAmount,
                       collectionStatus: collectionStatusValue,
                       merchantSettlementStatus: merchantSettlementStatusValue,
+                      merchantSettlementId: parcelPaymentRecords.merchantSettlementId,
                       createdAt: parcels.createdAt,
                   })
                   .from(parcels)
@@ -318,12 +385,20 @@ async function listAssignedRiderParcels(riderId: string): Promise<ParcelListItem
             riderId: parcels.riderId,
             merchantLabel: merchants.shopName,
             recipientName: parcels.recipientName,
+            recipientPhone: parcels.recipientPhone,
             recipientTownshipName: townships.name,
+            parcelType: parcels.parcelType,
+            codAmount: parcels.codAmount,
+            deliveryFee: parcels.deliveryFee,
+            totalAmountToCollect: parcels.totalAmountToCollect,
+            deliveryFeePayer: parcels.deliveryFeePayer,
             parcelStatus: parcels.status,
             deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
             codStatus: parcelPaymentRecords.codStatus,
+            collectedAmount: parcelPaymentRecords.collectedAmount,
             collectionStatus: parcelPaymentRecords.collectionStatus,
             merchantSettlementStatus: parcelPaymentRecords.merchantSettlementStatus,
+            merchantSettlementId: parcelPaymentRecords.merchantSettlementId,
             createdAt: parcels.createdAt,
         })
         .from(parcels)
@@ -633,6 +708,8 @@ export async function updateParcelAndPaymentWithAudit(input: {
     parcelOldValues: Record<string, unknown> | null;
     paymentOldValues: Record<string, unknown> | null;
     parcelEvent: string;
+    paymentEvent?: string;
+    auditMetadata?: Record<string, unknown>;
 }) {
     await db.transaction(async (tx) => {
         if (Object.keys(input.parcelPatch).length > 0) {
@@ -650,7 +727,9 @@ export async function updateParcelAndPaymentWithAudit(input: {
                 sourceTable: "parcels",
                 event: input.parcelEvent,
                 oldValues: input.parcelOldValues,
-                newValues: input.parcelPatch,
+                newValues: input.auditMetadata
+                    ? { ...input.parcelPatch, ...input.auditMetadata }
+                    : input.parcelPatch,
             });
         }
 
@@ -667,9 +746,11 @@ export async function updateParcelAndPaymentWithAudit(input: {
                 parcelId: input.parcelId,
                 updatedBy: input.actorAppUserId,
                 sourceTable: "parcel_payment_records",
-                event: "parcel_payment_record.update",
+                event: input.paymentEvent ?? "parcel_payment_record.update",
                 oldValues: input.paymentOldValues,
-                newValues: input.paymentPatch,
+                newValues: input.auditMetadata
+                    ? { ...input.paymentPatch, ...input.auditMetadata }
+                    : input.paymentPatch,
             });
         }
     });
