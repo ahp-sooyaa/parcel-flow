@@ -17,6 +17,7 @@ import { findTownshipById } from "@/features/townships/server/dal";
 import { buildR2ObjectKey, getSignedR2ObjectUrl, uploadR2Object } from "@/lib/r2";
 import { optionalNullableTrimmedString, optionalNullableUuid } from "@/lib/validation/zod-helpers";
 
+export { validateParcelPaymentState } from "./payment-guardrails";
 export {
     COD_STATUSES,
     COLLECTION_STATUSES,
@@ -60,8 +61,6 @@ const UPDATE_PARCEL_FORM_FIELDS = [
     "deliveryFeeStatus",
     "codStatus",
     "collectionStatus",
-    "merchantSettlementStatus",
-    "riderPayoutStatus",
     "collectedAmount",
 ] as const;
 const RIDER_PARCEL_IMAGE_UPLOAD_FIELDS = ["parcelId"] as const;
@@ -159,8 +158,6 @@ export const updateParcelSchema = createParcelSchema.extend({
     deliveryFeeStatus: z.enum(DELIVERY_FEE_STATUSES),
     codStatus: z.enum(COD_STATUSES),
     collectionStatus: z.enum(COLLECTION_STATUSES),
-    merchantSettlementStatus: z.enum(MERCHANT_SETTLEMENT_STATUSES),
-    riderPayoutStatus: z.enum(RIDER_PAYOUT_STATUSES),
     collectedAmount: moneyField,
 });
 

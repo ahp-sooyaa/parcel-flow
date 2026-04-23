@@ -22,8 +22,8 @@ type ParcelUpdateCurrent = {
         codStatus: ParcelUpdateInput["codStatus"];
         collectedAmount: string;
         collectionStatus: ParcelUpdateInput["collectionStatus"];
-        merchantSettlementStatus: ParcelUpdateInput["merchantSettlementStatus"];
-        riderPayoutStatus: ParcelUpdateInput["riderPayoutStatus"];
+        merchantSettlementStatus: "pending" | "in_progress" | "settled";
+        riderPayoutStatus: "pending" | "in_progress" | "paid";
         note: string | null;
     };
 };
@@ -114,8 +114,8 @@ export function authorizeParcelUpdate(input: {
                 codStatus: input.submitted.codStatus,
                 collectedAmount: input.submitted.collectedAmount,
                 collectionStatus: input.submitted.collectionStatus,
-                merchantSettlementStatus: input.submitted.merchantSettlementStatus,
-                riderPayoutStatus: input.submitted.riderPayoutStatus,
+                merchantSettlementStatus: input.current.payment.merchantSettlementStatus,
+                riderPayoutStatus: input.current.payment.riderPayoutStatus,
                 paymentNote: input.submitted.paymentNote,
             },
         };

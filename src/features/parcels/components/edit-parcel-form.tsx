@@ -11,10 +11,8 @@ import {
     COLLECTION_STATUSES,
     DELIVERY_FEE_PAYERS,
     DELIVERY_FEE_STATUSES,
-    MERCHANT_SETTLEMENT_STATUSES,
     PARCEL_STATUSES,
     PARCEL_TYPES,
-    RIDER_PAYOUT_STATUSES,
 } from "@/features/parcels/constants";
 import { updateParcelAction } from "@/features/parcels/server/actions";
 import { cn } from "@/lib/utils";
@@ -45,8 +43,9 @@ type EditParcelFormProps = {
         codStatus: (typeof COD_STATUSES)[number];
         collectedAmount: string;
         collectionStatus: (typeof COLLECTION_STATUSES)[number];
-        merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number];
-        riderPayoutStatus: (typeof RIDER_PAYOUT_STATUSES)[number];
+        merchantSettlementStatus: "pending" | "in_progress" | "settled";
+        merchantSettlementId: string | null;
+        riderPayoutStatus: "pending" | "in_progress" | "paid";
         paymentNote: string | null;
         pickupImages: Array<{ key: string; url: string }>;
         proofOfDeliveryImages: Array<{ key: string; url: string }>;
@@ -94,8 +93,6 @@ function buildFormValues(parcel: EditParcelFormProps["parcel"]) {
         codStatus: parcel.codStatus,
         collectedAmount: parcel.collectedAmount,
         collectionStatus: parcel.collectionStatus,
-        merchantSettlementStatus: parcel.merchantSettlementStatus,
-        riderPayoutStatus: parcel.riderPayoutStatus,
         paymentNote: parcel.paymentNote ?? "",
     };
 }
@@ -525,16 +522,6 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                             name="collectionStatus"
                             value={fields.collectionStatus}
                         />
-                        <input
-                            type="hidden"
-                            name="merchantSettlementStatus"
-                            value={fields.merchantSettlementStatus}
-                        />
-                        <input
-                            type="hidden"
-                            name="riderPayoutStatus"
-                            value={fields.riderPayoutStatus}
-                        />
                         <input type="hidden" name="paymentNote" value={fields.paymentNote} />
                     </>
                 ) : (
@@ -611,46 +598,6 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                         </div>
 
                         <div className="grid gap-2">
-                            <Label htmlFor="merchant-settlement-status">
-                                Merchant Settlement Status *
-                            </Label>
-                            <select
-                                key={fields.merchantSettlementStatus}
-                                id="merchant-settlement-status"
-                                name="merchantSettlementStatus"
-                                defaultValue={fields.merchantSettlementStatus}
-                                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                                required
-                            >
-                                {MERCHANT_SETTLEMENT_STATUSES.map((status) => (
-                                    <option key={status} value={status}>
-                                        {status}
-                                    </option>
-                                ))}
-                            </select>
-                            <FormFieldError message={getFieldError("merchantSettlementStatus")} />
-                        </div>
-
-                        <div className="grid gap-2">
-                            <Label htmlFor="rider-payout-status">Rider Payout Status *</Label>
-                            <select
-                                key={fields.riderPayoutStatus}
-                                id="rider-payout-status"
-                                name="riderPayoutStatus"
-                                defaultValue={fields.riderPayoutStatus}
-                                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                                required
-                            >
-                                {RIDER_PAYOUT_STATUSES.map((status) => (
-                                    <option key={status} value={status}>
-                                        {status}
-                                    </option>
-                                ))}
-                            </select>
-                            <FormFieldError message={getFieldError("riderPayoutStatus")} />
-                        </div>
-
-                        <div className="grid gap-2">
                             <Label htmlFor="payment-note">Payment Note (Optional)</Label>
                             <textarea
                                 id="payment-note"
@@ -663,6 +610,22 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                         </div>
                     </>
                 )}
+
+                <div className="grid gap-3 rounded-lg border bg-background p-3 text-xs">
+                    <div className="grid gap-1">
+                        <p className="text-muted-foreground">Merchant Settlement Status</p>
+                        <p className="font-medium">{parcel.merchantSettlementStatus}</p>
+                        {parcel.merchantSettlementId && (
+                            <p className="font-mono text-muted-foreground">
+                                {parcel.merchantSettlementId}
+                            </p>
+                        )}
+                    </div>
+                    <div className="grid gap-1">
+                        <p className="text-muted-foreground">Rider Payout Status</p>
+                        <p className="font-medium">{parcel.riderPayoutStatus}</p>
+                    </div>
+                </div>
             </section>
 
             {state.message && (

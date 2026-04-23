@@ -1,8 +1,9 @@
 import "server-only";
-import { and, count, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import {
     calculateSettlementItemAmounts,
     calculateSettlementTotals,
+    getMerchantSettlementBlockedReasons,
     isMerchantSettlementId,
     signSettlementPaymentSlipKeys,
     toSettlementMoneyString,
@@ -22,12 +23,14 @@ import {
 import { getMerchantSettlementAccess } from "@/features/auth/server/policies/merchant-settlements";
 
 import type {
+    BlockedMerchantSettlementParcelDto,
     EligibleMerchantSettlementParcelDto,
     MerchantSettlementDetailDto,
     MerchantSettlementHistoryDto,
     MerchantSettlementItemDto,
     MerchantSettlementListItemDto,
     MerchantSettlementListQuery,
+    MerchantSettlementSelectionDto,
     MerchantSettlementTotalsDto,
     PaginatedMerchantSettlementListDto,
 } from "./dto";
@@ -49,8 +52,21 @@ function settlementEligibilityWhere(merchantId: string, paymentRecordIds?: strin
         eq(parcels.status, "delivered"),
         eq(parcels.parcelType, "cod"),
         eq(parcelPaymentRecords.codStatus, "collected"),
+        eq(parcelPaymentRecords.collectionStatus, "received_by_office"),
         eq(parcelPaymentRecords.merchantSettlementStatus, "pending"),
         isNull(parcelPaymentRecords.merchantSettlementId),
+        or(
+            ne(parcels.deliveryFeePayer, "merchant"),
+            ne(parcelPaymentRecords.deliveryFeeStatus, "unpaid"),
+        ),
+        or(
+            ne(parcelPaymentRecords.deliveryFeeStatus, "deduct_from_settlement"),
+            and(
+                eq(parcels.deliveryFeePayer, "merchant"),
+                sql`${parcels.deliveryFee} > 0`,
+                sql`${parcels.codAmount} > ${parcels.deliveryFee}`,
+            ),
+        ),
         paymentRecordIds?.length ? inArray(parcelPaymentRecords.id, paymentRecordIds) : undefined,
     );
 }
@@ -58,6 +74,7 @@ function settlementEligibilityWhere(merchantId: string, paymentRecordIds?: strin
 function settlementLockWhere(merchantId: string, paymentRecordIds: string[]) {
     return and(
         eq(parcelPaymentRecords.codStatus, "collected"),
+        eq(parcelPaymentRecords.collectionStatus, "received_by_office"),
         eq(parcelPaymentRecords.merchantSettlementStatus, "pending"),
         isNull(parcelPaymentRecords.merchantSettlementId),
         inArray(parcelPaymentRecords.id, paymentRecordIds),
@@ -68,6 +85,18 @@ function settlementLockWhere(merchantId: string, paymentRecordIds: string[]) {
                 and ${parcels.merchantId} = ${merchantId}
                 and ${parcels.status} = ${"delivered"}
                 and ${parcels.parcelType} = ${"cod"}
+                and (
+                    ${parcels.deliveryFeePayer} <> ${"merchant"}
+                    or ${parcelPaymentRecords.deliveryFeeStatus} <> ${"unpaid"}
+                )
+                and (
+                    ${parcelPaymentRecords.deliveryFeeStatus} <> ${"deduct_from_settlement"}
+                    or (
+                        ${parcels.deliveryFeePayer} = ${"merchant"}
+                        and ${parcels.deliveryFee} > 0
+                        and ${parcels.codAmount} > ${parcels.deliveryFee}
+                    )
+                )
         )`,
     );
 }
@@ -184,14 +213,9 @@ async function shapeSettlementListRows<TSettlement extends SettlementListBaseRow
     });
 }
 
-export async function getEligibleMerchantSettlementParcelsForViewer(
-    viewer: AppAccessViewer,
+async function listEligibleMerchantSettlementParcels(
     merchantId: string,
 ): Promise<EligibleMerchantSettlementParcelDto[]> {
-    if (!getMerchantSettlementAccess(viewer).canCreate) {
-        return [];
-    }
-
     const rows = await db
         .select({
             parcelId: parcels.id,
@@ -213,6 +237,69 @@ export async function getEligibleMerchantSettlementParcelsForViewer(
         ...row,
         ...calculateSettlementItemAmounts(row),
     }));
+}
+
+async function listBlockedMerchantSettlementParcels(
+    merchantId: string,
+): Promise<BlockedMerchantSettlementParcelDto[]> {
+    const rows = await db
+        .select({
+            parcelId: parcels.id,
+            parcelCode: parcels.parcelCode,
+            recipientName: parcels.recipientName,
+            recipientTownshipName: townships.name,
+            parcelStatus: parcels.status,
+            codStatus: parcelPaymentRecords.codStatus,
+            codAmount: parcels.codAmount,
+            deliveryFee: parcels.deliveryFee,
+            collectionStatus: parcelPaymentRecords.collectionStatus,
+            deliveryFeePayer: parcels.deliveryFeePayer,
+            deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
+            merchantSettlementStatus: parcelPaymentRecords.merchantSettlementStatus,
+            merchantSettlementId: parcelPaymentRecords.merchantSettlementId,
+        })
+        .from(parcelPaymentRecords)
+        .innerJoin(parcels, eq(parcelPaymentRecords.parcelId, parcels.id))
+        .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
+        .where(and(eq(parcels.merchantId, merchantId), eq(parcels.parcelType, "cod")))
+        .orderBy(desc(parcels.createdAt), desc(parcels.id));
+
+    return rows
+        .map((row) => ({
+            parcelId: row.parcelId,
+            parcelCode: row.parcelCode,
+            recipientName: row.recipientName,
+            recipientTownshipName: row.recipientTownshipName,
+            reasons: getMerchantSettlementBlockedReasons(row),
+        }))
+        .filter((row) => row.reasons.length > 0);
+}
+
+export async function getMerchantSettlementSelectionForViewer(
+    viewer: AppAccessViewer,
+    merchantId: string,
+): Promise<MerchantSettlementSelectionDto> {
+    if (!getMerchantSettlementAccess(viewer).canCreate) {
+        return { eligibleParcels: [], blockedParcels: [] };
+    }
+
+    const [eligibleParcels, blockedParcels] = await Promise.all([
+        listEligibleMerchantSettlementParcels(merchantId),
+        listBlockedMerchantSettlementParcels(merchantId),
+    ]);
+
+    return { eligibleParcels, blockedParcels };
+}
+
+export async function getEligibleMerchantSettlementParcelsForViewer(
+    viewer: AppAccessViewer,
+    merchantId: string,
+): Promise<EligibleMerchantSettlementParcelDto[]> {
+    if (!getMerchantSettlementAccess(viewer).canCreate) {
+        return [];
+    }
+
+    return listEligibleMerchantSettlementParcels(merchantId);
 }
 
 export async function getMerchantSettlementHistoryForViewer(

@@ -144,7 +144,16 @@ export default async function ParcelDetailPage({ params }: Readonly<ParcelDetail
                 </div>
                 <div className="grid gap-1">
                     <p className="text-xs text-muted-foreground">Merchant Settlement Status</p>
-                    <p>{parcel.merchantSettlementStatus}</p>
+                    {parcel.merchantSettlementId && currentUser.roleSlug !== "merchant" ? (
+                        <Link
+                            href={`/dashboard/settlements/${parcel.merchantSettlementId}`}
+                            className="text-primary underline-offset-4 hover:underline"
+                        >
+                            {parcel.merchantSettlementStatus}
+                        </Link>
+                    ) : (
+                        <p>{parcel.merchantSettlementStatus}</p>
+                    )}
                 </div>
                 <div className="grid gap-1">
                     <p className="text-xs text-muted-foreground">Rider Payout Status</p>

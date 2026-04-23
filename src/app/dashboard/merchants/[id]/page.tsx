@@ -11,7 +11,7 @@ import { getBankAccountsForViewer } from "@/features/bank-accounts/server/dal";
 import { MerchantSettlementHistory } from "@/features/merchant-settlements/components/merchant-settlement-history";
 import { MerchantSettlementPicker } from "@/features/merchant-settlements/components/merchant-settlement-picker";
 import {
-    getEligibleMerchantSettlementParcelsForViewer,
+    getMerchantSettlementSelectionForViewer,
     getMerchantSettlementHistoryForViewer,
 } from "@/features/merchant-settlements/server/dal";
 import { getMerchantByIdForViewer } from "@/features/merchant/server/dal";
@@ -107,7 +107,7 @@ export default async function MerchantDetailPage({
         merchant,
         merchantStats,
         merchantParcels,
-        eligibleSettlementParcels,
+        settlementSelection,
         merchantBankAccounts,
         settlementHistory,
     ] = await Promise.all([
@@ -117,8 +117,8 @@ export default async function MerchantDetailPage({
             ? getMerchantParcelsListForViewer(currentUser, id, parcelListQuery)
             : Promise.resolve(null),
         isSettlementMode
-            ? getEligibleMerchantSettlementParcelsForViewer(currentUser, id)
-            : Promise.resolve([]),
+            ? getMerchantSettlementSelectionForViewer(currentUser, id)
+            : Promise.resolve({ eligibleParcels: [], blockedParcels: [] }),
         isSettlementMode
             ? getBankAccountsForViewer(currentUser, {
                   appUserId: id,
@@ -243,7 +243,8 @@ export default async function MerchantDetailPage({
                         <div>
                             <h2 className="text-lg font-semibold">Settlement Mode</h2>
                             <p className="text-sm text-muted-foreground">
-                                Delivered COD parcels with collected COD and pending settlement.
+                                Delivered COD parcels with COD received by office and pending
+                                settlement.
                             </p>
                         </div>
                         <Button asChild variant="outline">
@@ -253,7 +254,8 @@ export default async function MerchantDetailPage({
 
                     <MerchantSettlementPicker
                         merchantId={merchant.id}
-                        parcels={eligibleSettlementParcels}
+                        parcels={settlementSelection.eligibleParcels}
+                        blockedParcels={settlementSelection.blockedParcels}
                         bankAccounts={merchantBankAccounts}
                     />
                 </section>

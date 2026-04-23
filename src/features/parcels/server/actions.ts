@@ -23,6 +23,7 @@ import {
     parseUpdateParcelFormData,
     uploadParcelMediaFiles,
     validateParcelImageAppendLimits,
+    validateParcelPaymentState,
     validateParcelSubmission,
 } from "./utils";
 import {
@@ -400,6 +401,25 @@ export async function updateParcelAction(
             return { ok: false, message: submissionGuard.message, fields: submittedFields };
         }
 
+        const paymentStateGuard = validateParcelPaymentState({
+            parcelType: parsed.data.parcelType,
+            parcelStatus: actorScopedUpdate.parcelStatus,
+            deliveryFeePayer: parsed.data.deliveryFeePayer,
+            codAmount: parsed.data.codAmount,
+            deliveryFee: parsed.data.deliveryFee,
+            deliveryFeeStatus: actorScopedUpdate.deliveryFeeStatus,
+            previousDeliveryFeeStatus: current.payment.deliveryFeeStatus,
+            codStatus: actorScopedUpdate.codStatus,
+            collectionStatus: actorScopedUpdate.collectionStatus,
+            merchantSettlementStatus: actorScopedUpdate.merchantSettlementStatus,
+            merchantSettlementId: current.payment.merchantSettlementId,
+            paymentNote: actorScopedUpdate.paymentNote,
+        });
+
+        if (!paymentStateGuard.ok) {
+            return { ok: false, message: paymentStateGuard.message, fields: submittedFields };
+        }
+
         const totalAmountToCollect = computeTotalAmountToCollect({
             parcelType: parsed.data.parcelType,
             codAmount: parsed.data.codAmount,
@@ -525,17 +545,67 @@ export async function advanceRiderParcelAction(formData: FormData): Promise<void
             return;
         }
 
+        const nextPaymentValues =
+            nextAction.nextStatus === "delivered"
+                ? {
+                      deliveryFeeStatus: current.payment.deliveryFeeStatus,
+                      codStatus:
+                          current.parcel.parcelType === "cod"
+                              ? ("collected" as const)
+                              : ("not_applicable" as const),
+                      collectedAmount:
+                          current.parcel.parcelType === "cod"
+                              ? Number(current.parcel.totalAmountToCollect)
+                              : Number(current.payment.collectedAmount),
+                      collectionStatus:
+                          current.parcel.parcelType === "cod"
+                              ? ("collected_by_rider" as const)
+                              : current.payment.collectionStatus,
+                      merchantSettlementStatus: current.payment.merchantSettlementStatus,
+                      riderPayoutStatus: current.payment.riderPayoutStatus,
+                      paymentNote: current.payment.note,
+                      paymentSlipImageKeys: current.payment.paymentSlipImageKeys,
+                  }
+                : null;
+        const paymentStateGuard = validateParcelPaymentState({
+            parcelType: current.parcel.parcelType,
+            parcelStatus: nextAction.nextStatus,
+            deliveryFeePayer: current.parcel.deliveryFeePayer,
+            codAmount: Number(current.parcel.codAmount),
+            deliveryFee: Number(current.parcel.deliveryFee),
+            deliveryFeeStatus:
+                nextPaymentValues?.deliveryFeeStatus ?? current.payment.deliveryFeeStatus,
+            previousDeliveryFeeStatus: current.payment.deliveryFeeStatus,
+            codStatus: nextPaymentValues?.codStatus ?? current.payment.codStatus,
+            collectionStatus:
+                nextPaymentValues?.collectionStatus ?? current.payment.collectionStatus,
+            merchantSettlementStatus: current.payment.merchantSettlementStatus,
+            merchantSettlementId: current.payment.merchantSettlementId,
+            paymentNote: current.payment.note,
+        });
+
+        if (!paymentStateGuard.ok) {
+            return;
+        }
+
+        const paymentPatch = nextPaymentValues
+            ? buildPaymentPatch({
+                  current: current.payment,
+                  next: buildParcelPaymentWriteValues(nextPaymentValues),
+              })
+            : { patch: {}, oldValues: null };
+
         await updateParcelAndPaymentWithAudit({
             actorAppUserId: currentUser.appUserId,
             parcelId,
             parcelPatch: {
                 status: nextAction.nextStatus,
             },
-            paymentPatch: {},
+            paymentPatch: paymentPatch.patch,
             parcelOldValues: {
                 status: current.parcel.status,
             },
-            paymentOldValues: null,
+            paymentOldValues: paymentPatch.oldValues,
             parcelEvent: "parcel.rider_progressed",
         });
 

@@ -87,6 +87,7 @@ export type ParcelDetailDto = {
     collectedAmount: string;
     collectionStatus: (typeof COLLECTION_STATUSES)[number];
     merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number];
+    merchantSettlementId: string | null;
     riderPayoutStatus: (typeof RIDER_PAYOUT_STATUSES)[number];
     paymentNote: string | null;
     pickupImages: ParcelImageAsset[];
@@ -264,6 +265,7 @@ export function toParcelDetailDto(input: {
     collectedAmount: string | null;
     collectionStatus: (typeof COLLECTION_STATUSES)[number] | null;
     merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number] | null;
+    merchantSettlementId: string | null;
     riderPayoutStatus: (typeof RIDER_PAYOUT_STATUSES)[number] | null;
     paymentNote: string | null;
     pickupImages?: ParcelImageAsset[];
@@ -302,6 +304,7 @@ export function toParcelDetailDto(input: {
         collectedAmount: input.collectedAmount ?? "0",
         collectionStatus: input.collectionStatus ?? "pending",
         merchantSettlementStatus: input.merchantSettlementStatus ?? "pending",
+        merchantSettlementId: input.merchantSettlementId,
         riderPayoutStatus: input.riderPayoutStatus ?? "pending",
         paymentNote: input.paymentNote,
         pickupImages: input.pickupImages ?? [],

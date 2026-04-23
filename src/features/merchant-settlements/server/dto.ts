@@ -22,6 +22,19 @@ export type EligibleMerchantSettlementParcelDto = {
     netPayableAmount: string;
 };
 
+export type BlockedMerchantSettlementParcelDto = {
+    parcelId: string;
+    parcelCode: string;
+    recipientName: string;
+    recipientTownshipName: string | null;
+    reasons: string[];
+};
+
+export type MerchantSettlementSelectionDto = {
+    eligibleParcels: EligibleMerchantSettlementParcelDto[];
+    blockedParcels: BlockedMerchantSettlementParcelDto[];
+};
+
 export type MerchantSettlementActorDto = {
     id: string;
     name: string;
