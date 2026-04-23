@@ -13,7 +13,7 @@ import { db, type DbClient } from "@/db";
 import { appUsers, merchants, townships } from "@/db/schema";
 import { getMerchantAccess } from "@/features/auth/server/policies/merchant";
 
-import type { AppAccessContext } from "@/features/auth/server/dto";
+import type { AppAccessViewer } from "@/features/auth/server/dto";
 
 type MerchantWriteClient = Pick<DbClient, "insert">;
 
@@ -61,7 +61,7 @@ async function listMerchants(
 }
 
 export async function getMerchantsListForViewer(
-    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    viewer: AppAccessViewer,
     input: {
         query?: string;
         limit?: number;
@@ -115,7 +115,7 @@ async function findMerchantById(merchantId: string): Promise<MerchantDetailDto |
 }
 
 export async function getMerchantByIdForViewer(
-    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    viewer: AppAccessViewer,
     merchantId: string,
 ): Promise<MerchantDetailDto | null> {
     const merchantAccess = getMerchantAccess({
@@ -159,7 +159,7 @@ async function findMerchantProfileByAppUserId(
 }
 
 export async function getMerchantProfileByAppUserIdForViewer(
-    viewer: Pick<AppAccessContext, "appUserId" | "roleSlug" | "permissions">,
+    viewer: AppAccessViewer,
     appUserId: string,
 ): Promise<MerchantProfileDto | null> {
     const merchantAccess = getMerchantAccess({

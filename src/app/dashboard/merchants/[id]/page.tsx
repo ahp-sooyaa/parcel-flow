@@ -3,9 +3,17 @@ import { notFound } from "next/navigation";
 import { ListPagination } from "@/components/shared/list-pagination";
 import { Button } from "@/components/ui/button";
 import { getMerchantAccess } from "@/features/auth/server/policies/merchant";
+import { getMerchantSettlementAccess } from "@/features/auth/server/policies/merchant-settlements";
 import { getParcelAccess } from "@/features/auth/server/policies/parcels";
 import { isAdminRole } from "@/features/auth/server/policies/shared";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
+import { getBankAccountsForViewer } from "@/features/bank-accounts/server/dal";
+import { MerchantSettlementHistory } from "@/features/merchant-settlements/components/merchant-settlement-history";
+import { MerchantSettlementPicker } from "@/features/merchant-settlements/components/merchant-settlement-picker";
+import {
+    getEligibleMerchantSettlementParcelsForViewer,
+    getMerchantSettlementHistoryForViewer,
+} from "@/features/merchant-settlements/server/dal";
 import { getMerchantByIdForViewer } from "@/features/merchant/server/dal";
 import { ParcelListSearchAndFiltersForm } from "@/features/parcels/components/parcel-list-search-and-filters-form";
 import { ParcelStatusPill } from "@/features/parcels/components/parcel-status-pill";
@@ -17,11 +25,14 @@ import {
     hasActiveParcelListFilters,
     normalizeParcelListQueryParams,
 } from "@/features/parcels/server/utils";
+import { cn } from "@/lib/utils";
 
 type MerchantDetailPageProps = {
     params: Promise<{ id: string }>;
     searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
+
+type MerchantDetailTab = "parcels" | "settlements";
 
 const countFormatter = new Intl.NumberFormat("en-US");
 const moneyFormatter = new Intl.NumberFormat("en-US", {
@@ -43,6 +54,22 @@ function formatMmk(value: string) {
     return `${moneyFormatter.format(amount)} MMK`;
 }
 
+function getSearchParam(searchParams: Record<string, string | string[] | undefined>, key: string) {
+    const value = searchParams[key];
+
+    if (Array.isArray(value)) {
+        return value[0] ?? "";
+    }
+
+    return value ?? "";
+}
+
+function getActiveTab(
+    searchParams: Record<string, string | string[] | undefined>,
+): MerchantDetailTab {
+    return getSearchParam(searchParams, "tab") === "settlements" ? "settlements" : "parcels";
+}
+
 export default async function MerchantDetailPage({
     params,
     searchParams,
@@ -50,6 +77,19 @@ export default async function MerchantDetailPage({
     const currentUser = await requireAppAccessContext();
     const [{ id }, rawSearchParams] = await Promise.all([params, searchParams]);
     const showInternalPaymentColumns = isAdminRole(currentUser.roleSlug);
+    const settlementAccess = getMerchantSettlementAccess(currentUser);
+    const isSettlementMode = getSearchParam(rawSearchParams, "settle") === "1";
+    const requestedTab = getSearchParam(rawSearchParams, "tab");
+    const activeTab = getActiveTab(rawSearchParams);
+
+    if (isSettlementMode && !settlementAccess.canCreate) {
+        notFound();
+    }
+
+    if (requestedTab === "settlements" && !settlementAccess.canView) {
+        notFound();
+    }
+
     const parcelListQuery = normalizeParcelListQueryParams(rawSearchParams, {
         includeInternalPaymentFilters: showInternalPaymentColumns,
     });
@@ -63,10 +103,31 @@ export default async function MerchantDetailPage({
         notFound();
     }
 
-    const [merchant, merchantParcels, merchantStats] = await Promise.all([
+    const [
+        merchant,
+        merchantStats,
+        merchantParcels,
+        eligibleSettlementParcels,
+        merchantBankAccounts,
+        settlementHistory,
+    ] = await Promise.all([
         getMerchantByIdForViewer(currentUser, id),
-        getMerchantParcelsListForViewer(currentUser, id, parcelListQuery),
         getMerchantParcelStatsForViewer(currentUser, id),
+        !isSettlementMode && activeTab === "parcels"
+            ? getMerchantParcelsListForViewer(currentUser, id, parcelListQuery)
+            : Promise.resolve(null),
+        isSettlementMode
+            ? getEligibleMerchantSettlementParcelsForViewer(currentUser, id)
+            : Promise.resolve([]),
+        isSettlementMode
+            ? getBankAccountsForViewer(currentUser, {
+                  appUserId: id,
+                  isCompanyAccount: false,
+              })
+            : Promise.resolve([]),
+        !isSettlementMode && activeTab === "settlements" && settlementAccess.canView
+            ? getMerchantSettlementHistoryForViewer(currentUser, id)
+            : Promise.resolve([]),
     ]);
 
     if (!merchant) {
@@ -74,10 +135,9 @@ export default async function MerchantDetailPage({
     }
 
     const parcelAccess = getParcelAccess({ viewer: currentUser });
-    const emptyColumnCount = showInternalPaymentColumns ? 9 : 7;
-    const hasActiveParcelFilters = hasActiveParcelListFilters(parcelListQuery);
-    const merchantParcelItems = merchantParcels.items;
     const merchantDetailHref = `/dashboard/merchants/${merchant.id}`;
+    const settlementHistoryHref = `${merchantDetailHref}?tab=settlements`;
+    const settlementModeHref = `${merchantDetailHref}?settle=1`;
     const parcelPaginationQuery = {
         q: parcelListQuery.query || undefined,
         parcelStatus: parcelListQuery.parcelStatus,
@@ -89,9 +149,14 @@ export default async function MerchantDetailPage({
 
     const editMerchantHref =
         currentUser.roleSlug === "merchant"
-            ? "/dashboard/profile"
+            ? "/dashboard/settings?tab=merchant-details"
             : `/dashboard/users/${merchant.id}/edit`;
-    const statCards = [
+    const statCards: Array<{
+        label: string;
+        value: string;
+        actionHref?: string | null;
+        actionLabel?: string;
+    }> = [
         {
             label: "Total Parcels",
             value: formatCount(merchantStats.totalParcels),
@@ -115,6 +180,8 @@ export default async function MerchantDetailPage({
         {
             label: "COD in Held",
             value: formatMmk(merchantStats.codInHeld),
+            actionHref: settlementAccess.canCreate ? settlementModeHref : null,
+            actionLabel: "Settle",
         },
         {
             label: "Pending Delivery Fee",
@@ -157,123 +224,219 @@ export default async function MerchantDetailPage({
                             <p className="text-xs font-medium text-muted-foreground uppercase">
                                 {stat.label}
                             </p>
-                            <p className="mt-2 text-2xl font-semibold tabular-nums">{stat.value}</p>
+                            <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                                <p className="text-2xl font-semibold tabular-nums">{stat.value}</p>
+                                {stat.actionHref && (
+                                    <Button asChild size="sm" variant="outline">
+                                        <Link href={stat.actionHref}>{stat.actionLabel}</Link>
+                                    </Button>
+                                )}
+                            </div>
                         </article>
                     ))}
                 </div>
             </section>
 
-            <section className="space-y-3">
-                <div>
-                    <h2 className="text-lg font-semibold">Parcels</h2>
-                    <p className="text-sm text-muted-foreground">
-                        Only parcels related to this merchant are listed here.
-                    </p>
-                </div>
+            {isSettlementMode ? (
+                <section className="space-y-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h2 className="text-lg font-semibold">Settlement Mode</h2>
+                            <p className="text-sm text-muted-foreground">
+                                Delivered COD parcels with collected COD and pending settlement.
+                            </p>
+                        </div>
+                        <Button asChild variant="outline">
+                            <Link href={merchantDetailHref}>Exit Settlement Mode</Link>
+                        </Button>
+                    </div>
 
-                <ParcelListSearchAndFiltersForm
-                    query={parcelListQuery}
-                    clearHref={merchantDetailHref}
-                    includeInternalPaymentFilters={showInternalPaymentColumns}
-                />
-
-                <div className="overflow-x-auto rounded-xl border bg-card">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-muted/40 text-xs uppercase">
-                            <tr>
-                                <th className="px-4 py-3">Parcel Code</th>
-                                <th className="px-4 py-3">Recipient</th>
-                                <th className="px-4 py-3">Township</th>
-                                <th className="px-4 py-3">Parcel Status</th>
-                                <th className="px-4 py-3">COD Status</th>
-                                {showInternalPaymentColumns && (
-                                    <>
-                                        <th className="px-4 py-3">Collection Status</th>
-                                        <th className="px-4 py-3">Delivery Fee Status</th>
-                                    </>
-                                )}
-                                <th className="px-4 py-3">Settlement</th>
-                                <th className="px-4 py-3">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {merchantParcelItems.map((parcel) => (
-                                <tr key={parcel.id} className="border-t">
-                                    <td className="px-4 py-3">{parcel.parcelCode}</td>
-                                    <td className="px-4 py-3">{parcel.recipientName}</td>
-                                    <td className="px-4 py-3">
-                                        {parcel.recipientTownshipName ?? "-"}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <ParcelStatusPill value={parcel.parcelStatus} />
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <ParcelStatusPill value={parcel.codStatus} />
-                                    </td>
-                                    {showInternalPaymentColumns && (
-                                        <>
-                                            <td className="px-4 py-3">
-                                                <ParcelStatusPill value={parcel.collectionStatus} />
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <ParcelStatusPill
-                                                    value={parcel.deliveryFeeStatus}
-                                                />
-                                            </td>
-                                        </>
-                                    )}
-                                    <td className="px-4 py-3">
-                                        <ParcelStatusPill value={parcel.merchantSettlementStatus} />
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center gap-2">
-                                            <Button asChild size="sm" variant="outline">
-                                                <Link href={`/dashboard/parcels/${parcel.id}`}>
-                                                    View
-                                                </Link>
-                                            </Button>
-                                            {getParcelAccess({
-                                                viewer: currentUser,
-                                                parcel: {
-                                                    merchantId: parcel.merchantId,
-                                                    riderId: parcel.riderId,
-                                                },
-                                            }).canUpdate && (
-                                                <Button asChild size="sm" variant="outline">
-                                                    <Link
-                                                        href={`/dashboard/parcels/${parcel.id}/edit`}
-                                                    >
-                                                        Edit
-                                                    </Link>
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            {merchantParcelItems.length === 0 && (
-                                <tr>
-                                    <td
-                                        colSpan={emptyColumnCount}
-                                        className="px-4 py-10 text-center text-xs text-muted-foreground"
-                                    >
-                                        {hasActiveParcelFilters
-                                            ? "No parcels match the current search or filters."
-                                            : "No parcels found for this merchant."}
-                                    </td>
-                                </tr>
+                    <MerchantSettlementPicker
+                        merchantId={merchant.id}
+                        parcels={eligibleSettlementParcels}
+                        bankAccounts={merchantBankAccounts}
+                    />
+                </section>
+            ) : (
+                <section className="space-y-4">
+                    <nav
+                        className="flex items-center gap-1 overflow-x-auto border-b"
+                        aria-label="Merchant detail tabs"
+                    >
+                        <Link
+                            href={merchantDetailHref}
+                            className={cn(
+                                "border-b-2 px-4 py-2 text-sm font-medium transition-colors",
+                                {
+                                    "border-primary text-foreground": activeTab === "parcels",
+                                    "border-transparent text-muted-foreground hover:text-foreground":
+                                        activeTab !== "parcels",
+                                },
                             )}
-                        </tbody>
-                    </table>
-                </div>
+                        >
+                            Parcels
+                        </Link>
 
-                <ListPagination
-                    basePath={merchantDetailHref}
-                    query={parcelPaginationQuery}
-                    pagination={merchantParcels}
-                    itemLabel="parcels"
-                />
-            </section>
+                        {settlementAccess.canView && (
+                            <Link
+                                href={settlementHistoryHref}
+                                className={cn(
+                                    "border-b-2 px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors",
+                                    {
+                                        "border-primary text-foreground":
+                                            activeTab === "settlements",
+                                        "border-transparent text-muted-foreground hover:text-foreground":
+                                            activeTab !== "settlements",
+                                    },
+                                )}
+                            >
+                                Settlement History
+                            </Link>
+                        )}
+                    </nav>
+
+                    {activeTab === "parcels" && merchantParcels && (
+                        <section className="space-y-3">
+                            <div>
+                                <h2 className="text-lg font-semibold">Parcels</h2>
+                                <p className="text-sm text-muted-foreground">
+                                    Only parcels related to this merchant are listed here.
+                                </p>
+                            </div>
+
+                            <ParcelListSearchAndFiltersForm
+                                query={parcelListQuery}
+                                clearHref={merchantDetailHref}
+                                includeInternalPaymentFilters={showInternalPaymentColumns}
+                            />
+
+                            <div className="overflow-x-auto rounded-xl border bg-card">
+                                <table className="w-full text-left text-sm">
+                                    <thead className="bg-muted/40 text-xs uppercase">
+                                        <tr>
+                                            <th className="px-4 py-3">Parcel Code</th>
+                                            <th className="px-4 py-3">Recipient</th>
+                                            <th className="px-4 py-3">Township</th>
+                                            <th className="px-4 py-3">Parcel Status</th>
+                                            <th className="px-4 py-3">COD Status</th>
+                                            {showInternalPaymentColumns && (
+                                                <>
+                                                    <th className="px-4 py-3">Collection Status</th>
+                                                    <th className="px-4 py-3">
+                                                        Delivery Fee Status
+                                                    </th>
+                                                </>
+                                            )}
+                                            <th className="px-4 py-3">Settlement</th>
+                                            <th className="px-4 py-3">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {merchantParcels.items.map((parcel) => (
+                                            <tr key={parcel.id} className="border-t">
+                                                <td className="px-4 py-3">{parcel.parcelCode}</td>
+                                                <td className="px-4 py-3">
+                                                    {parcel.recipientName}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {parcel.recipientTownshipName ?? "-"}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <ParcelStatusPill value={parcel.parcelStatus} />
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <ParcelStatusPill value={parcel.codStatus} />
+                                                </td>
+                                                {showInternalPaymentColumns && (
+                                                    <>
+                                                        <td className="px-4 py-3">
+                                                            <ParcelStatusPill
+                                                                value={parcel.collectionStatus}
+                                                            />
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <ParcelStatusPill
+                                                                value={parcel.deliveryFeeStatus}
+                                                            />
+                                                        </td>
+                                                    </>
+                                                )}
+                                                <td className="px-4 py-3">
+                                                    <ParcelStatusPill
+                                                        value={parcel.merchantSettlementStatus}
+                                                    />
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <Button asChild size="sm" variant="outline">
+                                                            <Link
+                                                                href={`/dashboard/parcels/${parcel.id}`}
+                                                            >
+                                                                View
+                                                            </Link>
+                                                        </Button>
+                                                        {getParcelAccess({
+                                                            viewer: currentUser,
+                                                            parcel: {
+                                                                merchantId: parcel.merchantId,
+                                                                riderId: parcel.riderId,
+                                                            },
+                                                        }).canUpdate && (
+                                                            <Button
+                                                                asChild
+                                                                size="sm"
+                                                                variant="outline"
+                                                            >
+                                                                <Link
+                                                                    href={`/dashboard/parcels/${parcel.id}/edit`}
+                                                                >
+                                                                    Edit
+                                                                </Link>
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {merchantParcels.items.length === 0 && (
+                                            <tr>
+                                                <td
+                                                    colSpan={showInternalPaymentColumns ? 9 : 7}
+                                                    className="px-4 py-10 text-center text-xs text-muted-foreground"
+                                                >
+                                                    {hasActiveParcelListFilters(parcelListQuery)
+                                                        ? "No parcels match the current search or filters."
+                                                        : "No parcels found for this merchant."}
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <ListPagination
+                                basePath={merchantDetailHref}
+                                query={parcelPaginationQuery}
+                                pagination={merchantParcels}
+                                itemLabel="parcels"
+                            />
+                        </section>
+                    )}
+
+                    {activeTab === "settlements" && settlementAccess.canView && (
+                        <section className="space-y-3">
+                            <h2 className="text-lg font-semibold">Settlement History</h2>
+                            <MerchantSettlementHistory
+                                settlements={settlementHistory}
+                                permissions={{
+                                    canConfirm: settlementAccess.canConfirm,
+                                    canCancel: settlementAccess.canCancel,
+                                }}
+                            />
+                        </section>
+                    )}
+                </section>
+            )}
         </section>
     );
 }

@@ -67,7 +67,7 @@ export async function updateRiderProfileAction(
 
         revalidatePath(`/dashboard/riders/${parsed.data.riderId}`);
         revalidatePath("/dashboard/riders");
-        revalidatePath("/dashboard/profile");
+        revalidatePath("/dashboard/settings");
         revalidatePath(`/dashboard/users/${parsed.data.riderId}`);
         revalidatePath(`/dashboard/users/${parsed.data.riderId}/edit`);
 

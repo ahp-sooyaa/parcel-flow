@@ -38,7 +38,7 @@ export default async function RiderDetailPage({ params }: Readonly<RiderDetailPa
 
     const editRiderHref =
         currentUser.roleSlug === "rider"
-            ? "/dashboard/profile"
+            ? "/dashboard/settings?tab=rider-details"
             : `/dashboard/users/${rider.id}/edit`;
 
     return (

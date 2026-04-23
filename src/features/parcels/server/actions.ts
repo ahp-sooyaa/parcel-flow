@@ -36,6 +36,7 @@ import { computeTotalAmountToCollect } from "@/features/parcels/server/utils";
 
 import type {
     CreateParcelActionResult,
+    ParcelUpdateContextDto,
     RiderParcelImageUploadActionResult,
     UpdateParcelActionResult,
 } from "./dto";
@@ -114,6 +115,60 @@ function rejectRiderPaymentSlipUpload(
     }
 
     return null;
+}
+
+function rejectSettlementManagedParcelUpdate(input: {
+    current: ParcelUpdateContextDto;
+    next: {
+        merchantId: string;
+        parcelStatus: ParcelUpdateContextDto["parcel"]["status"];
+        deliveryFeeStatus: ParcelUpdateContextDto["payment"]["deliveryFeeStatus"];
+        codStatus: ParcelUpdateContextDto["payment"]["codStatus"];
+        merchantSettlementStatus: ParcelUpdateContextDto["payment"]["merchantSettlementStatus"];
+    };
+    submitted: {
+        parcelType: ParcelUpdateContextDto["parcel"]["parcelType"];
+        codAmount: number;
+        deliveryFee: number;
+        deliveryFeePayer: ParcelUpdateContextDto["parcel"]["deliveryFeePayer"];
+    };
+}) {
+    if (input.next.merchantSettlementStatus !== input.current.payment.merchantSettlementStatus) {
+        return {
+            ok: false as const,
+            message: "Merchant settlement status is managed by the settlement workflow.",
+        };
+    }
+
+    if (!input.current.payment.merchantSettlementId) {
+        return { ok: true as const };
+    }
+
+    const settlementStatus = input.current.payment.merchantSettlementStatus;
+    const isLocked = settlementStatus === "in_progress" || settlementStatus === "settled";
+
+    if (!isLocked) {
+        return { ok: true as const };
+    }
+
+    const changesSettlementTotal =
+        input.next.merchantId !== input.current.parcel.merchantId ||
+        input.next.parcelStatus !== input.current.parcel.status ||
+        input.submitted.parcelType !== input.current.parcel.parcelType ||
+        input.submitted.codAmount !== Number(input.current.parcel.codAmount) ||
+        input.submitted.deliveryFee !== Number(input.current.parcel.deliveryFee) ||
+        input.submitted.deliveryFeePayer !== input.current.parcel.deliveryFeePayer ||
+        input.next.deliveryFeeStatus !== input.current.payment.deliveryFeeStatus ||
+        input.next.codStatus !== input.current.payment.codStatus;
+
+    if (changesSettlementTotal) {
+        return {
+            ok: false as const,
+            message: "Parcel financial fields are locked by merchant settlement.",
+        };
+    }
+
+    return { ok: true as const };
 }
 
 export async function createParcelAction(
@@ -309,6 +364,26 @@ export async function updateParcelAction(
         }
 
         const actorScopedUpdate = updateAuthorization.authorized;
+        const settlementGuard = rejectSettlementManagedParcelUpdate({
+            current,
+            next: {
+                merchantId: actorScopedUpdate.merchantId,
+                parcelStatus: actorScopedUpdate.parcelStatus,
+                deliveryFeeStatus: actorScopedUpdate.deliveryFeeStatus,
+                codStatus: actorScopedUpdate.codStatus,
+                merchantSettlementStatus: actorScopedUpdate.merchantSettlementStatus,
+            },
+            submitted: {
+                parcelType: parsed.data.parcelType,
+                codAmount: parsed.data.codAmount,
+                deliveryFee: parsed.data.deliveryFee,
+                deliveryFeePayer: parsed.data.deliveryFeePayer,
+            },
+        });
+
+        if (!settlementGuard.ok) {
+            return { ok: false, message: settlementGuard.message, fields: submittedFields };
+        }
 
         const submissionGuard = await validateParcelSubmission({
             merchantId: actorScopedUpdate.merchantId,

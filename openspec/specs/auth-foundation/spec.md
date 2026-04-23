@@ -50,10 +50,13 @@ The system SHALL resolve the current user context from Supabase session identity
 - **WHEN** a request includes a valid Supabase session without a matching app user record
 - **THEN** the system denies protected access and treats the request as unauthorized
 
-### Requirement: Self profile and security route
-The system SHALL provide `/dashboard/profile` for authenticated users to view own account data, edit allowed self profile fields, and change own password.
+### Requirement: Self settings and security route
+The system SHALL provide `/dashboard/settings` for authenticated users to view own account data, edit allowed self account fields, change own password, and access eligible role-specific settings.
 
-#### Scenario: Authenticated user accesses own profile page
+#### Scenario: Authenticated user accesses own settings page
+- **WHEN** a signed-in authorized user navigates to `/dashboard/settings`
+- **THEN** the system shows own account information and allowed self-service account/security actions
+
+#### Scenario: Legacy profile route redirects to settings
 - **WHEN** a signed-in authorized user navigates to `/dashboard/profile`
-- **THEN** the system shows own account information and allowed self-service profile/security actions
-
+- **THEN** the system redirects the request to `/dashboard/settings`

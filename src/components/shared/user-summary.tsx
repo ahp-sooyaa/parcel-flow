@@ -15,7 +15,7 @@ export function UserSummary({ name, role }: UserSummaryProps) {
                 <p className="text-xs text-muted-foreground">{role}</p>
             </div>
             <Button asChild variant="outline" size="sm" className="w-full">
-                <Link href="/dashboard/profile">My Profile</Link>
+                <Link href="/dashboard/settings">Settings</Link>
             </Button>
             <form action={signOutAction}>
                 <Button type="submit" variant="secondary" size="sm" className="w-full">

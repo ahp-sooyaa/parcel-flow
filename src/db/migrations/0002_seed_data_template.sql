@@ -44,11 +44,19 @@ values
   ('rider.view', 'View rider details'),
   ('rider.update', 'Update rider'),
   ('rider.delete', 'Delete rider'),
+  ('bank-account.view', 'View bank accounts'),
+  ('bank-account.create', 'Create bank account'),
+  ('bank-account.update', 'Update bank account'),
+  ('bank-account.delete', 'Delete bank account'),
   ('parcel-list.view', 'View parcel list'),
   ('parcel.view', 'View parcel details'),
   ('parcel.create', 'Create parcel'),
   ('parcel.update', 'Update parcel'),
-  ('parcel.delete', 'Delete parcel');
+  ('parcel.delete', 'Delete parcel'),
+  ('merchant-settlement.view', 'View merchant settlements'),
+  ('merchant-settlement.create', 'Create merchant settlements'),
+  ('merchant-settlement.confirm', 'Confirm merchant settlement payments'),
+  ('merchant-settlement.cancel', 'Cancel merchant settlements');
 
 drop table if exists pg_temp.seed_office_admin_denied_permissions;
 create temporary table seed_office_admin_denied_permissions (
@@ -63,7 +71,11 @@ values
   ('township.delete'),
   ('merchant.delete'),
   ('rider.delete'),
-  ('parcel.delete');
+  ('bank-account.create'),
+  ('bank-account.update'),
+  ('bank-account.delete'),
+  ('parcel.delete'),
+  ('merchant-settlement.confirm');
 
 drop table if exists pg_temp.seed_rider_allowed_permissions;
 create temporary table seed_rider_allowed_permissions (

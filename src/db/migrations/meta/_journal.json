@@ -71,6 +71,20 @@
             "when": 1776562452713,
             "tag": "0010_magical_lionheart",
             "breakpoints": true
+        },
+        {
+            "idx": 11,
+            "version": "7",
+            "when": 1776737032931,
+            "tag": "0011_fat_peter_parker",
+            "breakpoints": true
+        },
+        {
+            "idx": 12,
+            "version": "7",
+            "when": 1776779580031,
+            "tag": "0012_damp_crusher_hogan",
+            "breakpoints": true
         }
     ]
 }

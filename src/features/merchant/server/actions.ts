@@ -63,7 +63,7 @@ export async function updateMerchantProfileAction(
 
         revalidatePath(`/dashboard/merchants/${parsed.data.merchantId}`);
         revalidatePath("/dashboard/merchants");
-        revalidatePath("/dashboard/profile");
+        revalidatePath("/dashboard/settings");
         revalidatePath(`/dashboard/users/${parsed.data.merchantId}`);
         revalidatePath(`/dashboard/users/${parsed.data.merchantId}/edit`);
 

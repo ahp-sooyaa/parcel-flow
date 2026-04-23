@@ -129,6 +129,7 @@ export type ParcelUpdateContextDto = {
     } & ParcelWriteValues;
     payment: {
         id: string;
+        merchantSettlementId: string | null;
     } & ParcelPaymentWriteValues;
 };
 
@@ -397,6 +398,7 @@ export function toParcelUpdateContextDto(input: {
     collectedAmount: string | null;
     collectionStatus: (typeof COLLECTION_STATUSES)[number] | null;
     merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number] | null;
+    merchantSettlementId: string | null;
     riderPayoutStatus: (typeof RIDER_PAYOUT_STATUSES)[number] | null;
     paymentNote: string | null;
     paymentSlipImageKeys: string[] | null;
@@ -429,6 +431,7 @@ export function toParcelUpdateContextDto(input: {
         },
         payment: {
             id: input.paymentId!,
+            merchantSettlementId: input.merchantSettlementId,
             deliveryFeeStatus: input.deliveryFeeStatus ?? "unpaid",
             codStatus: input.codStatus ?? "pending",
             collectedAmount: input.collectedAmount ?? "0",
