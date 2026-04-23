@@ -23,8 +23,12 @@ const initialError = {
     message: "Unable to process settlement.",
 } satisfies MerchantSettlementActionResult;
 
-function revalidateMerchantSettlementPaths(merchantId: string) {
+function revalidateMerchantSettlementPaths(merchantId: string, settlementId?: string) {
     revalidatePath(`/dashboard/merchants/${merchantId}`);
+    revalidatePath("/dashboard/settlements");
+    if (settlementId) {
+        revalidatePath(`/dashboard/settlements/${settlementId}`);
+    }
     revalidatePath("/dashboard/parcels");
 }
 
@@ -49,7 +53,7 @@ export async function generateMerchantSettlementAction(
             actorAppUserId: currentUser.appUserId,
         });
 
-        revalidateMerchantSettlementPaths(generated.merchantId);
+        revalidateMerchantSettlementPaths(generated.merchantId, generated.settlementId);
 
         return {
             ok: true,
@@ -97,7 +101,7 @@ export async function confirmMerchantSettlementPaymentAction(
             paymentSlipImageKey,
         });
 
-        revalidateMerchantSettlementPaths(confirmed.merchantId);
+        revalidateMerchantSettlementPaths(confirmed.merchantId, confirmed.settlementId);
 
         return {
             ok: true,
@@ -130,7 +134,7 @@ async function cancelOrRejectSettlementAction(
             status,
         });
 
-        revalidateMerchantSettlementPaths(updated.merchantId);
+        revalidateMerchantSettlementPaths(updated.merchantId, updated.settlementId);
 
         return {
             ok: true,

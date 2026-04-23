@@ -22,10 +22,22 @@ export type EligibleMerchantSettlementParcelDto = {
     netPayableAmount: string;
 };
 
-export type MerchantSettlementHistoryDto = {
+export type MerchantSettlementActorDto = {
+    id: string;
+    name: string;
+};
+
+export type MerchantSettlementTotalsDto = {
+    codSubtotal: string;
+    deliveryFeeDeductedTotal: string;
+    netPayableTotal: string;
+};
+
+export type MerchantSettlementListItemDto = {
     id: string;
     referenceNo: string | null;
     merchantId: string;
+    merchantLabel: string;
     totalAmount: string;
     method: string;
     snapshotBankName: string;
@@ -34,13 +46,52 @@ export type MerchantSettlementHistoryDto = {
     createdByName: string;
     confirmedBy: string | null;
     confirmedByName: string | null;
-    paymentSlipImages: ParcelImageAsset[];
     note: string | null;
     type: MerchantSettlementType;
     status: MerchantSettlementStatus;
     itemCount: number;
     createdAt: Date;
     updatedAt: Date;
+};
+
+export type MerchantSettlementHistoryDto = MerchantSettlementListItemDto & {
+    paymentSlipImages: ParcelImageAsset[];
+};
+
+export type MerchantSettlementItemDto = {
+    id: string;
+    parcelId: string;
+    parcelCode: string;
+    recipientName: string;
+    recipientTownshipName: string | null;
+    snapshotCodAmount: string;
+    snapshotDeliveryFee: string;
+    isDeliveryFeeDeducted: boolean;
+    netPayableAmount: string;
+    createdAt: Date;
+};
+
+export type MerchantSettlementDetailDto = MerchantSettlementHistoryDto & {
+    createdByActor: MerchantSettlementActorDto;
+    confirmedByActor: MerchantSettlementActorDto | null;
+    paymentSlipImageCount: number;
+    totals: MerchantSettlementTotalsDto;
+    items: MerchantSettlementItemDto[];
+};
+
+export type MerchantSettlementListQuery = {
+    query: string;
+    status: MerchantSettlementStatus | null;
+    page: number;
+    pageSize: number;
+};
+
+export type PaginatedMerchantSettlementListDto = {
+    items: MerchantSettlementListItemDto[];
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
 };
 
 export type MerchantSettlementActionResult = {

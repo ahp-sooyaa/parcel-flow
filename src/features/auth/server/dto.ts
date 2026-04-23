@@ -24,7 +24,14 @@ export type DashboardShellUserDto = {
     name: string;
     roleSlug: RoleSlug;
     navItems: {
-        key: "dashboard" | "users" | "merchants" | "riders" | "parcels" | "townships";
+        key:
+            | "dashboard"
+            | "users"
+            | "merchants"
+            | "riders"
+            | "parcels"
+            | "settlements"
+            | "townships";
         href: string;
         label: string;
     }[];
@@ -96,6 +103,14 @@ export function toDashboardShellUserDto(input: {
 
     if (input.permissions.includes("parcel-list.view")) {
         navItems.push({ key: "parcels", href: "/dashboard/parcels", label: "Parcels" });
+    }
+
+    if (input.permissions.includes("merchant-settlement.view")) {
+        navItems.push({
+            key: "settlements",
+            href: "/dashboard/settlements",
+            label: "Settlements",
+        });
     }
 
     if (input.permissions.includes("township-list.view")) {

@@ -5,6 +5,7 @@ import {
     MapPinned,
     Menu,
     PackageSearch,
+    ReceiptText,
     Store,
     Truck,
     Users,
@@ -28,7 +29,14 @@ type DashboardShellProps = {
         name: string;
         roleSlug: RoleSlug;
         navItems: {
-            key: "dashboard" | "users" | "merchants" | "riders" | "parcels" | "townships";
+            key:
+                | "dashboard"
+                | "users"
+                | "merchants"
+                | "riders"
+                | "parcels"
+                | "settlements"
+                | "townships";
             href: string;
             label: string;
         }[];
@@ -42,6 +50,7 @@ const navIconByKey: Record<DashboardShellProps["user"]["navItems"][number]["key"
     merchants: <Store className="h-4 w-4" />,
     riders: <Truck className="h-4 w-4" />,
     parcels: <PackageSearch className="h-4 w-4" />,
+    settlements: <ReceiptText className="h-4 w-4" />,
     townships: <MapPinned className="h-4 w-4" />,
 };
 

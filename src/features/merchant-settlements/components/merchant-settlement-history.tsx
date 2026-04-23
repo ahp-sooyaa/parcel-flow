@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,6 +107,10 @@ function SettlementHistoryItem({
         initialState,
     );
     const canEdit = isEditableSettlement(settlement.status);
+    const returnTo = `/dashboard/merchants/${settlement.merchantId}?tab=settlements`;
+    const detailHref = `/dashboard/settlements/${settlement.id}?returnTo=${encodeURIComponent(
+        returnTo,
+    )}`;
 
     return (
         <article className="space-y-4 rounded-xl border bg-card p-4">
@@ -122,9 +127,14 @@ function SettlementHistoryItem({
                     </p>
                 </div>
 
-                <p className="text-lg font-semibold tabular-nums">
-                    {formatMmk(settlement.totalAmount)}
-                </p>
+                <div className="flex flex-col items-start gap-2 md:items-end">
+                    <p className="text-lg font-semibold tabular-nums">
+                        {formatMmk(settlement.totalAmount)}
+                    </p>
+                    <Button asChild size="sm" variant="outline">
+                        <Link href={detailHref}>View Detail</Link>
+                    </Button>
+                </div>
             </div>
 
             <dl className="grid gap-3 text-sm md:grid-cols-3">
