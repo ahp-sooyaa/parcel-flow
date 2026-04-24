@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { FormFieldError } from "@/components/shared/form-field-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,10 @@ import { Label } from "@/components/ui/label";
 import {
     DEFAULT_CREATE_PARCEL_STATE,
     DELIVERY_FEE_PAYERS,
+    DELIVERY_FEE_PAYMENT_PLANS,
     PARCEL_TYPES,
+    formatParcelStatusLabel,
+    getDeliveryFeePaymentPlanOptions,
 } from "@/features/parcels/constants";
 import { createParcelAction } from "@/features/parcels/server/actions";
 import { cn } from "@/lib/utils";
@@ -21,7 +24,6 @@ type CreateParcelFormProps = {
     };
     readOnly?: {
         merchantField?: boolean;
-        hidePaymentSlipField?: boolean;
     };
 };
 
@@ -33,18 +35,53 @@ const initialState = {
     fieldErrors: undefined,
 };
 
+type ParcelType = (typeof PARCEL_TYPES)[number];
+type DeliveryFeePayer = (typeof DELIVERY_FEE_PAYERS)[number];
+type DeliveryFeePaymentPlan = (typeof DELIVERY_FEE_PAYMENT_PLANS)[number];
+
+function getSafePaymentPlanValue(
+    value: string | undefined,
+    options: readonly DeliveryFeePaymentPlan[],
+) {
+    if (options.includes(value as DeliveryFeePaymentPlan)) {
+        return value as DeliveryFeePaymentPlan;
+    }
+
+    return options[0] ?? DEFAULT_CREATE_PARCEL_STATE.deliveryFeePaymentPlan;
+}
+
 export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFormProps>) {
     const [state, action, isPending] = useActionState(createParcelAction, initialState);
     const merchants = options.merchants;
     const riders = options.riders;
     const townships = options.townships;
     const merchantFieldReadOnly = readOnly?.merchantField ?? false;
-    const hidePaymentSlipField = readOnly?.hidePaymentSlipField ?? false;
+    const [selectedParcelType, setSelectedParcelType] = useState<ParcelType | null>(
+        (state.fields?.parcelType as ParcelType | undefined) ?? null,
+    );
+    const [selectedDeliveryFeePayer, setSelectedDeliveryFeePayer] = useState<DeliveryFeePayer>(
+        (state.fields?.deliveryFeePayer as DeliveryFeePayer | undefined) ??
+            DEFAULT_CREATE_PARCEL_STATE.deliveryFeePayer,
+    );
+    const [selectedDeliveryFeePaymentPlan, setSelectedDeliveryFeePaymentPlan] =
+        useState<DeliveryFeePaymentPlan>(
+            (state.fields?.deliveryFeePaymentPlan as DeliveryFeePaymentPlan | undefined) ??
+                DEFAULT_CREATE_PARCEL_STATE.deliveryFeePaymentPlan,
+        );
     const selectedMerchant = merchants.find(
         (merchant) => merchant.id === (state.fields?.merchantId ?? ""),
     );
     const defaultMerchantId = state.fields?.merchantId ?? merchants[0]?.id ?? "";
     const getFieldError = (fieldName: string) => state.fieldErrors?.[fieldName]?.[0];
+    const deliveryFeePaymentPlanOptions = getDeliveryFeePaymentPlanOptions({
+        parcelType: selectedParcelType,
+        deliveryFeePayer: selectedDeliveryFeePayer,
+    });
+    const deliveryFeePaymentPlanValue = getSafePaymentPlanValue(
+        selectedDeliveryFeePaymentPlan,
+        deliveryFeePaymentPlanOptions,
+    );
+    const showPaymentSlipField = deliveryFeePaymentPlanValue === "merchant_prepaid_bank_transfer";
 
     return (
         <form action={action} className="space-y-6">
@@ -268,53 +305,6 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
 
             <section className="space-y-4 rounded-xl border bg-muted/20 p-4">
                 <div className="space-y-1">
-                    <h2 className="text-sm font-semibold">Parcel Images</h2>
-                    <p className="text-xs text-muted-foreground">
-                        JPG, PNG, or WebP only. Up to 5 files per field, 5 MB each.
-                    </p>
-                </div>
-
-                <div className="grid gap-2">
-                    <Label htmlFor="pickupImages">Pickup Images</Label>
-                    <Input
-                        id="pickupImages"
-                        name="pickupImages"
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        multiple
-                    />
-                    <FormFieldError message={getFieldError("pickupImages")} />
-                </div>
-
-                <div className="grid gap-2">
-                    <Label htmlFor="proofOfDeliveryImages">Proof Of Delivery Images</Label>
-                    <Input
-                        id="proofOfDeliveryImages"
-                        name="proofOfDeliveryImages"
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        multiple
-                    />
-                    <FormFieldError message={getFieldError("proofOfDeliveryImages")} />
-                </div>
-
-                {!hidePaymentSlipField && (
-                    <div className="grid gap-2">
-                        <Label htmlFor="paymentSlipImages">Payment Slip Images</Label>
-                        <Input
-                            id="paymentSlipImages"
-                            name="paymentSlipImages"
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            multiple
-                        />
-                        <FormFieldError message={getFieldError("paymentSlipImages")} />
-                    </div>
-                )}
-            </section>
-
-            <section className="space-y-4 rounded-xl border bg-muted/20 p-4">
-                <div className="space-y-1">
                     <h2 className="text-sm font-semibold">Payment Record</h2>
                     <p className="text-xs text-muted-foreground">
                         Parcel and payment fields are submitted together in one transaction.
@@ -324,10 +314,24 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                 <div className="grid gap-2">
                     <Label htmlFor="parcelType">Parcel Type *</Label>
                     <select
-                        key={state.fields?.parcelType ?? ""}
                         id="parcelType"
                         name="parcelType"
-                        defaultValue={state.fields?.parcelType ?? ""}
+                        value={selectedParcelType ?? ""}
+                        onChange={(event) => {
+                            const nextParcelType = event.target.value as ParcelType;
+                            const nextOptions = getDeliveryFeePaymentPlanOptions({
+                                parcelType: nextParcelType,
+                                deliveryFeePayer: selectedDeliveryFeePayer,
+                            });
+
+                            setSelectedParcelType(nextParcelType);
+                            setSelectedDeliveryFeePaymentPlan(
+                                getSafePaymentPlanValue(
+                                    selectedDeliveryFeePaymentPlan,
+                                    nextOptions,
+                                ),
+                            );
+                        }}
                         className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                         required
                     >
@@ -336,7 +340,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                         </option>
                         {PARCEL_TYPES.map((type) => (
                             <option key={type} value={type}>
-                                {type}
+                                {formatParcelStatusLabel(type)}
                             </option>
                         ))}
                     </select>
@@ -374,16 +378,24 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                 <div className="grid gap-2">
                     <Label htmlFor="deliveryFeePayer">Delivery Fee Payer *</Label>
                     <select
-                        key={
-                            state.fields?.deliveryFeePayer ??
-                            DEFAULT_CREATE_PARCEL_STATE.deliveryFeePayer
-                        }
                         id="deliveryFeePayer"
                         name="deliveryFeePayer"
-                        defaultValue={
-                            state.fields?.deliveryFeePayer ??
-                            DEFAULT_CREATE_PARCEL_STATE.deliveryFeePayer
-                        }
+                        value={selectedDeliveryFeePayer}
+                        onChange={(event) => {
+                            const nextDeliveryFeePayer = event.target.value as DeliveryFeePayer;
+                            const nextOptions = getDeliveryFeePaymentPlanOptions({
+                                parcelType: selectedParcelType,
+                                deliveryFeePayer: nextDeliveryFeePayer,
+                            });
+
+                            setSelectedDeliveryFeePayer(nextDeliveryFeePayer);
+                            setSelectedDeliveryFeePaymentPlan(
+                                getSafePaymentPlanValue(
+                                    selectedDeliveryFeePaymentPlan,
+                                    nextOptions,
+                                ),
+                            );
+                        }}
                         className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                         required
                     >
@@ -392,12 +404,49 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                         </option>
                         {DELIVERY_FEE_PAYERS.map((value) => (
                             <option key={value} value={value}>
-                                {value}
+                                {formatParcelStatusLabel(value)}
                             </option>
                         ))}
                     </select>
                     <FormFieldError message={getFieldError("deliveryFeePayer")} />
                 </div>
+
+                <div className="grid gap-2">
+                    <Label htmlFor="deliveryFeePaymentPlan">Delivery Fee Payment Plan *</Label>
+                    <select
+                        id="deliveryFeePaymentPlan"
+                        name="deliveryFeePaymentPlan"
+                        value={deliveryFeePaymentPlanValue}
+                        onChange={(event) =>
+                            setSelectedDeliveryFeePaymentPlan(
+                                event.target.value as DeliveryFeePaymentPlan,
+                            )
+                        }
+                        className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                        required
+                    >
+                        {deliveryFeePaymentPlanOptions.map((value) => (
+                            <option key={value} value={value}>
+                                {formatParcelStatusLabel(value)}
+                            </option>
+                        ))}
+                    </select>
+                    <FormFieldError message={getFieldError("deliveryFeePaymentPlan")} />
+                </div>
+
+                {showPaymentSlipField && (
+                    <div className="grid gap-2">
+                        <Label htmlFor="paymentSlipImages">Payment Slip Images</Label>
+                        <Input
+                            id="paymentSlipImages"
+                            name="paymentSlipImages"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            multiple
+                        />
+                        <FormFieldError message={getFieldError("paymentSlipImages")} />
+                    </div>
+                )}
 
                 <div className="rounded-lg border bg-background p-3 text-xs text-muted-foreground">
                     Delivery fee status starts as{" "}
@@ -419,6 +468,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                             Rider Payout Status: {DEFAULT_CREATE_PARCEL_STATE.riderPayoutStatus}
                         </li>
                         <li>Delivery Fee Payer: selectable (default: receiver)</li>
+                        <li>Delivery Fee Payment Plan: selectable</li>
                         <li>Delivery Fee Status: unpaid</li>
                     </ul>
                 </div>

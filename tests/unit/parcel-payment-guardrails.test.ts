@@ -7,10 +7,14 @@ import {
 import { validateParcelPaymentState } from "../../src/features/parcels/server/payment-guardrails";
 import {
     adminCorrectParcelStateSchema,
+    createParcelSchema,
     getDeliveryFeeResolutionOptions,
     getOfficeParcelMovementActions,
     getParcelOperationSummary,
     updateParcelDetailSchema,
+    validateCreateParcelMedia,
+    validateDeliveryFeePaymentPlan,
+    validatePaymentSlipImagesForPlan,
 } from "../../src/features/parcels/server/utils";
 
 const validState = {
@@ -121,6 +125,195 @@ describe("parcel payment guardrails", () => {
         ).toMatchObject({
             ok: false,
             message: "Waived delivery fees require a payment note.",
+        });
+    });
+});
+
+describe("delivery fee payment plan guardrails", () => {
+    it("allows all valid create-time payment plans", () => {
+        const validPlans = [
+            {
+                parcelType: "cod",
+                deliveryFeePayer: "receiver",
+                deliveryFeePaymentPlan: "receiver_collect_on_delivery",
+            },
+            {
+                parcelType: "cod",
+                deliveryFeePayer: "merchant",
+                deliveryFeePaymentPlan: "merchant_prepaid_bank_transfer",
+            },
+            {
+                parcelType: "cod",
+                deliveryFeePayer: "merchant",
+                deliveryFeePaymentPlan: "merchant_cash_on_pickup",
+            },
+            {
+                parcelType: "cod",
+                deliveryFeePayer: "merchant",
+                deliveryFeePaymentPlan: "merchant_deduct_from_cod_settlement",
+            },
+            {
+                parcelType: "non_cod",
+                deliveryFeePayer: "merchant",
+                deliveryFeePaymentPlan: "merchant_bill_later",
+            },
+        ] as const;
+
+        for (const plan of validPlans) {
+            expect(
+                validateDeliveryFeePaymentPlan({
+                    ...plan,
+                    requireRecordedPlan: true,
+                }),
+            ).toEqual({ ok: true });
+        }
+    });
+
+    it("rejects payer and parcel type mismatches", () => {
+        expect(
+            validateDeliveryFeePaymentPlan({
+                parcelType: "cod",
+                deliveryFeePayer: "receiver",
+                deliveryFeePaymentPlan: "merchant_cash_on_pickup",
+                requireRecordedPlan: true,
+            }),
+        ).toMatchObject({ ok: false });
+        expect(
+            validateDeliveryFeePaymentPlan({
+                parcelType: "cod",
+                deliveryFeePayer: "merchant",
+                deliveryFeePaymentPlan: "receiver_collect_on_delivery",
+                requireRecordedPlan: true,
+            }),
+        ).toMatchObject({ ok: false });
+        expect(
+            validateDeliveryFeePaymentPlan({
+                parcelType: "non_cod",
+                deliveryFeePayer: "merchant",
+                deliveryFeePaymentPlan: "merchant_deduct_from_cod_settlement",
+                requireRecordedPlan: true,
+            }),
+        ).toMatchObject({ ok: false });
+    });
+
+    it("allows legacy null plans on update but requires a plan in new create input", () => {
+        expect(
+            validateDeliveryFeePaymentPlan({
+                parcelType: "cod",
+                deliveryFeePayer: "receiver",
+                deliveryFeePaymentPlan: null,
+            }),
+        ).toEqual({ ok: true });
+
+        const parsed = createParcelSchema.safeParse({
+            merchantId: "00000000-0000-0000-0000-000000000002",
+            riderId: "",
+            recipientName: "Receiver",
+            recipientPhone: "09123456",
+            recipientTownshipId: "00000000-0000-0000-0000-000000000003",
+            recipientAddress: "Yangon",
+            parcelDescription: "Box",
+            packageCount: "1",
+            specialHandlingNote: "",
+            estimatedWeightKg: "",
+            packageWidthCm: "",
+            packageHeightCm: "",
+            packageLengthCm: "",
+            parcelType: "cod",
+            codAmount: "10000",
+            deliveryFee: "1000",
+            deliveryFeePayer: "receiver",
+            paymentNote: "",
+        });
+
+        expect(parsed.success).toBe(false);
+
+        const updateParsed = updateParcelDetailSchema.safeParse({
+            parcelId: "00000000-0000-0000-0000-000000000001",
+            merchantId: "00000000-0000-0000-0000-000000000002",
+            riderId: "",
+            recipientName: "Receiver",
+            recipientPhone: "09123456",
+            recipientTownshipId: "00000000-0000-0000-0000-000000000003",
+            recipientAddress: "Yangon",
+            parcelDescription: "Box",
+            packageCount: "1",
+            specialHandlingNote: "",
+            estimatedWeightKg: "",
+            packageWidthCm: "",
+            packageHeightCm: "",
+            packageLengthCm: "",
+            parcelType: "cod",
+            codAmount: "10000",
+            deliveryFee: "1000",
+            deliveryFeePayer: "receiver",
+            deliveryFeePaymentPlan: "",
+        });
+
+        expect(updateParsed.success).toBe(true);
+
+        if (updateParsed.success) {
+            expect(updateParsed.data.deliveryFeePaymentPlan).toBeNull();
+        }
+    });
+
+    it("allows payment slips only for prepaid bank transfer", () => {
+        const imageFile = {} as File;
+
+        expect(
+            validatePaymentSlipImagesForPlan({
+                deliveryFeePaymentPlan: "merchant_prepaid_bank_transfer",
+                paymentSlipImages: [imageFile],
+            }),
+        ).toEqual({ ok: true });
+        expect(
+            validatePaymentSlipImagesForPlan({
+                deliveryFeePaymentPlan: "merchant_cash_on_pickup",
+                paymentSlipImages: [imageFile],
+            }),
+        ).toMatchObject({
+            ok: false,
+            fieldErrors: {
+                paymentSlipImages: ["Payment slips are only allowed for prepaid bank transfer."],
+            },
+        });
+    });
+
+    it("rejects pickup and proof images during parcel create", () => {
+        const imageFile = {} as File;
+        const emptyFiles = {
+            pickupImages: [],
+            proofOfDeliveryImages: [],
+            paymentSlipImages: [],
+        };
+
+        expect(
+            validateCreateParcelMedia({
+                deliveryFeePaymentPlan: "receiver_collect_on_delivery",
+                files: {
+                    ...emptyFiles,
+                    pickupImages: [imageFile],
+                },
+            }),
+        ).toMatchObject({
+            ok: false,
+            fieldErrors: {
+                pickupImages: ["Upload pickup images after pickup starts."],
+            },
+        });
+        expect(
+            validateCreateParcelMedia({
+                deliveryFeePaymentPlan: "receiver_collect_on_delivery",
+                files: {
+                    ...emptyFiles,
+                    proofOfDeliveryImages: [imageFile],
+                },
+            }),
+        ).toMatchObject({
+            ok: false,
+            fieldErrors: {
+                proofOfDeliveryImages: ["Upload proof of delivery images after delivery."],
+            },
         });
     });
 });
@@ -339,6 +532,7 @@ describe("parcel operation helpers", () => {
             codAmount: "10000",
             deliveryFee: "1000",
             deliveryFeePayer: "merchant",
+            deliveryFeePaymentPlan: "merchant_bill_later",
             parcelStatus: "cancelled",
             deliveryFeeStatus: "waived",
             codStatus: "not_collected",
@@ -351,6 +545,7 @@ describe("parcel operation helpers", () => {
         if (parsed.success) {
             expect("parcelStatus" in parsed.data).toBe(false);
             expect("deliveryFeeStatus" in parsed.data).toBe(false);
+            expect(parsed.data.deliveryFeePaymentPlan).toBe("merchant_bill_later");
             expect("codStatus" in parsed.data).toBe(false);
             expect("collectionStatus" in parsed.data).toBe(false);
             expect("collectedAmount" in parsed.data).toBe(false);

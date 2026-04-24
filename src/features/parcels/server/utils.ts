@@ -8,11 +8,13 @@ import {
     COD_STATUSES,
     COLLECTION_STATUSES,
     DELIVERY_FEE_PAYERS,
+    DELIVERY_FEE_PAYMENT_PLANS,
     DELIVERY_FEE_STATUSES,
     MERCHANT_SETTLEMENT_STATUSES,
     PARCEL_STATUSES,
     PARCEL_TYPES,
     RIDER_PAYOUT_STATUSES,
+    getDeliveryFeePaymentPlanOptions,
 } from "@/features/parcels/constants";
 import { getRiderById } from "@/features/rider/server/dal";
 import { findTownshipById } from "@/features/townships/server/dal";
@@ -25,11 +27,13 @@ export {
     COLLECTION_STATUSES,
     DEFAULT_CREATE_PARCEL_STATE,
     DELIVERY_FEE_PAYERS,
+    DELIVERY_FEE_PAYMENT_PLANS,
     DELIVERY_FEE_STATUSES,
     MERCHANT_SETTLEMENT_STATUSES,
     PARCEL_STATUSES,
     PARCEL_TYPES,
     RIDER_PAYOUT_STATUSES,
+    getDeliveryFeePaymentPlanOptions,
 } from "@/features/parcels/constants";
 
 export const PARCEL_IMAGE_MAX_FILES = 5;
@@ -54,11 +58,30 @@ const CREATE_PARCEL_FORM_FIELDS = [
     "codAmount",
     "deliveryFee",
     "deliveryFeePayer",
+    "deliveryFeePaymentPlan",
     "paymentNote",
 ] as const;
 const UPDATE_PARCEL_FORM_FIELDS = [
     "parcelId",
-    ...CREATE_PARCEL_FORM_FIELDS,
+    "merchantId",
+    "riderId",
+    "recipientName",
+    "recipientPhone",
+    "recipientTownshipId",
+    "recipientAddress",
+    "parcelDescription",
+    "packageCount",
+    "specialHandlingNote",
+    "estimatedWeightKg",
+    "packageWidthCm",
+    "packageHeightCm",
+    "packageLengthCm",
+    "parcelType",
+    "codAmount",
+    "deliveryFee",
+    "deliveryFeePayer",
+    "deliveryFeePaymentPlan",
+    "paymentNote",
     "parcelStatus",
     "deliveryFeeStatus",
     "codStatus",
@@ -84,6 +107,7 @@ const UPDATE_PARCEL_DETAIL_FORM_FIELDS = [
     "codAmount",
     "deliveryFee",
     "deliveryFeePayer",
+    "deliveryFeePaymentPlan",
 ] as const;
 const RIDER_PARCEL_IMAGE_UPLOAD_FIELDS = ["parcelId"] as const;
 const PARCEL_IMAGE_FIELD_NAMES = [
@@ -153,6 +177,22 @@ const positiveIntegerField = z.preprocess((value) => {
     return Number(normalized);
 }, z.number().int().min(1).max(9999));
 
+const optionalNullableDeliveryFeePaymentPlanField = z
+    .preprocess((value) => {
+        if (typeof value !== "string") {
+            return value;
+        }
+
+        const normalized = value.trim();
+
+        if (!normalized) {
+            return undefined;
+        }
+
+        return normalized;
+    }, z.enum(DELIVERY_FEE_PAYMENT_PLANS).optional())
+    .transform((value) => value ?? null);
+
 export const createParcelSchema = z.object({
     merchantId: z.string().trim().uuid(),
     riderId: optionalNullableUuid(),
@@ -171,10 +211,12 @@ export const createParcelSchema = z.object({
     codAmount: moneyField,
     deliveryFee: moneyField,
     deliveryFeePayer: z.enum(DELIVERY_FEE_PAYERS),
+    deliveryFeePaymentPlan: z.enum(DELIVERY_FEE_PAYMENT_PLANS),
     paymentNote: optionalNullableTrimmedString(1000),
 });
 
 export const updateParcelSchema = createParcelSchema.extend({
+    deliveryFeePaymentPlan: optionalNullableDeliveryFeePaymentPlanField,
     parcelId: z.string().trim().uuid(),
     parcelStatus: z.enum(PARCEL_STATUSES),
     deliveryFeeStatus: z.enum(DELIVERY_FEE_STATUSES),
@@ -184,6 +226,7 @@ export const updateParcelSchema = createParcelSchema.extend({
 });
 
 export const updateParcelDetailSchema = createParcelSchema.omit({ paymentNote: true }).extend({
+    deliveryFeePaymentPlan: optionalNullableDeliveryFeePaymentPlanField,
     parcelId: z.string().trim().uuid(),
 });
 
@@ -254,6 +297,7 @@ export type ParcelWriteValues = {
     deliveryFee: string;
     totalAmountToCollect: string;
     deliveryFeePayer: "merchant" | "receiver";
+    deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
     pickupImageKeys: string[];
     proofOfDeliveryImageKeys: string[];
     status: (typeof PARCEL_STATUSES)[number];
@@ -720,6 +764,97 @@ function createFieldErrors(fieldName: string, message: string): ParcelFieldError
     };
 }
 
+export function validateDeliveryFeePaymentPlan(input: {
+    parcelType: (typeof PARCEL_TYPES)[number];
+    deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];
+    deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
+    requireRecordedPlan?: boolean;
+}) {
+    if (!input.deliveryFeePaymentPlan) {
+        return input.requireRecordedPlan
+            ? {
+                  ok: false as const,
+                  message: "Delivery fee payment plan is required.",
+                  fieldErrors: createFieldErrors(
+                      "deliveryFeePaymentPlan",
+                      "Select a delivery fee payment plan.",
+                  ),
+              }
+            : { ok: true as const };
+    }
+
+    const options = getDeliveryFeePaymentPlanOptions({
+        parcelType: input.parcelType,
+        deliveryFeePayer: input.deliveryFeePayer,
+    });
+
+    if (!options.includes(input.deliveryFeePaymentPlan)) {
+        return {
+            ok: false as const,
+            message: "Delivery fee payment plan does not match the fee payer and parcel type.",
+            fieldErrors: createFieldErrors(
+                "deliveryFeePaymentPlan",
+                "Select a valid delivery fee payment plan.",
+            ),
+        };
+    }
+
+    return { ok: true as const };
+}
+
+export function validateCreateParcelMedia(input: {
+    deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number];
+    files: ParcelMediaFiles;
+}) {
+    if (input.files.pickupImages.length > 0) {
+        return {
+            ok: false as const,
+            message: "Pickup images cannot be uploaded during parcel create.",
+            fieldErrors: createFieldErrors(
+                "pickupImages",
+                "Upload pickup images after pickup starts.",
+            ),
+        };
+    }
+
+    if (input.files.proofOfDeliveryImages.length > 0) {
+        return {
+            ok: false as const,
+            message: "Proof of delivery images cannot be uploaded during parcel create.",
+            fieldErrors: createFieldErrors(
+                "proofOfDeliveryImages",
+                "Upload proof of delivery images after delivery.",
+            ),
+        };
+    }
+
+    return validatePaymentSlipImagesForPlan({
+        deliveryFeePaymentPlan: input.deliveryFeePaymentPlan,
+        paymentSlipImages: input.files.paymentSlipImages,
+    });
+}
+
+export function validatePaymentSlipImagesForPlan(input: {
+    deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
+    paymentSlipImages: File[];
+}) {
+    if (
+        input.paymentSlipImages.length > 0 &&
+        input.deliveryFeePaymentPlan !== "merchant_prepaid_bank_transfer"
+    ) {
+        return {
+            ok: false as const,
+            message: "Payment slip images are only allowed for merchant prepaid bank transfer.",
+            fieldErrors: createFieldErrors(
+                "paymentSlipImages",
+                "Payment slips are only allowed for prepaid bank transfer.",
+            ),
+        };
+    }
+
+    return { ok: true as const };
+}
+
 function getParcelMediaFiles(formData: FormData): ParcelMediaFiles {
     return {
         pickupImages: formData
@@ -915,6 +1050,7 @@ export function buildParcelWriteValues(input: {
     merchantId: string;
     riderId: string | null;
     totalAmountToCollect: number;
+    deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
     parcelStatus: (typeof PARCEL_STATUSES)[number];
     pickupImageKeys: string[];
     proofOfDeliveryImageKeys: string[];
@@ -938,6 +1074,7 @@ export function buildParcelWriteValues(input: {
         deliveryFee: toMoneyString(input.data.deliveryFee),
         totalAmountToCollect: toMoneyString(input.totalAmountToCollect),
         deliveryFeePayer: input.data.deliveryFeePayer,
+        deliveryFeePaymentPlan: input.deliveryFeePaymentPlan,
         pickupImageKeys: input.pickupImageKeys,
         proofOfDeliveryImageKeys: input.proofOfDeliveryImageKeys,
         status: input.parcelStatus,
@@ -1078,7 +1215,10 @@ export async function validateParcelSubmission(input: {
     parcelType: (typeof PARCEL_TYPES)[number];
     codAmount: number;
     deliveryFee: number;
+    deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];
     deliveryFeeStatus?: (typeof DELIVERY_FEE_STATUSES)[number];
+    deliveryFeePaymentPlan?: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
+    requireRecordedDeliveryFeePaymentPlan?: boolean;
     codStatus: (typeof COD_STATUSES)[number];
 }) {
     const merchant = await findMerchantProfileLinkByAppUserId(input.merchantId);
@@ -1111,6 +1251,19 @@ export async function validateParcelSubmission(input: {
 
         if (!deliveryFeeStateGuard.ok) {
             return deliveryFeeStateGuard;
+        }
+    }
+
+    if (input.deliveryFeePaymentPlan !== undefined) {
+        const deliveryFeePaymentPlanGuard = validateDeliveryFeePaymentPlan({
+            parcelType: input.parcelType,
+            deliveryFeePayer: input.deliveryFeePayer,
+            deliveryFeePaymentPlan: input.deliveryFeePaymentPlan,
+            requireRecordedPlan: input.requireRecordedDeliveryFeePaymentPlan ?? false,
+        });
+
+        if (!deliveryFeePaymentPlanGuard.ok) {
+            return deliveryFeePaymentPlanGuard;
         }
     }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { FormFieldError } from "@/components/shared/form-field-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,10 +12,12 @@ import {
     COD_STATUSES,
     COLLECTION_STATUSES,
     DELIVERY_FEE_PAYERS,
+    DELIVERY_FEE_PAYMENT_PLANS,
     DELIVERY_FEE_STATUSES,
     PARCEL_STATUSES,
     PARCEL_TYPES,
     formatParcelStatusLabel,
+    getDeliveryFeePaymentPlanOptions,
 } from "@/features/parcels/constants";
 import { updateParcelAction } from "@/features/parcels/server/actions";
 import { cn } from "@/lib/utils";
@@ -41,6 +43,7 @@ type EditParcelFormProps = {
         codAmount: string;
         deliveryFee: string;
         deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];
+        deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
         parcelStatus: (typeof PARCEL_STATUSES)[number];
         deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number];
         codStatus: (typeof COD_STATUSES)[number];
@@ -72,6 +75,26 @@ const initialState = {
     fieldErrors: undefined,
 };
 
+type ParcelType = (typeof PARCEL_TYPES)[number];
+type DeliveryFeePayer = (typeof DELIVERY_FEE_PAYERS)[number];
+type DeliveryFeePaymentPlan = (typeof DELIVERY_FEE_PAYMENT_PLANS)[number];
+type DeliveryFeePaymentPlanValue = DeliveryFeePaymentPlan | "";
+
+function getSafePaymentPlanValue(
+    value: string | null | undefined,
+    options: readonly DeliveryFeePaymentPlan[],
+): DeliveryFeePaymentPlanValue {
+    if (!value) {
+        return "";
+    }
+
+    if (options.includes(value as DeliveryFeePaymentPlan)) {
+        return value as DeliveryFeePaymentPlan;
+    }
+
+    return options[0] ?? "";
+}
+
 function buildFormValues(parcel: EditParcelFormProps["parcel"]) {
     return {
         merchantId: parcel.merchantId,
@@ -91,6 +114,7 @@ function buildFormValues(parcel: EditParcelFormProps["parcel"]) {
         codAmount: parcel.codAmount,
         deliveryFee: parcel.deliveryFee,
         deliveryFeePayer: parcel.deliveryFeePayer,
+        deliveryFeePaymentPlan: parcel.deliveryFeePaymentPlan ?? "",
     };
 }
 
@@ -126,6 +150,48 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
     const selectedMerchant = merchants.find((merchant) => merchant.id === fields.merchantId);
     const selectedRider = riders.find((rider) => rider.id === fields.riderId);
     const getFieldError = (fieldName: string) => state.fieldErrors?.[fieldName]?.[0];
+    const [selectedParcelType, setSelectedParcelType] = useState<ParcelType>(
+        fields.parcelType as ParcelType,
+    );
+    const [selectedDeliveryFeePayer, setSelectedDeliveryFeePayer] = useState<DeliveryFeePayer>(
+        fields.deliveryFeePayer as DeliveryFeePayer,
+    );
+    const [selectedDeliveryFeePaymentPlan, setSelectedDeliveryFeePaymentPlan] =
+        useState<DeliveryFeePaymentPlanValue>(() =>
+            getSafePaymentPlanValue(
+                fields.deliveryFeePaymentPlan,
+                getDeliveryFeePaymentPlanOptions({
+                    parcelType: fields.parcelType as ParcelType,
+                    deliveryFeePayer: fields.deliveryFeePayer as DeliveryFeePayer,
+                }),
+            ),
+        );
+
+    useEffect(() => {
+        const nextParcelType = fields.parcelType as ParcelType;
+        const nextDeliveryFeePayer = fields.deliveryFeePayer as DeliveryFeePayer;
+        const nextOptions = getDeliveryFeePaymentPlanOptions({
+            parcelType: nextParcelType,
+            deliveryFeePayer: nextDeliveryFeePayer,
+        });
+
+        setSelectedParcelType(nextParcelType);
+        setSelectedDeliveryFeePayer(nextDeliveryFeePayer);
+        setSelectedDeliveryFeePaymentPlan(
+            getSafePaymentPlanValue(fields.deliveryFeePaymentPlan, nextOptions),
+        );
+    }, [fields.deliveryFeePayer, fields.deliveryFeePaymentPlan, fields.parcelType]);
+
+    const deliveryFeePaymentPlanOptions = getDeliveryFeePaymentPlanOptions({
+        parcelType: selectedParcelType,
+        deliveryFeePayer: selectedDeliveryFeePayer,
+    });
+    const deliveryFeePaymentPlanValue = getSafePaymentPlanValue(
+        selectedDeliveryFeePaymentPlan,
+        deliveryFeePaymentPlanOptions,
+    );
+    const allowBlankDeliveryFeePaymentPlan = parcel.deliveryFeePaymentPlan === null;
+    const showPaymentSlipField = deliveryFeePaymentPlanValue === "merchant_prepaid_bank_transfer";
 
     return (
         <form action={action} className="space-y-6">
@@ -359,7 +425,7 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                 <div className="space-y-1">
                     <h2 className="text-sm font-semibold">Collection Setup</h2>
                     <p className="text-xs text-muted-foreground">
-                        Edit parcel type, COD amount, delivery fee, and fee payer.
+                        Edit parcel type, COD amount, delivery fee, fee payer, and payment plan.
                     </p>
                 </div>
 
@@ -384,10 +450,24 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                             </>
                         ) : (
                             <select
-                                key={fields.parcelType}
                                 id="parcel-type"
                                 name="parcelType"
-                                defaultValue={fields.parcelType}
+                                value={selectedParcelType}
+                                onChange={(event) => {
+                                    const nextParcelType = event.target.value as ParcelType;
+                                    const nextOptions = getDeliveryFeePaymentPlanOptions({
+                                        parcelType: nextParcelType,
+                                        deliveryFeePayer: selectedDeliveryFeePayer,
+                                    });
+
+                                    setSelectedParcelType(nextParcelType);
+                                    setSelectedDeliveryFeePaymentPlan(
+                                        getSafePaymentPlanValue(
+                                            selectedDeliveryFeePaymentPlan,
+                                            nextOptions,
+                                        ),
+                                    );
+                                }}
                                 className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                                 required
                             >
@@ -419,10 +499,25 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                             </>
                         ) : (
                             <select
-                                key={fields.deliveryFeePayer}
                                 id="delivery-fee-payer"
                                 name="deliveryFeePayer"
-                                defaultValue={fields.deliveryFeePayer}
+                                value={selectedDeliveryFeePayer}
+                                onChange={(event) => {
+                                    const nextDeliveryFeePayer = event.target
+                                        .value as DeliveryFeePayer;
+                                    const nextOptions = getDeliveryFeePaymentPlanOptions({
+                                        parcelType: selectedParcelType,
+                                        deliveryFeePayer: nextDeliveryFeePayer,
+                                    });
+
+                                    setSelectedDeliveryFeePayer(nextDeliveryFeePayer);
+                                    setSelectedDeliveryFeePaymentPlan(
+                                        getSafePaymentPlanValue(
+                                            selectedDeliveryFeePaymentPlan,
+                                            nextOptions,
+                                        ),
+                                    );
+                                }}
                                 className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                                 required
                             >
@@ -434,6 +529,51 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                             </select>
                         )}
                         <FormFieldError message={getFieldError("deliveryFeePayer")} />
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="delivery-fee-payment-plan">Delivery Fee Payment Plan</Label>
+                        {financialFieldsReadOnly ? (
+                            <>
+                                <Input
+                                    id="delivery-fee-payment-plan"
+                                    value={
+                                        deliveryFeePaymentPlanValue
+                                            ? formatParcelStatusLabel(deliveryFeePaymentPlanValue)
+                                            : "Not recorded"
+                                    }
+                                    readOnly
+                                    disabled
+                                />
+                                <input
+                                    type="hidden"
+                                    name="deliveryFeePaymentPlan"
+                                    value={deliveryFeePaymentPlanValue}
+                                />
+                            </>
+                        ) : (
+                            <select
+                                id="delivery-fee-payment-plan"
+                                name="deliveryFeePaymentPlan"
+                                value={deliveryFeePaymentPlanValue}
+                                onChange={(event) =>
+                                    setSelectedDeliveryFeePaymentPlan(
+                                        event.target.value as DeliveryFeePaymentPlanValue,
+                                    )
+                                }
+                                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                            >
+                                {allowBlankDeliveryFeePaymentPlan && (
+                                    <option value="">Select delivery fee payment plan</option>
+                                )}
+                                {deliveryFeePaymentPlanOptions.map((value) => (
+                                    <option key={value} value={value}>
+                                        {formatParcelStatusLabel(value)}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
+                        <FormFieldError message={getFieldError("deliveryFeePaymentPlan")} />
                     </div>
 
                     <div className="grid gap-2">
@@ -511,17 +651,23 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                             title="Payment Slip Images"
                             images={parcel.paymentSlipImages}
                         />
-                        <div className="grid gap-2">
-                            <Label htmlFor="payment-slip-images">Add Payment Slip Images</Label>
-                            <Input
-                                id="payment-slip-images"
-                                name="paymentSlipImages"
-                                type="file"
-                                accept="image/jpeg,image/png,image/webp"
-                                multiple
-                            />
-                            <FormFieldError message={getFieldError("paymentSlipImages")} />
-                        </div>
+                        {showPaymentSlipField ? (
+                            <div className="grid gap-2">
+                                <Label htmlFor="payment-slip-images">Add Payment Slip Images</Label>
+                                <Input
+                                    id="payment-slip-images"
+                                    name="paymentSlipImages"
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp"
+                                    multiple
+                                />
+                                <FormFieldError message={getFieldError("paymentSlipImages")} />
+                            </div>
+                        ) : (
+                            <p className="text-xs text-muted-foreground">
+                                Payment slips are only available for prepaid bank transfer parcels.
+                            </p>
+                        )}
                     </>
                 )}
             </section>

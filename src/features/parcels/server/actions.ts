@@ -29,8 +29,10 @@ import {
     parseUpdateParcelDetailFormData,
     resolveParcelDeliveryFeeSchema,
     uploadParcelMediaFiles,
+    validateCreateParcelMedia,
     validateParcelImageAppendLimits,
     validateParcelPaymentState,
+    validatePaymentSlipImagesForPlan,
     validateParcelSubmission,
 } from "./utils";
 import {
@@ -192,6 +194,7 @@ function rejectSettlementLockedParcelDetailUpdate(input: {
         codAmount: number;
         deliveryFee: number;
         deliveryFeePayer: ParcelUpdateContextDto["parcel"]["deliveryFeePayer"];
+        deliveryFeePaymentPlan: ParcelUpdateContextDto["parcel"]["deliveryFeePaymentPlan"];
     };
 }) {
     if (!input.current.payment.merchantSettlementId) {
@@ -210,7 +213,8 @@ function rejectSettlementLockedParcelDetailUpdate(input: {
         input.next.parcelType !== input.current.parcel.parcelType ||
         input.next.codAmount !== Number(input.current.parcel.codAmount) ||
         input.next.deliveryFee !== Number(input.current.parcel.deliveryFee) ||
-        input.next.deliveryFeePayer !== input.current.parcel.deliveryFeePayer;
+        input.next.deliveryFeePayer !== input.current.parcel.deliveryFeePayer ||
+        input.next.deliveryFeePaymentPlan !== input.current.parcel.deliveryFeePaymentPlan;
 
     if (changesSettlementTotal) {
         return {
@@ -269,14 +273,18 @@ export async function createParcelAction(
             };
         }
 
-        const merchantUploadGuard = rejectMerchantPaymentSlipUpload(
-            currentUser.roleSlug,
-            parsed.files.paymentSlipImages.length,
-            submittedFields,
-        );
+        const createMediaGuard = validateCreateParcelMedia({
+            deliveryFeePaymentPlan: parsed.data.deliveryFeePaymentPlan,
+            files: parsed.files,
+        });
 
-        if (merchantUploadGuard) {
-            return merchantUploadGuard;
+        if (!createMediaGuard.ok) {
+            return {
+                ok: false,
+                message: createMediaGuard.message,
+                fields: submittedFields,
+                fieldErrors: createMediaGuard.fieldErrors,
+            };
         }
 
         const createAuthorization = authorizeParcelCreate({
@@ -297,11 +305,21 @@ export async function createParcelAction(
             parcelType: parsed.data.parcelType,
             codAmount: parsed.data.codAmount,
             deliveryFee: parsed.data.deliveryFee,
+            deliveryFeePayer: parsed.data.deliveryFeePayer,
+            deliveryFeePaymentPlan: parsed.data.deliveryFeePaymentPlan,
             codStatus: createCodStatus,
         });
 
         if (!submissionGuard.ok) {
-            return { ok: false, message: submissionGuard.message, fields: submittedFields };
+            return {
+                ok: false,
+                message: submissionGuard.message,
+                fields: submittedFields,
+                fieldErrors:
+                    "fieldErrors" in submissionGuard
+                        ? (submissionGuard.fieldErrors as CreateParcelActionResult["fieldErrors"])
+                        : undefined,
+            };
         }
 
         const appendLimitGuard = validateParcelImageAppendLimits({
@@ -342,6 +360,7 @@ export async function createParcelAction(
                     merchantId: createAuthorization.merchantId,
                     riderId: parsed.data.riderId,
                     totalAmountToCollect,
+                    deliveryFeePaymentPlan: parsed.data.deliveryFeePaymentPlan,
                     parcelStatus: DEFAULT_CREATE_PARCEL_STATE.parcelStatus,
                     pickupImageKeys: uploadedMedia.pickupImageKeys,
                     proofOfDeliveryImageKeys: uploadedMedia.proofOfDeliveryImageKeys,
@@ -406,6 +425,20 @@ export async function updateParcelAction(
 
         if (merchantUploadGuard) {
             return merchantUploadGuard;
+        }
+
+        const paymentSlipPlanGuard = validatePaymentSlipImagesForPlan({
+            deliveryFeePaymentPlan: parsed.data.deliveryFeePaymentPlan,
+            paymentSlipImages: parsed.files.paymentSlipImages,
+        });
+
+        if (!paymentSlipPlanGuard.ok) {
+            return {
+                ok: false,
+                message: paymentSlipPlanGuard.message,
+                fields: submittedFields,
+                fieldErrors: paymentSlipPlanGuard.fieldErrors,
+            };
         }
 
         const current = await getParcelUpdateContextForViewer(currentUser, parsed.data.parcelId);
@@ -473,6 +506,7 @@ export async function updateParcelAction(
                 codAmount: parsed.data.codAmount,
                 deliveryFee: parsed.data.deliveryFee,
                 deliveryFeePayer: parsed.data.deliveryFeePayer,
+                deliveryFeePaymentPlan: parsed.data.deliveryFeePaymentPlan,
             },
         });
 
@@ -487,12 +521,23 @@ export async function updateParcelAction(
             parcelType: parsed.data.parcelType,
             codAmount: parsed.data.codAmount,
             deliveryFee: parsed.data.deliveryFee,
+            deliveryFeePayer: parsed.data.deliveryFeePayer,
+            deliveryFeePaymentPlan: parsed.data.deliveryFeePaymentPlan,
+            requireRecordedDeliveryFeePaymentPlan: current.parcel.deliveryFeePaymentPlan !== null,
             deliveryFeeStatus: current.payment.deliveryFeeStatus,
             codStatus: current.payment.codStatus,
         });
 
         if (!submissionGuard.ok) {
-            return { ok: false, message: submissionGuard.message, fields: submittedFields };
+            return {
+                ok: false,
+                message: submissionGuard.message,
+                fields: submittedFields,
+                fieldErrors:
+                    "fieldErrors" in submissionGuard
+                        ? (submissionGuard.fieldErrors as UpdateParcelActionResult["fieldErrors"])
+                        : undefined,
+            };
         }
 
         const paymentStateGuard = validateParcelPaymentState({
@@ -532,6 +577,7 @@ export async function updateParcelAction(
                 merchantId: actorScopedUpdate.merchantId,
                 riderId: actorScopedUpdate.riderId,
                 totalAmountToCollect,
+                deliveryFeePaymentPlan: parsed.data.deliveryFeePaymentPlan,
                 parcelStatus: current.parcel.status,
                 pickupImageKeys: mergeParcelImageKeys(
                     current.parcel.pickupImageKeys,

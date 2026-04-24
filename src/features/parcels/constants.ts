@@ -1,5 +1,19 @@
 export const PARCEL_TYPES = ["cod", "non_cod"] as const;
 export const DELIVERY_FEE_PAYERS = ["merchant", "receiver"] as const;
+export const DELIVERY_FEE_PAYMENT_PLANS = [
+    "receiver_collect_on_delivery",
+    "merchant_prepaid_bank_transfer",
+    "merchant_cash_on_pickup",
+    "merchant_deduct_from_cod_settlement",
+    "merchant_bill_later",
+] as const;
+export const RECEIVER_DELIVERY_FEE_PAYMENT_PLANS = ["receiver_collect_on_delivery"] as const;
+export const MERCHANT_DELIVERY_FEE_PAYMENT_PLANS = [
+    "merchant_prepaid_bank_transfer",
+    "merchant_cash_on_pickup",
+    "merchant_deduct_from_cod_settlement",
+    "merchant_bill_later",
+] as const;
 export const PARCEL_STATUSES = [
     "pending",
     "out_for_pickup",
@@ -33,6 +47,7 @@ export const RIDER_PAYOUT_STATUSES = ["pending", "in_progress", "paid"] as const
 export type ParcelStatusLabelValue =
     | (typeof PARCEL_TYPES)[number]
     | (typeof DELIVERY_FEE_PAYERS)[number]
+    | (typeof DELIVERY_FEE_PAYMENT_PLANS)[number]
     | (typeof PARCEL_STATUSES)[number]
     | (typeof DELIVERY_FEE_STATUSES)[number]
     | (typeof COD_STATUSES)[number]
@@ -48,7 +63,25 @@ export const DEFAULT_CREATE_PARCEL_STATE = {
     merchantSettlementStatus: "pending",
     riderPayoutStatus: "pending",
     deliveryFeePayer: "receiver",
+    deliveryFeePaymentPlan: "receiver_collect_on_delivery",
 } as const;
+
+export function getDeliveryFeePaymentPlanOptions(input: {
+    parcelType: (typeof PARCEL_TYPES)[number] | null | undefined;
+    deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number] | null | undefined;
+}): readonly (typeof DELIVERY_FEE_PAYMENT_PLANS)[number][] {
+    if (input.deliveryFeePayer === "receiver") {
+        return RECEIVER_DELIVERY_FEE_PAYMENT_PLANS;
+    }
+
+    if (input.deliveryFeePayer === "merchant") {
+        return MERCHANT_DELIVERY_FEE_PAYMENT_PLANS.filter(
+            (plan) => plan !== "merchant_deduct_from_cod_settlement" || input.parcelType === "cod",
+        );
+    }
+
+    return [];
+}
 
 export function formatParcelStatusLabel(value: ParcelStatusLabelValue) {
     return value

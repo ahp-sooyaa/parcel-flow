@@ -10,6 +10,7 @@ import { ParcelImageList } from "@/features/parcels/components/parcel-image-list
 import { ParcelOperationsPanel } from "@/features/parcels/components/parcel-operations-panel";
 import { ParcelStatusPill } from "@/features/parcels/components/parcel-status-pill";
 import { RiderParcelDetail } from "@/features/parcels/components/rider-parcel-detail";
+import { formatParcelStatusLabel } from "@/features/parcels/constants";
 import { getParcelByIdForViewer } from "@/features/parcels/server/dal";
 import { toRiderParcelDetailDto } from "@/features/parcels/server/dto";
 import { getParcelOperationSummary } from "@/features/parcels/server/utils";
@@ -183,6 +184,14 @@ export default async function ParcelDetailPage({ params }: Readonly<ParcelDetail
                 <div className="grid gap-1">
                     <p className="text-xs text-muted-foreground">Delivery Fee</p>
                     <p>{parcel.deliveryFee}</p>
+                </div>
+                <div className="grid gap-1">
+                    <p className="text-xs text-muted-foreground">Delivery Fee Payment Plan</p>
+                    <p>
+                        {parcel.deliveryFeePaymentPlan
+                            ? formatParcelStatusLabel(parcel.deliveryFeePaymentPlan)
+                            : "Not recorded"}
+                    </p>
                 </div>
                 <div className="grid gap-1">
                     <p className="text-xs text-muted-foreground">Total Amount To Collect</p>

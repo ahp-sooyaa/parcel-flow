@@ -3,6 +3,7 @@ import {
     COD_STATUSES,
     COLLECTION_STATUSES,
     DELIVERY_FEE_PAYERS,
+    DELIVERY_FEE_PAYMENT_PLANS,
     DELIVERY_FEE_STATUSES,
     MERCHANT_SETTLEMENT_STATUSES,
     PARCEL_STATUSES,
@@ -32,6 +33,7 @@ export type ParcelListItemDto = {
     deliveryFee: string;
     totalAmountToCollect: string;
     deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];
+    deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
     parcelStatus: (typeof PARCEL_STATUSES)[number];
     deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number];
     codStatus: (typeof COD_STATUSES)[number];
@@ -89,6 +91,7 @@ export type ParcelDetailDto = {
     deliveryFee: string;
     totalAmountToCollect: string;
     deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];
+    deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
     parcelStatus: (typeof PARCEL_STATUSES)[number];
     deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number];
     codStatus: (typeof COD_STATUSES)[number];
@@ -125,6 +128,7 @@ export type RiderParcelDetailDto = {
     parcelStatus: (typeof PARCEL_STATUSES)[number];
     codAmount: string;
     totalAmountToCollect: string;
+    deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
     collectionStatus: (typeof COLLECTION_STATUSES)[number];
     pickupImages: ParcelImageAsset[];
     proofOfDeliveryImages: ParcelImageAsset[];
@@ -206,6 +210,7 @@ export function toParcelListItemDto(input: {
     deliveryFee: string;
     totalAmountToCollect: string;
     deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];
+    deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
     parcelStatus: (typeof PARCEL_STATUSES)[number];
     deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number] | null;
     codStatus: (typeof COD_STATUSES)[number] | null;
@@ -229,6 +234,7 @@ export function toParcelListItemDto(input: {
         deliveryFee: input.deliveryFee,
         totalAmountToCollect: input.totalAmountToCollect,
         deliveryFeePayer: input.deliveryFeePayer,
+        deliveryFeePaymentPlan: input.deliveryFeePaymentPlan,
         parcelStatus: input.parcelStatus,
         deliveryFeeStatus: input.deliveryFeeStatus ?? "unpaid",
         codStatus: input.codStatus ?? "pending",
@@ -290,6 +296,7 @@ export function toParcelDetailDto(input: {
     deliveryFee: string;
     totalAmountToCollect: string;
     deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];
+    deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
     parcelStatus: (typeof PARCEL_STATUSES)[number];
     deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number] | null;
     codStatus: (typeof COD_STATUSES)[number] | null;
@@ -329,6 +336,7 @@ export function toParcelDetailDto(input: {
         deliveryFee: input.deliveryFee,
         totalAmountToCollect: input.totalAmountToCollect,
         deliveryFeePayer: input.deliveryFeePayer,
+        deliveryFeePaymentPlan: input.deliveryFeePaymentPlan,
         parcelStatus: input.parcelStatus,
         deliveryFeeStatus: input.deliveryFeeStatus ?? "unpaid",
         codStatus: input.codStatus ?? "pending",
@@ -368,6 +376,7 @@ export function toRiderParcelDetailDto(
         | "parcelStatus"
         | "codAmount"
         | "totalAmountToCollect"
+        | "deliveryFeePaymentPlan"
         | "collectionStatus"
         | "pickupImages"
         | "proofOfDeliveryImages"
@@ -395,6 +404,7 @@ export function toRiderParcelDetailDto(
         parcelStatus: input.parcelStatus,
         codAmount: input.codAmount,
         totalAmountToCollect: input.totalAmountToCollect,
+        deliveryFeePaymentPlan: input.deliveryFeePaymentPlan,
         collectionStatus: input.collectionStatus,
         pickupImages: input.pickupImages,
         proofOfDeliveryImages: input.proofOfDeliveryImages,
@@ -425,6 +435,7 @@ export function toParcelUpdateContextDto(input: {
     deliveryFee: string;
     totalAmountToCollect: string;
     deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];
+    deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
     parcelStatus: (typeof PARCEL_STATUSES)[number];
     paymentId: string | null;
     deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number] | null;
@@ -459,6 +470,7 @@ export function toParcelUpdateContextDto(input: {
             deliveryFee: input.deliveryFee,
             totalAmountToCollect: input.totalAmountToCollect,
             deliveryFeePayer: input.deliveryFeePayer,
+            deliveryFeePaymentPlan: input.deliveryFeePaymentPlan,
             pickupImageKeys: input.pickupImageKeys ?? [],
             proofOfDeliveryImageKeys: input.proofOfDeliveryImageKeys ?? [],
             status: input.parcelStatus,
