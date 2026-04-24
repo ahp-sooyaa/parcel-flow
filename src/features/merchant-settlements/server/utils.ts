@@ -8,13 +8,18 @@ import {
 import { buildR2ObjectKey, getSignedR2ObjectUrl, uploadR2Object } from "@/lib/r2";
 
 import type {
-    MerchantSettlementItemDto,
     MerchantSettlementListQuery,
     MerchantSettlementStatus,
-    MerchantSettlementTotalsDto,
 } from "@/features/merchant-settlements/server/dto";
-import type { DELIVERY_FEE_STATUSES } from "@/features/parcels/constants";
 import type { ParcelImageAsset } from "@/features/parcels/server/utils";
+
+export {
+    calculateSettlementItemAmounts,
+    calculateSettlementTotals,
+    getMerchantSettlementBlockedReasons,
+    isMerchantPaidDeliveryFeeUnresolved,
+    toSettlementMoneyString,
+} from "./settlement-calculations";
 
 const generateSettlementSchema = z.object({
     merchantId: z.string().trim().uuid(),
@@ -32,10 +37,6 @@ const confirmSettlementSchema = settlementIdSchema.extend({
 const allowedSlipTypes = new Set<string>(MERCHANT_SETTLEMENT_SLIP_ALLOWED_TYPES);
 const settlementStatusValues = new Set<string>(MERCHANT_SETTLEMENT_RECORD_STATUSES);
 export const MERCHANT_SETTLEMENT_LIST_PAGE_SIZE = 20;
-
-export function toSettlementMoneyString(value: number) {
-    return value.toFixed(2);
-}
 
 export function formatMerchantSettlementLabel(value: string) {
     return value
@@ -161,47 +162,6 @@ export function buildSettlementInvoiceFileName(input: {
         ).slice(0, 80) || input.settlementId.slice(0, 8);
 
     return `settlement-${identifier}.pdf`;
-}
-
-export function calculateSettlementItemAmounts(input: {
-    codAmount: string;
-    deliveryFee: string;
-    deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number];
-}) {
-    const codAmount = Number(input.codAmount);
-    const deliveryFee = Number(input.deliveryFee);
-    const isDeliveryFeeDeducted = input.deliveryFeeStatus === "deduct_from_settlement";
-    const netPayableAmount = isDeliveryFeeDeducted ? codAmount - deliveryFee : codAmount;
-
-    return {
-        snapshotCodAmount: toSettlementMoneyString(codAmount),
-        snapshotDeliveryFee: toSettlementMoneyString(deliveryFee),
-        isDeliveryFeeDeducted,
-        netPayableAmount: toSettlementMoneyString(netPayableAmount),
-    };
-}
-
-export function calculateSettlementTotals(
-    items: readonly Pick<
-        MerchantSettlementItemDto,
-        "snapshotCodAmount" | "snapshotDeliveryFee" | "isDeliveryFeeDeducted" | "netPayableAmount"
-    >[],
-): MerchantSettlementTotalsDto {
-    return {
-        codSubtotal: toSettlementMoneyString(
-            items.reduce((sum, item) => sum + Number(item.snapshotCodAmount), 0),
-        ),
-        deliveryFeeDeductedTotal: toSettlementMoneyString(
-            items.reduce(
-                (sum, item) =>
-                    sum + (item.isDeliveryFeeDeducted ? Number(item.snapshotDeliveryFee) : 0),
-                0,
-            ),
-        ),
-        netPayableTotal: toSettlementMoneyString(
-            items.reduce((sum, item) => sum + Number(item.netPayableAmount), 0),
-        ),
-    };
 }
 
 export function parseGenerateSettlementFormData(formData: FormData) {

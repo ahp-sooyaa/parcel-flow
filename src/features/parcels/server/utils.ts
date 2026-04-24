@@ -1,32 +1,39 @@
 import "server-only";
 import { randomInt } from "node:crypto";
 import { z } from "zod";
+import { validateParcelPaymentState } from "./payment-guardrails";
+import { getMerchantSettlementBlockedReasons } from "@/features/merchant-settlements/server/settlement-calculations";
 import { findMerchantProfileLinkByAppUserId } from "@/features/merchant/server/dal";
 import {
     COD_STATUSES,
     COLLECTION_STATUSES,
     DELIVERY_FEE_PAYERS,
+    DELIVERY_FEE_PAYMENT_PLANS,
     DELIVERY_FEE_STATUSES,
     MERCHANT_SETTLEMENT_STATUSES,
     PARCEL_STATUSES,
     PARCEL_TYPES,
     RIDER_PAYOUT_STATUSES,
+    getDeliveryFeePaymentPlanOptions,
 } from "@/features/parcels/constants";
 import { getRiderById } from "@/features/rider/server/dal";
 import { findTownshipById } from "@/features/townships/server/dal";
 import { buildR2ObjectKey, getSignedR2ObjectUrl, uploadR2Object } from "@/lib/r2";
 import { optionalNullableTrimmedString, optionalNullableUuid } from "@/lib/validation/zod-helpers";
 
+export { validateParcelPaymentState };
 export {
     COD_STATUSES,
     COLLECTION_STATUSES,
     DEFAULT_CREATE_PARCEL_STATE,
     DELIVERY_FEE_PAYERS,
+    DELIVERY_FEE_PAYMENT_PLANS,
     DELIVERY_FEE_STATUSES,
     MERCHANT_SETTLEMENT_STATUSES,
     PARCEL_STATUSES,
     PARCEL_TYPES,
     RIDER_PAYOUT_STATUSES,
+    getDeliveryFeePaymentPlanOptions,
 } from "@/features/parcels/constants";
 
 export const PARCEL_IMAGE_MAX_FILES = 5;
@@ -51,18 +58,56 @@ const CREATE_PARCEL_FORM_FIELDS = [
     "codAmount",
     "deliveryFee",
     "deliveryFeePayer",
+    "deliveryFeePaymentPlan",
     "paymentNote",
 ] as const;
 const UPDATE_PARCEL_FORM_FIELDS = [
     "parcelId",
-    ...CREATE_PARCEL_FORM_FIELDS,
+    "merchantId",
+    "riderId",
+    "recipientName",
+    "recipientPhone",
+    "recipientTownshipId",
+    "recipientAddress",
+    "parcelDescription",
+    "packageCount",
+    "specialHandlingNote",
+    "estimatedWeightKg",
+    "packageWidthCm",
+    "packageHeightCm",
+    "packageLengthCm",
+    "parcelType",
+    "codAmount",
+    "deliveryFee",
+    "deliveryFeePayer",
+    "deliveryFeePaymentPlan",
+    "paymentNote",
     "parcelStatus",
     "deliveryFeeStatus",
     "codStatus",
     "collectionStatus",
-    "merchantSettlementStatus",
-    "riderPayoutStatus",
     "collectedAmount",
+] as const;
+const UPDATE_PARCEL_DETAIL_FORM_FIELDS = [
+    "parcelId",
+    "merchantId",
+    "riderId",
+    "recipientName",
+    "recipientPhone",
+    "recipientTownshipId",
+    "recipientAddress",
+    "parcelDescription",
+    "packageCount",
+    "specialHandlingNote",
+    "estimatedWeightKg",
+    "packageWidthCm",
+    "packageHeightCm",
+    "packageLengthCm",
+    "parcelType",
+    "codAmount",
+    "deliveryFee",
+    "deliveryFeePayer",
+    "deliveryFeePaymentPlan",
 ] as const;
 const RIDER_PARCEL_IMAGE_UPLOAD_FIELDS = ["parcelId"] as const;
 const PARCEL_IMAGE_FIELD_NAMES = [
@@ -132,6 +177,22 @@ const positiveIntegerField = z.preprocess((value) => {
     return Number(normalized);
 }, z.number().int().min(1).max(9999));
 
+const optionalNullableDeliveryFeePaymentPlanField = z
+    .preprocess((value) => {
+        if (typeof value !== "string") {
+            return value;
+        }
+
+        const normalized = value.trim();
+
+        if (!normalized) {
+            return undefined;
+        }
+
+        return normalized;
+    }, z.enum(DELIVERY_FEE_PAYMENT_PLANS).optional())
+    .transform((value) => value ?? null);
+
 export const createParcelSchema = z.object({
     merchantId: z.string().trim().uuid(),
     riderId: optionalNullableUuid(),
@@ -150,18 +211,23 @@ export const createParcelSchema = z.object({
     codAmount: moneyField,
     deliveryFee: moneyField,
     deliveryFeePayer: z.enum(DELIVERY_FEE_PAYERS),
+    deliveryFeePaymentPlan: z.enum(DELIVERY_FEE_PAYMENT_PLANS),
     paymentNote: optionalNullableTrimmedString(1000),
 });
 
 export const updateParcelSchema = createParcelSchema.extend({
+    deliveryFeePaymentPlan: optionalNullableDeliveryFeePaymentPlanField,
     parcelId: z.string().trim().uuid(),
     parcelStatus: z.enum(PARCEL_STATUSES),
     deliveryFeeStatus: z.enum(DELIVERY_FEE_STATUSES),
     codStatus: z.enum(COD_STATUSES),
     collectionStatus: z.enum(COLLECTION_STATUSES),
-    merchantSettlementStatus: z.enum(MERCHANT_SETTLEMENT_STATUSES),
-    riderPayoutStatus: z.enum(RIDER_PAYOUT_STATUSES),
     collectedAmount: moneyField,
+});
+
+export const updateParcelDetailSchema = createParcelSchema.omit({ paymentNote: true }).extend({
+    deliveryFeePaymentPlan: optionalNullableDeliveryFeePaymentPlanField,
+    parcelId: z.string().trim().uuid(),
 });
 
 export const advanceRiderParcelSchema = z.object({
@@ -171,9 +237,29 @@ export const advanceRiderParcelSchema = z.object({
 export const riderParcelImageUploadSchema = z.object({
     parcelId: z.string().trim().uuid(),
 });
+export const parcelIdActionSchema = z.object({
+    parcelId: z.string().trim().uuid(),
+});
+export const advanceOfficeParcelStatusSchema = parcelIdActionSchema.extend({
+    nextStatus: z.enum(PARCEL_STATUSES),
+});
+export const resolveParcelDeliveryFeeSchema = parcelIdActionSchema.extend({
+    deliveryFeeStatus: z.enum(DELIVERY_FEE_STATUSES),
+    paymentNote: optionalNullableTrimmedString(1000),
+});
+export const adminCorrectParcelStateSchema = parcelIdActionSchema.extend({
+    parcelStatus: z.enum(PARCEL_STATUSES),
+    deliveryFeeStatus: z.enum(DELIVERY_FEE_STATUSES),
+    codStatus: z.enum(COD_STATUSES),
+    collectionStatus: z.enum(COLLECTION_STATUSES),
+    collectedAmount: moneyField,
+    paymentNote: optionalNullableTrimmedString(1000),
+    correctionNote: z.string().trim().min(3).max(1000),
+});
 
 export type ParcelCreateInput = z.infer<typeof createParcelSchema>;
 export type ParcelUpdateInput = z.infer<typeof updateParcelSchema>;
+export type ParcelDetailUpdateInput = z.infer<typeof updateParcelDetailSchema>;
 export type ParcelFormFields = Record<(typeof UPDATE_PARCEL_FORM_FIELDS)[number], string>;
 export type ParcelImageFieldName = (typeof PARCEL_IMAGE_FIELD_NAMES)[number];
 export type ParcelMediaFiles = Record<ParcelImageFieldName, File[]>;
@@ -211,6 +297,7 @@ export type ParcelWriteValues = {
     deliveryFee: string;
     totalAmountToCollect: string;
     deliveryFeePayer: "merchant" | "receiver";
+    deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
     pickupImageKeys: string[];
     proofOfDeliveryImageKeys: string[];
     status: (typeof PARCEL_STATUSES)[number];
@@ -247,6 +334,44 @@ type ParcelFormParseFailure = {
 export type RiderNextAction = {
     label: string;
     nextStatus: (typeof PARCEL_STATUSES)[number];
+};
+export type OfficeParcelMovementAction = {
+    label: string;
+    nextStatus: (typeof PARCEL_STATUSES)[number];
+};
+export type ParcelOperationTone = "muted" | "info" | "success" | "warning" | "danger";
+export type ParcelOperationState = {
+    label: string;
+    tone: ParcelOperationTone;
+};
+export type ParcelOperationInput = {
+    parcelType: (typeof PARCEL_TYPES)[number];
+    parcelStatus: (typeof PARCEL_STATUSES)[number];
+    codAmount: string | number;
+    deliveryFee: string | number;
+    totalAmountToCollect?: string | number;
+    deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];
+    deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number];
+    codStatus: (typeof COD_STATUSES)[number];
+    collectedAmount?: string | number;
+    collectionStatus: (typeof COLLECTION_STATUSES)[number];
+    merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number];
+    merchantSettlementId: string | null;
+    paymentNote?: string | null;
+};
+export type ParcelOperationSummary = {
+    movementActions: OfficeParcelMovementAction[];
+    cash: ParcelOperationState & {
+        canReceiveAtOffice: boolean;
+    };
+    deliveryFee: ParcelOperationState & {
+        canResolve: boolean;
+        resolutionOptions: (typeof DELIVERY_FEE_STATUSES)[number][];
+    };
+    settlement: ParcelOperationState & {
+        blockedReasons: string[];
+    };
+    primaryActionLabel: string;
 };
 
 function getSearchParamValue(searchParams: ParcelListSearchParams, key: string) {
@@ -392,6 +517,226 @@ export function getNextRiderParcelAction(
     return riderNextActionByStatus[status] ?? null;
 }
 
+const officeMovementActionsByStatus: Partial<
+    Record<(typeof PARCEL_STATUSES)[number], OfficeParcelMovementAction[]>
+> = {
+    pending: [{ label: "Start Pickup", nextStatus: "out_for_pickup" }],
+    out_for_pickup: [{ label: "Mark At Office", nextStatus: "at_office" }],
+    at_office: [{ label: "Start Delivery", nextStatus: "out_for_delivery" }],
+    out_for_delivery: [
+        { label: "Mark Delivered", nextStatus: "delivered" },
+        { label: "Return To Office", nextStatus: "return_to_office" },
+    ],
+    return_to_office: [{ label: "Return To Merchant", nextStatus: "return_to_merchant" }],
+    return_to_merchant: [{ label: "Mark Returned", nextStatus: "returned" }],
+};
+
+export function isParcelSettlementLocked(input: {
+    merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number];
+    merchantSettlementId: string | null;
+}) {
+    return input.merchantSettlementStatus !== "pending" || Boolean(input.merchantSettlementId);
+}
+
+export function getOfficeParcelMovementActions(
+    parcel: Pick<
+        ParcelOperationInput,
+        "parcelStatus" | "merchantSettlementStatus" | "merchantSettlementId"
+    >,
+): OfficeParcelMovementAction[] {
+    if (isParcelSettlementLocked(parcel)) {
+        return [];
+    }
+
+    return officeMovementActionsByStatus[parcel.parcelStatus] ?? [];
+}
+
+function canUseDeliveryFeeResolution(
+    parcel: ParcelOperationInput,
+    deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number],
+) {
+    if (
+        deliveryFeeStatus === "unpaid" ||
+        deliveryFeeStatus === parcel.deliveryFeeStatus ||
+        isParcelSettlementLocked(parcel)
+    ) {
+        return false;
+    }
+
+    return validateParcelPaymentState({
+        parcelType: parcel.parcelType,
+        parcelStatus: parcel.parcelStatus,
+        deliveryFeePayer: parcel.deliveryFeePayer,
+        codAmount: Number(parcel.codAmount),
+        deliveryFee: Number(parcel.deliveryFee),
+        deliveryFeeStatus,
+        previousDeliveryFeeStatus: parcel.deliveryFeeStatus,
+        codStatus: parcel.codStatus,
+        collectionStatus: parcel.collectionStatus,
+        merchantSettlementStatus: parcel.merchantSettlementStatus,
+        merchantSettlementId: parcel.merchantSettlementId,
+        paymentNote:
+            deliveryFeeStatus === "waived"
+                ? (parcel.paymentNote ?? "Delivery fee waived by office.")
+                : (parcel.paymentNote ?? null),
+    }).ok;
+}
+
+export function getDeliveryFeeResolutionOptions(
+    parcel: ParcelOperationInput,
+): (typeof DELIVERY_FEE_STATUSES)[number][] {
+    if (parcel.deliveryFeeStatus !== "unpaid" || Number(parcel.deliveryFee) <= 0) {
+        return [];
+    }
+
+    const candidateStatuses =
+        parcel.deliveryFeePayer === "merchant"
+            ? (["paid_by_merchant", "deduct_from_settlement", "bill_merchant", "waived"] as const)
+            : (["collected_from_receiver", "waived"] as const);
+
+    return candidateStatuses.filter((status) => canUseDeliveryFeeResolution(parcel, status));
+}
+
+export function canReceiveParcelCashAtOffice(parcel: ParcelOperationInput) {
+    return (
+        !isParcelSettlementLocked(parcel) &&
+        parcel.parcelType === "cod" &&
+        parcel.parcelStatus === "delivered" &&
+        parcel.codStatus === "collected" &&
+        parcel.collectionStatus === "collected_by_rider"
+    );
+}
+
+export function getParcelOperationBlockedReasons(parcel: ParcelOperationInput) {
+    if (parcel.parcelType !== "cod") {
+        return [];
+    }
+
+    return getMerchantSettlementBlockedReasons({
+        parcelStatus: parcel.parcelStatus,
+        codStatus: parcel.codStatus,
+        codAmount: String(parcel.codAmount),
+        deliveryFee: String(parcel.deliveryFee),
+        collectionStatus: parcel.collectionStatus,
+        deliveryFeePayer: parcel.deliveryFeePayer,
+        deliveryFeeStatus: parcel.deliveryFeeStatus,
+        merchantSettlementStatus: parcel.merchantSettlementStatus,
+        merchantSettlementId: parcel.merchantSettlementId,
+    });
+}
+
+function getCashOperationState(parcel: ParcelOperationInput): ParcelOperationSummary["cash"] {
+    if (parcel.parcelType !== "cod") {
+        return { label: "No COD", tone: "muted", canReceiveAtOffice: false };
+    }
+
+    if (parcel.collectionStatus === "received_by_office") {
+        return { label: "Cash at office", tone: "success", canReceiveAtOffice: false };
+    }
+
+    if (canReceiveParcelCashAtOffice(parcel)) {
+        return { label: "Receive rider cash", tone: "warning", canReceiveAtOffice: true };
+    }
+
+    if (parcel.collectionStatus === "collected_by_rider") {
+        return { label: "Held by rider", tone: "info", canReceiveAtOffice: false };
+    }
+
+    if (parcel.codStatus === "not_collected" || parcel.collectionStatus === "not_collected") {
+        return { label: "COD not collected", tone: "danger", canReceiveAtOffice: false };
+    }
+
+    return { label: "Cash pending", tone: "warning", canReceiveAtOffice: false };
+}
+
+function getDeliveryFeeOperationState(
+    parcel: ParcelOperationInput,
+    resolutionOptions: (typeof DELIVERY_FEE_STATUSES)[number][],
+): ParcelOperationSummary["deliveryFee"] {
+    if (Number(parcel.deliveryFee) <= 0) {
+        return {
+            label: "No fee",
+            tone: "muted",
+            canResolve: false,
+            resolutionOptions,
+        };
+    }
+
+    if (parcel.deliveryFeeStatus === "unpaid" && resolutionOptions.length > 0) {
+        return {
+            label: "Resolve fee",
+            tone: "warning",
+            canResolve: true,
+            resolutionOptions,
+        };
+    }
+
+    if (parcel.deliveryFeeStatus === "unpaid") {
+        return {
+            label: "Fee unresolved",
+            tone: "warning",
+            canResolve: false,
+            resolutionOptions,
+        };
+    }
+
+    return {
+        label: "Fee resolved",
+        tone: "success",
+        canResolve: false,
+        resolutionOptions,
+    };
+}
+
+function getSettlementOperationState(
+    parcel: ParcelOperationInput,
+    blockedReasons: string[],
+): ParcelOperationSummary["settlement"] {
+    if (parcel.parcelType !== "cod") {
+        return { label: "No COD settlement", tone: "muted", blockedReasons };
+    }
+
+    if (parcel.merchantSettlementStatus === "settled") {
+        return { label: "Settled", tone: "success", blockedReasons };
+    }
+
+    if (isParcelSettlementLocked(parcel)) {
+        return { label: "Locked by settlement", tone: "info", blockedReasons };
+    }
+
+    if (blockedReasons.length === 0) {
+        return { label: "Settlement ready", tone: "success", blockedReasons };
+    }
+
+    return { label: "Settlement blocked", tone: "warning", blockedReasons };
+}
+
+export function getParcelOperationSummary(parcel: ParcelOperationInput): ParcelOperationSummary {
+    const movementActions = getOfficeParcelMovementActions(parcel);
+    const resolutionOptions = getDeliveryFeeResolutionOptions(parcel);
+    const blockedReasons = getParcelOperationBlockedReasons(parcel);
+    const cash = getCashOperationState(parcel);
+    const deliveryFee = getDeliveryFeeOperationState(parcel, resolutionOptions);
+    const settlement = getSettlementOperationState(parcel, blockedReasons);
+    const primaryActionLabel = cash.canReceiveAtOffice
+        ? "Receive Cash"
+        : deliveryFee.canResolve
+          ? "Resolve Fee"
+          : movementActions.length === 1
+            ? movementActions[0].label
+            : movementActions.length > 1
+              ? "Open Operations"
+              : "View Parcel";
+
+    return {
+        movementActions,
+        cash,
+        deliveryFee,
+        settlement,
+        primaryActionLabel,
+    };
+}
+
 function getStringFieldValue(formData: FormData, key: string) {
     const value = formData.get(key);
 
@@ -417,6 +762,97 @@ function createFieldErrors(fieldName: string, message: string): ParcelFieldError
     return {
         [fieldName]: [message],
     };
+}
+
+export function validateDeliveryFeePaymentPlan(input: {
+    parcelType: (typeof PARCEL_TYPES)[number];
+    deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];
+    deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
+    requireRecordedPlan?: boolean;
+}) {
+    if (!input.deliveryFeePaymentPlan) {
+        return input.requireRecordedPlan
+            ? {
+                  ok: false as const,
+                  message: "Delivery fee payment plan is required.",
+                  fieldErrors: createFieldErrors(
+                      "deliveryFeePaymentPlan",
+                      "Select a delivery fee payment plan.",
+                  ),
+              }
+            : { ok: true as const };
+    }
+
+    const options = getDeliveryFeePaymentPlanOptions({
+        parcelType: input.parcelType,
+        deliveryFeePayer: input.deliveryFeePayer,
+    });
+
+    if (!options.includes(input.deliveryFeePaymentPlan)) {
+        return {
+            ok: false as const,
+            message: "Delivery fee payment plan does not match the fee payer and parcel type.",
+            fieldErrors: createFieldErrors(
+                "deliveryFeePaymentPlan",
+                "Select a valid delivery fee payment plan.",
+            ),
+        };
+    }
+
+    return { ok: true as const };
+}
+
+export function validateCreateParcelMedia(input: {
+    deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number];
+    files: ParcelMediaFiles;
+}) {
+    if (input.files.pickupImages.length > 0) {
+        return {
+            ok: false as const,
+            message: "Pickup images cannot be uploaded during parcel create.",
+            fieldErrors: createFieldErrors(
+                "pickupImages",
+                "Upload pickup images after pickup starts.",
+            ),
+        };
+    }
+
+    if (input.files.proofOfDeliveryImages.length > 0) {
+        return {
+            ok: false as const,
+            message: "Proof of delivery images cannot be uploaded during parcel create.",
+            fieldErrors: createFieldErrors(
+                "proofOfDeliveryImages",
+                "Upload proof of delivery images after delivery.",
+            ),
+        };
+    }
+
+    return validatePaymentSlipImagesForPlan({
+        deliveryFeePaymentPlan: input.deliveryFeePaymentPlan,
+        paymentSlipImages: input.files.paymentSlipImages,
+    });
+}
+
+export function validatePaymentSlipImagesForPlan(input: {
+    deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
+    paymentSlipImages: File[];
+}) {
+    if (
+        input.paymentSlipImages.length > 0 &&
+        input.deliveryFeePaymentPlan !== "merchant_prepaid_bank_transfer"
+    ) {
+        return {
+            ok: false as const,
+            message: "Payment slip images are only allowed for merchant prepaid bank transfer.",
+            fieldErrors: createFieldErrors(
+                "paymentSlipImages",
+                "Payment slips are only allowed for prepaid bank transfer.",
+            ),
+        };
+    }
+
+    return { ok: true as const };
 }
 
 function getParcelMediaFiles(formData: FormData): ParcelMediaFiles {
@@ -527,6 +963,14 @@ export function parseUpdateParcelFormData(formData: FormData) {
     return parseParcelFormData(formData, updateParcelSchema, UPDATE_PARCEL_FORM_FIELDS);
 }
 
+export function parseUpdateParcelDetailFormData(formData: FormData) {
+    return parseParcelFormData(
+        formData,
+        updateParcelDetailSchema,
+        UPDATE_PARCEL_DETAIL_FORM_FIELDS,
+    );
+}
+
 export function parseRiderParcelImageUploadFormData(formData: FormData) {
     return parseParcelFormData(
         formData,
@@ -602,10 +1046,11 @@ export function generateParcelCode(date = new Date()) {
 }
 
 export function buildParcelWriteValues(input: {
-    data: ParcelCreateInput | ParcelUpdateInput;
+    data: ParcelCreateInput | ParcelUpdateInput | ParcelDetailUpdateInput;
     merchantId: string;
     riderId: string | null;
     totalAmountToCollect: number;
+    deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
     parcelStatus: (typeof PARCEL_STATUSES)[number];
     pickupImageKeys: string[];
     proofOfDeliveryImageKeys: string[];
@@ -629,6 +1074,7 @@ export function buildParcelWriteValues(input: {
         deliveryFee: toMoneyString(input.data.deliveryFee),
         totalAmountToCollect: toMoneyString(input.totalAmountToCollect),
         deliveryFeePayer: input.data.deliveryFeePayer,
+        deliveryFeePaymentPlan: input.deliveryFeePaymentPlan,
         pickupImageKeys: input.pickupImageKeys,
         proofOfDeliveryImageKeys: input.proofOfDeliveryImageKeys,
         status: input.parcelStatus,
@@ -769,7 +1215,10 @@ export async function validateParcelSubmission(input: {
     parcelType: (typeof PARCEL_TYPES)[number];
     codAmount: number;
     deliveryFee: number;
+    deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];
     deliveryFeeStatus?: (typeof DELIVERY_FEE_STATUSES)[number];
+    deliveryFeePaymentPlan?: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
+    requireRecordedDeliveryFeePaymentPlan?: boolean;
     codStatus: (typeof COD_STATUSES)[number];
 }) {
     const merchant = await findMerchantProfileLinkByAppUserId(input.merchantId);
@@ -802,6 +1251,19 @@ export async function validateParcelSubmission(input: {
 
         if (!deliveryFeeStateGuard.ok) {
             return deliveryFeeStateGuard;
+        }
+    }
+
+    if (input.deliveryFeePaymentPlan !== undefined) {
+        const deliveryFeePaymentPlanGuard = validateDeliveryFeePaymentPlan({
+            parcelType: input.parcelType,
+            deliveryFeePayer: input.deliveryFeePayer,
+            deliveryFeePaymentPlan: input.deliveryFeePaymentPlan,
+            requireRecordedPlan: input.requireRecordedDeliveryFeePaymentPlan ?? false,
+        });
+
+        if (!deliveryFeePaymentPlanGuard.ok) {
+            return deliveryFeePaymentPlanGuard;
         }
     }
 

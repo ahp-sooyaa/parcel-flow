@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ParcelImageList } from "@/features/parcels/components/parcel-image-list";
+import { formatParcelStatusLabel } from "@/features/parcels/constants";
 import {
     advanceRiderParcelAction,
     uploadRiderParcelImagesAction,
@@ -118,6 +119,14 @@ export function RiderParcelDetail({ parcel }: Readonly<RiderParcelDetailProps>) 
                 <div className="grid gap-1">
                     <p className="text-xs text-muted-foreground">Amount To Collect</p>
                     <p>{parcel.totalAmountToCollect}</p>
+                </div>
+                <div className="grid gap-1">
+                    <p className="text-xs text-muted-foreground">Delivery Fee Plan</p>
+                    <p>
+                        {parcel.deliveryFeePaymentPlan
+                            ? formatParcelStatusLabel(parcel.deliveryFeePaymentPlan)
+                            : "Not recorded"}
+                    </p>
                 </div>
                 <div className="grid gap-1">
                     <p className="text-xs text-muted-foreground">Collection Status</p>

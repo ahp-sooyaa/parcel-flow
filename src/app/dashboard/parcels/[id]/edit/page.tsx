@@ -38,11 +38,11 @@ export default async function EditParcelPage({ params }: Readonly<EditParcelPage
     }
 
     return (
-        <section className="mx-auto w-full max-w-3xl space-y-6 rounded-xl border bg-card p-6">
+        <section className="mx-auto w-full max-w-4xl space-y-6">
             <header className="space-y-1">
-                <h1 className="text-2xl font-semibold tracking-tight">Edit Parcel</h1>
+                <h1 className="text-2xl font-semibold tracking-tight">Edit Parcel Details</h1>
                 <p className="text-sm text-muted-foreground">
-                    Update parcel and payment statuses for {parcel.parcelCode}.
+                    Update parcel details and uploads for {parcel.parcelCode}.
                 </p>
             </header>
 

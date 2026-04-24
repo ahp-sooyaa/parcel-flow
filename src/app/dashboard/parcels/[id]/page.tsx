@@ -7,9 +7,13 @@ import {
 } from "@/features/auth/server/policies/parcels";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { ParcelImageList } from "@/features/parcels/components/parcel-image-list";
+import { ParcelOperationsPanel } from "@/features/parcels/components/parcel-operations-panel";
+import { ParcelStatusPill } from "@/features/parcels/components/parcel-status-pill";
 import { RiderParcelDetail } from "@/features/parcels/components/rider-parcel-detail";
+import { formatParcelStatusLabel } from "@/features/parcels/constants";
 import { getParcelByIdForViewer } from "@/features/parcels/server/dal";
 import { toRiderParcelDetailDto } from "@/features/parcels/server/dto";
+import { getParcelOperationSummary } from "@/features/parcels/server/utils";
 
 type ParcelDetailPageProps = {
     params: Promise<{ id: string }>;
@@ -64,22 +68,36 @@ export default async function ParcelDetailPage({ params }: Readonly<ParcelDetail
         notFound();
     }
 
+    const canRunOfficeOperations = currentUser.permissions.includes("parcel.update");
+    const operationSummary = getParcelOperationSummary(parcel);
+
     return (
-        <section className="mx-auto w-full max-w-3xl space-y-6">
-            <header className="space-y-1">
-                <h1 className="text-2xl font-semibold tracking-tight">{parcel.parcelCode}</h1>
-                <p className="text-sm text-muted-foreground">
-                    Parcel detail and payment state snapshot.
-                </p>
+        <section className="mx-auto w-full max-w-5xl space-y-6">
+            <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1">
+                    <h1 className="text-2xl font-semibold tracking-tight">{parcel.parcelCode}</h1>
+                    <p className="text-sm text-muted-foreground">
+                        Parcel detail, payment state, and office operations.
+                    </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <ParcelStatusPill value={parcel.parcelStatus} />
+                    <ParcelStatusPill value={parcel.collectionStatus} />
+                    <ParcelStatusPill value={parcel.deliveryFeeStatus} />
+                </div>
             </header>
 
             {parcelAccess.canUpdate && (
                 <Button asChild variant="outline">
-                    <Link href={`/dashboard/parcels/${parcel.id}/edit`}>Edit Parcel</Link>
+                    <Link href={`/dashboard/parcels/${parcel.id}/edit`}>Edit Parcel Details</Link>
                 </Button>
             )}
 
-            <div className="grid gap-4 rounded-xl border bg-card p-5 text-sm">
+            {canRunOfficeOperations && (
+                <ParcelOperationsPanel parcel={parcel} operations={operationSummary} />
+            )}
+
+            <div className="grid gap-4 rounded-xl border bg-card p-5 text-sm md:grid-cols-2">
                 <div className="grid gap-1">
                     <p className="text-xs text-muted-foreground">Merchant</p>
                     <p>{parcel.merchantLabel}</p>
@@ -128,23 +146,32 @@ export default async function ParcelDetailPage({ params }: Readonly<ParcelDetail
                 </div>
                 <div className="grid gap-1">
                     <p className="text-xs text-muted-foreground">Parcel Status</p>
-                    <p>{parcel.parcelStatus}</p>
+                    <ParcelStatusPill value={parcel.parcelStatus} />
                 </div>
                 <div className="grid gap-1">
                     <p className="text-xs text-muted-foreground">Delivery Fee Status</p>
-                    <p>{parcel.deliveryFeeStatus}</p>
+                    <ParcelStatusPill value={parcel.deliveryFeeStatus} />
                 </div>
                 <div className="grid gap-1">
                     <p className="text-xs text-muted-foreground">COD Status</p>
-                    <p>{parcel.codStatus}</p>
+                    <ParcelStatusPill value={parcel.codStatus} />
                 </div>
                 <div className="grid gap-1">
                     <p className="text-xs text-muted-foreground">Collection Status</p>
-                    <p>{parcel.collectionStatus}</p>
+                    <ParcelStatusPill value={parcel.collectionStatus} />
                 </div>
                 <div className="grid gap-1">
                     <p className="text-xs text-muted-foreground">Merchant Settlement Status</p>
-                    <p>{parcel.merchantSettlementStatus}</p>
+                    {parcel.merchantSettlementId && currentUser.roleSlug !== "merchant" ? (
+                        <Link
+                            href={`/dashboard/settlements/${parcel.merchantSettlementId}`}
+                            className="text-primary underline-offset-4 hover:underline"
+                        >
+                            {parcel.merchantSettlementStatus}
+                        </Link>
+                    ) : (
+                        <p>{parcel.merchantSettlementStatus}</p>
+                    )}
                 </div>
                 <div className="grid gap-1">
                     <p className="text-xs text-muted-foreground">Rider Payout Status</p>
@@ -157,6 +184,14 @@ export default async function ParcelDetailPage({ params }: Readonly<ParcelDetail
                 <div className="grid gap-1">
                     <p className="text-xs text-muted-foreground">Delivery Fee</p>
                     <p>{parcel.deliveryFee}</p>
+                </div>
+                <div className="grid gap-1">
+                    <p className="text-xs text-muted-foreground">Delivery Fee Payment Plan</p>
+                    <p>
+                        {parcel.deliveryFeePaymentPlan
+                            ? formatParcelStatusLabel(parcel.deliveryFeePaymentPlan)
+                            : "Not recorded"}
+                    </p>
                 </div>
                 <div className="grid gap-1">
                     <p className="text-xs text-muted-foreground">Total Amount To Collect</p>

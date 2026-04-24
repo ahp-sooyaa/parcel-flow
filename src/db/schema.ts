@@ -17,6 +17,13 @@ import { ROLE_SLUGS } from "@/db/constants";
 
 const PARCEL_TYPES = ["cod", "non_cod"] as const;
 const DELIVERY_FEE_PAYER_VALUES = ["merchant", "receiver"] as const;
+const DELIVERY_FEE_PAYMENT_PLAN_VALUES = [
+    "receiver_collect_on_delivery",
+    "merchant_prepaid_bank_transfer",
+    "merchant_cash_on_pickup",
+    "merchant_deduct_from_cod_settlement",
+    "merchant_bill_later",
+] as const;
 const PARCEL_STATUS_VALUES = [
     "pending",
     "out_for_pickup",
@@ -404,6 +411,9 @@ export const parcels = pgTable(
         deliveryFeePayer: text("delivery_fee_payer", { enum: DELIVERY_FEE_PAYER_VALUES })
             .notNull()
             .default("receiver"),
+        deliveryFeePaymentPlan: text("delivery_fee_payment_plan", {
+            enum: DELIVERY_FEE_PAYMENT_PLAN_VALUES,
+        }),
         parcelType: text("parcel_type", { enum: PARCEL_TYPES }).notNull().default("cod"),
         totalAmountToCollect: numeric("total_amount_to_collect", { precision: 12, scale: 2 })
             .notNull()
@@ -419,6 +429,29 @@ export const parcels = pgTable(
         index("parcels_recipient_township_idx").on(table.recipientTownshipId),
         index("parcels_status_idx").on(table.status),
         index("parcels_created_at_idx").on(table.createdAt),
+        check(
+            "parcels_delivery_fee_payment_plan_check",
+            sql`(
+                ${table.deliveryFeePaymentPlan} is null
+                or (
+                    ${table.deliveryFeePayer} = 'receiver'
+                    and ${table.deliveryFeePaymentPlan} = 'receiver_collect_on_delivery'
+                )
+                or (
+                    ${table.deliveryFeePayer} = 'merchant'
+                    and ${table.deliveryFeePaymentPlan} in (
+                        'merchant_prepaid_bank_transfer',
+                        'merchant_cash_on_pickup',
+                        'merchant_bill_later'
+                    )
+                )
+                or (
+                    ${table.deliveryFeePayer} = 'merchant'
+                    and ${table.parcelType} = 'cod'
+                    and ${table.deliveryFeePaymentPlan} = 'merchant_deduct_from_cod_settlement'
+                )
+            )`,
+        ),
     ],
 );
 

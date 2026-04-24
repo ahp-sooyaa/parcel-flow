@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 
 import type { BankAccountDto } from "@/features/bank-accounts/server/dto";
 import type {
+    BlockedMerchantSettlementParcelDto,
     EligibleMerchantSettlementParcelDto,
     MerchantSettlementActionResult,
 } from "@/features/merchant-settlements/server/dto";
@@ -15,6 +16,7 @@ import type {
 type MerchantSettlementPickerProps = {
     merchantId: string;
     parcels: EligibleMerchantSettlementParcelDto[];
+    blockedParcels: BlockedMerchantSettlementParcelDto[];
     bankAccounts: BankAccountDto[];
 };
 
@@ -41,6 +43,7 @@ function formatMmk(value: number | string) {
 export function MerchantSettlementPicker({
     merchantId,
     parcels,
+    blockedParcels,
     bankAccounts,
 }: Readonly<MerchantSettlementPickerProps>) {
     const [state, action, isPending] = useActionState(
@@ -164,6 +167,44 @@ export function MerchantSettlementPicker({
                     </tbody>
                 </table>
             </div>
+
+            {blockedParcels.length > 0 && (
+                <section className="space-y-3 rounded-xl border bg-card p-4">
+                    <div>
+                        <h3 className="text-sm font-semibold">Blocked Parcels</h3>
+                        <p className="text-xs text-muted-foreground">
+                            These COD parcels need cleanup before settlement.
+                        </p>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-muted/40 text-xs uppercase">
+                                <tr>
+                                    <th className="px-3 py-2">Parcel Code</th>
+                                    <th className="px-3 py-2">Recipient</th>
+                                    <th className="px-3 py-2">Township</th>
+                                    <th className="px-3 py-2">Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {blockedParcels.map((parcel) => (
+                                    <tr key={parcel.parcelId} className="border-t">
+                                        <td className="px-3 py-2">{parcel.parcelCode}</td>
+                                        <td className="px-3 py-2">{parcel.recipientName}</td>
+                                        <td className="px-3 py-2">
+                                            {parcel.recipientTownshipName ?? "-"}
+                                        </td>
+                                        <td className="px-3 py-2 text-muted-foreground">
+                                            {parcel.reasons.join(" ")}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            )}
 
             <div className="fixed right-4 bottom-4 left-4 z-20 z-99 rounded-xl border bg-background p-4 shadow-lg md:left-[calc(var(--sidebar-width,0px)+1rem)]">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
