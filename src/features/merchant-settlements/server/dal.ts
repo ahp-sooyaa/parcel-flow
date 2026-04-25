@@ -1,30 +1,37 @@
 import "server-only";
-import { and, count, desc, eq, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import {
+    findSelectableMerchantFinancialItemsWithClient,
+    getMerchantSettlementCandidates,
+    reconcileMerchantFinancialItemsForParcelWithClient,
+    syncLegacyParcelSettlementStateForParcelsWithClient,
+} from "./merchant-financial-item-dal";
 import {
     calculateSettlementItemAmounts,
     calculateSettlementTotals,
-    getMerchantSettlementBlockedReasons,
+    getSettlementStatusAfterGeneration,
     isMerchantSettlementId,
     signSettlementPaymentSlipKeys,
     toSettlementMoneyString,
+    validateSettlementSelectionRows,
 } from "./utils";
 import { db } from "@/db";
 import {
     appUsers,
     bankAccounts,
     merchants,
+    merchantFinancialItems,
     merchantSettlementItems,
     merchantSettlements,
     parcelAuditLogs,
-    parcelPaymentRecords,
     parcels,
     townships,
 } from "@/db/schema";
 import { getMerchantSettlementAccess } from "@/features/auth/server/policies/merchant-settlements";
 
 import type {
-    BlockedMerchantSettlementParcelDto,
-    EligibleMerchantSettlementParcelDto,
+    MerchantFinancialDirection,
+    MerchantFinancialItemKind,
     MerchantSettlementDetailDto,
     MerchantSettlementHistoryDto,
     MerchantSettlementItemDto,
@@ -45,61 +52,6 @@ type SettlementListBaseRow = Omit<
     MerchantSettlementListItemDto,
     "createdByName" | "confirmedByName" | "itemCount"
 >;
-
-function settlementEligibilityWhere(merchantId: string, paymentRecordIds?: string[]) {
-    return and(
-        eq(parcels.merchantId, merchantId),
-        eq(parcels.status, "delivered"),
-        eq(parcels.parcelType, "cod"),
-        eq(parcelPaymentRecords.codStatus, "collected"),
-        eq(parcelPaymentRecords.collectionStatus, "received_by_office"),
-        eq(parcelPaymentRecords.merchantSettlementStatus, "pending"),
-        isNull(parcelPaymentRecords.merchantSettlementId),
-        or(
-            ne(parcels.deliveryFeePayer, "merchant"),
-            ne(parcelPaymentRecords.deliveryFeeStatus, "unpaid"),
-        ),
-        or(
-            ne(parcelPaymentRecords.deliveryFeeStatus, "deduct_from_settlement"),
-            and(
-                eq(parcels.deliveryFeePayer, "merchant"),
-                sql`${parcels.deliveryFee} > 0`,
-                sql`${parcels.codAmount} > ${parcels.deliveryFee}`,
-            ),
-        ),
-        paymentRecordIds?.length ? inArray(parcelPaymentRecords.id, paymentRecordIds) : undefined,
-    );
-}
-
-function settlementLockWhere(merchantId: string, paymentRecordIds: string[]) {
-    return and(
-        eq(parcelPaymentRecords.codStatus, "collected"),
-        eq(parcelPaymentRecords.collectionStatus, "received_by_office"),
-        eq(parcelPaymentRecords.merchantSettlementStatus, "pending"),
-        isNull(parcelPaymentRecords.merchantSettlementId),
-        inArray(parcelPaymentRecords.id, paymentRecordIds),
-        sql`exists (
-            select 1
-            from ${parcels}
-            where ${parcels.id} = ${parcelPaymentRecords.parcelId}
-                and ${parcels.merchantId} = ${merchantId}
-                and ${parcels.status} = ${"delivered"}
-                and ${parcels.parcelType} = ${"cod"}
-                and (
-                    ${parcels.deliveryFeePayer} <> ${"merchant"}
-                    or ${parcelPaymentRecords.deliveryFeeStatus} <> ${"unpaid"}
-                )
-                and (
-                    ${parcelPaymentRecords.deliveryFeeStatus} <> ${"deduct_from_settlement"}
-                    or (
-                        ${parcels.deliveryFeePayer} = ${"merchant"}
-                        and ${parcels.deliveryFee} > 0
-                        and ${parcels.codAmount} > ${parcels.deliveryFee}
-                    )
-                )
-        )`,
-    );
-}
 
 function toSettlementSearchPattern(query: string) {
     const trimmed = query.trim();
@@ -122,32 +74,55 @@ function settlementListWhere(input: MerchantSettlementListQuery) {
     );
 }
 
+function absoluteSettlementAmountSql() {
+    return sql<string>`abs(${merchantSettlementItems.netPayableAmount})`;
+}
+
 async function getSettlementSummaries(settlementIds: string[]) {
     if (settlementIds.length === 0) {
         return new Map<string, SettlementSummary>();
     }
 
+    const amountSql = absoluteSettlementAmountSql();
     const rows = await db
         .select({
             settlementId: merchantSettlementItems.merchantSettlementId,
             itemCount: count(merchantSettlementItems.id),
-            codSubtotal: sql<string>`
-                coalesce(sum(${merchantSettlementItems.snapshotCodAmount}), 0)::numeric(12, 2)::text
-            `,
-            deliveryFeeDeductedTotal: sql<string>`
+            creditsTotal: sql<string>`
                 coalesce(
                     sum(
                         case
-                            when ${merchantSettlementItems.isDeliveryFeeDeducted}
-                            then ${merchantSettlementItems.snapshotDeliveryFee}
+                            when ${merchantSettlementItems.direction} = 'company_owes_merchant'
+                            then ${amountSql}
                             else 0
                         end
                     ),
                     0
                 )::numeric(12, 2)::text
             `,
-            netPayableTotal: sql<string>`
-                coalesce(sum(${merchantSettlementItems.netPayableAmount}), 0)::numeric(12, 2)::text
+            debitsTotal: sql<string>`
+                coalesce(
+                    sum(
+                        case
+                            when ${merchantSettlementItems.direction} = 'merchant_owes_company'
+                            then ${amountSql}
+                            else 0
+                        end
+                    ),
+                    0
+                )::numeric(12, 2)::text
+            `,
+            netTotal: sql<string>`
+                coalesce(
+                    sum(
+                        case
+                            when ${merchantSettlementItems.direction} = 'company_owes_merchant'
+                            then ${amountSql}
+                            else ${amountSql} * -1
+                        end
+                    ),
+                    0
+                )::numeric(12, 2)::text
             `,
         })
         .from(merchantSettlementItems)
@@ -159,9 +134,9 @@ async function getSettlementSummaries(settlementIds: string[]) {
             row.settlementId,
             {
                 itemCount: row.itemCount,
-                codSubtotal: row.codSubtotal,
-                deliveryFeeDeductedTotal: row.deliveryFeeDeductedTotal,
-                netPayableTotal: row.netPayableTotal,
+                creditsTotal: row.creditsTotal,
+                debitsTotal: row.debitsTotal,
+                netTotal: row.netTotal,
             },
         ]),
     );
@@ -186,7 +161,10 @@ async function shapeSettlementListRows<TSettlement extends SettlementListBaseRow
     settlementRows: TSettlement[],
 ): Promise<
     (TSettlement &
-        Pick<MerchantSettlementListItemDto, "createdByName" | "confirmedByName" | "itemCount">)[]
+        Pick<
+            MerchantSettlementListItemDto,
+            "createdByName" | "confirmedByName" | "itemCount" | "creditsTotal" | "debitsTotal"
+        >)[]
 > {
     const settlementIds = settlementRows.map((settlement) => settlement.id);
     const actorNameById = await getActorNameById(
@@ -203,7 +181,9 @@ async function shapeSettlementListRows<TSettlement extends SettlementListBaseRow
 
         return {
             ...settlement,
-            totalAmount: summary?.netPayableTotal ?? settlement.totalAmount,
+            totalAmount: summary?.netTotal ?? settlement.totalAmount,
+            creditsTotal: summary?.creditsTotal ?? settlement.creditsTotal,
+            debitsTotal: summary?.debitsTotal ?? settlement.debitsTotal,
             itemCount: summary?.itemCount ?? 0,
             createdByName: actorNameById.get(settlement.createdBy) ?? settlement.createdBy,
             confirmedByName: settlement.confirmedBy
@@ -213,66 +193,114 @@ async function shapeSettlementListRows<TSettlement extends SettlementListBaseRow
     });
 }
 
-async function listEligibleMerchantSettlementParcels(
-    merchantId: string,
-): Promise<EligibleMerchantSettlementParcelDto[]> {
-    const rows = await db
-        .select({
-            parcelId: parcels.id,
-            parcelCode: parcels.parcelCode,
-            paymentRecordId: parcelPaymentRecords.id,
-            recipientName: parcels.recipientName,
-            recipientTownshipName: townships.name,
-            codAmount: parcels.codAmount,
-            deliveryFee: parcels.deliveryFee,
-            deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
-        })
-        .from(parcelPaymentRecords)
-        .innerJoin(parcels, eq(parcelPaymentRecords.parcelId, parcels.id))
-        .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
-        .where(settlementEligibilityWhere(merchantId))
-        .orderBy(desc(parcels.createdAt), desc(parcels.id));
+function getSettlementNetAmount(input: { amount: string; direction: MerchantFinancialDirection }) {
+    const amount = Number(input.amount);
 
-    return rows.map((row) => ({
-        ...row,
-        ...calculateSettlementItemAmounts(row),
-    }));
+    return toSettlementMoneyString(
+        input.direction === "company_owes_merchant" ? amount : amount * -1,
+    );
 }
 
-async function listBlockedMerchantSettlementParcels(
-    merchantId: string,
-): Promise<BlockedMerchantSettlementParcelDto[]> {
-    const rows = await db
-        .select({
-            parcelId: parcels.id,
-            parcelCode: parcels.parcelCode,
-            recipientName: parcels.recipientName,
-            recipientTownshipName: townships.name,
-            parcelStatus: parcels.status,
-            codStatus: parcelPaymentRecords.codStatus,
-            codAmount: parcels.codAmount,
-            deliveryFee: parcels.deliveryFee,
-            collectionStatus: parcelPaymentRecords.collectionStatus,
-            deliveryFeePayer: parcels.deliveryFeePayer,
-            deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
-            merchantSettlementStatus: parcelPaymentRecords.merchantSettlementStatus,
-            merchantSettlementId: parcelPaymentRecords.merchantSettlementId,
-        })
-        .from(parcelPaymentRecords)
-        .innerJoin(parcels, eq(parcelPaymentRecords.parcelId, parcels.id))
-        .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
-        .where(and(eq(parcels.merchantId, merchantId), eq(parcels.parcelType, "cod")))
-        .orderBy(desc(parcels.createdAt), desc(parcels.id));
+function buildSettlementItemSnapshot(input: {
+    merchantFinancialItemId: string;
+    sourceParcelId: string | null;
+    sourcePaymentRecordId: string | null;
+    kind: MerchantFinancialItemKind;
+    direction: MerchantFinancialDirection;
+    amount: string;
+    codAmount: string | null;
+    deliveryFee: string | null;
+    deliveryFeeStatus: string | null;
+}) {
+    if (input.kind === "cod_remit_credit") {
+        const amounts = calculateSettlementItemAmounts({
+            codAmount: input.codAmount ?? "0",
+            deliveryFee: input.deliveryFee ?? "0",
+            deliveryFeeStatus: (input.deliveryFeeStatus ?? "unpaid") as
+                | "unpaid"
+                | "paid_by_merchant"
+                | "collected_from_receiver"
+                | "deduct_from_settlement"
+                | "bill_merchant"
+                | "waived",
+        });
 
-    return rows
-        .map((row) => ({
-            parcelId: row.parcelId,
-            parcelCode: row.parcelCode,
-            recipientName: row.recipientName,
-            recipientTownshipName: row.recipientTownshipName,
-            reasons: getMerchantSettlementBlockedReasons(row),
-        }))
-        .filter((row) => row.reasons.length > 0);
+        return {
+            merchantFinancialItemId: input.merchantFinancialItemId,
+            parcelId: input.sourceParcelId,
+            parcelPaymentRecordId: input.sourcePaymentRecordId,
+            candidateKind: input.kind,
+            direction: input.direction,
+            snapshotAmount: input.amount,
+            snapshotCodAmount: amounts.snapshotCodAmount,
+            snapshotDeliveryFee: amounts.snapshotDeliveryFee,
+            isDeliveryFeeDeducted: amounts.isDeliveryFeeDeducted,
+            netPayableAmount: amounts.netPayableAmount,
+        };
+    }
+
+    const deliveryFee = input.deliveryFee ?? input.amount;
+    const netPayableAmount = getSettlementNetAmount({
+        amount: input.amount,
+        direction: input.direction,
+    });
+
+    return {
+        merchantFinancialItemId: input.merchantFinancialItemId,
+        parcelId: input.sourceParcelId,
+        parcelPaymentRecordId: input.sourcePaymentRecordId,
+        candidateKind: input.kind,
+        direction: input.direction,
+        snapshotAmount: input.amount,
+        snapshotCodAmount: "0.00",
+        snapshotDeliveryFee: deliveryFee,
+        isDeliveryFeeDeducted: false,
+        netPayableAmount,
+    };
+}
+
+async function findSettlementBankAccount(
+    client: Pick<typeof db, "select">,
+    input: {
+        bankAccountId: string | null;
+        merchantId: string;
+        direction: "remit" | "invoice" | "balanced";
+    },
+) {
+    if (input.direction === "balanced") {
+        return null;
+    }
+
+    if (!input.bankAccountId) {
+        throw new Error("A bank account is required for this settlement.");
+    }
+
+    const [bankAccount] = await client
+        .select({
+            id: bankAccounts.id,
+            bankName: bankAccounts.bankName,
+            bankAccountNumber: bankAccounts.bankAccountNumber,
+        })
+        .from(bankAccounts)
+        .where(
+            and(
+                eq(bankAccounts.id, input.bankAccountId),
+                isNull(bankAccounts.deletedAt),
+                input.direction === "remit"
+                    ? and(
+                          eq(bankAccounts.appUserId, input.merchantId),
+                          eq(bankAccounts.isCompanyAccount, false),
+                      )
+                    : and(eq(bankAccounts.isCompanyAccount, true), isNull(bankAccounts.appUserId)),
+            ),
+        )
+        .limit(1);
+
+    if (!bankAccount) {
+        throw new Error("Selected bank account was not found for this settlement direction.");
+    }
+
+    return bankAccount;
 }
 
 export async function getMerchantSettlementSelectionForViewer(
@@ -280,26 +308,10 @@ export async function getMerchantSettlementSelectionForViewer(
     merchantId: string,
 ): Promise<MerchantSettlementSelectionDto> {
     if (!getMerchantSettlementAccess(viewer).canCreate) {
-        return { eligibleParcels: [], blockedParcels: [] };
+        return { readyCandidates: [], blockedCandidates: [] };
     }
 
-    const [eligibleParcels, blockedParcels] = await Promise.all([
-        listEligibleMerchantSettlementParcels(merchantId),
-        listBlockedMerchantSettlementParcels(merchantId),
-    ]);
-
-    return { eligibleParcels, blockedParcels };
-}
-
-export async function getEligibleMerchantSettlementParcelsForViewer(
-    viewer: AppAccessViewer,
-    merchantId: string,
-): Promise<EligibleMerchantSettlementParcelDto[]> {
-    if (!getMerchantSettlementAccess(viewer).canCreate) {
-        return [];
-    }
-
-    return listEligibleMerchantSettlementParcels(merchantId);
+    return getMerchantSettlementCandidates(merchantId);
 }
 
 export async function getMerchantSettlementHistoryForViewer(
@@ -317,6 +329,8 @@ export async function getMerchantSettlementHistoryForViewer(
             merchantId: merchantSettlements.merchantId,
             merchantLabel: merchants.shopName,
             totalAmount: merchantSettlements.totalAmount,
+            creditsTotal: merchantSettlements.creditsTotal,
+            debitsTotal: merchantSettlements.debitsTotal,
             method: merchantSettlements.method,
             snapshotBankName: merchantSettlements.snapshotBankName,
             snapshotBankAccountNumber: merchantSettlements.snapshotBankAccountNumber,
@@ -382,6 +396,8 @@ export async function getMerchantSettlementsListForViewer(
                       merchantId: merchantSettlements.merchantId,
                       merchantLabel: merchants.shopName,
                       totalAmount: merchantSettlements.totalAmount,
+                      creditsTotal: merchantSettlements.creditsTotal,
+                      debitsTotal: merchantSettlements.debitsTotal,
                       method: merchantSettlements.method,
                       snapshotBankName: merchantSettlements.snapshotBankName,
                       snapshotBankAccountNumber: merchantSettlements.snapshotBankAccountNumber,
@@ -429,6 +445,8 @@ export async function getMerchantSettlementDetailForViewer(
             merchantId: merchantSettlements.merchantId,
             merchantLabel: merchants.shopName,
             totalAmount: merchantSettlements.totalAmount,
+            creditsTotal: merchantSettlements.creditsTotal,
+            debitsTotal: merchantSettlements.debitsTotal,
             method: merchantSettlements.method,
             snapshotBankName: merchantSettlements.snapshotBankName,
             snapshotBankAccountNumber: merchantSettlements.snapshotBankAccountNumber,
@@ -453,10 +471,14 @@ export async function getMerchantSettlementDetailForViewer(
     const itemRows = await db
         .select({
             id: merchantSettlementItems.id,
-            parcelId: parcels.id,
+            merchantFinancialItemId: merchantSettlementItems.merchantFinancialItemId,
+            parcelId: merchantSettlementItems.parcelId,
             parcelCode: parcels.parcelCode,
             recipientName: parcels.recipientName,
             recipientTownshipName: townships.name,
+            candidateKind: merchantSettlementItems.candidateKind,
+            direction: merchantSettlementItems.direction,
+            snapshotAmount: merchantSettlementItems.snapshotAmount,
             snapshotCodAmount: merchantSettlementItems.snapshotCodAmount,
             snapshotDeliveryFee: merchantSettlementItems.snapshotDeliveryFee,
             isDeliveryFeeDeducted: merchantSettlementItems.isDeliveryFeeDeducted,
@@ -464,11 +486,7 @@ export async function getMerchantSettlementDetailForViewer(
             createdAt: merchantSettlementItems.createdAt,
         })
         .from(merchantSettlementItems)
-        .innerJoin(
-            parcelPaymentRecords,
-            eq(merchantSettlementItems.parcelPaymentRecordId, parcelPaymentRecords.id),
-        )
-        .innerJoin(parcels, eq(parcelPaymentRecords.parcelId, parcels.id))
+        .leftJoin(parcels, eq(merchantSettlementItems.parcelId, parcels.id))
         .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
         .where(eq(merchantSettlementItems.merchantSettlementId, settlementId))
         .orderBy(desc(merchantSettlementItems.createdAt), desc(merchantSettlementItems.id));
@@ -479,8 +497,7 @@ export async function getMerchantSettlementDetailForViewer(
             Boolean(value),
         ),
     );
-    const shapedRows = await shapeSettlementListRows([settlementRow]);
-    const [shapedSettlement] = shapedRows;
+    const [shapedSettlement] = await shapeSettlementListRows([settlementRow]);
     const paymentSlipImageKeys = settlementRow.paymentSlipImageKeys ?? [];
     const paymentSlipImages =
         input.signPaymentSlips === false
@@ -508,7 +525,11 @@ export async function getMerchantSettlementDetailForViewer(
 
 export async function findConfirmableMerchantSettlement(settlementId: string) {
     const [settlement] = await db
-        .select({ id: merchantSettlements.id })
+        .select({
+            id: merchantSettlements.id,
+            type: merchantSettlements.type,
+            status: merchantSettlements.status,
+        })
         .from(merchantSettlements)
         .where(
             and(
@@ -523,118 +544,145 @@ export async function findConfirmableMerchantSettlement(settlementId: string) {
 
 export async function generateMerchantSettlement(input: {
     merchantId: string;
-    bankAccountId: string;
-    paymentRecordIds: string[];
+    bankAccountId: string | null;
+    financialItemIds: string[];
     actorAppUserId: string;
 }) {
     return db.transaction(async (tx) => {
-        const [bankAccount] = await tx
-            .select({
-                id: bankAccounts.id,
-                bankName: bankAccounts.bankName,
-                bankAccountNumber: bankAccounts.bankAccountNumber,
-            })
-            .from(bankAccounts)
-            .where(
-                and(
-                    eq(bankAccounts.id, input.bankAccountId),
-                    eq(bankAccounts.appUserId, input.merchantId),
-                    eq(bankAccounts.isCompanyAccount, false),
-                    isNull(bankAccounts.deletedAt),
-                ),
-            )
-            .limit(1);
+        const candidateRows = await findSelectableMerchantFinancialItemsWithClient(tx, {
+            merchantId: input.merchantId,
+            financialItemIds: input.financialItemIds,
+        });
+        const selectionGuard = validateSettlementSelectionRows({
+            expectedMerchantId: input.merchantId,
+            selectedIds: input.financialItemIds,
+            selectedRows: candidateRows.map((row) => ({
+                id: row.id,
+                merchantId: row.merchantId,
+                readiness: row.readiness,
+                lifecycleState: row.lifecycleState,
+            })),
+        });
 
-        if (!bankAccount) {
-            throw new Error("Selected merchant bank account was not found.");
+        if (!selectionGuard.ok) {
+            throw new Error(selectionGuard.message);
         }
 
-        const eligibleRows = await tx
-            .select({
-                parcelId: parcels.id,
-                parcelCode: parcels.parcelCode,
-                paymentRecordId: parcelPaymentRecords.id,
-                codAmount: parcels.codAmount,
-                deliveryFee: parcels.deliveryFee,
-                deliveryFeeStatus: parcelPaymentRecords.deliveryFeeStatus,
-            })
-            .from(parcelPaymentRecords)
-            .innerJoin(parcels, eq(parcelPaymentRecords.parcelId, parcels.id))
-            .where(settlementEligibilityWhere(input.merchantId, input.paymentRecordIds));
-
-        if (eligibleRows.length !== input.paymentRecordIds.length) {
-            throw new Error("Some selected parcels are no longer available for settlement.");
-        }
-
-        const items = eligibleRows.map((row) => ({
-            parcelId: row.parcelId,
-            parcelCode: row.parcelCode,
-            paymentRecordId: row.paymentRecordId,
-            ...calculateSettlementItemAmounts(row),
-        }));
-        const totalAmount = toSettlementMoneyString(
-            items.reduce((sum, item) => sum + Number(item.netPayableAmount), 0),
+        const creditsTotal = candidateRows.reduce(
+            (sum, row) =>
+                sum + (row.direction === "company_owes_merchant" ? Number(row.amount) : 0),
+            0,
         );
-
+        const debitsTotal = candidateRows.reduce(
+            (sum, row) =>
+                sum + (row.direction === "merchant_owes_company" ? Number(row.amount) : 0),
+            0,
+        );
+        const netTotal = creditsTotal - debitsTotal;
+        const direction = netTotal > 0 ? "remit" : netTotal < 0 ? "invoice" : ("balanced" as const);
+        const settlementStatus = getSettlementStatusAfterGeneration(direction);
+        const bankAccount = await findSettlementBankAccount(tx, {
+            bankAccountId: input.bankAccountId,
+            merchantId: input.merchantId,
+            direction,
+        });
         const [settlement] = await tx
             .insert(merchantSettlements)
             .values({
                 merchantId: input.merchantId,
-                bankAccountId: bankAccount.id,
-                totalAmount,
-                snapshotBankName: bankAccount.bankName,
-                snapshotBankAccountNumber: bankAccount.bankAccountNumber,
+                bankAccountId: bankAccount?.id ?? null,
+                creditsTotal: toSettlementMoneyString(creditsTotal),
+                debitsTotal: toSettlementMoneyString(debitsTotal),
+                totalAmount: toSettlementMoneyString(netTotal),
+                snapshotBankName: bankAccount?.bankName ?? null,
+                snapshotBankAccountNumber: bankAccount?.bankAccountNumber ?? null,
                 createdBy: input.actorAppUserId,
-                status: "pending",
+                confirmedBy: settlementStatus === "paid" ? input.actorAppUserId : null,
+                type: direction,
+                status: settlementStatus,
             })
-            .returning({ id: merchantSettlements.id });
-
-        const lockedRows = await tx
-            .update(parcelPaymentRecords)
-            .set({
-                merchantSettlementId: settlement.id,
-                merchantSettlementStatus: "in_progress",
-                updatedAt: new Date(),
-            })
-            .where(settlementLockWhere(input.merchantId, input.paymentRecordIds))
             .returning({
-                id: parcelPaymentRecords.id,
-                parcelId: parcelPaymentRecords.parcelId,
+                id: merchantSettlements.id,
+                merchantId: merchantSettlements.merchantId,
+                status: merchantSettlements.status,
             });
 
-        if (lockedRows.length !== input.paymentRecordIds.length) {
-            throw new Error("Some selected parcels were locked by another settlement.");
+        const nextLifecycleState = settlement.status === "paid" ? "closed" : "locked";
+        const lockedRows = await tx
+            .update(merchantFinancialItems)
+            .set({
+                merchantSettlementId: settlement.id,
+                lifecycleState: nextLifecycleState,
+                updatedAt: new Date(),
+            })
+            .where(
+                and(
+                    eq(merchantFinancialItems.merchantId, input.merchantId),
+                    inArray(merchantFinancialItems.id, input.financialItemIds),
+                    eq(merchantFinancialItems.lifecycleState, "open"),
+                    eq(merchantFinancialItems.readiness, "ready"),
+                    isNull(merchantFinancialItems.merchantSettlementId),
+                ),
+            )
+            .returning({
+                id: merchantFinancialItems.id,
+                sourceParcelId: merchantFinancialItems.sourceParcelId,
+                sourcePaymentRecordId: merchantFinancialItems.sourcePaymentRecordId,
+            });
+
+        if (lockedRows.length !== input.financialItemIds.length) {
+            throw new Error(
+                "Some selected settlement candidates were locked by another settlement.",
+            );
         }
 
         await tx.insert(merchantSettlementItems).values(
-            items.map((item) => ({
+            candidateRows.map((row) => ({
                 merchantSettlementId: settlement.id,
-                parcelPaymentRecordId: item.paymentRecordId,
-                snapshotCodAmount: item.snapshotCodAmount,
-                snapshotDeliveryFee: item.snapshotDeliveryFee,
-                isDeliveryFeeDeducted: item.isDeliveryFeeDeducted,
-                netPayableAmount: item.netPayableAmount,
+                ...buildSettlementItemSnapshot({
+                    merchantFinancialItemId: row.id,
+                    sourceParcelId: row.sourceParcelId,
+                    sourcePaymentRecordId: row.sourcePaymentRecordId,
+                    kind: row.kind,
+                    direction: row.direction,
+                    amount: row.amount,
+                    codAmount: row.codAmount,
+                    deliveryFee: row.deliveryFee,
+                    deliveryFeeStatus: row.deliveryFeeStatus,
+                }),
             })),
         );
 
-        await tx.insert(parcelAuditLogs).values(
-            lockedRows.map((row) => ({
-                parcelId: row.parcelId,
-                updatedBy: input.actorAppUserId,
-                sourceTable: "parcel_payment_records" as const,
-                event: "merchant_settlement.locked",
-                oldValues: {
-                    merchantSettlementId: null,
-                    merchantSettlementStatus: "pending",
-                },
-                newValues: {
-                    merchantSettlementId: settlement.id,
-                    merchantSettlementStatus: "in_progress",
-                },
-            })),
+        const affectedParcelIds = Array.from(
+            new Set(
+                lockedRows
+                    .map((row) => row.sourceParcelId)
+                    .filter((value): value is string => Boolean(value)),
+            ),
         );
 
-        return { settlementId: settlement.id, merchantId: input.merchantId };
+        await syncLegacyParcelSettlementStateForParcelsWithClient(tx, affectedParcelIds);
+
+        if (affectedParcelIds.length > 0) {
+            await tx.insert(parcelAuditLogs).values(
+                affectedParcelIds.map((parcelId) => ({
+                    parcelId,
+                    updatedBy: input.actorAppUserId,
+                    sourceTable: "parcel_payment_records" as const,
+                    event:
+                        settlement.status === "paid"
+                            ? "merchant_settlement.paid"
+                            : "merchant_settlement.locked",
+                    oldValues: null,
+                    newValues: {
+                        merchantSettlementId: settlement.id,
+                        merchantSettlementStatus: settlement.status,
+                    },
+                })),
+            );
+        }
+
+        return { settlementId: settlement.id, merchantId: settlement.merchantId };
     });
 }
 
@@ -670,25 +718,38 @@ export async function confirmMerchantSettlementPayment(input: {
         }
 
         const settledRows = await tx
-            .update(parcelPaymentRecords)
+            .update(merchantFinancialItems)
             .set({
-                merchantSettlementStatus: "settled",
+                lifecycleState: "closed",
                 updatedAt: new Date(),
             })
-            .where(eq(parcelPaymentRecords.merchantSettlementId, input.settlementId))
+            .where(eq(merchantFinancialItems.merchantSettlementId, input.settlementId))
             .returning({
-                parcelId: parcelPaymentRecords.parcelId,
+                sourceParcelId: merchantFinancialItems.sourceParcelId,
             });
 
-        if (settledRows.length > 0) {
+        const affectedParcelIds = Array.from(
+            new Set(
+                settledRows
+                    .map((row) => row.sourceParcelId)
+                    .filter((value): value is string => Boolean(value)),
+            ),
+        );
+
+        await syncLegacyParcelSettlementStateForParcelsWithClient(tx, affectedParcelIds);
+
+        if (affectedParcelIds.length > 0) {
             await tx.insert(parcelAuditLogs).values(
-                settledRows.map((row) => ({
-                    parcelId: row.parcelId,
+                affectedParcelIds.map((parcelId) => ({
+                    parcelId,
                     updatedBy: input.actorAppUserId,
                     sourceTable: "parcel_payment_records" as const,
                     event: "merchant_settlement.paid",
-                    oldValues: { merchantSettlementStatus: "in_progress" },
-                    newValues: { merchantSettlementStatus: "settled" },
+                    oldValues: null,
+                    newValues: {
+                        merchantSettlementId: input.settlementId,
+                        merchantSettlementStatus: "paid",
+                    },
                 })),
             );
         }
@@ -725,32 +786,38 @@ export async function cancelOrRejectMerchantSettlement(input: {
         }
 
         const releasedRows = await tx
-            .update(parcelPaymentRecords)
+            .update(merchantFinancialItems)
             .set({
                 merchantSettlementId: null,
-                merchantSettlementStatus: "pending",
+                lifecycleState: "open",
                 updatedAt: new Date(),
             })
-            .where(eq(parcelPaymentRecords.merchantSettlementId, input.settlementId))
+            .where(eq(merchantFinancialItems.merchantSettlementId, input.settlementId))
             .returning({
-                parcelId: parcelPaymentRecords.parcelId,
+                sourceParcelId: merchantFinancialItems.sourceParcelId,
             });
 
-        if (releasedRows.length > 0) {
+        const affectedParcelIds = Array.from(
+            new Set(
+                releasedRows
+                    .map((row) => row.sourceParcelId)
+                    .filter((value): value is string => Boolean(value)),
+            ),
+        );
+
+        for (const parcelId of affectedParcelIds) {
+            await reconcileMerchantFinancialItemsForParcelWithClient(tx, parcelId);
+        }
+
+        if (affectedParcelIds.length > 0) {
             await tx.insert(parcelAuditLogs).values(
-                releasedRows.map((row) => ({
-                    parcelId: row.parcelId,
+                affectedParcelIds.map((parcelId) => ({
+                    parcelId,
                     updatedBy: input.actorAppUserId,
                     sourceTable: "parcel_payment_records" as const,
                     event: `merchant_settlement.${input.status}`,
-                    oldValues: {
-                        merchantSettlementId: input.settlementId,
-                        merchantSettlementStatus: "in_progress",
-                    },
-                    newValues: {
-                        merchantSettlementId: null,
-                        merchantSettlementStatus: "pending",
-                    },
+                    oldValues: { merchantSettlementId: input.settlementId },
+                    newValues: { merchantSettlementId: null, merchantSettlementStatus: "pending" },
                 })),
             );
         }

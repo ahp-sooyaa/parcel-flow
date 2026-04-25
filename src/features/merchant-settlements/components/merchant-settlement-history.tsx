@@ -66,6 +66,13 @@ function formatDate(value: Date) {
     return `${parts.month} ${parts.day}, ${parts.year}, ${parts.hour}:${parts.minute} ${parts.dayPeriod}`;
 }
 
+function formatDirection(value: MerchantSettlementHistoryDto["type"]) {
+    return value
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+}
+
 function isEditableSettlement(status: MerchantSettlementHistoryDto["status"]) {
     return status === "pending" || status === "in_progress";
 }
@@ -121,9 +128,12 @@ function SettlementHistoryItem({
                         <span className="rounded-full border px-2 py-0.5 text-xs font-medium">
                             {settlement.status}
                         </span>
+                        <span className="rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                            {formatDirection(settlement.type)}
+                        </span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                        {settlement.itemCount} parcels · {formatDate(settlement.createdAt)}
+                        {settlement.itemCount} items · {formatDate(settlement.createdAt)}
                     </p>
                 </div>
 
@@ -139,12 +149,24 @@ function SettlementHistoryItem({
 
             <dl className="grid gap-3 text-sm md:grid-cols-3">
                 <div className="grid gap-1">
+                    <dt className="text-xs text-muted-foreground">Credits</dt>
+                    <dd className="tabular-nums">{formatMmk(settlement.creditsTotal)}</dd>
+                </div>
+                <div className="grid gap-1">
+                    <dt className="text-xs text-muted-foreground">Debits</dt>
+                    <dd className="tabular-nums">{formatMmk(settlement.debitsTotal)}</dd>
+                </div>
+                <div className="grid gap-1">
+                    <dt className="text-xs text-muted-foreground">Net</dt>
+                    <dd className="tabular-nums">{formatMmk(settlement.totalAmount)}</dd>
+                </div>
+                <div className="grid gap-1">
                     <dt className="text-xs text-muted-foreground">Bank</dt>
-                    <dd>{settlement.snapshotBankName}</dd>
+                    <dd>{settlement.snapshotBankName ?? "-"}</dd>
                 </div>
                 <div className="grid gap-1">
                     <dt className="text-xs text-muted-foreground">Account Number</dt>
-                    <dd>{settlement.snapshotBankAccountNumber}</dd>
+                    <dd>{settlement.snapshotBankAccountNumber ?? "-"}</dd>
                 </div>
                 <div className="grid gap-1">
                     <dt className="text-xs text-muted-foreground">Reference</dt>

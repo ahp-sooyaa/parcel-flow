@@ -32,6 +32,7 @@ import {
     getRiderParcelActionAccess,
 } from "@/features/auth/server/policies/parcels";
 import { isAdminRole } from "@/features/auth/server/policies/shared";
+import { reconcileMerchantFinancialItemsForParcelWithClient } from "@/features/merchant-settlements/server/merchant-financial-item-dal";
 import {
     getDefaultParcelListQuery,
     normalizePatchValue,
@@ -621,6 +622,7 @@ export async function createParcelWithPaymentAndAudit(input: {
         };
 
         await tx.insert(parcelAuditLogs).values([parcelAuditPayload, paymentAuditPayload]);
+        await reconcileMerchantFinancialItemsForParcelWithClient(tx, parcel.id);
 
         return { parcelId: parcel.id, paymentRecordId: payment.id };
     });
@@ -758,6 +760,8 @@ export async function updateParcelAndPaymentWithAudit(input: {
                     : input.paymentPatch,
             });
         }
+
+        await reconcileMerchantFinancialItemsForParcelWithClient(tx, input.parcelId);
     });
 }
 

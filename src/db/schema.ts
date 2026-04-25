@@ -54,7 +54,7 @@ const COLLECTION_STATUS_VALUES = [
 const SETTLEMENT_STATUS_VALUES = ["pending", "in_progress", "settled"] as const;
 const PAYOUT_STATUS_VALUES = ["pending", "in_progress", "paid"] as const;
 const PARCEL_AUDIT_SOURCE_VALUES = ["parcels", "parcel_payment_records"] as const;
-const MERCHANT_SETTLEMENT_TYPE_VALUES = ["invoice", "remit"] as const;
+const MERCHANT_SETTLEMENT_TYPE_VALUES = ["invoice", "remit", "balanced"] as const;
 const MERCHANT_SETTLEMENT_RECORD_STATUS_VALUES = [
     "pending",
     "in_progress",
@@ -62,6 +62,18 @@ const MERCHANT_SETTLEMENT_RECORD_STATUS_VALUES = [
     "cancelled",
     "rejected",
 ] as const;
+const MERCHANT_FINANCIAL_ITEM_KIND_VALUES = [
+    "cod_remit_credit",
+    "delivery_fee_charge",
+    "refund_credit",
+    "manual_adjustment",
+] as const;
+const MERCHANT_FINANCIAL_DIRECTION_VALUES = [
+    "company_owes_merchant",
+    "merchant_owes_company",
+] as const;
+const MERCHANT_FINANCIAL_READINESS_VALUES = ["ready", "blocked"] as const;
+const MERCHANT_FINANCIAL_LIFECYCLE_VALUES = ["open", "locked", "closed", "void"] as const;
 
 export const roles = pgTable(
     "roles",
@@ -343,13 +355,15 @@ export const merchantSettlements = pgTable(
         merchantId: uuid("merchant_id")
             .notNull()
             .references(() => merchants.appUserId, { onDelete: "restrict" }),
-        bankAccountId: uuid("bank_account_id")
-            .notNull()
-            .references(() => bankAccounts.id, { onDelete: "restrict" }),
+        bankAccountId: uuid("bank_account_id").references(() => bankAccounts.id, {
+            onDelete: "restrict",
+        }),
+        creditsTotal: numeric("credits_total", { precision: 12, scale: 2 }).notNull().default("0"),
+        debitsTotal: numeric("debits_total", { precision: 12, scale: 2 }).notNull().default("0"),
         totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).notNull().default("0"),
         method: text("method").notNull().default("bank_transfer"),
-        snapshotBankName: text("snapshot_bank_name").notNull(),
-        snapshotBankAccountNumber: text("snapshot_bank_account_number").notNull(),
+        snapshotBankName: text("snapshot_bank_name"),
+        snapshotBankAccountNumber: text("snapshot_bank_account_number"),
         createdBy: uuid("created_by")
             .notNull()
             .references(() => appUsers.id, { onDelete: "restrict" }),
@@ -502,6 +516,59 @@ export const parcelPaymentRecords = pgTable(
     ],
 );
 
+export const merchantFinancialItems = pgTable(
+    "merchant_financial_items",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        merchantId: uuid("merchant_id")
+            .notNull()
+            .references(() => merchants.appUserId, { onDelete: "restrict" }),
+        sourceObligationKey: text("source_obligation_key").notNull(),
+        sourceParcelId: uuid("source_parcel_id").references(() => parcels.id, {
+            onDelete: "restrict",
+        }),
+        sourcePaymentRecordId: uuid("source_payment_record_id").references(
+            () => parcelPaymentRecords.id,
+            {
+                onDelete: "restrict",
+            },
+        ),
+        merchantSettlementId: uuid("merchant_settlement_id").references(
+            () => merchantSettlements.id,
+            {
+                onDelete: "set null",
+            },
+        ),
+        kind: text("kind", { enum: MERCHANT_FINANCIAL_ITEM_KIND_VALUES }).notNull(),
+        direction: text("direction", { enum: MERCHANT_FINANCIAL_DIRECTION_VALUES }).notNull(),
+        amount: numeric("amount", { precision: 12, scale: 2 }).notNull().default("0"),
+        readiness: text("readiness", { enum: MERCHANT_FINANCIAL_READINESS_VALUES })
+            .notNull()
+            .default("blocked"),
+        blockedReasons: jsonb("blocked_reasons").$type<string[]>().notNull().default([]),
+        lifecycleState: text("lifecycle_state", { enum: MERCHANT_FINANCIAL_LIFECYCLE_VALUES })
+            .notNull()
+            .default("open"),
+        note: text("note"),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    },
+    (table) => [
+        index("merchant_financial_items_merchant_idx").on(table.merchantId),
+        index("merchant_financial_items_merchant_readiness_idx").on(
+            table.merchantId,
+            table.lifecycleState,
+            table.readiness,
+        ),
+        index("merchant_financial_items_parcel_idx").on(table.sourceParcelId),
+        index("merchant_financial_items_payment_record_idx").on(table.sourcePaymentRecordId),
+        index("merchant_financial_items_settlement_idx").on(table.merchantSettlementId),
+        uniqueIndex("merchant_financial_items_source_obligation_uidx")
+            .on(table.merchantId, table.sourceObligationKey)
+            .where(sql`${table.lifecycleState} <> 'void'`),
+    ],
+);
+
 export const merchantSettlementItems = pgTable(
     "merchant_settlement_items",
     {
@@ -509,9 +576,24 @@ export const merchantSettlementItems = pgTable(
         merchantSettlementId: uuid("merchant_settlement_id")
             .notNull()
             .references(() => merchantSettlements.id, { onDelete: "cascade" }),
-        parcelPaymentRecordId: uuid("parcel_payment_record_id")
+        merchantFinancialItemId: uuid("merchant_financial_item_id").references(
+            () => merchantFinancialItems.id,
+            { onDelete: "restrict" },
+        ),
+        parcelId: uuid("parcel_id").references(() => parcels.id, { onDelete: "restrict" }),
+        parcelPaymentRecordId: uuid("parcel_payment_record_id").references(
+            () => parcelPaymentRecords.id,
+            { onDelete: "restrict" },
+        ),
+        candidateKind: text("candidate_kind", { enum: MERCHANT_FINANCIAL_ITEM_KIND_VALUES })
             .notNull()
-            .references(() => parcelPaymentRecords.id, { onDelete: "restrict" }),
+            .default("cod_remit_credit"),
+        direction: text("direction", { enum: MERCHANT_FINANCIAL_DIRECTION_VALUES })
+            .notNull()
+            .default("company_owes_merchant"),
+        snapshotAmount: numeric("snapshot_amount", { precision: 12, scale: 2 })
+            .notNull()
+            .default("0"),
         snapshotCodAmount: numeric("snapshot_cod_amount", { precision: 12, scale: 2 })
             .notNull()
             .default("0"),
@@ -527,10 +609,12 @@ export const merchantSettlementItems = pgTable(
     },
     (table) => [
         index("merchant_settlement_items_settlement_idx").on(table.merchantSettlementId),
+        index("merchant_settlement_items_financial_item_idx").on(table.merchantFinancialItemId),
+        index("merchant_settlement_items_parcel_idx").on(table.parcelId),
         index("merchant_settlement_items_payment_record_idx").on(table.parcelPaymentRecordId),
-        uniqueIndex("merchant_settlement_items_settlement_payment_uidx").on(
+        uniqueIndex("merchant_settlement_items_settlement_financial_item_uidx").on(
             table.merchantSettlementId,
-            table.parcelPaymentRecordId,
+            table.merchantFinancialItemId,
         ),
     ],
 );
@@ -573,6 +657,8 @@ export type BankAccount = typeof bankAccounts.$inferSelect;
 export type NewBankAccount = typeof bankAccounts.$inferInsert;
 export type MerchantSettlement = typeof merchantSettlements.$inferSelect;
 export type NewMerchantSettlement = typeof merchantSettlements.$inferInsert;
+export type MerchantFinancialItem = typeof merchantFinancialItems.$inferSelect;
+export type NewMerchantFinancialItem = typeof merchantFinancialItems.$inferInsert;
 export type MerchantSettlementItem = typeof merchantSettlementItems.$inferSelect;
 export type NewMerchantSettlementItem = typeof merchantSettlementItems.$inferInsert;
 export type Parcel = typeof parcels.$inferSelect;

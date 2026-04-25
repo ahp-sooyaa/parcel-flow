@@ -20,6 +20,7 @@ type MerchantSettlementPaymentActionsProps = {
     settlement: {
         id: string;
         status: MerchantSettlementStatus;
+        type: "invoice" | "remit" | "balanced";
     };
     permissions: {
         canConfirm: boolean;
@@ -80,8 +81,8 @@ export function MerchantSettlementPaymentActions({
             <div>
                 <h2 className="text-lg font-semibold">Settlement Actions</h2>
                 <p className="text-sm text-muted-foreground">
-                    Confirm payment after the bank transfer is complete, or release parcels by
-                    cancelling or rejecting the settlement.
+                    Confirm settlement payment for remit or invoice documents, or release locked
+                    settlement items by cancelling or rejecting the document.
                 </p>
             </div>
 

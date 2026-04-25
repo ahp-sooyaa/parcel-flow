@@ -42,6 +42,7 @@ import {
     getRiderParcelActionAccess,
 } from "@/features/auth/server/policies/parcels";
 import { requireAppAccessContext, requirePermission } from "@/features/auth/server/utils";
+import { getSettlementManagedParcelFinancialState } from "@/features/merchant-settlements/server/merchant-financial-item-dal";
 import { computeTotalAmountToCollect } from "@/features/parcels/server/utils";
 
 import type {
@@ -250,6 +251,12 @@ function getParcelOperationInput(current: ParcelUpdateContextDto) {
         merchantSettlementId: current.payment.merchantSettlementId,
         paymentNote: current.payment.note,
     };
+}
+
+async function hasManagedMerchantFinancialItems(parcelId: string) {
+    const financialState = await getSettlementManagedParcelFinancialState(parcelId);
+
+    return financialState.hasLockedItems || financialState.hasClosedItems;
 }
 
 export async function createParcelAction(
@@ -660,6 +667,14 @@ export async function advanceOfficeParcelStatusAction(
             return { ok: false, message: "Parcel was not found.", fields };
         }
 
+        if (await hasManagedMerchantFinancialItems(parsed.data.parcelId)) {
+            return {
+                ok: false,
+                message: "Parcel financial fields are locked by merchant settlement.",
+                fields,
+            };
+        }
+
         const movementActions = getOfficeParcelMovementActions(getParcelOperationInput(current));
         const requestedAction = movementActions.find(
             (action) => action.nextStatus === parsed.data.nextStatus,
@@ -767,6 +782,14 @@ export async function receiveParcelCashAtOfficeAction(
             return { ok: false, message: "Parcel was not found.", fields };
         }
 
+        if (await hasManagedMerchantFinancialItems(parsed.data.parcelId)) {
+            return {
+                ok: false,
+                message: "Parcel financial fields are locked by merchant settlement.",
+                fields,
+            };
+        }
+
         if (!canReceiveParcelCashAtOffice(getParcelOperationInput(current))) {
             return { ok: false, message: "This parcel cash cannot be received at office.", fields };
         }
@@ -855,6 +878,14 @@ export async function resolveParcelDeliveryFeeAction(
 
         if (!current) {
             return { ok: false, message: "Parcel was not found.", fields };
+        }
+
+        if (await hasManagedMerchantFinancialItems(parsed.data.parcelId)) {
+            return {
+                ok: false,
+                message: "Parcel financial fields are locked by merchant settlement.",
+                fields,
+            };
         }
 
         const operationInput = getParcelOperationInput(current);
@@ -954,6 +985,14 @@ export async function adminCorrectParcelStateAction(
 
         if (!current) {
             return { ok: false, message: "Parcel was not found.", fields };
+        }
+
+        if (await hasManagedMerchantFinancialItems(parsed.data.parcelId)) {
+            return {
+                ok: false,
+                message: "Parcel financial fields are locked by merchant settlement.",
+                fields,
+            };
         }
 
         const settlementGuard = rejectSettlementManagedParcelUpdate({
@@ -1069,6 +1108,10 @@ export async function advanceRiderParcelAction(formData: FormData): Promise<void
         const current = await getParcelUpdateContextForViewer(currentUser, parcelId);
 
         if (!current) {
+            return;
+        }
+
+        if (await hasManagedMerchantFinancialItems(parcelId)) {
             return;
         }
 

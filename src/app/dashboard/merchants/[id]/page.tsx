@@ -14,6 +14,7 @@ import {
     getMerchantSettlementSelectionForViewer,
     getMerchantSettlementHistoryForViewer,
 } from "@/features/merchant-settlements/server/dal";
+import { getDefaultSettlementPreset } from "@/features/merchant-settlements/server/utils";
 import { getMerchantByIdForViewer } from "@/features/merchant/server/dal";
 import { ParcelListSearchAndFiltersForm } from "@/features/parcels/components/parcel-list-search-and-filters-form";
 import { ParcelStatusPill } from "@/features/parcels/components/parcel-status-pill";
@@ -26,6 +27,8 @@ import {
     normalizeParcelListQueryParams,
 } from "@/features/parcels/server/utils";
 import { cn } from "@/lib/utils";
+
+import type { BankAccountDto } from "@/features/bank-accounts/server/dto";
 
 type MerchantDetailPageProps = {
     params: Promise<{ id: string }>;
@@ -79,6 +82,7 @@ export default async function MerchantDetailPage({
     const showInternalPaymentColumns = isAdminRole(currentUser.roleSlug);
     const settlementAccess = getMerchantSettlementAccess(currentUser);
     const isSettlementMode = getSearchParam(rawSearchParams, "settle") === "1";
+    const settlementPreset = getDefaultSettlementPreset(getSearchParam(rawSearchParams, "preset"));
     const requestedTab = getSearchParam(rawSearchParams, "tab");
     const activeTab = getActiveTab(rawSearchParams);
 
@@ -108,7 +112,7 @@ export default async function MerchantDetailPage({
         merchantStats,
         merchantParcels,
         settlementSelection,
-        merchantBankAccounts,
+        settlementBankAccounts,
         settlementHistory,
     ] = await Promise.all([
         getMerchantByIdForViewer(currentUser, id),
@@ -118,13 +122,19 @@ export default async function MerchantDetailPage({
             : Promise.resolve(null),
         isSettlementMode
             ? getMerchantSettlementSelectionForViewer(currentUser, id)
-            : Promise.resolve({ eligibleParcels: [], blockedParcels: [] }),
+            : Promise.resolve({ readyCandidates: [], blockedCandidates: [] }),
         isSettlementMode
-            ? getBankAccountsForViewer(currentUser, {
-                  appUserId: id,
-                  isCompanyAccount: false,
-              })
-            : Promise.resolve([]),
+            ? Promise.all([
+                  getBankAccountsForViewer(currentUser, {
+                      appUserId: id,
+                      isCompanyAccount: false,
+                  }),
+                  getBankAccountsForViewer(currentUser, {
+                      appUserId: null,
+                      isCompanyAccount: true,
+                  }),
+              ])
+            : Promise.resolve([[], []] as [BankAccountDto[], BankAccountDto[]]),
         !isSettlementMode && activeTab === "settlements" && settlementAccess.canView
             ? getMerchantSettlementHistoryForViewer(currentUser, id)
             : Promise.resolve([]),
@@ -138,6 +148,10 @@ export default async function MerchantDetailPage({
     const merchantDetailHref = `/dashboard/merchants/${merchant.id}`;
     const settlementHistoryHref = `${merchantDetailHref}?tab=settlements`;
     const settlementModeHref = `${merchantDetailHref}?settle=1`;
+    const processSettlementHref = `${settlementModeHref}&preset=cod`;
+    const resolveFeesHref = `${settlementModeHref}&preset=fees`;
+    const handleReturnsHref = `${settlementModeHref}&preset=returns`;
+    const [merchantBankAccounts, companyBankAccounts] = settlementBankAccounts;
     const parcelPaginationQuery = {
         q: parcelListQuery.query || undefined,
         parcelStatus: parcelListQuery.parcelStatus,
@@ -168,6 +182,11 @@ export default async function MerchantDetailPage({
         {
             label: "Returned",
             value: formatCount(merchantStats.returnedParcels),
+            actionHref:
+                settlementAccess.canCreate && merchantStats.returnedParcels > 0
+                    ? handleReturnsHref
+                    : null,
+            actionLabel: "Handle Returns",
         },
         {
             label: "Total COD Collected",
@@ -180,12 +199,20 @@ export default async function MerchantDetailPage({
         {
             label: "COD in Held",
             value: formatMmk(merchantStats.codInHeld),
-            actionHref: settlementAccess.canCreate ? settlementModeHref : null,
-            actionLabel: "Settle",
+            actionHref:
+                settlementAccess.canCreate && Number(merchantStats.codInHeld) > 0
+                    ? processSettlementHref
+                    : null,
+            actionLabel: "Process Settlement",
         },
         {
             label: "Pending Delivery Fee",
             value: formatMmk(merchantStats.pendingDeliveryFee),
+            actionHref:
+                settlementAccess.canCreate && Number(merchantStats.pendingDeliveryFee) > 0
+                    ? resolveFeesHref
+                    : null,
+            actionLabel: "Resolve Fees",
         },
     ];
 
@@ -205,6 +232,11 @@ export default async function MerchantDetailPage({
                         {merchantAccess.canUpdate && (
                             <Button asChild variant="outline">
                                 <Link href={editMerchantHref}>Edit Merchant Profile</Link>
+                            </Button>
+                        )}
+                        {settlementAccess.canCreate && (
+                            <Button asChild variant="outline">
+                                <Link href={settlementModeHref}>Open Settlement Workspace</Link>
                             </Button>
                         )}
                         {parcelAccess.canCreate && (
@@ -243,8 +275,8 @@ export default async function MerchantDetailPage({
                         <div>
                             <h2 className="text-lg font-semibold">Settlement Mode</h2>
                             <p className="text-sm text-muted-foreground">
-                                Delivered COD parcels with COD received by office and pending
-                                settlement.
+                                Review ready and blocked merchant settlement candidates from one
+                                workspace.
                             </p>
                         </div>
                         <Button asChild variant="outline">
@@ -254,9 +286,11 @@ export default async function MerchantDetailPage({
 
                     <MerchantSettlementPicker
                         merchantId={merchant.id}
-                        parcels={settlementSelection.eligibleParcels}
-                        blockedParcels={settlementSelection.blockedParcels}
-                        bankAccounts={merchantBankAccounts}
+                        readyCandidates={settlementSelection.readyCandidates}
+                        blockedCandidates={settlementSelection.blockedCandidates}
+                        merchantBankAccounts={merchantBankAccounts}
+                        companyBankAccounts={companyBankAccounts}
+                        preset={settlementPreset}
                     />
                 </section>
             ) : (

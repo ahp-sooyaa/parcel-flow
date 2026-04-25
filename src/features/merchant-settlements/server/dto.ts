@@ -1,39 +1,29 @@
 import "server-only";
 import type {
+    BlockedMerchantSettlementCandidateDto,
+    MerchantFinancialDirection,
+    MerchantFinancialItemKind,
+    MerchantSettlementSelectionDto,
+    ReadyMerchantSettlementCandidateDto,
+} from "./merchant-financial-item-dto";
+import type {
     MERCHANT_SETTLEMENT_RECORD_STATUSES,
     MERCHANT_SETTLEMENT_TYPES,
 } from "@/features/merchant-settlements/constants";
-import type { DELIVERY_FEE_STATUSES } from "@/features/parcels/constants";
 import type { ParcelImageAsset } from "@/features/parcels/server/utils";
 
 export type MerchantSettlementStatus = (typeof MERCHANT_SETTLEMENT_RECORD_STATUSES)[number];
 export type MerchantSettlementType = (typeof MERCHANT_SETTLEMENT_TYPES)[number];
 
-export type EligibleMerchantSettlementParcelDto = {
-    parcelId: string;
-    parcelCode: string;
-    paymentRecordId: string;
-    recipientName: string;
-    recipientTownshipName: string | null;
-    codAmount: string;
-    deliveryFee: string;
-    deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number];
-    isDeliveryFeeDeducted: boolean;
-    netPayableAmount: string;
-};
-
-export type BlockedMerchantSettlementParcelDto = {
-    parcelId: string;
-    parcelCode: string;
-    recipientName: string;
-    recipientTownshipName: string | null;
-    reasons: string[];
-};
-
-export type MerchantSettlementSelectionDto = {
-    eligibleParcels: EligibleMerchantSettlementParcelDto[];
-    blockedParcels: BlockedMerchantSettlementParcelDto[];
-};
+export type {
+    BlockedMerchantSettlementCandidateDto,
+    MerchantFinancialDirection,
+    MerchantFinancialItemKind,
+    MerchantSettlementDirection,
+    MerchantSettlementPreset,
+    MerchantSettlementSelectionDto,
+    ReadyMerchantSettlementCandidateDto,
+} from "./merchant-financial-item-dto";
 
 export type MerchantSettlementActorDto = {
     id: string;
@@ -41,9 +31,9 @@ export type MerchantSettlementActorDto = {
 };
 
 export type MerchantSettlementTotalsDto = {
-    codSubtotal: string;
-    deliveryFeeDeductedTotal: string;
-    netPayableTotal: string;
+    creditsTotal: string;
+    debitsTotal: string;
+    netTotal: string;
 };
 
 export type MerchantSettlementListItemDto = {
@@ -52,9 +42,11 @@ export type MerchantSettlementListItemDto = {
     merchantId: string;
     merchantLabel: string;
     totalAmount: string;
+    creditsTotal: string;
+    debitsTotal: string;
     method: string;
-    snapshotBankName: string;
-    snapshotBankAccountNumber: string;
+    snapshotBankName: string | null;
+    snapshotBankAccountNumber: string | null;
     createdBy: string;
     createdByName: string;
     confirmedBy: string | null;
@@ -73,10 +65,14 @@ export type MerchantSettlementHistoryDto = MerchantSettlementListItemDto & {
 
 export type MerchantSettlementItemDto = {
     id: string;
-    parcelId: string;
-    parcelCode: string;
-    recipientName: string;
+    merchantFinancialItemId: string | null;
+    parcelId: string | null;
+    parcelCode: string | null;
+    recipientName: string | null;
     recipientTownshipName: string | null;
+    candidateKind: MerchantFinancialItemKind;
+    direction: MerchantFinancialDirection;
+    snapshotAmount: string;
     snapshotCodAmount: string;
     snapshotDeliveryFee: string;
     isDeliveryFeeDeducted: boolean;
@@ -112,4 +108,9 @@ export type MerchantSettlementActionResult = {
     message: string;
     settlementId?: string;
     fieldErrors?: Partial<Record<string, string[]>>;
+};
+
+export type MerchantSettlementPickerDto = MerchantSettlementSelectionDto & {
+    readyCandidates: ReadyMerchantSettlementCandidateDto[];
+    blockedCandidates: BlockedMerchantSettlementCandidateDto[];
 };

@@ -8,16 +8,19 @@ import { cn } from "@/lib/utils";
 
 import type { BankAccountDto } from "@/features/bank-accounts/server/dto";
 import type {
-    BlockedMerchantSettlementParcelDto,
-    EligibleMerchantSettlementParcelDto,
+    BlockedMerchantSettlementCandidateDto,
     MerchantSettlementActionResult,
+    MerchantSettlementPreset,
+    ReadyMerchantSettlementCandidateDto,
 } from "@/features/merchant-settlements/server/dto";
 
 type MerchantSettlementPickerProps = {
     merchantId: string;
-    parcels: EligibleMerchantSettlementParcelDto[];
-    blockedParcels: BlockedMerchantSettlementParcelDto[];
-    bankAccounts: BankAccountDto[];
+    readyCandidates: ReadyMerchantSettlementCandidateDto[];
+    blockedCandidates: BlockedMerchantSettlementCandidateDto[];
+    merchantBankAccounts: BankAccountDto[];
+    companyBankAccounts: BankAccountDto[];
+    preset: MerchantSettlementPreset;
 };
 
 const initialState: MerchantSettlementActionResult = {
@@ -40,17 +43,105 @@ function formatMmk(value: number | string) {
     return `${moneyFormatter.format(amount)} MMK`;
 }
 
+function formatLabel(value: string) {
+    return value
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+}
+
+function getDirectionLabel(direction: "invoice" | "remit" | "balanced") {
+    if (direction === "balanced") {
+        return "Balanced";
+    }
+
+    return direction === "invoice" ? "Invoice" : "Remit";
+}
+
+function matchesPreset(
+    candidate: Pick<ReadyMerchantSettlementCandidateDto, "kind" | "parcelStatus">,
+    preset: MerchantSettlementPreset,
+) {
+    if (preset === "all") {
+        return true;
+    }
+
+    if (preset === "cod") {
+        return candidate.kind === "cod_remit_credit";
+    }
+
+    if (preset === "fees") {
+        return candidate.kind === "delivery_fee_charge";
+    }
+
+    return (
+        candidate.kind === "refund_credit" ||
+        candidate.parcelStatus === "returned" ||
+        candidate.parcelStatus === "cancelled" ||
+        candidate.parcelStatus === "return_to_merchant" ||
+        candidate.parcelStatus === "return_to_office"
+    );
+}
+
+function calculateSummary(candidates: ReadyMerchantSettlementCandidateDto[]) {
+    const creditsTotal = candidates.reduce(
+        (sum, candidate) =>
+            sum + (candidate.direction === "company_owes_merchant" ? Number(candidate.amount) : 0),
+        0,
+    );
+    const debitsTotal = candidates.reduce(
+        (sum, candidate) =>
+            sum + (candidate.direction === "merchant_owes_company" ? Number(candidate.amount) : 0),
+        0,
+    );
+    const netTotal = creditsTotal - debitsTotal;
+
+    return {
+        selectedCount: candidates.length,
+        creditsTotal,
+        debitsTotal,
+        netTotal,
+        direction: netTotal > 0 ? "remit" : netTotal < 0 ? "invoice" : "balanced",
+    } as const;
+}
+
+function getDefaultBankAccountId(accounts: BankAccountDto[]) {
+    return accounts.find((account) => account.isPrimary)?.id ?? accounts[0]?.id ?? "";
+}
+
 export function MerchantSettlementPicker({
     merchantId,
-    parcels,
-    blockedParcels,
-    bankAccounts,
+    readyCandidates,
+    blockedCandidates,
+    merchantBankAccounts,
+    companyBankAccounts,
+    preset,
 }: Readonly<MerchantSettlementPickerProps>) {
     const [state, action, isPending] = useActionState(
         generateMerchantSettlementAction,
         initialState,
     );
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [bankAccountId, setBankAccountId] = useState("");
+
+    const visibleReadyCandidates = useMemo(
+        () => readyCandidates.filter((candidate) => matchesPreset(candidate, preset)),
+        [preset, readyCandidates],
+    );
+    const visibleBlockedCandidates = useMemo(
+        () => blockedCandidates.filter((candidate) => matchesPreset(candidate, preset)),
+        [blockedCandidates, preset],
+    );
+    const selectedCandidates = useMemo(
+        () => readyCandidates.filter((candidate) => selectedIds.has(candidate.id)),
+        [readyCandidates, selectedIds],
+    );
+    const summary = useMemo(() => calculateSummary(selectedCandidates), [selectedCandidates]);
+    const requiresBankAccount = summary.direction !== "balanced";
+    const activeBankAccounts =
+        summary.direction === "invoice" ? companyBankAccounts : merchantBankAccounts;
+    const canGenerate =
+        summary.selectedCount > 0 && (!requiresBankAccount || Boolean(bankAccountId)) && !isPending;
 
     useEffect(() => {
         if (state.ok && state.settlementId) {
@@ -58,29 +149,36 @@ export function MerchantSettlementPicker({
         }
     }, [state.ok, state.settlementId]);
 
-    const selectedParcels = useMemo(
-        () => parcels.filter((parcel) => selectedIds.has(parcel.paymentRecordId)),
-        [parcels, selectedIds],
-    );
-    const selectedCodTotal = selectedParcels.reduce(
-        (sum, parcel) => sum + Number(parcel.codAmount),
-        0,
-    );
-    const selectedNetTotal = selectedParcels.reduce(
-        (sum, parcel) => sum + Number(parcel.netPayableAmount),
-        0,
-    );
-    const hasSelection = selectedParcels.length > 0;
-    const canGenerate = hasSelection && bankAccounts.length > 0 && !isPending;
+    useEffect(() => {
+        if (preset === "cod") {
+            setSelectedIds(new Set(visibleReadyCandidates.map((candidate) => candidate.id)));
+            return;
+        }
 
-    function setSelected(paymentRecordId: string, checked: boolean) {
+        setSelectedIds(new Set());
+    }, [merchantId, preset, visibleReadyCandidates]);
+
+    useEffect(() => {
+        if (!requiresBankAccount) {
+            setBankAccountId("");
+            return;
+        }
+
+        const nextBankAccountId =
+            activeBankAccounts.find((account) => account.id === bankAccountId)?.id ??
+            getDefaultBankAccountId(activeBankAccounts);
+
+        setBankAccountId(nextBankAccountId);
+    }, [activeBankAccounts, bankAccountId, requiresBankAccount]);
+
+    function setSelected(financialItemId: string, checked: boolean) {
         setSelectedIds((current) => {
             const next = new Set(current);
 
             if (checked) {
-                next.add(paymentRecordId);
+                next.add(financialItemId);
             } else {
-                next.delete(paymentRecordId);
+                next.delete(financialItemId);
             }
 
             return next;
@@ -89,13 +187,14 @@ export function MerchantSettlementPicker({
 
     function setAllSelected(checked: boolean) {
         setSelectedIds(
-            checked ? new Set(parcels.map((parcel) => parcel.paymentRecordId)) : new Set(),
+            checked ? new Set(visibleReadyCandidates.map((candidate) => candidate.id)) : new Set(),
         );
     }
 
     return (
         <form action={action} className="space-y-4 pb-24">
             <input type="hidden" name="merchantId" value={merchantId} />
+            {!requiresBankAccount && <input type="hidden" name="bankAccountId" value="" />}
 
             <div className="overflow-x-auto rounded-xl border bg-card">
                 <table className="w-full text-left text-sm">
@@ -105,62 +204,67 @@ export function MerchantSettlementPicker({
                                 <input
                                     type="checkbox"
                                     checked={
-                                        parcels.length > 0 && selectedIds.size === parcels.length
+                                        visibleReadyCandidates.length > 0 &&
+                                        visibleReadyCandidates.every((candidate) =>
+                                            selectedIds.has(candidate.id),
+                                        )
                                     }
                                     onChange={(event) => setAllSelected(event.target.checked)}
-                                    aria-label="Select all parcels"
+                                    aria-label="Select all settlement candidates"
                                     className="h-4 w-4"
                                 />
                             </th>
-                            <th className="px-4 py-3">Parcel Code</th>
+                            <th className="px-4 py-3">Type</th>
+                            <th className="px-4 py-3">Direction</th>
+                            <th className="px-4 py-3">Parcel</th>
                             <th className="px-4 py-3">Recipient</th>
                             <th className="px-4 py-3">Township</th>
-                            <th className="px-4 py-3">COD</th>
-                            <th className="px-4 py-3">Delivery Fee</th>
-                            <th className="px-4 py-3">Net Payable</th>
+                            <th className="px-4 py-3">Amount</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {parcels.map((parcel) => (
-                            <tr key={parcel.paymentRecordId} className="border-t">
+                        {visibleReadyCandidates.map((candidate) => (
+                            <tr key={candidate.id} className="border-t">
                                 <td className="px-4 py-3">
                                     <input
                                         type="checkbox"
-                                        name="paymentRecordIds"
-                                        value={parcel.paymentRecordId}
-                                        checked={selectedIds.has(parcel.paymentRecordId)}
+                                        name="financialItemIds"
+                                        value={candidate.id}
+                                        checked={selectedIds.has(candidate.id)}
                                         onChange={(event) =>
-                                            setSelected(
-                                                parcel.paymentRecordId,
-                                                event.target.checked,
-                                            )
+                                            setSelected(candidate.id, event.target.checked)
                                         }
                                         className="h-4 w-4"
                                     />
                                 </td>
-                                <td className="px-4 py-3">{parcel.parcelCode}</td>
-                                <td className="px-4 py-3">{parcel.recipientName}</td>
-                                <td className="px-4 py-3">{parcel.recipientTownshipName ?? "-"}</td>
-                                <td className="px-4 py-3 tabular-nums">
-                                    {formatMmk(parcel.codAmount)}
+                                <td className="px-4 py-3">{formatLabel(candidate.kind)}</td>
+                                <td className="px-4 py-3">{formatLabel(candidate.direction)}</td>
+                                <td className="px-4 py-3">
+                                    <div className="grid gap-0.5">
+                                        <span>{candidate.parcelCode ?? "Manual item"}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                            {candidate.parcelStatus
+                                                ? formatLabel(candidate.parcelStatus)
+                                                : "No parcel"}
+                                        </span>
+                                    </div>
                                 </td>
-                                <td className="px-4 py-3 tabular-nums">
-                                    {parcel.isDeliveryFeeDeducted
-                                        ? `-${formatMmk(parcel.deliveryFee)}`
-                                        : formatMmk(0)}
+                                <td className="px-4 py-3">{candidate.recipientName ?? "-"}</td>
+                                <td className="px-4 py-3">
+                                    {candidate.recipientTownshipName ?? "-"}
                                 </td>
-                                <td className="px-4 py-3 tabular-nums">
-                                    {formatMmk(parcel.netPayableAmount)}
+                                <td className="px-4 py-3 font-medium tabular-nums">
+                                    {formatMmk(candidate.amount)}
                                 </td>
                             </tr>
                         ))}
-                        {parcels.length === 0 && (
+                        {visibleReadyCandidates.length === 0 && (
                             <tr>
                                 <td
                                     colSpan={7}
                                     className="px-4 py-10 text-center text-xs text-muted-foreground"
                                 >
-                                    No eligible parcels are available for settlement.
+                                    No ready settlement candidates match this workspace view.
                                 </td>
                             </tr>
                         )}
@@ -168,12 +272,12 @@ export function MerchantSettlementPicker({
                 </table>
             </div>
 
-            {blockedParcels.length > 0 && (
+            {visibleBlockedCandidates.length > 0 && (
                 <section className="space-y-3 rounded-xl border bg-card p-4">
                     <div>
-                        <h3 className="text-sm font-semibold">Blocked Parcels</h3>
+                        <h3 className="text-sm font-semibold">Blocked Candidates</h3>
                         <p className="text-xs text-muted-foreground">
-                            These COD parcels need cleanup before settlement.
+                            These candidates are tracked but not ready for settlement yet.
                         </p>
                     </div>
 
@@ -181,22 +285,28 @@ export function MerchantSettlementPicker({
                         <table className="w-full text-left text-sm">
                             <thead className="bg-muted/40 text-xs uppercase">
                                 <tr>
-                                    <th className="px-3 py-2">Parcel Code</th>
-                                    <th className="px-3 py-2">Recipient</th>
-                                    <th className="px-3 py-2">Township</th>
+                                    <th className="px-3 py-2">Type</th>
+                                    <th className="px-3 py-2">Parcel</th>
+                                    <th className="px-3 py-2">Direction</th>
+                                    <th className="px-3 py-2">Amount</th>
                                     <th className="px-3 py-2">Reason</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {blockedParcels.map((parcel) => (
-                                    <tr key={parcel.parcelId} className="border-t">
-                                        <td className="px-3 py-2">{parcel.parcelCode}</td>
-                                        <td className="px-3 py-2">{parcel.recipientName}</td>
+                                {visibleBlockedCandidates.map((candidate) => (
+                                    <tr key={candidate.id} className="border-t">
+                                        <td className="px-3 py-2">{formatLabel(candidate.kind)}</td>
                                         <td className="px-3 py-2">
-                                            {parcel.recipientTownshipName ?? "-"}
+                                            {candidate.parcelCode ?? "Manual item"}
+                                        </td>
+                                        <td className="px-3 py-2">
+                                            {formatLabel(candidate.direction)}
+                                        </td>
+                                        <td className="px-3 py-2 tabular-nums">
+                                            {formatMmk(candidate.amount)}
                                         </td>
                                         <td className="px-3 py-2 text-muted-foreground">
-                                            {parcel.reasons.join(" ")}
+                                            {candidate.blockedReasons.join(" ")}
                                         </td>
                                     </tr>
                                 ))}
@@ -206,14 +316,17 @@ export function MerchantSettlementPicker({
                 </section>
             )}
 
-            <div className="fixed right-4 bottom-4 left-4 z-20 z-99 rounded-xl border bg-background p-4 shadow-lg md:left-[calc(var(--sidebar-width,0px)+1rem)]">
+            <div className="fixed right-4 bottom-4 left-4 z-20 rounded-xl border bg-background p-4 shadow-lg md:left-[calc(var(--sidebar-width,0px)+1rem)]">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                     <div className="grid gap-1">
                         <p className="text-sm font-medium">
-                            {selectedParcels.length} selected · COD {formatMmk(selectedCodTotal)}
+                            {summary.selectedCount} selected · Credits{" "}
+                            {formatMmk(summary.creditsTotal)} · Debits{" "}
+                            {formatMmk(summary.debitsTotal)}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                            Net payable {formatMmk(selectedNetTotal)}
+                            Net {formatMmk(summary.netTotal)} ·{" "}
+                            {getDirectionLabel(summary.direction)}
                         </p>
                         {state.message && (
                             <p
@@ -228,28 +341,37 @@ export function MerchantSettlementPicker({
                     </div>
 
                     <div className="grid gap-2 lg:min-w-80">
-                        <Label htmlFor="settlement-bank-account">Merchant Bank Account</Label>
-                        <select
-                            id="settlement-bank-account"
-                            name="bankAccountId"
-                            className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                            required
-                            disabled={bankAccounts.length === 0}
-                            defaultValue={
-                                bankAccounts.find((account) => account.isPrimary)?.id ??
-                                bankAccounts[0]?.id ??
-                                ""
-                            }
-                        >
-                            <option value="" disabled>
-                                Select bank account
-                            </option>
-                            {bankAccounts.map((account) => (
-                                <option key={account.id} value={account.id}>
-                                    {account.bankName} · {account.bankAccountNumber}
+                        <Label htmlFor="settlement-bank-account">
+                            {summary.direction === "invoice"
+                                ? "Company Bank Account"
+                                : summary.direction === "balanced"
+                                  ? "Bank Account"
+                                  : "Merchant Bank Account"}
+                        </Label>
+                        {requiresBankAccount ? (
+                            <select
+                                id="settlement-bank-account"
+                                name="bankAccountId"
+                                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                                required
+                                disabled={activeBankAccounts.length === 0}
+                                value={bankAccountId}
+                                onChange={(event) => setBankAccountId(event.target.value)}
+                            >
+                                <option value="" disabled>
+                                    Select bank account
                                 </option>
-                            ))}
-                        </select>
+                                {activeBankAccounts.map((account) => (
+                                    <option key={account.id} value={account.id}>
+                                        {account.bankName} · {account.bankAccountNumber}
+                                    </option>
+                                ))}
+                            </select>
+                        ) : (
+                            <div className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">
+                                Balanced settlement does not require bank details.
+                            </div>
+                        )}
                     </div>
 
                     <Button type="submit" disabled={!canGenerate}>
