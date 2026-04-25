@@ -26,6 +26,7 @@ import {
     hasActiveParcelListFilters,
     normalizeParcelListQueryParams,
 } from "@/features/parcels/server/utils";
+import { appendDashboardReturnTo, buildDashboardHref } from "@/lib/dashboard-navigation";
 import { cn } from "@/lib/utils";
 
 import type { BankAccountDto } from "@/features/bank-accounts/server/dto";
@@ -146,6 +147,7 @@ export default async function MerchantDetailPage({
 
     const parcelAccess = getParcelAccess({ viewer: currentUser });
     const merchantDetailHref = `/dashboard/merchants/${merchant.id}`;
+    const merchantReturnToHref = buildDashboardHref(merchantDetailHref, rawSearchParams);
     const settlementHistoryHref = `${merchantDetailHref}?tab=settlements`;
     const settlementModeHref = `${merchantDetailHref}?settle=1`;
     const processSettlementHref = `${settlementModeHref}&preset=cod`;
@@ -164,7 +166,7 @@ export default async function MerchantDetailPage({
     const editMerchantHref =
         currentUser.roleSlug === "merchant"
             ? "/dashboard/settings?tab=merchant-details"
-            : `/dashboard/users/${merchant.id}/edit`;
+            : appendDashboardReturnTo(`/dashboard/users/${merchant.id}/edit`, merchantReturnToHref);
     const statCards: Array<{
         label: string;
         value: string;
@@ -406,7 +408,10 @@ export default async function MerchantDetailPage({
                                                     <div className="flex items-center gap-2">
                                                         <Button asChild size="sm" variant="outline">
                                                             <Link
-                                                                href={`/dashboard/parcels/${parcel.id}`}
+                                                                href={appendDashboardReturnTo(
+                                                                    `/dashboard/parcels/${parcel.id}`,
+                                                                    merchantReturnToHref,
+                                                                )}
                                                             >
                                                                 View
                                                             </Link>
@@ -424,7 +429,10 @@ export default async function MerchantDetailPage({
                                                                 variant="outline"
                                                             >
                                                                 <Link
-                                                                    href={`/dashboard/parcels/${parcel.id}/edit`}
+                                                                    href={appendDashboardReturnTo(
+                                                                        `/dashboard/parcels/${parcel.id}/edit`,
+                                                                        merchantReturnToHref,
+                                                                    )}
                                                                 >
                                                                     Edit
                                                                 </Link>

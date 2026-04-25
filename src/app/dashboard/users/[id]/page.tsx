@@ -7,6 +7,7 @@ import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { ResetUserPasswordForm } from "@/features/users/components/reset-user-password-form";
 import { SoftDeleteUserForm } from "@/features/users/components/soft-delete-user-form";
 import { updateUserStatusAction } from "@/features/users/server/actions";
+import { appendDashboardReturnTo } from "@/lib/dashboard-navigation";
 import { formatRoleSlug } from "@/lib/roles";
 
 type UserDetailPageProps = {
@@ -28,6 +29,8 @@ export default async function UserDetailPage({ params }: Readonly<UserDetailPage
         notFound();
     }
 
+    const userDetailHref = `/dashboard/users/${user.appUserId}`;
+
     return (
         <section className="mx-auto w-full max-w-3xl space-y-6">
             <header className="space-y-1">
@@ -38,7 +41,14 @@ export default async function UserDetailPage({ params }: Readonly<UserDetailPage
             <div className="flex flex-wrap gap-2">
                 {userManagementAccess.canUpdateTarget && (
                     <Button asChild variant="outline">
-                        <Link href={`/dashboard/users/${user.appUserId}/edit`}>Edit User</Link>
+                        <Link
+                            href={appendDashboardReturnTo(
+                                `/dashboard/users/${user.appUserId}/edit`,
+                                userDetailHref,
+                            )}
+                        >
+                            Edit User
+                        </Link>
                     </Button>
                 )}
             </div>

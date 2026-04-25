@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { getUserManagementAccess } from "@/features/auth/server/policies/user-management";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { getUsersListForViewer } from "@/features/users/server/dal";
+import { appendDashboardReturnTo } from "@/lib/dashboard-navigation";
 import { formatRoleSlug } from "@/lib/roles";
 
 export default async function UsersPage() {
@@ -15,6 +16,7 @@ export default async function UsersPage() {
     }
 
     const users = await getUsersListForViewer(currentUser);
+    const usersListHref = "/dashboard/users";
 
     return (
         <section className="space-y-5">
@@ -66,7 +68,12 @@ export default async function UsersPage() {
                                         )}
                                         {userManagementAccess.canUpdateTarget && (
                                             <Button asChild size="sm" variant="outline">
-                                                <Link href={`/dashboard/users/${user.id}/edit`}>
+                                                <Link
+                                                    href={appendDashboardReturnTo(
+                                                        `/dashboard/users/${user.id}/edit`,
+                                                        usersListHref,
+                                                    )}
+                                                >
                                                     Edit
                                                 </Link>
                                             </Button>

@@ -14,17 +14,29 @@ import { formatParcelStatusLabel } from "@/features/parcels/constants";
 import { getParcelByIdForViewer } from "@/features/parcels/server/dal";
 import { toRiderParcelDetailDto } from "@/features/parcels/server/dto";
 import { getParcelOperationSummary } from "@/features/parcels/server/utils";
+import { appendDashboardReturnTo } from "@/lib/dashboard-navigation";
 
 type ParcelDetailPageProps = {
     params: Promise<{ id: string }>;
+    searchParams: Promise<{ returnTo?: string | string[] }>;
 };
 
-export default async function ParcelDetailPage({ params }: Readonly<ParcelDetailPageProps>) {
+function getReturnTo(searchParams: Awaited<ParcelDetailPageProps["searchParams"]>) {
+    const value = searchParams.returnTo;
+
+    return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function ParcelDetailPage({
+    params,
+    searchParams,
+}: Readonly<ParcelDetailPageProps>) {
     // admin user - permission check
     // rider user - no permission, ownership check
     // merchant user - no permission, ownership check
     const currentUser = await requireAppAccessContext();
-    const { id } = await params;
+    const [{ id }, rawSearchParams] = await Promise.all([params, searchParams]);
+    const returnTo = getReturnTo(rawSearchParams);
 
     // rider dedicated form ui
     if (currentUser.roleSlug === "rider") {
@@ -89,7 +101,14 @@ export default async function ParcelDetailPage({ params }: Readonly<ParcelDetail
 
             {parcelAccess.canUpdate && (
                 <Button asChild variant="outline">
-                    <Link href={`/dashboard/parcels/${parcel.id}/edit`}>Edit Parcel Details</Link>
+                    <Link
+                        href={appendDashboardReturnTo(
+                            `/dashboard/parcels/${parcel.id}/edit`,
+                            returnTo,
+                        )}
+                    >
+                        Edit Parcel Details
+                    </Link>
                 </Button>
             )}
 
