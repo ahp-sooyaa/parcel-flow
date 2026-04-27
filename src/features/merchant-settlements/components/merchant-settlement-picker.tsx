@@ -58,6 +58,30 @@ function getDirectionLabel(direction: "invoice" | "remit" | "balanced") {
     return direction === "invoice" ? "Invoice" : "Remit";
 }
 
+function getSummaryDirection(netTotal: number) {
+    if (netTotal > 0) {
+        return "remit" as const;
+    }
+
+    if (netTotal < 0) {
+        return "invoice" as const;
+    }
+
+    return "balanced" as const;
+}
+
+function getSettlementBankAccountLabel(direction: "invoice" | "remit" | "balanced") {
+    if (direction === "invoice") {
+        return "Company Bank Account";
+    }
+
+    if (direction === "balanced") {
+        return "Bank Account";
+    }
+
+    return "Merchant Bank Account";
+}
+
 function matchesPreset(
     candidate: Pick<ReadyMerchantSettlementCandidateDto, "kind" | "parcelStatus">,
     preset: MerchantSettlementPreset,
@@ -101,7 +125,7 @@ function calculateSummary(candidates: ReadyMerchantSettlementCandidateDto[]) {
         creditsTotal,
         debitsTotal,
         netTotal,
-        direction: netTotal > 0 ? "remit" : netTotal < 0 ? "invoice" : "balanced",
+        direction: getSummaryDirection(netTotal),
     } as const;
 }
 
@@ -316,7 +340,7 @@ export function MerchantSettlementPicker({
                 </section>
             )}
 
-            <div className="fixed right-4 bottom-4 left-4 z-20 rounded-xl border bg-background p-4 shadow-lg md:left-[calc(var(--sidebar-width,0px)+1rem)]">
+            <div className="fixed right-4 bottom-4 left-4 z-50 rounded-xl border bg-background p-4 shadow-lg md:left-[calc(var(--sidebar-width,0px)+1rem)]">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                     <div className="grid gap-1">
                         <p className="text-sm font-medium">
@@ -342,11 +366,7 @@ export function MerchantSettlementPicker({
 
                     <div className="grid gap-2 lg:min-w-80">
                         <Label htmlFor="settlement-bank-account">
-                            {summary.direction === "invoice"
-                                ? "Company Bank Account"
-                                : summary.direction === "balanced"
-                                  ? "Bank Account"
-                                  : "Merchant Bank Account"}
+                            {getSettlementBankAccountLabel(summary.direction)}
                         </Label>
                         {requiresBankAccount ? (
                             <select

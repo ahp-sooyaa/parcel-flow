@@ -1,7 +1,6 @@
 import "server-only";
 import { randomInt } from "node:crypto";
 import { z } from "zod";
-import { validateParcelPaymentState } from "./payment-guardrails";
 import { getMerchantSettlementBlockedReasons } from "@/features/merchant-settlements/server/settlement-calculations";
 import { findMerchantProfileLinkByAppUserId } from "@/features/merchant/server/dal";
 import {
@@ -16,12 +15,21 @@ import {
     RIDER_PAYOUT_STATUSES,
     getDeliveryFeePaymentPlanOptions,
 } from "@/features/parcels/constants";
+import {
+    getAllowedDeliveryFeeStatusesForParcel,
+    validateDeliveryFeeStatusForParcel,
+    validateParcelPaymentState,
+} from "@/features/parcels/payment-state";
 import { getRiderById } from "@/features/rider/server/dal";
 import { findTownshipById } from "@/features/townships/server/dal";
 import { buildR2ObjectKey, getSignedR2ObjectUrl, uploadR2Object } from "@/lib/r2";
 import { optionalNullableTrimmedString, optionalNullableUuid } from "@/lib/validation/zod-helpers";
 
-export { validateParcelPaymentState };
+export {
+    getAllowedDeliveryFeeStatusesForParcel,
+    validateDeliveryFeeStatusForParcel,
+    validateParcelPaymentState,
+};
 export {
     COD_STATUSES,
     COLLECTION_STATUSES,
@@ -351,6 +359,7 @@ export type ParcelOperationInput = {
     deliveryFee: string | number;
     totalAmountToCollect?: string | number;
     deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];
+    deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
     deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number];
     codStatus: (typeof COD_STATUSES)[number];
     collectedAmount?: string | number;
@@ -589,10 +598,9 @@ export function getDeliveryFeeResolutionOptions(
         return [];
     }
 
-    const candidateStatuses =
-        parcel.deliveryFeePayer === "merchant"
-            ? (["paid_by_merchant", "deduct_from_settlement", "bill_merchant", "waived"] as const)
-            : (["collected_from_receiver", "waived"] as const);
+    const candidateStatuses = getAllowedDeliveryFeeStatusesForParcel(parcel).filter(
+        (status) => status !== "unpaid",
+    );
 
     return candidateStatuses.filter((status) => canUseDeliveryFeeResolution(parcel, status));
 }
@@ -625,9 +633,64 @@ export function getParcelOperationBlockedReasons(parcel: ParcelOperationInput) {
     });
 }
 
+function getNonCodSettlementBlockedReasons(
+    parcel: ParcelOperationInput,
+): ParcelOperationSummary["settlement"]["blockedReasons"] {
+    if (parcel.deliveryFeeStatus === "bill_merchant") {
+        return parcel.parcelStatus === "delivered" ||
+            parcel.parcelStatus === "returned" ||
+            parcel.parcelStatus === "cancelled"
+            ? []
+            : ["Parcel is not in a fee-charge settlement state."];
+    }
+
+    const deliveryFeePlan = parcel.deliveryFeePaymentPlan;
+    const isRefundableSettlementPlan =
+        deliveryFeePlan === "merchant_prepaid_bank_transfer" ||
+        deliveryFeePlan === "merchant_cash_on_pickup";
+    const supportsRefundSettlement =
+        parcel.deliveryFeePayer === "merchant" &&
+        Number(parcel.deliveryFee) > 0 &&
+        isRefundableSettlementPlan;
+
+    if (!supportsRefundSettlement) {
+        return [];
+    }
+
+    const blockedReasons: string[] = [];
+
+    if (parcel.parcelStatus !== "cancelled") {
+        blockedReasons.push("Parcel is not cancelled.");
+    }
+
+    if (parcel.deliveryFeeStatus !== "paid_by_merchant") {
+        blockedReasons.push("Refund requires verified merchant payment.");
+    }
+
+    return blockedReasons;
+}
+
+function hasNonCodSettlementFlow(parcel: ParcelOperationInput) {
+    if (parcel.deliveryFeeStatus === "bill_merchant") {
+        return true;
+    }
+
+    const deliveryFeePlan = parcel.deliveryFeePaymentPlan;
+    const isRefundableSettlementPlan =
+        deliveryFeePlan === "merchant_prepaid_bank_transfer" ||
+        deliveryFeePlan === "merchant_cash_on_pickup";
+
+    return (
+        parcel.deliveryFeePayer === "merchant" &&
+        Number(parcel.deliveryFee) > 0 &&
+        isRefundableSettlementPlan &&
+        (parcel.deliveryFeeStatus === "paid_by_merchant" || parcel.parcelStatus === "cancelled")
+    );
+}
+
 function getCashOperationState(parcel: ParcelOperationInput): ParcelOperationSummary["cash"] {
     if (parcel.parcelType !== "cod") {
-        return { label: "No COD", tone: "muted", canReceiveAtOffice: false };
+        return { label: "Not applicable", tone: "muted", canReceiveAtOffice: false };
     }
 
     if (parcel.collectionStatus === "received_by_office") {
@@ -692,16 +755,30 @@ function getSettlementOperationState(
     parcel: ParcelOperationInput,
     blockedReasons: string[],
 ): ParcelOperationSummary["settlement"] {
-    if (parcel.parcelType !== "cod") {
-        return { label: "No COD settlement", tone: "muted", blockedReasons };
-    }
-
     if (parcel.merchantSettlementStatus === "settled") {
         return { label: "Settled", tone: "success", blockedReasons };
     }
 
     if (isParcelSettlementLocked(parcel)) {
         return { label: "Locked by settlement", tone: "info", blockedReasons };
+    }
+
+    if (parcel.parcelType !== "cod") {
+        if (!hasNonCodSettlementFlow(parcel)) {
+            return { label: "No active settlement", tone: "muted", blockedReasons: [] };
+        }
+
+        const nonCodBlockedReasons = getNonCodSettlementBlockedReasons(parcel);
+
+        if (nonCodBlockedReasons.length === 0) {
+            return { label: "Settlement ready", tone: "success", blockedReasons: [] };
+        }
+
+        return {
+            label: "Settlement blocked",
+            tone: "warning",
+            blockedReasons: nonCodBlockedReasons,
+        };
     }
 
     if (blockedReasons.length === 0) {
@@ -1238,6 +1315,10 @@ export function getDefaultCreateCodStatus(parcelType: (typeof PARCEL_TYPES)[numb
     return parcelType === "non_cod" ? "not_applicable" : "pending";
 }
 
+export function getDefaultCreateCollectionStatus(parcelType: (typeof PARCEL_TYPES)[number]) {
+    return parcelType === "non_cod" ? "void" : "pending";
+}
+
 export async function validateParcelSubmission(input: {
     merchantId: string;
     riderId: string | null;
@@ -1249,6 +1330,7 @@ export async function validateParcelSubmission(input: {
     deliveryFeeStatus?: (typeof DELIVERY_FEE_STATUSES)[number];
     deliveryFeePaymentPlan?: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
     requireRecordedDeliveryFeePaymentPlan?: boolean;
+    parcelStatus?: (typeof PARCEL_STATUSES)[number];
     codStatus: (typeof COD_STATUSES)[number];
 }) {
     const merchant = await findMerchantProfileLinkByAppUserId(input.merchantId);
@@ -1294,6 +1376,20 @@ export async function validateParcelSubmission(input: {
 
         if (!deliveryFeePaymentPlanGuard.ok) {
             return deliveryFeePaymentPlanGuard;
+        }
+    }
+
+    if (input.deliveryFeeStatus && input.parcelStatus) {
+        const deliveryFeeStatusGuard = validateDeliveryFeeStatusForParcel({
+            deliveryFeePayer: input.deliveryFeePayer,
+            deliveryFeePaymentPlan: input.deliveryFeePaymentPlan ?? null,
+            parcelStatus: input.parcelStatus,
+            deliveryFeeStatus: input.deliveryFeeStatus,
+            fieldName: "deliveryFeePaymentPlan",
+        });
+
+        if (!deliveryFeeStatusGuard.ok) {
+            return deliveryFeeStatusGuard;
         }
     }
 

@@ -19,6 +19,7 @@ import {
     canReceiveParcelCashAtOffice,
     DEFAULT_CREATE_PARCEL_STATE,
     generateParcelCode,
+    getDefaultCreateCollectionStatus,
     getDeliveryFeeResolutionOptions,
     getDefaultCreateCodStatus,
     getOfficeParcelMovementActions,
@@ -30,6 +31,7 @@ import {
     resolveParcelDeliveryFeeSchema,
     uploadParcelMediaFiles,
     validateCreateParcelMedia,
+    validateDeliveryFeeStatusForParcel,
     validateParcelImageAppendLimits,
     validateParcelPaymentState,
     validateParcelStatusProofImages,
@@ -244,6 +246,7 @@ function getParcelOperationInput(current: ParcelUpdateContextDto) {
         deliveryFee: current.parcel.deliveryFee,
         totalAmountToCollect: current.parcel.totalAmountToCollect,
         deliveryFeePayer: current.parcel.deliveryFeePayer,
+        deliveryFeePaymentPlan: current.parcel.deliveryFeePaymentPlan,
         deliveryFeeStatus: current.payment.deliveryFeeStatus,
         codStatus: current.payment.codStatus,
         collectedAmount: current.payment.collectedAmount,
@@ -305,6 +308,7 @@ export async function createParcelAction(
         }
 
         const createCodStatus = getDefaultCreateCodStatus(parsed.data.parcelType);
+        const createCollectionStatus = getDefaultCreateCollectionStatus(parsed.data.parcelType);
 
         const submissionGuard = await validateParcelSubmission({
             merchantId: createAuthorization.merchantId,
@@ -378,7 +382,7 @@ export async function createParcelAction(
                 deliveryFeeStatus: DEFAULT_CREATE_PARCEL_STATE.deliveryFeeStatus,
                 codStatus: createCodStatus,
                 collectedAmount: 0,
-                collectionStatus: DEFAULT_CREATE_PARCEL_STATE.collectionStatus,
+                collectionStatus: createCollectionStatus,
                 merchantSettlementStatus: DEFAULT_CREATE_PARCEL_STATE.merchantSettlementStatus,
                 riderPayoutStatus: DEFAULT_CREATE_PARCEL_STATE.riderPayoutStatus,
                 paymentNote: parsed.data.paymentNote,
@@ -533,6 +537,7 @@ export async function updateParcelAction(
             deliveryFeePaymentPlan: parsed.data.deliveryFeePaymentPlan,
             requireRecordedDeliveryFeePaymentPlan: current.parcel.deliveryFeePaymentPlan !== null,
             deliveryFeeStatus: current.payment.deliveryFeeStatus,
+            parcelStatus: current.parcel.status,
             codStatus: current.payment.codStatus,
         });
 
@@ -1032,6 +1037,22 @@ export async function adminCorrectParcelStateAction(
 
         if (!settlementGuard.ok) {
             return { ok: false, message: settlementGuard.message, fields };
+        }
+
+        const deliveryFeePlanGuard = validateDeliveryFeeStatusForParcel({
+            deliveryFeePayer: current.parcel.deliveryFeePayer,
+            deliveryFeePaymentPlan: current.parcel.deliveryFeePaymentPlan,
+            parcelStatus: parsed.data.parcelStatus,
+            deliveryFeeStatus: parsed.data.deliveryFeeStatus,
+        });
+
+        if (!deliveryFeePlanGuard.ok) {
+            return {
+                ok: false,
+                message: deliveryFeePlanGuard.message,
+                fields,
+                fieldErrors: deliveryFeePlanGuard.fieldErrors,
+            };
         }
 
         const paymentStateGuard = validateParcelPaymentState({

@@ -159,13 +159,27 @@ describe("legacy parcel settlement state", () => {
         });
     });
 
-    it("keeps legacy parcel settlement pending while open candidates remain", () => {
+    it("keeps legacy parcel settlement settled once the parcel is included in a paid settlement", () => {
         expect(
             getLegacyParcelSettlementState([
                 {
                     lifecycleState: "closed",
                     merchantSettlementId: "settlement-1",
                 },
+                {
+                    lifecycleState: "open",
+                    merchantSettlementId: null,
+                },
+            ]),
+        ).toEqual({
+            merchantSettlementStatus: "settled",
+            merchantSettlementId: "settlement-1",
+        });
+    });
+
+    it("keeps legacy parcel settlement pending when nothing has been settled yet", () => {
+        expect(
+            getLegacyParcelSettlementState([
                 {
                     lifecycleState: "open",
                     merchantSettlementId: null,

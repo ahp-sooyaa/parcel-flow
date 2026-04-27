@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { FormFieldError } from "@/components/shared/form-field-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,11 @@ import {
     PARCEL_STATUSES,
     formatParcelStatusLabel,
 } from "@/features/parcels/constants";
+import {
+    getParcelCorrectionOptions,
+    normalizeParcelCorrectionState,
+    type ParcelCorrectionState,
+} from "@/features/parcels/payment-state";
 import {
     adminCorrectParcelStateAction,
     advanceOfficeParcelStatusAction,
@@ -38,6 +44,13 @@ type ParcelOperationsPanelProps = {
         codAmount: string;
         deliveryFee: string;
         deliveryFeePayer: "merchant" | "receiver";
+        deliveryFeePaymentPlan:
+            | "receiver_collect_on_delivery"
+            | "merchant_prepaid_bank_transfer"
+            | "merchant_cash_on_pickup"
+            | "merchant_deduct_from_cod_settlement"
+            | "merchant_bill_later"
+            | null;
         deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number];
         codStatus: (typeof COD_STATUSES)[number];
         collectedAmount: string;
@@ -125,6 +138,29 @@ function ActionMessage({
     );
 }
 
+function useRefreshOnSuccessfulAction(state: OperationActionState) {
+    const router = useRouter();
+    const lastHandledState = useRef<OperationActionState | null>(null);
+
+    useEffect(() => {
+        if (!state.ok || !state.message || lastHandledState.current === state) {
+            return;
+        }
+
+        lastHandledState.current = state;
+        router.refresh();
+    }, [router, state]);
+}
+
+function buildCorrectionState(parcel: ParcelOperationsPanelProps["parcel"]): ParcelCorrectionState {
+    return {
+        parcelStatus: parcel.parcelStatus,
+        deliveryFeeStatus: parcel.deliveryFeeStatus,
+        codStatus: parcel.codStatus,
+        collectionStatus: parcel.collectionStatus,
+    };
+}
+
 export function ParcelOperationsPanel({
     parcel,
     operations,
@@ -148,8 +184,100 @@ export function ParcelOperationsPanel({
         adminCorrectParcelStateAction,
         initialActionState,
     );
+    const [correctionValues, setCorrectionValues] = useState<ParcelCorrectionState>(() =>
+        normalizeParcelCorrectionState({
+            ...buildCorrectionState(parcel),
+            parcelType: parcel.parcelType,
+            deliveryFeePayer: parcel.deliveryFeePayer,
+            deliveryFeePaymentPlan: parcel.deliveryFeePaymentPlan,
+            codAmount: Number(parcel.codAmount),
+            deliveryFee: Number(parcel.deliveryFee),
+            previousDeliveryFeeStatus: parcel.deliveryFeeStatus,
+            merchantSettlementStatus: parcel.merchantSettlementStatus,
+            merchantSettlementId: parcel.merchantSettlementId,
+            paymentNote: parcel.paymentNote,
+        }),
+    );
+
+    useRefreshOnSuccessfulAction(movementState);
+    useRefreshOnSuccessfulAction(cashState);
+    useRefreshOnSuccessfulAction(feeState);
+    useRefreshOnSuccessfulAction(correctionState);
+
+    useEffect(() => {
+        const nextSelection = operations.deliveryFee.resolutionOptions[0];
+
+        if (!nextSelection) {
+            return;
+        }
+
+        if (!operations.deliveryFee.resolutionOptions.includes(selectedFeeResolution)) {
+            setSelectedFeeResolution(nextSelection);
+        }
+    }, [operations.deliveryFee.resolutionOptions, selectedFeeResolution]);
+
+    useEffect(() => {
+        setCorrectionValues(
+            normalizeParcelCorrectionState({
+                ...buildCorrectionState(parcel),
+                parcelType: parcel.parcelType,
+                deliveryFeePayer: parcel.deliveryFeePayer,
+                deliveryFeePaymentPlan: parcel.deliveryFeePaymentPlan,
+                codAmount: Number(parcel.codAmount),
+                deliveryFee: Number(parcel.deliveryFee),
+                previousDeliveryFeeStatus: parcel.deliveryFeeStatus,
+                merchantSettlementStatus: parcel.merchantSettlementStatus,
+                merchantSettlementId: parcel.merchantSettlementId,
+                paymentNote: parcel.paymentNote,
+            }),
+        );
+    }, [parcel]);
+
     const correctionFieldError = (fieldName: string) =>
         correctionState.fieldErrors?.[fieldName]?.[0];
+    const correctionOptions = getParcelCorrectionOptions({
+        ...correctionValues,
+        parcelType: parcel.parcelType,
+        deliveryFeePayer: parcel.deliveryFeePayer,
+        deliveryFeePaymentPlan: parcel.deliveryFeePaymentPlan,
+        codAmount: Number(parcel.codAmount),
+        deliveryFee: Number(parcel.deliveryFee),
+        previousDeliveryFeeStatus: parcel.deliveryFeeStatus,
+        merchantSettlementStatus: parcel.merchantSettlementStatus,
+        merchantSettlementId: parcel.merchantSettlementId,
+        paymentNote: parcel.paymentNote,
+    });
+    const updateCorrectionValue = <TKey extends keyof ParcelCorrectionState>(
+        fieldName: TKey,
+        value: ParcelCorrectionState[TKey],
+    ) => {
+        setCorrectionValues((current) =>
+            normalizeParcelCorrectionState(
+                {
+                    ...current,
+                    [fieldName]: value,
+                    parcelType: parcel.parcelType,
+                    deliveryFeePayer: parcel.deliveryFeePayer,
+                    deliveryFeePaymentPlan: parcel.deliveryFeePaymentPlan,
+                    codAmount: Number(parcel.codAmount),
+                    deliveryFee: Number(parcel.deliveryFee),
+                    previousDeliveryFeeStatus: parcel.deliveryFeeStatus,
+                    merchantSettlementStatus: parcel.merchantSettlementStatus,
+                    merchantSettlementId: parcel.merchantSettlementId,
+                    paymentNote: parcel.paymentNote,
+                },
+                fieldName,
+            ),
+        );
+    };
+    const correctionFormKey = [
+        parcel.parcelStatus,
+        parcel.deliveryFeeStatus,
+        parcel.codStatus,
+        parcel.collectionStatus,
+        parcel.collectedAmount,
+        parcel.paymentNote ?? "",
+    ].join(":");
 
     return (
         <section className="space-y-4" id="operations">
@@ -201,7 +329,9 @@ export function ParcelOperationsPanel({
                         <div>
                             <h3 className="text-sm font-semibold">Cash Reconciliation</h3>
                             <p className="text-xs text-muted-foreground">
-                                COD status is {formatParcelStatusLabel(parcel.codStatus)}.
+                                {parcel.parcelType === "cod"
+                                    ? `COD status is ${formatParcelStatusLabel(parcel.codStatus)}.`
+                                    : "Cash reconciliation does not apply to non-COD parcels."}
                             </p>
                         </div>
                         <OperationStatePill
@@ -354,7 +484,11 @@ export function ParcelOperationsPanel({
                     </p>
                 </div>
 
-                <form action={correctionAction} className="grid gap-3 md:grid-cols-2">
+                <form
+                    key={correctionFormKey}
+                    action={correctionAction}
+                    className="grid gap-3 md:grid-cols-2"
+                >
                     <input type="hidden" name="parcelId" value={parcel.id} />
 
                     <div className="grid gap-2">
@@ -362,11 +496,17 @@ export function ParcelOperationsPanel({
                         <select
                             id={`correct-parcel-status-${parcel.id}`}
                             name="parcelStatus"
-                            defaultValue={parcel.parcelStatus}
+                            value={correctionValues.parcelStatus}
+                            onChange={(event) =>
+                                updateCorrectionValue(
+                                    "parcelStatus",
+                                    event.target.value as (typeof PARCEL_STATUSES)[number],
+                                )
+                            }
                             className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                             required
                         >
-                            {PARCEL_STATUSES.map((status) => (
+                            {correctionOptions.parcelStatuses.map((status) => (
                                 <option key={status} value={status}>
                                     {formatParcelStatusLabel(status)}
                                 </option>
@@ -381,11 +521,17 @@ export function ParcelOperationsPanel({
                         <select
                             id={`correct-delivery-fee-status-${parcel.id}`}
                             name="deliveryFeeStatus"
-                            defaultValue={parcel.deliveryFeeStatus}
+                            value={correctionValues.deliveryFeeStatus}
+                            onChange={(event) =>
+                                updateCorrectionValue(
+                                    "deliveryFeeStatus",
+                                    event.target.value as (typeof DELIVERY_FEE_STATUSES)[number],
+                                )
+                            }
                             className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                             required
                         >
-                            {DELIVERY_FEE_STATUSES.map((status) => (
+                            {correctionOptions.deliveryFeeStatuses.map((status) => (
                                 <option key={status} value={status}>
                                     {formatParcelStatusLabel(status)}
                                 </option>
@@ -398,11 +544,17 @@ export function ParcelOperationsPanel({
                         <select
                             id={`correct-cod-status-${parcel.id}`}
                             name="codStatus"
-                            defaultValue={parcel.codStatus}
+                            value={correctionValues.codStatus}
+                            onChange={(event) =>
+                                updateCorrectionValue(
+                                    "codStatus",
+                                    event.target.value as (typeof COD_STATUSES)[number],
+                                )
+                            }
                             className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                             required
                         >
-                            {COD_STATUSES.map((status) => (
+                            {correctionOptions.codStatuses.map((status) => (
                                 <option key={status} value={status}>
                                     {formatParcelStatusLabel(status)}
                                 </option>
@@ -417,11 +569,17 @@ export function ParcelOperationsPanel({
                         <select
                             id={`correct-collection-status-${parcel.id}`}
                             name="collectionStatus"
-                            defaultValue={parcel.collectionStatus}
+                            value={correctionValues.collectionStatus}
+                            onChange={(event) =>
+                                updateCorrectionValue(
+                                    "collectionStatus",
+                                    event.target.value as (typeof COLLECTION_STATUSES)[number],
+                                )
+                            }
                             className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                             required
                         >
-                            {COLLECTION_STATUSES.map((status) => (
+                            {correctionOptions.collectionStatuses.map((status) => (
                                 <option key={status} value={status}>
                                     {formatParcelStatusLabel(status)}
                                 </option>
@@ -446,13 +604,15 @@ export function ParcelOperationsPanel({
 
                     <div className="grid gap-2">
                         <Label htmlFor={`correct-payment-note-${parcel.id}`}>
-                            Payment Note (Optional)
+                            Payment Note{" "}
+                            {correctionValues.deliveryFeeStatus === "waived" ? "*" : "(Optional)"}
                         </Label>
                         <textarea
                             id={`correct-payment-note-${parcel.id}`}
                             name="paymentNote"
                             rows={3}
                             defaultValue={parcel.paymentNote ?? ""}
+                            required={correctionValues.deliveryFeeStatus === "waived"}
                             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                         />
                     </div>

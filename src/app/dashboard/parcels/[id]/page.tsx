@@ -21,6 +21,12 @@ type ParcelDetailPageProps = {
     searchParams: Promise<{ returnTo?: string | string[] }>;
 };
 
+const detailHeaderStatuses = [
+    { label: "Parcel", valueKey: "parcelStatus" },
+    { label: "Collection", valueKey: "collectionStatus" },
+    { label: "Delivery Fee", valueKey: "deliveryFeeStatus" },
+] as const;
+
 function getReturnTo(searchParams: Awaited<ParcelDetailPageProps["searchParams"]>) {
     const value = searchParams.returnTo;
 
@@ -93,9 +99,18 @@ export default async function ParcelDetailPage({
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    <ParcelStatusPill value={parcel.parcelStatus} />
-                    <ParcelStatusPill value={parcel.collectionStatus} />
-                    <ParcelStatusPill value={parcel.deliveryFeeStatus} />
+                    {detailHeaderStatuses.map((status) => (
+                        <div
+                            key={status.label}
+                            className="inline-flex items-center gap-2 rounded-full border bg-card px-2 py-1"
+                        >
+                            <span className="text-xs text-muted-foreground">{status.label}</span>
+                            <ParcelStatusPill
+                                value={parcel[status.valueKey]}
+                                className="h-5 px-2 text-[11px]"
+                            />
+                        </div>
+                    ))}
                 </div>
             </header>
 

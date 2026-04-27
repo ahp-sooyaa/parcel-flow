@@ -21,6 +21,7 @@ import { db } from "@/db";
 import {
     appUsers,
     merchants,
+    merchantFinancialItems,
     parcelAuditLogs,
     parcelPaymentRecords,
     parcels,
@@ -47,10 +48,16 @@ const deliveryFeeStatusValue = sql<ParcelListItemDto["deliveryFeeStatus"]>`
     coalesce(${parcelPaymentRecords.deliveryFeeStatus}, 'unpaid')
 `;
 const codStatusValue = sql<ParcelListItemDto["codStatus"]>`
-    coalesce(${parcelPaymentRecords.codStatus}, 'pending')
+    case
+        when ${parcels.parcelType} = 'non_cod' then 'not_applicable'
+        else coalesce(${parcelPaymentRecords.codStatus}, 'pending')
+    end
 `;
 const collectionStatusValue = sql<ParcelListItemDto["collectionStatus"]>`
-    coalesce(${parcelPaymentRecords.collectionStatus}, 'pending')
+    case
+        when ${parcels.parcelType} = 'non_cod' then 'void'
+        else coalesce(${parcelPaymentRecords.collectionStatus}, 'pending')
+    end
 `;
 const merchantSettlementStatusValue = sql<ParcelListItemDto["merchantSettlementStatus"]>`
     coalesce(${parcelPaymentRecords.merchantSettlementStatus}, 'pending')
@@ -235,89 +242,108 @@ async function listMerchantParcels(
 }
 
 async function getMerchantParcelStats(merchantId: string): Promise<MerchantParcelStatsDto> {
-    const [row] = await db
-        .select({
-            totalParcels: count(parcels.id),
-            deliveredParcels: sql<number>`
-                count(*) filter (where ${parcels.status} = 'delivered')::int
-            `,
-            returnedParcels: sql<number>`
-                count(*) filter (where ${parcels.status} = 'returned')::int
-            `,
-            totalCodCollected: sql<string>`
-                coalesce(
-                    sum(
-                        case
-                            when ${parcelPaymentRecords.codStatus} = 'collected'
-                            then ${parcels.codAmount}
-                            else 0
-                        end
-                    ),
-                    0
-                )::numeric(12, 2)::text
-            `,
-            codRemitted: sql<string>`
-                coalesce(
-                    sum(
-                        case
-                            when ${parcelPaymentRecords.codStatus} = 'collected'
-                                and ${parcelPaymentRecords.merchantSettlementStatus} = 'settled'
-                            then ${parcels.codAmount}
-                            else 0
-                        end
-                    ),
-                    0
-                )::numeric(12, 2)::text
-            `,
-            codInHeld: sql<string>`
-                coalesce(
-                    sum(
-                        case
-                            when ${parcelPaymentRecords.codStatus} = 'collected'
-                                and ${parcels.status} = 'delivered'
-                                and ${parcels.parcelType} = 'cod'
-                                and ${parcelPaymentRecords.merchantSettlementStatus} = 'pending'
-                                and ${parcelPaymentRecords.merchantSettlementId} is null
-                            then ${parcels.codAmount}
-                            else 0
-                        end
-                    ),
-                    0
-                )::numeric(12, 2)::text
-            `,
-            pendingDeliveryFee: sql<string>`
-                coalesce(
-                    sum(
-                        case
-                            when ${parcelPaymentRecords.deliveryFeeStatus} = 'bill_merchant'
-                                or (
-                                    ${parcels.deliveryFeePayer} = 'merchant'
-                                    and ${parcelPaymentRecords.deliveryFeeStatus}
-                                        in ('unpaid', 'bill_merchant')
-                                )
-                            then ${parcels.deliveryFee}
-                            else 0
-                        end
-                    ),
-                    0
-                )::numeric(12, 2)::text
-            `,
-        })
-        .from(parcels)
-        .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
-        .where(eq(parcels.merchantId, merchantId));
+    const positiveCodRemitAmountSql = sql<string>`greatest(${merchantFinancialItems.amount}, 0)`;
+    const [[parcelStatsRow], [codSettlementRow]] = await Promise.all([
+        db
+            .select({
+                totalParcels: count(parcels.id),
+                deliveredParcels: sql<number>`
+                    count(*) filter (where ${parcels.status} = 'delivered')::int
+                `,
+                returnedParcels: sql<number>`
+                    count(*) filter (where ${parcels.status} = 'returned')::int
+                `,
+                totalCodCollected: sql<string>`
+                    coalesce(
+                        sum(
+                            case
+                                when ${parcelPaymentRecords.codStatus} = 'collected'
+                                then ${parcels.codAmount}
+                                else 0
+                            end
+                        ),
+                        0
+                    )::numeric(12, 2)::text
+                `,
+                pendingDeliveryFee: sql<string>`
+                    coalesce(
+                        sum(
+                            case
+                                when ${parcelPaymentRecords.deliveryFeeStatus} = 'bill_merchant'
+                                    or (
+                                        ${parcels.deliveryFeePayer} = 'merchant'
+                                        and ${parcelPaymentRecords.deliveryFeeStatus}
+                                            in ('unpaid', 'bill_merchant')
+                                    )
+                                then ${parcels.deliveryFee}
+                                else 0
+                            end
+                        ),
+                        0
+                    )::numeric(12, 2)::text
+                `,
+            })
+            .from(parcels)
+            .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
+            .where(eq(parcels.merchantId, merchantId)),
+        db
+            .select({
+                // Use settlement item truth instead of the legacy parcel-level flag.
+                // A parcel can still have another open merchant financial item after its COD remit
+                // has already been settled, which leaves the legacy status at "pending".
+                codRemitted: sql<string>`
+                    coalesce(
+                        sum(
+                            case
+                                when ${merchantFinancialItems.lifecycleState} = 'closed'
+                                then ${positiveCodRemitAmountSql}
+                                else 0
+                            end
+                        ),
+                        0
+                    )::numeric(12, 2)::text
+                `,
+                codInHeld: sql<string>`
+                    coalesce(
+                        sum(
+                            case
+                                when ${merchantFinancialItems.lifecycleState} in ('open', 'locked')
+                                    and ${parcels.parcelType} = 'cod'
+                                    and ${parcels.status} = 'delivered'
+                                    and ${parcelPaymentRecords.codStatus} = 'collected'
+                                    and ${parcelPaymentRecords.collectionStatus}
+                                        = 'received_by_office'
+                                then ${positiveCodRemitAmountSql}
+                                else 0
+                            end
+                        ),
+                        0
+                    )::numeric(12, 2)::text
+                `,
+            })
+            .from(merchantFinancialItems)
+            .leftJoin(parcels, eq(merchantFinancialItems.sourceParcelId, parcels.id))
+            .leftJoin(
+                parcelPaymentRecords,
+                eq(merchantFinancialItems.sourcePaymentRecordId, parcelPaymentRecords.id),
+            )
+            .where(
+                and(
+                    eq(merchantFinancialItems.merchantId, merchantId),
+                    eq(merchantFinancialItems.kind, "cod_remit_credit"),
+                ),
+            ),
+    ]);
 
-    return toMerchantParcelStatsDto(
-        row ?? {
-            totalParcels: 0,
-            deliveredParcels: 0,
-            returnedParcels: 0,
-            totalCodCollected: "0",
-            codRemitted: "0",
-            codInHeld: "0",
-            pendingDeliveryFee: "0",
-        },
-    );
+    return toMerchantParcelStatsDto({
+        totalParcels: parcelStatsRow?.totalParcels ?? 0,
+        deliveredParcels: parcelStatsRow?.deliveredParcels ?? 0,
+        returnedParcels: parcelStatsRow?.returnedParcels ?? 0,
+        totalCodCollected: parcelStatsRow?.totalCodCollected ?? "0",
+        codRemitted: codSettlementRow?.codRemitted ?? "0",
+        codInHeld: codSettlementRow?.codInHeld ?? "0",
+        pendingDeliveryFee: parcelStatsRow?.pendingDeliveryFee ?? "0",
+    });
 }
 
 export async function getMerchantParcelsListForViewer(

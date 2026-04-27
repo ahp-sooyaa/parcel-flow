@@ -1,8 +1,5 @@
 import "server-only";
-import {
-    MERCHANT_SETTLEMENT_PRESETS,
-    MERCHANT_SETTLEMENT_TYPES,
-} from "@/features/merchant-settlements/constants";
+import { MERCHANT_SETTLEMENT_PRESETS } from "@/features/merchant-settlements/constants";
 
 import type {
     MerchantFinancialDirection,
@@ -156,13 +153,6 @@ export function getLegacyParcelSettlementState(
         };
     }
 
-    if (items.some((item) => item.lifecycleState === "open")) {
-        return {
-            merchantSettlementStatus: "pending" as const,
-            merchantSettlementId: null,
-        };
-    }
-
     const closedItem = items.find(
         (item) => item.lifecycleState === "closed" && Boolean(item.merchantSettlementId),
     );
@@ -171,6 +161,13 @@ export function getLegacyParcelSettlementState(
         return {
             merchantSettlementStatus: "settled" as const,
             merchantSettlementId: closedItem.merchantSettlementId,
+        };
+    }
+
+    if (items.some((item) => item.lifecycleState === "open")) {
+        return {
+            merchantSettlementStatus: "pending" as const,
+            merchantSettlementId: null,
         };
     }
 
@@ -386,4 +383,4 @@ export function getSettlementStatusAfterGeneration(direction: MerchantSettlement
     return direction === "balanced" ? "paid" : "pending";
 }
 
-export const MERCHANT_SETTLEMENT_DIRECTIONS = MERCHANT_SETTLEMENT_TYPES;
+export { MERCHANT_SETTLEMENT_TYPES as MERCHANT_SETTLEMENT_DIRECTIONS } from "@/features/merchant-settlements/constants";

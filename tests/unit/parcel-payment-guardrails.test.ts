@@ -4,6 +4,11 @@ import {
     isMerchantPaidDeliveryFeeUnresolved,
     calculateSettlementItemAmounts,
 } from "../../src/features/merchant-settlements/server/settlement-calculations";
+import {
+    getParcelCorrectionOptions,
+    normalizeParcelCorrectionState,
+} from "../../src/features/parcels/payment-state";
+import { toParcelListItemDto } from "../../src/features/parcels/server/dto";
 import { validateParcelPaymentState } from "../../src/features/parcels/server/payment-guardrails";
 import {
     adminCorrectParcelStateSchema,
@@ -14,6 +19,7 @@ import {
     updateParcelDetailSchema,
     validateCreateParcelMedia,
     validateDeliveryFeePaymentPlan,
+    validateDeliveryFeeStatusForParcel,
     validateParcelStatusProofImages,
     validatePaymentSlipImagesForPlan,
 } from "../../src/features/parcels/server/utils";
@@ -35,6 +41,40 @@ const validState = {
 describe("parcel payment guardrails", () => {
     it("allows a fully resolved settlement deduction state", () => {
         expect(validateParcelPaymentState(validState)).toEqual({ ok: true });
+    });
+
+    it("allows delivered COD collected by rider before office reconciliation", () => {
+        expect(
+            validateParcelPaymentState({
+                ...validState,
+                deliveryFeeStatus: "unpaid",
+                codStatus: "collected",
+                collectionStatus: "collected_by_rider",
+            }),
+        ).toEqual({ ok: true });
+    });
+
+    it("allows delivered office-received COD before fee resolution", () => {
+        expect(
+            validateParcelPaymentState({
+                ...validState,
+                deliveryFeeStatus: "unpaid",
+                codStatus: "collected",
+                collectionStatus: "received_by_office",
+            }),
+        ).toEqual({ ok: true });
+    });
+
+    it("allows delivered receiver-paid fee collected from receiver", () => {
+        expect(
+            validateParcelPaymentState({
+                ...validState,
+                deliveryFeePayer: "receiver",
+                deliveryFeeStatus: "collected_from_receiver",
+                codStatus: "collected",
+                collectionStatus: "collected_by_rider",
+            }),
+        ).toEqual({ ok: true });
     });
 
     it("rejects settlement deduction before COD reaches office", () => {
@@ -88,6 +128,21 @@ describe("parcel payment guardrails", () => {
         });
     });
 
+    it("rejects non-COD parcels with a non-void collection status", () => {
+        expect(
+            validateParcelPaymentState({
+                ...validState,
+                parcelType: "non_cod",
+                codStatus: "not_applicable",
+                collectionStatus: "pending",
+                deliveryFeeStatus: "bill_merchant",
+            }),
+        ).toMatchObject({
+            ok: false,
+            message: "Collection status must be 'void' when parcel type is non-COD.",
+        });
+    });
+
     it("rejects delivered COD parcels with pending COD state", () => {
         expect(
             validateParcelPaymentState({
@@ -99,6 +154,51 @@ describe("parcel payment guardrails", () => {
         ).toMatchObject({
             ok: false,
             message: "Delivered COD parcels must have COD collection resolved.",
+        });
+    });
+
+    it("rejects collected COD before delivery", () => {
+        expect(
+            validateParcelPaymentState({
+                ...validState,
+                parcelStatus: "pending",
+                deliveryFeeStatus: "unpaid",
+                codStatus: "collected",
+                collectionStatus: "pending",
+            }),
+        ).toMatchObject({
+            ok: false,
+            message: "Collected COD requires a delivered parcel.",
+        });
+    });
+
+    it("rejects rider-held COD cash before delivery", () => {
+        expect(
+            validateParcelPaymentState({
+                ...validState,
+                parcelStatus: "out_for_delivery",
+                deliveryFeeStatus: "unpaid",
+                codStatus: "collected",
+                collectionStatus: "collected_by_rider",
+            }),
+        ).toMatchObject({
+            ok: false,
+            message: "Rider-held COD cash requires a delivered parcel.",
+        });
+    });
+
+    it("rejects office-received COD cash before delivery", () => {
+        expect(
+            validateParcelPaymentState({
+                ...validState,
+                parcelStatus: "at_office",
+                deliveryFeeStatus: "unpaid",
+                codStatus: "collected",
+                collectionStatus: "received_by_office",
+            }),
+        ).toMatchObject({
+            ok: false,
+            message: "Office-received COD cash requires a delivered parcel.",
         });
     });
 
@@ -114,6 +214,94 @@ describe("parcel payment guardrails", () => {
             ok: false,
             message: "Office cannot receive COD that was not collected.",
         });
+    });
+
+    it("rejects rider-held cash unless COD was collected", () => {
+        expect(
+            validateParcelPaymentState({
+                ...validState,
+                deliveryFeeStatus: "unpaid",
+                codStatus: "not_collected",
+                collectionStatus: "collected_by_rider",
+            }),
+        ).toMatchObject({
+            ok: false,
+            message: "Rider cannot hold COD cash that was not collected.",
+        });
+    });
+
+    it("rejects receiver-paid fee collection before delivery", () => {
+        expect(
+            validateParcelPaymentState({
+                ...validState,
+                parcelStatus: "pending",
+                deliveryFeePayer: "receiver",
+                deliveryFeeStatus: "collected_from_receiver",
+                codStatus: "pending",
+                collectionStatus: "pending",
+            }),
+        ).toMatchObject({
+            ok: false,
+            message: "Receiver-paid delivery fee collection requires a delivered parcel.",
+        });
+    });
+
+    it("rejects impossible collected states even when a correction note would exist", () => {
+        expect(
+            validateParcelPaymentState({
+                ...validState,
+                parcelStatus: "pending",
+                deliveryFeePayer: "receiver",
+                deliveryFeeStatus: "collected_from_receiver",
+                codStatus: "pending",
+                collectionStatus: "pending",
+                paymentNote: "Correcting historical parcel state.",
+            }),
+        ).toMatchObject({
+            ok: false,
+            message: "Receiver-paid delivery fee collection requires a delivered parcel.",
+        });
+    });
+
+    it("rejects collected states after return or cancellation", () => {
+        const invalidStates = [
+            {
+                parcelStatus: "returned",
+                deliveryFeePayer: "merchant",
+                deliveryFeeStatus: "unpaid",
+                codStatus: "collected",
+                collectionStatus: "pending",
+                message: "Collected COD requires a delivered parcel.",
+            },
+            {
+                parcelStatus: "returned",
+                deliveryFeePayer: "merchant",
+                deliveryFeeStatus: "unpaid",
+                codStatus: "collected",
+                collectionStatus: "collected_by_rider",
+                message: "Rider-held COD cash requires a delivered parcel.",
+            },
+            {
+                parcelStatus: "cancelled",
+                deliveryFeePayer: "receiver",
+                deliveryFeeStatus: "collected_from_receiver",
+                codStatus: "pending",
+                collectionStatus: "pending",
+                message: "Receiver-paid delivery fee collection requires a delivered parcel.",
+            },
+        ] as const;
+
+        for (const invalidState of invalidStates) {
+            expect(
+                validateParcelPaymentState({
+                    ...validState,
+                    ...invalidState,
+                }),
+            ).toMatchObject({
+                ok: false,
+                message: invalidState.message,
+            });
+        }
     });
 
     it("requires a note when delivery fee is waived", () => {
@@ -387,6 +575,7 @@ const validOperationState = {
     deliveryFee: "1000.00",
     totalAmountToCollect: "10000.00",
     deliveryFeePayer: "merchant",
+    deliveryFeePaymentPlan: "merchant_deduct_from_cod_settlement",
     deliveryFeeStatus: "deduct_from_settlement",
     codStatus: "collected",
     collectedAmount: "10000.00",
@@ -395,6 +584,22 @@ const validOperationState = {
     merchantSettlementId: null,
     paymentNote: null,
 } satisfies Parameters<typeof getParcelOperationSummary>[0];
+
+const validCorrectionState = {
+    parcelType: "cod",
+    parcelStatus: "delivered",
+    deliveryFeePayer: "merchant",
+    deliveryFeePaymentPlan: "merchant_deduct_from_cod_settlement",
+    codAmount: 10000,
+    deliveryFee: 1000,
+    deliveryFeeStatus: "deduct_from_settlement",
+    previousDeliveryFeeStatus: "deduct_from_settlement",
+    codStatus: "collected",
+    collectionStatus: "received_by_office",
+    merchantSettlementStatus: "pending",
+    merchantSettlementId: null,
+    paymentNote: null,
+} satisfies Parameters<typeof normalizeParcelCorrectionState>[0];
 
 describe("parcel operation helpers", () => {
     it("returns valid office movement actions by status", () => {
@@ -490,6 +695,96 @@ describe("parcel operation helpers", () => {
         ).toEqual({ ok: true });
     });
 
+    it("allows delivery fee statuses that match the payment plan", () => {
+        const validPlanStates = [
+            {
+                deliveryFeePayer: "merchant",
+                deliveryFeePaymentPlan: "merchant_prepaid_bank_transfer",
+                parcelStatus: "pending",
+                deliveryFeeStatus: "paid_by_merchant",
+            },
+            {
+                deliveryFeePayer: "merchant",
+                deliveryFeePaymentPlan: "merchant_cash_on_pickup",
+                parcelStatus: "out_for_pickup",
+                deliveryFeeStatus: "paid_by_merchant",
+            },
+            {
+                deliveryFeePayer: "merchant",
+                deliveryFeePaymentPlan: "merchant_bill_later",
+                parcelStatus: "out_for_delivery",
+                deliveryFeeStatus: "bill_merchant",
+            },
+            {
+                deliveryFeePayer: "receiver",
+                deliveryFeePaymentPlan: "receiver_collect_on_delivery",
+                parcelStatus: "delivered",
+                deliveryFeeStatus: "collected_from_receiver",
+            },
+            {
+                deliveryFeePayer: "merchant",
+                deliveryFeePaymentPlan: "merchant_deduct_from_cod_settlement",
+                parcelStatus: "delivered",
+                deliveryFeeStatus: "deduct_from_settlement",
+            },
+            {
+                deliveryFeePayer: "merchant",
+                deliveryFeePaymentPlan: "merchant_deduct_from_cod_settlement",
+                parcelStatus: "returned",
+                deliveryFeeStatus: "bill_merchant",
+            },
+        ] as const;
+
+        for (const state of validPlanStates) {
+            expect(validateDeliveryFeeStatusForParcel(state)).toEqual({ ok: true });
+        }
+    });
+
+    it("rejects delivery fee statuses that do not match the payment plan", () => {
+        const invalidPlanStates = [
+            {
+                deliveryFeePayer: "merchant",
+                deliveryFeePaymentPlan: "merchant_prepaid_bank_transfer",
+                parcelStatus: "delivered",
+                deliveryFeeStatus: "bill_merchant",
+            },
+            {
+                deliveryFeePayer: "merchant",
+                deliveryFeePaymentPlan: "merchant_prepaid_bank_transfer",
+                parcelStatus: "delivered",
+                deliveryFeeStatus: "deduct_from_settlement",
+            },
+            {
+                deliveryFeePayer: "merchant",
+                deliveryFeePaymentPlan: "merchant_bill_later",
+                parcelStatus: "delivered",
+                deliveryFeeStatus: "paid_by_merchant",
+            },
+            {
+                deliveryFeePayer: "receiver",
+                deliveryFeePaymentPlan: "receiver_collect_on_delivery",
+                parcelStatus: "delivered",
+                deliveryFeeStatus: "bill_merchant",
+            },
+            {
+                deliveryFeePayer: "merchant",
+                deliveryFeePaymentPlan: "merchant_deduct_from_cod_settlement",
+                parcelStatus: "delivered",
+                deliveryFeeStatus: "paid_by_merchant",
+            },
+            {
+                deliveryFeePayer: "merchant",
+                deliveryFeePaymentPlan: "merchant_deduct_from_cod_settlement",
+                parcelStatus: "returned",
+                deliveryFeeStatus: "deduct_from_settlement",
+            },
+        ] as const;
+
+        for (const state of invalidPlanStates) {
+            expect(validateDeliveryFeeStatusForParcel(state)).toMatchObject({ ok: false });
+        }
+    });
+
     it("shows receive cash for delivered COD held by rider", () => {
         expect(
             getParcelOperationSummary({
@@ -539,16 +834,98 @@ describe("parcel operation helpers", () => {
         });
     });
 
+    it("shows settled for non-COD parcels that were included in merchant settlement", () => {
+        expect(
+            getParcelOperationSummary({
+                ...validOperationState,
+                parcelType: "non_cod",
+                codAmount: "0.00",
+                deliveryFeePaymentPlan: "merchant_bill_later",
+                deliveryFeeStatus: "bill_merchant",
+                codStatus: "not_applicable",
+                collectionStatus: "void",
+                merchantSettlementStatus: "settled",
+                merchantSettlementId: "00000000-0000-0000-0000-000000000001",
+            }),
+        ).toMatchObject({
+            cash: {
+                label: "Not applicable",
+            },
+            settlement: {
+                label: "Settled",
+            },
+        });
+    });
+
     it("only exposes settlement deduction when guardrail conditions are satisfied", () => {
         expect(
             getDeliveryFeeResolutionOptions({
                 ...validOperationState,
+                deliveryFeePaymentPlan: "merchant_prepaid_bank_transfer",
                 deliveryFeeStatus: "unpaid",
             }),
-        ).toContain("deduct_from_settlement");
+        ).toEqual(["paid_by_merchant", "waived"]);
+
         expect(
             getDeliveryFeeResolutionOptions({
                 ...validOperationState,
+                deliveryFeePaymentPlan: "merchant_cash_on_pickup",
+                deliveryFeeStatus: "unpaid",
+            }),
+        ).toEqual(["paid_by_merchant", "waived"]);
+
+        expect(
+            getDeliveryFeeResolutionOptions({
+                ...validOperationState,
+                deliveryFeePaymentPlan: "merchant_bill_later",
+                deliveryFeeStatus: "unpaid",
+            }),
+        ).toEqual(["bill_merchant", "waived"]);
+
+        expect(
+            getDeliveryFeeResolutionOptions({
+                ...validOperationState,
+                deliveryFeePayer: "receiver",
+                deliveryFeePaymentPlan: "receiver_collect_on_delivery",
+                deliveryFeeStatus: "unpaid",
+            }),
+        ).toEqual(["collected_from_receiver", "waived"]);
+
+        expect(
+            getDeliveryFeeResolutionOptions({
+                ...validOperationState,
+                parcelStatus: "out_for_delivery",
+                deliveryFeePayer: "receiver",
+                deliveryFeePaymentPlan: "receiver_collect_on_delivery",
+                deliveryFeeStatus: "unpaid",
+                codStatus: "pending",
+                collectionStatus: "pending",
+            }),
+        ).toEqual(["waived"]);
+
+        expect(
+            getDeliveryFeeResolutionOptions({
+                ...validOperationState,
+                deliveryFeePaymentPlan: "merchant_deduct_from_cod_settlement",
+                deliveryFeeStatus: "unpaid",
+            }),
+        ).toEqual(["deduct_from_settlement", "waived"]);
+
+        expect(
+            getDeliveryFeeResolutionOptions({
+                ...validOperationState,
+                deliveryFeePaymentPlan: "merchant_deduct_from_cod_settlement",
+                parcelStatus: "returned",
+                deliveryFeeStatus: "unpaid",
+                codStatus: "not_collected",
+                collectionStatus: "not_collected",
+            }),
+        ).toEqual(["bill_merchant", "waived"]);
+
+        expect(
+            getDeliveryFeeResolutionOptions({
+                ...validOperationState,
+                deliveryFeePaymentPlan: "merchant_deduct_from_cod_settlement",
                 parcelStatus: "at_office",
                 deliveryFeeStatus: "unpaid",
                 collectionStatus: "pending",
@@ -609,5 +986,85 @@ describe("parcel operation helpers", () => {
             expect("collectionStatus" in parsed.data).toBe(false);
             expect("collectedAmount" in parsed.data).toBe(false);
         }
+    });
+
+    it("normalizes legacy non-COD payment display state", () => {
+        expect(
+            toParcelListItemDto({
+                id: "00000000-0000-0000-0000-000000000001",
+                parcelCode: "PF-240101-000001",
+                merchantId: "00000000-0000-0000-0000-000000000002",
+                riderId: null,
+                merchantLabel: "Merchant",
+                recipientName: "Receiver",
+                recipientPhone: "09123456",
+                recipientTownshipName: "Yangon",
+                parcelType: "non_cod",
+                codAmount: "0.00",
+                deliveryFee: "1000.00",
+                totalAmountToCollect: "1000.00",
+                deliveryFeePayer: "merchant",
+                deliveryFeePaymentPlan: "merchant_bill_later",
+                parcelStatus: "delivered",
+                deliveryFeeStatus: "bill_merchant",
+                codStatus: "pending",
+                collectedAmount: "0.00",
+                collectionStatus: "pending",
+                merchantSettlementStatus: "pending",
+                merchantSettlementId: null,
+                createdAt: new Date("2026-01-01T00:00:00.000Z"),
+            }),
+        ).toMatchObject({
+            codStatus: "not_applicable",
+            collectionStatus: "void",
+        });
+    });
+});
+
+describe("parcel correction options", () => {
+    it("hides receiver collection until the parcel is delivered", () => {
+        expect(
+            getParcelCorrectionOptions({
+                ...validCorrectionState,
+                parcelStatus: "out_for_delivery",
+                deliveryFeePayer: "receiver",
+                deliveryFeePaymentPlan: "receiver_collect_on_delivery",
+                deliveryFeeStatus: "unpaid",
+                codStatus: "pending",
+                collectionStatus: "pending",
+            }).deliveryFeeStatuses,
+        ).toEqual(["unpaid", "waived"]);
+    });
+
+    it("removes collected cash statuses before delivery", () => {
+        const options = getParcelCorrectionOptions({
+            ...validCorrectionState,
+            parcelStatus: "out_for_delivery",
+            deliveryFeeStatus: "unpaid",
+            codStatus: "pending",
+            collectionStatus: "pending",
+        });
+
+        expect(options.codStatuses).not.toContain("collected");
+        expect(options.collectionStatuses).toEqual(["pending", "not_collected", "void"]);
+    });
+
+    it("normalizes an invalid correction draft to the closest valid combination", () => {
+        expect(
+            normalizeParcelCorrectionState({
+                ...validCorrectionState,
+                parcelStatus: "pending",
+                deliveryFeePayer: "receiver",
+                deliveryFeePaymentPlan: "receiver_collect_on_delivery",
+                deliveryFeeStatus: "collected_from_receiver",
+                codStatus: "collected",
+                collectionStatus: "collected_by_rider",
+            }),
+        ).toEqual({
+            parcelStatus: "delivered",
+            deliveryFeeStatus: "collected_from_receiver",
+            codStatus: "collected",
+            collectionStatus: "collected_by_rider",
+        });
     });
 });
