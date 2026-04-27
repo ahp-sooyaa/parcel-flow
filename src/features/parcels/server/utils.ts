@@ -764,6 +764,36 @@ function createFieldErrors(fieldName: string, message: string): ParcelFieldError
     };
 }
 
+export function validateParcelStatusProofImages(input: {
+    nextStatus: (typeof PARCEL_STATUSES)[number];
+    pickupImageKeys: string[];
+    proofOfDeliveryImageKeys: string[];
+}) {
+    if (input.nextStatus === "at_office" && input.pickupImageKeys.length === 0) {
+        return {
+            ok: false as const,
+            message: "Upload at least one pickup image before marking parcel at office.",
+            fieldErrors: createFieldErrors(
+                "pickupImages",
+                "Upload at least one pickup image before marking parcel at office.",
+            ),
+        };
+    }
+
+    if (input.nextStatus === "delivered" && input.proofOfDeliveryImageKeys.length === 0) {
+        return {
+            ok: false as const,
+            message: "Upload at least one proof of delivery image before marking parcel delivered.",
+            fieldErrors: createFieldErrors(
+                "proofOfDeliveryImages",
+                "Upload at least one proof of delivery image before marking parcel delivered.",
+            ),
+        };
+    }
+
+    return { ok: true as const };
+}
+
 export function validateDeliveryFeePaymentPlan(input: {
     parcelType: (typeof PARCEL_TYPES)[number];
     deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];

@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import type {
+    ParcelOperationActionResult,
     RiderParcelDetailDto,
     RiderParcelImageUploadActionResult,
 } from "@/features/parcels/server/dto";
@@ -29,7 +30,18 @@ const initialUploadState: RiderParcelImageUploadActionResult = {
     fieldErrors: undefined,
 };
 
+const initialMovementState: ParcelOperationActionResult = {
+    ok: true,
+    message: "",
+    fields: undefined,
+    fieldErrors: undefined,
+};
+
 export function RiderParcelDetail({ parcel }: Readonly<RiderParcelDetailProps>) {
+    const [movementState, movementAction, isMovementPending] = useActionState(
+        advanceRiderParcelAction,
+        initialMovementState,
+    );
     const [uploadState, uploadAction, isUploadPending] = useActionState(
         uploadRiderParcelImagesAction,
         initialUploadState,
@@ -46,11 +58,36 @@ export function RiderParcelDetail({ parcel }: Readonly<RiderParcelDetailProps>) 
             </header>
 
             {parcel.nextAction ? (
-                <form action={advanceRiderParcelAction}>
-                    <input type="hidden" name="parcelId" value={parcel.id} />
-                    <input type="hidden" name="nextStatus" value={parcel.nextAction.nextStatus} />
-                    <Button type="submit">{parcel.nextAction.label}</Button>
-                </form>
+                <div className="space-y-2">
+                    <form action={movementAction}>
+                        <input type="hidden" name="parcelId" value={parcel.id} />
+                        <input
+                            type="hidden"
+                            name="nextStatus"
+                            value={parcel.nextAction.nextStatus}
+                        />
+                        <Button type="submit" disabled={isMovementPending}>
+                            {isMovementPending ? "Updating..." : parcel.nextAction.label}
+                        </Button>
+                    </form>
+                    {movementState.message && (
+                        <div
+                            className={cn("rounded-lg border p-3", {
+                                "border-emerald-300 bg-emerald-50": movementState.ok,
+                                "border-red-300 bg-red-50": !movementState.ok,
+                            })}
+                        >
+                            <p
+                                className={cn("text-xs", {
+                                    "text-emerald-800": movementState.ok,
+                                    "text-destructive": !movementState.ok,
+                                })}
+                            >
+                                {movementState.message}
+                            </p>
+                        </div>
+                    )}
+                </div>
             ) : (
                 <p className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
                     No rider action is available for the current parcel status.

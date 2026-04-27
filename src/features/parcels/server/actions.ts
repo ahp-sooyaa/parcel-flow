@@ -32,6 +32,7 @@ import {
     validateCreateParcelMedia,
     validateParcelImageAppendLimits,
     validateParcelPaymentState,
+    validateParcelStatusProofImages,
     validatePaymentSlipImagesForPlan,
     validateParcelSubmission,
 } from "./utils";
@@ -684,6 +685,21 @@ export async function advanceOfficeParcelStatusAction(
             return { ok: false, message: "This parcel status change is not available.", fields };
         }
 
+        const proofGuard = validateParcelStatusProofImages({
+            nextStatus: requestedAction.nextStatus,
+            pickupImageKeys: current.parcel.pickupImageKeys,
+            proofOfDeliveryImageKeys: current.parcel.proofOfDeliveryImageKeys,
+        });
+
+        if (!proofGuard.ok) {
+            return {
+                ok: false,
+                message: proofGuard.message,
+                fields,
+                fieldErrors: proofGuard.fieldErrors,
+            };
+        }
+
         const nextPaymentValues =
             requestedAction.nextStatus === "delivered"
                 ? {
@@ -1094,11 +1110,15 @@ export async function adminCorrectParcelStateAction(
     }
 }
 
-export async function advanceRiderParcelAction(formData: FormData): Promise<void> {
-    const parsed = advanceRiderParcelSchema.safeParse(Object.fromEntries(formData.entries()));
+export async function advanceRiderParcelAction(
+    _prevState: ParcelOperationActionResult,
+    formData: FormData,
+): Promise<ParcelOperationActionResult> {
+    const fields = getSubmittedStringFields(formData);
+    const parsed = advanceRiderParcelSchema.safeParse(fields);
 
     if (!parsed.success) {
-        return;
+        return { ok: false, message: "Parcel id and next status are required.", fields };
     }
 
     const { parcelId, nextStatus } = parsed.data;
@@ -1108,11 +1128,15 @@ export async function advanceRiderParcelAction(formData: FormData): Promise<void
         const current = await getParcelUpdateContextForViewer(currentUser, parcelId);
 
         if (!current) {
-            return;
+            return { ok: false, message: "Parcel was not found.", fields };
         }
 
         if (await hasManagedMerchantFinancialItems(parcelId)) {
-            return;
+            return {
+                ok: false,
+                message: "Parcel financial fields are locked by merchant settlement.",
+                fields,
+            };
         }
 
         const riderParcelActionAccess = getRiderParcelActionAccess({
@@ -1123,7 +1147,7 @@ export async function advanceRiderParcelAction(formData: FormData): Promise<void
         });
 
         if (!riderParcelActionAccess.canProgressStatus) {
-            return;
+            return { ok: false, message: "You are not allowed to update this parcel.", fields };
         }
 
         const nextAction = getNextAssignedRiderAction({
@@ -1135,7 +1159,22 @@ export async function advanceRiderParcelAction(formData: FormData): Promise<void
         });
 
         if (nextAction?.nextStatus !== nextStatus.trim()) {
-            return;
+            return { ok: false, message: "This parcel status change is not available.", fields };
+        }
+
+        const proofGuard = validateParcelStatusProofImages({
+            nextStatus: nextAction.nextStatus,
+            pickupImageKeys: current.parcel.pickupImageKeys,
+            proofOfDeliveryImageKeys: current.parcel.proofOfDeliveryImageKeys,
+        });
+
+        if (!proofGuard.ok) {
+            return {
+                ok: false,
+                message: proofGuard.message,
+                fields,
+                fieldErrors: proofGuard.fieldErrors,
+            };
         }
 
         const nextPaymentValues =
@@ -1178,7 +1217,7 @@ export async function advanceRiderParcelAction(formData: FormData): Promise<void
         });
 
         if (!paymentStateGuard.ok) {
-            return;
+            return { ok: false, message: paymentStateGuard.message, fields };
         }
 
         const paymentPatch = nextPaymentValues
@@ -1207,8 +1246,14 @@ export async function advanceRiderParcelAction(formData: FormData): Promise<void
             merchantIds: [current.parcel.merchantId],
             riderIds: [current.parcel.riderId],
         });
+
+        return { ok: true, message: `${nextAction.label} completed.`, fields };
     } catch (error) {
-        console.error(error instanceof Error ? error.message : "Unable to update parcel status.");
+        const message = error instanceof Error ? error.message : "Unable to update parcel status.";
+
+        console.error(message);
+
+        return { ok: false, message, fields };
     }
 }
 

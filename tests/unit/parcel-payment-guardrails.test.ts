@@ -14,6 +14,7 @@ import {
     updateParcelDetailSchema,
     validateCreateParcelMedia,
     validateDeliveryFeePaymentPlan,
+    validateParcelStatusProofImages,
     validatePaymentSlipImagesForPlan,
 } from "../../src/features/parcels/server/utils";
 
@@ -429,6 +430,64 @@ describe("parcel operation helpers", () => {
                 merchantSettlementId: "00000000-0000-0000-0000-000000000001",
             }),
         ).toEqual([]);
+    });
+
+    it("requires pickup proof before marking a parcel at office", () => {
+        expect(
+            validateParcelStatusProofImages({
+                nextStatus: "at_office",
+                pickupImageKeys: [],
+                proofOfDeliveryImageKeys: [],
+            }),
+        ).toMatchObject({
+            ok: false,
+            fieldErrors: {
+                pickupImages: ["Upload at least one pickup image before marking parcel at office."],
+            },
+        });
+
+        expect(
+            validateParcelStatusProofImages({
+                nextStatus: "at_office",
+                pickupImageKeys: ["pickup/1.jpg"],
+                proofOfDeliveryImageKeys: [],
+            }),
+        ).toEqual({ ok: true });
+    });
+
+    it("requires proof of delivery before marking a parcel delivered", () => {
+        expect(
+            validateParcelStatusProofImages({
+                nextStatus: "delivered",
+                pickupImageKeys: ["pickup/1.jpg"],
+                proofOfDeliveryImageKeys: [],
+            }),
+        ).toMatchObject({
+            ok: false,
+            fieldErrors: {
+                proofOfDeliveryImages: [
+                    "Upload at least one proof of delivery image before marking parcel delivered.",
+                ],
+            },
+        });
+
+        expect(
+            validateParcelStatusProofImages({
+                nextStatus: "delivered",
+                pickupImageKeys: ["pickup/1.jpg"],
+                proofOfDeliveryImageKeys: ["proof/1.jpg"],
+            }),
+        ).toEqual({ ok: true });
+    });
+
+    it("does not require proof images for unrelated status changes", () => {
+        expect(
+            validateParcelStatusProofImages({
+                nextStatus: "out_for_delivery",
+                pickupImageKeys: [],
+                proofOfDeliveryImageKeys: [],
+            }),
+        ).toEqual({ ok: true });
     });
 
     it("shows receive cash for delivered COD held by rider", () => {
