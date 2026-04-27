@@ -15,6 +15,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { AppBrand } from "@/components/shared/app-brand";
+import { DashboardHeaderNav } from "@/components/shared/dashboard-header-nav";
 import { ResetRequiredBanner } from "@/components/shared/reset-required-banner";
 import { UserSummary } from "@/components/shared/user-summary";
 import { Button } from "@/components/ui/button";
@@ -22,29 +23,19 @@ import { formatRoleSlug } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
 import type { RoleSlug } from "@/db/constants";
+import type { DashboardNavItem, DashboardNavItemKey } from "@/lib/dashboard-navigation";
 
 type DashboardShellProps = {
     children: ReactNode;
     user: {
         name: string;
         roleSlug: RoleSlug;
-        navItems: {
-            key:
-                | "dashboard"
-                | "users"
-                | "merchants"
-                | "riders"
-                | "parcels"
-                | "settlements"
-                | "townships";
-            href: string;
-            label: string;
-        }[];
+        navItems: DashboardNavItem[];
         mustResetPassword: boolean;
     };
 };
 
-const navIconByKey: Record<DashboardShellProps["user"]["navItems"][number]["key"], ReactNode> = {
+const navIconByKey: Record<DashboardNavItemKey, ReactNode> = {
     dashboard: <LayoutDashboard className="h-4 w-4" />,
     users: <Users className="h-4 w-4" />,
     merchants: <Store className="h-4 w-4" />,
@@ -118,7 +109,7 @@ export function DashboardShell({ children, user }: Readonly<DashboardShellProps>
                 </div>
             </aside>
             <div className="flex min-w-0 flex-1 flex-col">
-                <header className="flex shrink-0 items-center gap-3 border-b bg-card px-4 py-3 md:px-6 md:py-4">
+                <header className="flex shrink-0 items-start gap-3 border-b bg-card px-4 py-3 md:items-center md:px-6 md:py-4">
                     <Button
                         type="button"
                         variant="ghost"
@@ -129,7 +120,7 @@ export function DashboardShell({ children, user }: Readonly<DashboardShellProps>
                     >
                         <Menu />
                     </Button>
-                    <p className="text-sm text-muted-foreground">Delivery Operations Dashboard</p>
+                    <DashboardHeaderNav navItems={user.navItems} />
                 </header>
                 <main className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-6">
                     <ResetRequiredBanner enabled={user.mustResetPassword} />

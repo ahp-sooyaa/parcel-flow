@@ -18,13 +18,28 @@ export {
     calculateSettlementTotals,
     getMerchantSettlementBlockedReasons,
     isMerchantPaidDeliveryFeeUnresolved,
-    toSettlementMoneyString,
 } from "./settlement-calculations";
+export {
+    calculateSettlementSelectionSummary,
+    formatMerchantFinancialDirection,
+    formatMerchantFinancialItemKind,
+    getDefaultSettlementPreset,
+    getSettlementBankAccountLabel,
+    getSettlementDirectionForNetAmount,
+    getSettlementStatusAfterGeneration,
+    matchesSettlementPreset,
+    requiresSettlementBankAccount,
+    toSettlementMoneyString,
+    toSignedSettlementAmount,
+    validateSettlementSelectionRows,
+} from "./merchant-financial-item-utils";
 
 const generateSettlementSchema = z.object({
     merchantId: z.string().trim().uuid(),
-    bankAccountId: z.string().trim().uuid(),
-    paymentRecordIds: z.array(z.string().trim().uuid()).min(1),
+    bankAccountId: z
+        .union([z.string().trim().uuid(), z.literal("")])
+        .transform((value) => value || null),
+    financialItemIds: z.array(z.string().trim().uuid()).min(1),
 });
 
 const settlementIdSchema = z.object({
@@ -122,6 +137,17 @@ export function getSafeSettlementReturnHref(value: string | null | undefined) {
         }
 
         if (/^\/dashboard\/merchants\/[0-9a-f-]{36}$/i.test(url.pathname)) {
+            if (url.searchParams.get("settle") === "1") {
+                const params = new URLSearchParams({ settle: "1" });
+                const preset = url.searchParams.get("preset");
+
+                if (preset) {
+                    params.set("preset", preset);
+                }
+
+                return `${url.pathname}?${params.toString()}`;
+            }
+
             return url.searchParams.get("tab") === "settlements"
                 ? `${url.pathname}?tab=settlements`
                 : fallback;
@@ -168,10 +194,10 @@ export function parseGenerateSettlementFormData(formData: FormData) {
     const parsed = generateSettlementSchema.safeParse({
         merchantId: formData.get("merchantId"),
         bankAccountId: formData.get("bankAccountId"),
-        paymentRecordIds: Array.from(
+        financialItemIds: Array.from(
             new Set(
                 formData
-                    .getAll("paymentRecordIds")
+                    .getAll("financialItemIds")
                     .filter((value): value is string => typeof value === "string"),
             ),
         ),
@@ -180,7 +206,7 @@ export function parseGenerateSettlementFormData(formData: FormData) {
     if (!parsed.success) {
         return {
             ok: false as const,
-            message: "Select at least one parcel and a valid merchant bank account.",
+            message: "Select at least one settlement candidate.",
             fieldErrors: parsed.error.flatten().fieldErrors,
         };
     }

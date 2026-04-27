@@ -1,13 +1,13 @@
 project:
   name: Parcel Flow
   description: >
-    Parcel Flow is a practical internal delivery-management web application for a Myanmar delivery business.
-    It supports internal operations for parcel handling, merchant management, rider coordination,
+    Parcel Flow is a practical delivery-management web application for a Myanmar delivery business.
+    It supports operations for parcel handling, merchant management, rider coordination,
     permission-based user access, and money-sensitive workflows such as COD and delivery fees.
 
 product_context:
   goal: >
-    Build a secure, practical, and maintainable internal ops system.
+    Build a secure, practical, and maintainable ops system.
     Prioritize operational clarity, accounting correctness, security, and consistency over heavy abstraction.
   target_users:
     - super_admin

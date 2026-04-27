@@ -81,6 +81,10 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
         selectedDeliveryFeePaymentPlan,
         deliveryFeePaymentPlanOptions,
     );
+    const defaultCreateCodStatus =
+        selectedParcelType === "non_cod" ? "not_applicable" : DEFAULT_CREATE_PARCEL_STATE.codStatus;
+    const defaultCreateCollectionStatus =
+        selectedParcelType === "non_cod" ? "void" : DEFAULT_CREATE_PARCEL_STATE.collectionStatus;
     const showPaymentSlipField = deliveryFeePaymentPlanValue === "merchant_prepaid_bank_transfer";
 
     return (
@@ -458,8 +462,8 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                     <p className="font-medium">Default states applied on create</p>
                     <ul className="space-y-1 text-muted-foreground">
                         <li>Parcel Status: {DEFAULT_CREATE_PARCEL_STATE.parcelStatus}</li>
-                        <li>COD Status: {DEFAULT_CREATE_PARCEL_STATE.codStatus}</li>
-                        <li>Collection Status: {DEFAULT_CREATE_PARCEL_STATE.collectionStatus}</li>
+                        <li>COD Status: {defaultCreateCodStatus}</li>
+                        <li>Collection Status: {defaultCreateCollectionStatus}</li>
                         <li>
                             Merchant Settlement Status:{" "}
                             {DEFAULT_CREATE_PARCEL_STATE.merchantSettlementStatus}

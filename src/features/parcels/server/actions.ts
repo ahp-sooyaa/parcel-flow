@@ -19,6 +19,7 @@ import {
     canReceiveParcelCashAtOffice,
     DEFAULT_CREATE_PARCEL_STATE,
     generateParcelCode,
+    getDefaultCreateCollectionStatus,
     getDeliveryFeeResolutionOptions,
     getDefaultCreateCodStatus,
     getOfficeParcelMovementActions,
@@ -30,8 +31,10 @@ import {
     resolveParcelDeliveryFeeSchema,
     uploadParcelMediaFiles,
     validateCreateParcelMedia,
+    validateDeliveryFeeStatusForParcel,
     validateParcelImageAppendLimits,
     validateParcelPaymentState,
+    validateParcelStatusProofImages,
     validatePaymentSlipImagesForPlan,
     validateParcelSubmission,
 } from "./utils";
@@ -42,6 +45,7 @@ import {
     getRiderParcelActionAccess,
 } from "@/features/auth/server/policies/parcels";
 import { requireAppAccessContext, requirePermission } from "@/features/auth/server/utils";
+import { getSettlementManagedParcelFinancialState } from "@/features/merchant-settlements/server/merchant-financial-item-dal";
 import { computeTotalAmountToCollect } from "@/features/parcels/server/utils";
 
 import type {
@@ -242,6 +246,7 @@ function getParcelOperationInput(current: ParcelUpdateContextDto) {
         deliveryFee: current.parcel.deliveryFee,
         totalAmountToCollect: current.parcel.totalAmountToCollect,
         deliveryFeePayer: current.parcel.deliveryFeePayer,
+        deliveryFeePaymentPlan: current.parcel.deliveryFeePaymentPlan,
         deliveryFeeStatus: current.payment.deliveryFeeStatus,
         codStatus: current.payment.codStatus,
         collectedAmount: current.payment.collectedAmount,
@@ -250,6 +255,12 @@ function getParcelOperationInput(current: ParcelUpdateContextDto) {
         merchantSettlementId: current.payment.merchantSettlementId,
         paymentNote: current.payment.note,
     };
+}
+
+async function hasManagedMerchantFinancialItems(parcelId: string) {
+    const financialState = await getSettlementManagedParcelFinancialState(parcelId);
+
+    return financialState.hasLockedItems || financialState.hasClosedItems;
 }
 
 export async function createParcelAction(
@@ -297,6 +308,7 @@ export async function createParcelAction(
         }
 
         const createCodStatus = getDefaultCreateCodStatus(parsed.data.parcelType);
+        const createCollectionStatus = getDefaultCreateCollectionStatus(parsed.data.parcelType);
 
         const submissionGuard = await validateParcelSubmission({
             merchantId: createAuthorization.merchantId,
@@ -370,7 +382,7 @@ export async function createParcelAction(
                 deliveryFeeStatus: DEFAULT_CREATE_PARCEL_STATE.deliveryFeeStatus,
                 codStatus: createCodStatus,
                 collectedAmount: 0,
-                collectionStatus: DEFAULT_CREATE_PARCEL_STATE.collectionStatus,
+                collectionStatus: createCollectionStatus,
                 merchantSettlementStatus: DEFAULT_CREATE_PARCEL_STATE.merchantSettlementStatus,
                 riderPayoutStatus: DEFAULT_CREATE_PARCEL_STATE.riderPayoutStatus,
                 paymentNote: parsed.data.paymentNote,
@@ -525,6 +537,7 @@ export async function updateParcelAction(
             deliveryFeePaymentPlan: parsed.data.deliveryFeePaymentPlan,
             requireRecordedDeliveryFeePaymentPlan: current.parcel.deliveryFeePaymentPlan !== null,
             deliveryFeeStatus: current.payment.deliveryFeeStatus,
+            parcelStatus: current.parcel.status,
             codStatus: current.payment.codStatus,
         });
 
@@ -660,6 +673,14 @@ export async function advanceOfficeParcelStatusAction(
             return { ok: false, message: "Parcel was not found.", fields };
         }
 
+        if (await hasManagedMerchantFinancialItems(parsed.data.parcelId)) {
+            return {
+                ok: false,
+                message: "Parcel financial fields are locked by merchant settlement.",
+                fields,
+            };
+        }
+
         const movementActions = getOfficeParcelMovementActions(getParcelOperationInput(current));
         const requestedAction = movementActions.find(
             (action) => action.nextStatus === parsed.data.nextStatus,
@@ -667,6 +688,21 @@ export async function advanceOfficeParcelStatusAction(
 
         if (!requestedAction) {
             return { ok: false, message: "This parcel status change is not available.", fields };
+        }
+
+        const proofGuard = validateParcelStatusProofImages({
+            nextStatus: requestedAction.nextStatus,
+            pickupImageKeys: current.parcel.pickupImageKeys,
+            proofOfDeliveryImageKeys: current.parcel.proofOfDeliveryImageKeys,
+        });
+
+        if (!proofGuard.ok) {
+            return {
+                ok: false,
+                message: proofGuard.message,
+                fields,
+                fieldErrors: proofGuard.fieldErrors,
+            };
         }
 
         const nextPaymentValues =
@@ -767,6 +803,14 @@ export async function receiveParcelCashAtOfficeAction(
             return { ok: false, message: "Parcel was not found.", fields };
         }
 
+        if (await hasManagedMerchantFinancialItems(parsed.data.parcelId)) {
+            return {
+                ok: false,
+                message: "Parcel financial fields are locked by merchant settlement.",
+                fields,
+            };
+        }
+
         if (!canReceiveParcelCashAtOffice(getParcelOperationInput(current))) {
             return { ok: false, message: "This parcel cash cannot be received at office.", fields };
         }
@@ -855,6 +899,14 @@ export async function resolveParcelDeliveryFeeAction(
 
         if (!current) {
             return { ok: false, message: "Parcel was not found.", fields };
+        }
+
+        if (await hasManagedMerchantFinancialItems(parsed.data.parcelId)) {
+            return {
+                ok: false,
+                message: "Parcel financial fields are locked by merchant settlement.",
+                fields,
+            };
         }
 
         const operationInput = getParcelOperationInput(current);
@@ -956,6 +1008,14 @@ export async function adminCorrectParcelStateAction(
             return { ok: false, message: "Parcel was not found.", fields };
         }
 
+        if (await hasManagedMerchantFinancialItems(parsed.data.parcelId)) {
+            return {
+                ok: false,
+                message: "Parcel financial fields are locked by merchant settlement.",
+                fields,
+            };
+        }
+
         const settlementGuard = rejectSettlementManagedParcelUpdate({
             current,
             next: {
@@ -977,6 +1037,22 @@ export async function adminCorrectParcelStateAction(
 
         if (!settlementGuard.ok) {
             return { ok: false, message: settlementGuard.message, fields };
+        }
+
+        const deliveryFeePlanGuard = validateDeliveryFeeStatusForParcel({
+            deliveryFeePayer: current.parcel.deliveryFeePayer,
+            deliveryFeePaymentPlan: current.parcel.deliveryFeePaymentPlan,
+            parcelStatus: parsed.data.parcelStatus,
+            deliveryFeeStatus: parsed.data.deliveryFeeStatus,
+        });
+
+        if (!deliveryFeePlanGuard.ok) {
+            return {
+                ok: false,
+                message: deliveryFeePlanGuard.message,
+                fields,
+                fieldErrors: deliveryFeePlanGuard.fieldErrors,
+            };
         }
 
         const paymentStateGuard = validateParcelPaymentState({
@@ -1055,11 +1131,15 @@ export async function adminCorrectParcelStateAction(
     }
 }
 
-export async function advanceRiderParcelAction(formData: FormData): Promise<void> {
-    const parsed = advanceRiderParcelSchema.safeParse(Object.fromEntries(formData.entries()));
+export async function advanceRiderParcelAction(
+    _prevState: ParcelOperationActionResult,
+    formData: FormData,
+): Promise<ParcelOperationActionResult> {
+    const fields = getSubmittedStringFields(formData);
+    const parsed = advanceRiderParcelSchema.safeParse(fields);
 
     if (!parsed.success) {
-        return;
+        return { ok: false, message: "Parcel id and next status are required.", fields };
     }
 
     const { parcelId, nextStatus } = parsed.data;
@@ -1069,7 +1149,15 @@ export async function advanceRiderParcelAction(formData: FormData): Promise<void
         const current = await getParcelUpdateContextForViewer(currentUser, parcelId);
 
         if (!current) {
-            return;
+            return { ok: false, message: "Parcel was not found.", fields };
+        }
+
+        if (await hasManagedMerchantFinancialItems(parcelId)) {
+            return {
+                ok: false,
+                message: "Parcel financial fields are locked by merchant settlement.",
+                fields,
+            };
         }
 
         const riderParcelActionAccess = getRiderParcelActionAccess({
@@ -1080,7 +1168,7 @@ export async function advanceRiderParcelAction(formData: FormData): Promise<void
         });
 
         if (!riderParcelActionAccess.canProgressStatus) {
-            return;
+            return { ok: false, message: "You are not allowed to update this parcel.", fields };
         }
 
         const nextAction = getNextAssignedRiderAction({
@@ -1092,7 +1180,22 @@ export async function advanceRiderParcelAction(formData: FormData): Promise<void
         });
 
         if (nextAction?.nextStatus !== nextStatus.trim()) {
-            return;
+            return { ok: false, message: "This parcel status change is not available.", fields };
+        }
+
+        const proofGuard = validateParcelStatusProofImages({
+            nextStatus: nextAction.nextStatus,
+            pickupImageKeys: current.parcel.pickupImageKeys,
+            proofOfDeliveryImageKeys: current.parcel.proofOfDeliveryImageKeys,
+        });
+
+        if (!proofGuard.ok) {
+            return {
+                ok: false,
+                message: proofGuard.message,
+                fields,
+                fieldErrors: proofGuard.fieldErrors,
+            };
         }
 
         const nextPaymentValues =
@@ -1135,7 +1238,7 @@ export async function advanceRiderParcelAction(formData: FormData): Promise<void
         });
 
         if (!paymentStateGuard.ok) {
-            return;
+            return { ok: false, message: paymentStateGuard.message, fields };
         }
 
         const paymentPatch = nextPaymentValues
@@ -1164,8 +1267,14 @@ export async function advanceRiderParcelAction(formData: FormData): Promise<void
             merchantIds: [current.parcel.merchantId],
             riderIds: [current.parcel.riderId],
         });
+
+        return { ok: true, message: `${nextAction.label} completed.`, fields };
     } catch (error) {
-        console.error(error instanceof Error ? error.message : "Unable to update parcel status.");
+        const message = error instanceof Error ? error.message : "Unable to update parcel status.";
+
+        console.error(message);
+
+        return { ok: false, message, fields };
     }
 }
 

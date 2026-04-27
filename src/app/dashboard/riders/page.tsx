@@ -5,6 +5,7 @@ import { getRiderAccess } from "@/features/auth/server/policies/rider";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { getRidersListForViewer } from "@/features/rider/server/dal";
 import { normalizeRiderSearchQuery } from "@/features/rider/server/utils";
+import { appendDashboardReturnTo, buildDashboardHref } from "@/lib/dashboard-navigation";
 
 type RidersPageProps = {
     searchParams: Promise<{ q?: string }>;
@@ -24,6 +25,9 @@ export default async function RidersPage({ searchParams }: Readonly<RidersPagePr
     const { q } = await searchParams;
     const query = normalizeRiderSearchQuery(q);
     const riders = await getRidersListForViewer(currentUser, { query });
+    const ridersListHref = buildDashboardHref("/dashboard/riders", {
+        q: query || undefined,
+    });
 
     return (
         <section className="space-y-5">
@@ -89,7 +93,12 @@ export default async function RidersPage({ searchParams }: Readonly<RidersPagePr
                                         </Button>
                                         {riderAccess.canUpdate && (
                                             <Button asChild size="sm" variant="outline">
-                                                <Link href={`/dashboard/users/${rider.id}/edit`}>
+                                                <Link
+                                                    href={appendDashboardReturnTo(
+                                                        `/dashboard/users/${rider.id}/edit`,
+                                                        ridersListHref,
+                                                    )}
+                                                >
                                                     Edit
                                                 </Link>
                                             </Button>

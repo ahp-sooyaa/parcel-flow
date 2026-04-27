@@ -6,11 +6,14 @@ import { getMerchantSettlementAccess } from "@/features/auth/server/policies/mer
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { MerchantSettlementListSearchAndFiltersForm } from "@/features/merchant-settlements/components/merchant-settlement-list-search-and-filters-form";
 import { MerchantSettlementStatusPill } from "@/features/merchant-settlements/components/merchant-settlement-status-pill";
+import { NewSettlementEntry } from "@/features/merchant-settlements/components/new-settlement-entry";
 import { getMerchantSettlementsListForViewer } from "@/features/merchant-settlements/server/dal";
 import {
     buildMerchantSettlementListHref,
+    formatMerchantSettlementLabel,
     normalizeMerchantSettlementListQueryParams,
 } from "@/features/merchant-settlements/server/utils";
+import { getMerchantsListForViewer } from "@/features/merchant/server/dal";
 
 type SettlementsPageProps = {
     searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -50,7 +53,12 @@ export default async function SettlementsPage({ searchParams }: Readonly<Settlem
 
     const rawSearchParams = await searchParams;
     const query = normalizeMerchantSettlementListQueryParams(rawSearchParams);
-    const settlements = await getMerchantSettlementsListForViewer(currentUser, query);
+    const [settlements, merchants] = await Promise.all([
+        getMerchantSettlementsListForViewer(currentUser, query),
+        settlementAccess.canCreate
+            ? getMerchantsListForViewer(currentUser, { limit: 200 })
+            : Promise.resolve([]),
+    ]);
     const returnTo = buildMerchantSettlementListHref({
         ...query,
         page: settlements.page,
@@ -65,7 +73,7 @@ export default async function SettlementsPage({ searchParams }: Readonly<Settlem
             <header className="space-y-1">
                 <h1 className="text-2xl font-semibold tracking-tight">Settlements</h1>
                 <p className="text-sm text-muted-foreground">
-                    Review merchant COD settlements across all merchants.
+                    Review merchant settlement documents across all merchants.
                 </p>
             </header>
 
@@ -74,74 +82,105 @@ export default async function SettlementsPage({ searchParams }: Readonly<Settlem
                 clearHref="/dashboard/settlements"
             />
 
-            <div className="overflow-x-auto rounded-xl border bg-card">
-                <table className="w-full text-left text-sm">
-                    <thead className="bg-muted/40 text-xs uppercase">
-                        <tr>
-                            <th className="px-4 py-3">Settlement</th>
-                            <th className="px-4 py-3">Merchant</th>
-                            <th className="px-4 py-3">Status</th>
-                            <th className="px-4 py-3">Parcels</th>
-                            <th className="px-4 py-3">Net Payable</th>
-                            <th className="px-4 py-3">Created By</th>
-                            <th className="px-4 py-3">Confirmed By</th>
-                            <th className="px-4 py-3">Updated</th>
-                            <th className="px-4 py-3">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {settlements.items.map((settlement) => (
-                            <tr key={settlement.id} className="border-t">
-                                <td className="px-4 py-3">
-                                    <p className="font-medium">
-                                        {settlement.referenceNo ??
-                                            `Settlement ${settlement.id.slice(0, 8)}`}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                        {settlement.id.slice(0, 8)}
-                                    </p>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <Link
-                                        href={`/dashboard/merchants/${settlement.merchantId}?tab=settlements`}
-                                        className="font-medium underline-offset-4 hover:underline"
-                                    >
-                                        {settlement.merchantLabel}
-                                    </Link>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <MerchantSettlementStatusPill value={settlement.status} />
-                                </td>
-                                <td className="px-4 py-3 tabular-nums">{settlement.itemCount}</td>
-                                <td className="px-4 py-3 font-medium tabular-nums">
-                                    {formatMmk(settlement.totalAmount)}
-                                </td>
-                                <td className="px-4 py-3">{settlement.createdByName}</td>
-                                <td className="px-4 py-3">{settlement.confirmedByName ?? "-"}</td>
-                                <td className="px-4 py-3 whitespace-nowrap">
-                                    {dateFormatter.format(settlement.updatedAt)}
-                                </td>
-                                <td className="px-4 py-3">
-                                    <Button asChild size="sm" variant="outline">
-                                        <Link href={buildDetailHref(settlement.id, returnTo)}>
-                                            View
-                                        </Link>
-                                    </Button>
-                                </td>
-                            </tr>
-                        ))}
-                        {settlements.items.length === 0 && (
+            <div className="rounded-xl border bg-card">
+                <div className="border-b px-4 py-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h2 className="text-base font-semibold">Settlement Records</h2>
+                            <p className="text-xs text-muted-foreground">
+                                Review previous settlements or start a new merchant settlement.
+                            </p>
+                        </div>
+
+                        {settlementAccess.canCreate && <NewSettlementEntry merchants={merchants} />}
+                    </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-muted/40 text-xs uppercase">
                             <tr>
-                                <td
-                                    colSpan={9}
-                                    className="px-4 py-10 text-center text-xs text-muted-foreground"
-                                >
-                                    No settlements found.
-                                </td>
+                                <th className="px-4 py-3">Settlement</th>
+                                <th className="px-4 py-3">Merchant</th>
+                                <th className="px-4 py-3">Direction</th>
+                                <th className="px-4 py-3">Status</th>
+                                <th className="px-4 py-3">Items</th>
+                                <th className="px-4 py-3">Credits</th>
+                                <th className="px-4 py-3">Debits</th>
+                                <th className="px-4 py-3">Net</th>
+                                <th className="px-4 py-3">Created By</th>
+                                <th className="px-4 py-3">Confirmed By</th>
+                                <th className="px-4 py-3">Updated</th>
+                                <th className="px-4 py-3">Actions</th>
                             </tr>
-                        )}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {settlements.items.map((settlement) => (
+                                <tr key={settlement.id} className="border-t">
+                                    <td className="px-4 py-3">
+                                        <p className="font-medium">
+                                            {settlement.referenceNo ??
+                                                `Settlement ${settlement.id.slice(0, 8)}`}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {settlement.id.slice(0, 8)}
+                                        </p>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <Link
+                                            href={`/dashboard/merchants/${settlement.merchantId}?tab=settlements`}
+                                            className="font-medium underline-offset-4 hover:underline"
+                                        >
+                                            {settlement.merchantLabel}
+                                        </Link>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        {formatMerchantSettlementLabel(settlement.type)}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <MerchantSettlementStatusPill value={settlement.status} />
+                                    </td>
+                                    <td className="px-4 py-3 tabular-nums">
+                                        {settlement.itemCount}
+                                    </td>
+                                    <td className="px-4 py-3 font-medium tabular-nums">
+                                        {formatMmk(settlement.creditsTotal)}
+                                    </td>
+                                    <td className="px-4 py-3 font-medium tabular-nums">
+                                        {formatMmk(settlement.debitsTotal)}
+                                    </td>
+                                    <td className="px-4 py-3 font-medium tabular-nums">
+                                        {formatMmk(settlement.totalAmount)}
+                                    </td>
+                                    <td className="px-4 py-3">{settlement.createdByName}</td>
+                                    <td className="px-4 py-3">
+                                        {settlement.confirmedByName ?? "-"}
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                        {dateFormatter.format(settlement.updatedAt)}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <Button asChild size="sm" variant="outline">
+                                            <Link href={buildDetailHref(settlement.id, returnTo)}>
+                                                View
+                                            </Link>
+                                        </Button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {settlements.items.length === 0 && (
+                                <tr>
+                                    <td
+                                        colSpan={12}
+                                        className="px-4 py-10 text-center text-xs text-muted-foreground"
+                                    >
+                                        No settlements found.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <ListPagination

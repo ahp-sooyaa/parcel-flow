@@ -182,6 +182,28 @@ export type UpdateParcelActionResult = {
     fieldErrors?: ParcelFormFieldErrors;
 };
 
+function normalizeCodStatusValue(input: {
+    parcelType: (typeof PARCEL_TYPES)[number];
+    codStatus: (typeof COD_STATUSES)[number] | null;
+}) {
+    if (input.parcelType === "non_cod") {
+        return "not_applicable" as const;
+    }
+
+    return input.codStatus ?? "pending";
+}
+
+function normalizeCollectionStatusValue(input: {
+    parcelType: (typeof PARCEL_TYPES)[number];
+    collectionStatus: (typeof COLLECTION_STATUSES)[number] | null;
+}) {
+    if (input.parcelType === "non_cod") {
+        return "void" as const;
+    }
+
+    return input.collectionStatus ?? "pending";
+}
+
 export type ParcelOperationActionResult = {
     ok: boolean;
     message: string;
@@ -237,9 +259,15 @@ export function toParcelListItemDto(input: {
         deliveryFeePaymentPlan: input.deliveryFeePaymentPlan,
         parcelStatus: input.parcelStatus,
         deliveryFeeStatus: input.deliveryFeeStatus ?? "unpaid",
-        codStatus: input.codStatus ?? "pending",
+        codStatus: normalizeCodStatusValue({
+            parcelType: input.parcelType,
+            codStatus: input.codStatus,
+        }),
         collectedAmount: input.collectedAmount ?? "0",
-        collectionStatus: input.collectionStatus ?? "pending",
+        collectionStatus: normalizeCollectionStatusValue({
+            parcelType: input.parcelType,
+            collectionStatus: input.collectionStatus,
+        }),
         merchantSettlementStatus: input.merchantSettlementStatus ?? "pending",
         merchantSettlementId: input.merchantSettlementId,
         createdAt: input.createdAt,
@@ -339,9 +367,15 @@ export function toParcelDetailDto(input: {
         deliveryFeePaymentPlan: input.deliveryFeePaymentPlan,
         parcelStatus: input.parcelStatus,
         deliveryFeeStatus: input.deliveryFeeStatus ?? "unpaid",
-        codStatus: input.codStatus ?? "pending",
+        codStatus: normalizeCodStatusValue({
+            parcelType: input.parcelType,
+            codStatus: input.codStatus,
+        }),
         collectedAmount: input.collectedAmount ?? "0",
-        collectionStatus: input.collectionStatus ?? "pending",
+        collectionStatus: normalizeCollectionStatusValue({
+            parcelType: input.parcelType,
+            collectionStatus: input.collectionStatus,
+        }),
         merchantSettlementStatus: input.merchantSettlementStatus ?? "pending",
         merchantSettlementId: input.merchantSettlementId,
         riderPayoutStatus: input.riderPayoutStatus ?? "pending",
@@ -479,9 +513,15 @@ export function toParcelUpdateContextDto(input: {
             id: input.paymentId!,
             merchantSettlementId: input.merchantSettlementId,
             deliveryFeeStatus: input.deliveryFeeStatus ?? "unpaid",
-            codStatus: input.codStatus ?? "pending",
+            codStatus: normalizeCodStatusValue({
+                parcelType: input.parcelType,
+                codStatus: input.codStatus,
+            }),
             collectedAmount: input.collectedAmount ?? "0",
-            collectionStatus: input.collectionStatus ?? "pending",
+            collectionStatus: normalizeCollectionStatusValue({
+                parcelType: input.parcelType,
+                collectionStatus: input.collectionStatus,
+            }),
             merchantSettlementStatus: input.merchantSettlementStatus ?? "pending",
             riderPayoutStatus: input.riderPayoutStatus ?? "pending",
             note: input.paymentNote,

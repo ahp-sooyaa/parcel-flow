@@ -12,6 +12,7 @@ import {
     hasActiveParcelListFilters,
     normalizeParcelListQueryParams,
 } from "@/features/parcels/server/utils";
+import { appendDashboardReturnTo, buildDashboardHref } from "@/lib/dashboard-navigation";
 import { cn } from "@/lib/utils";
 
 type ParcelsPageProps = {
@@ -63,6 +64,7 @@ export default async function ParcelsPage({ searchParams }: Readonly<ParcelsPage
 
     const parcelListQuery = normalizeParcelListQueryParams(rawSearchParams);
     const parcels = await getParcelsListForViewer(currentUser, parcelListQuery);
+    const parcelsReturnTo = buildDashboardHref("/dashboard/parcels", rawSearchParams);
     const parcelPaginationQuery = {
         q: parcelListQuery.query,
         parcelStatus: parcelListQuery.parcelStatus,
@@ -111,9 +113,12 @@ export default async function ParcelsPage({ searchParams }: Readonly<ParcelsPage
                     <tbody>
                         {parcels.items.map((parcel) => {
                             const operations = getParcelOperationSummary(parcel);
-                            const actionHref = parcelAccess.canUpdate
-                                ? `/dashboard/parcels/${parcel.id}#operations`
-                                : `/dashboard/parcels/${parcel.id}`;
+                            const actionHref = appendDashboardReturnTo(
+                                parcelAccess.canUpdate
+                                    ? `/dashboard/parcels/${parcel.id}#operations`
+                                    : `/dashboard/parcels/${parcel.id}`,
+                                parcelsReturnTo,
+                            );
 
                             return (
                                 <tr key={parcel.id} className="border-t">
@@ -172,7 +177,10 @@ export default async function ParcelsPage({ searchParams }: Readonly<ParcelsPage
                                             {parcelAccess.canUpdate && (
                                                 <Button asChild size="sm" variant="outline">
                                                     <Link
-                                                        href={`/dashboard/parcels/${parcel.id}/edit`}
+                                                        href={appendDashboardReturnTo(
+                                                            `/dashboard/parcels/${parcel.id}/edit`,
+                                                            parcelsReturnTo,
+                                                        )}
                                                     >
                                                         Details
                                                     </Link>

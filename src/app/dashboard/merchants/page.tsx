@@ -5,6 +5,7 @@ import { getMerchantAccess } from "@/features/auth/server/policies/merchant";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { getMerchantsListForViewer } from "@/features/merchant/server/dal";
 import { normalizeMerchantSearchQuery } from "@/features/merchant/server/utils";
+import { appendDashboardReturnTo, buildDashboardHref } from "@/lib/dashboard-navigation";
 
 type MerchantsPageProps = {
     searchParams: Promise<{ q?: string }>;
@@ -21,6 +22,9 @@ export default async function MerchantsPage({ searchParams }: Readonly<Merchants
     const { q } = await searchParams;
     const query = normalizeMerchantSearchQuery(q);
     const merchants = await getMerchantsListForViewer(currentUser, { query });
+    const merchantsListHref = buildDashboardHref("/dashboard/merchants", {
+        q: query || undefined,
+    });
 
     return (
         <section className="space-y-5">
@@ -93,7 +97,10 @@ export default async function MerchantsPage({ searchParams }: Readonly<Merchants
                                             {merchantAccess.canUpdate && (
                                                 <Button asChild size="sm" variant="outline">
                                                     <Link
-                                                        href={`/dashboard/users/${merchant.id}/edit`}
+                                                        href={appendDashboardReturnTo(
+                                                            `/dashboard/users/${merchant.id}/edit`,
+                                                            merchantsListHref,
+                                                        )}
                                                     >
                                                         Edit
                                                     </Link>

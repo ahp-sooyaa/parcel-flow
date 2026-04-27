@@ -6,6 +6,7 @@ import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { ParcelStatusPill } from "@/features/parcels/components/parcel-status-pill";
 import { getAssignedRiderParcelsListForViewer } from "@/features/parcels/server/dal";
 import { getRiderByIdForViewer } from "@/features/rider/server/dal";
+import { appendDashboardReturnTo } from "@/lib/dashboard-navigation";
 
 type RiderDetailPageProps = {
     params: Promise<{ id: string }>;
@@ -36,10 +37,12 @@ export default async function RiderDetailPage({ params }: Readonly<RiderDetailPa
         notFound();
     }
 
+    const riderDetailHref = `/dashboard/riders/${rider.id}`;
+
     const editRiderHref =
         currentUser.roleSlug === "rider"
             ? "/dashboard/settings?tab=rider-details"
-            : `/dashboard/users/${rider.id}/edit`;
+            : appendDashboardReturnTo(`/dashboard/users/${rider.id}/edit`, riderDetailHref);
 
     return (
         <section className="mx-auto w-full max-w-3xl space-y-6">
@@ -117,7 +120,12 @@ export default async function RiderDetailPage({ params }: Readonly<RiderDetailPa
                                     </td>
                                     <td className="px-4 py-3">
                                         <Button asChild size="sm" variant="outline">
-                                            <Link href={`/dashboard/parcels/${parcel.id}`}>
+                                            <Link
+                                                href={appendDashboardReturnTo(
+                                                    `/dashboard/parcels/${parcel.id}`,
+                                                    riderDetailHref,
+                                                )}
+                                            >
                                                 View
                                             </Link>
                                         </Button>

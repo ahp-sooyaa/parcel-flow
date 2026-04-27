@@ -6,14 +6,10 @@ import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { MerchantSettlementPaymentActions } from "@/features/merchant-settlements/components/merchant-settlement-payment-actions";
 import { MerchantSettlementStatusPill } from "@/features/merchant-settlements/components/merchant-settlement-status-pill";
 import { getMerchantSettlementDetailForViewer } from "@/features/merchant-settlements/server/dal";
-import {
-    formatMerchantSettlementLabel,
-    getSafeSettlementReturnHref,
-} from "@/features/merchant-settlements/server/utils";
+import { formatMerchantSettlementLabel } from "@/features/merchant-settlements/server/utils";
 
 type SettlementDetailPageProps = {
     params: Promise<{ id: string }>;
-    searchParams: Promise<{ returnTo?: string | string[] }>;
 };
 
 const moneyFormatter = new Intl.NumberFormat("en-US", {
@@ -36,21 +32,8 @@ function formatMmk(value: string) {
     return `${moneyFormatter.format(Number.isFinite(amount) ? amount : 0)} MMK`;
 }
 
-function getReturnTo(searchParams: { returnTo?: string | string[] }) {
-    const value = searchParams.returnTo;
-
-    return Array.isArray(value) ? value[0] : value;
-}
-
-function getBackLabel(returnHref: string) {
-    return returnHref.startsWith("/dashboard/merchants/")
-        ? "Back to merchant settlements"
-        : "Back to settlements";
-}
-
 export default async function SettlementDetailPage({
     params,
-    searchParams,
 }: Readonly<SettlementDetailPageProps>) {
     const currentUser = await requireAppAccessContext();
     const settlementAccess = getMerchantSettlementAccess(currentUser);
@@ -59,35 +42,29 @@ export default async function SettlementDetailPage({
         notFound();
     }
 
-    const [{ id }, rawSearchParams] = await Promise.all([params, searchParams]);
+    const { id } = await params;
     const settlement = await getMerchantSettlementDetailForViewer(currentUser, id);
 
     if (!settlement) {
         notFound();
     }
 
-    const returnHref = getSafeSettlementReturnHref(getReturnTo(rawSearchParams));
     const title = settlement.referenceNo ?? `Settlement ${settlement.id.slice(0, 8)}`;
 
     return (
         <section className="space-y-6">
             <header className="space-y-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0 space-y-2">
-                        <Button asChild size="sm" variant="outline">
-                            <Link href={returnHref}>{getBackLabel(returnHref)}</Link>
-                        </Button>
-                        <div className="space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <h1 className="text-2xl font-semibold tracking-tight break-words">
-                                    {title}
-                                </h1>
-                                <MerchantSettlementStatusPill value={settlement.status} />
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                                Merchant settlement invoice for {settlement.merchantLabel}.
-                            </p>
+                    <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <h1 className="text-2xl font-semibold tracking-tight break-words">
+                                {title}
+                            </h1>
+                            <MerchantSettlementStatusPill value={settlement.status} />
                         </div>
+                        <p className="text-sm text-muted-foreground">
+                            Merchant settlement document for {settlement.merchantLabel}.
+                        </p>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
@@ -109,31 +86,25 @@ export default async function SettlementDetailPage({
 
             <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <article className="rounded-xl border bg-card p-4">
-                    <p className="text-xs font-medium text-muted-foreground uppercase">
-                        COD Subtotal
-                    </p>
+                    <p className="text-xs font-medium text-muted-foreground uppercase">Credits</p>
                     <p className="mt-2 text-xl font-semibold tabular-nums">
-                        {formatMmk(settlement.totals.codSubtotal)}
+                        {formatMmk(settlement.totals.creditsTotal)}
                     </p>
                 </article>
                 <article className="rounded-xl border bg-card p-4">
-                    <p className="text-xs font-medium text-muted-foreground uppercase">
-                        Delivery Fee Deducted
-                    </p>
+                    <p className="text-xs font-medium text-muted-foreground uppercase">Debits</p>
                     <p className="mt-2 text-xl font-semibold tabular-nums">
-                        -{formatMmk(settlement.totals.deliveryFeeDeductedTotal)}
+                        {formatMmk(settlement.totals.debitsTotal)}
                     </p>
                 </article>
                 <article className="rounded-xl border bg-card p-4">
-                    <p className="text-xs font-medium text-muted-foreground uppercase">
-                        Net Payable
-                    </p>
+                    <p className="text-xs font-medium text-muted-foreground uppercase">Net</p>
                     <p className="mt-2 text-xl font-semibold tabular-nums">
-                        {formatMmk(settlement.totals.netPayableTotal)}
+                        {formatMmk(settlement.totals.netTotal)}
                     </p>
                 </article>
                 <article className="rounded-xl border bg-card p-4">
-                    <p className="text-xs font-medium text-muted-foreground uppercase">Parcels</p>
+                    <p className="text-xs font-medium text-muted-foreground uppercase">Items</p>
                     <p className="mt-2 text-xl font-semibold tabular-nums">
                         {settlement.itemCount}
                     </p>
@@ -166,12 +137,12 @@ export default async function SettlementDetailPage({
                     <p>{formatMerchantSettlementLabel(settlement.status)}</p>
                 </div>
                 <div className="grid gap-1">
-                    <p className="text-xs text-muted-foreground">Bank</p>
-                    <p>{settlement.snapshotBankName}</p>
+                    <p className="text-xs text-muted-foreground">Counterparty Bank</p>
+                    <p>{settlement.snapshotBankName ?? "-"}</p>
                 </div>
                 <div className="grid gap-1">
                     <p className="text-xs text-muted-foreground">Bank Account</p>
-                    <p>{settlement.snapshotBankAccountNumber}</p>
+                    <p>{settlement.snapshotBankAccountNumber ?? "-"}</p>
                 </div>
                 <div className="grid gap-1">
                     <p className="text-xs text-muted-foreground">Created By</p>
@@ -213,7 +184,7 @@ export default async function SettlementDetailPage({
             )}
 
             <MerchantSettlementPaymentActions
-                settlement={{ id: settlement.id, status: settlement.status }}
+                settlement={{ id: settlement.id, status: settlement.status, type: settlement.type }}
                 permissions={{
                     canConfirm: settlementAccess.canConfirm,
                     canCancel: settlementAccess.canCancel,
@@ -222,7 +193,7 @@ export default async function SettlementDetailPage({
 
             <section className="space-y-3">
                 <div>
-                    <h2 className="text-lg font-semibold">Settlement Parcels</h2>
+                    <h2 className="text-lg font-semibold">Settlement Items</h2>
                     <p className="text-sm text-muted-foreground">
                         Financial amounts use settlement item snapshots.
                     </p>
@@ -232,39 +203,41 @@ export default async function SettlementDetailPage({
                     <table className="w-full text-left text-sm">
                         <thead className="bg-muted/40 text-xs uppercase">
                             <tr>
+                                <th className="px-4 py-3">Type</th>
+                                <th className="px-4 py-3">Direction</th>
                                 <th className="px-4 py-3">Parcel Code</th>
                                 <th className="px-4 py-3">Recipient</th>
                                 <th className="px-4 py-3">Township</th>
-                                <th className="px-4 py-3">COD</th>
-                                <th className="px-4 py-3">Delivery Fee</th>
-                                <th className="px-4 py-3">Net Payable</th>
+                                <th className="px-4 py-3">Amount</th>
                             </tr>
                         </thead>
                         <tbody>
                             {settlement.items.map((item) => (
                                 <tr key={item.id} className="border-t">
                                     <td className="px-4 py-3">
-                                        <Link
-                                            href={`/dashboard/parcels/${item.parcelId}`}
-                                            className="font-medium underline-offset-4 hover:underline"
-                                        >
-                                            {item.parcelCode}
-                                        </Link>
+                                        {formatMerchantSettlementLabel(item.candidateKind)}
                                     </td>
-                                    <td className="px-4 py-3">{item.recipientName}</td>
+                                    <td className="px-4 py-3">
+                                        {formatMerchantSettlementLabel(item.direction)}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        {item.parcelId ? (
+                                            <Link
+                                                href={`/dashboard/parcels/${item.parcelId}`}
+                                                className="font-medium underline-offset-4 hover:underline"
+                                            >
+                                                {item.parcelCode ?? item.parcelId.slice(0, 8)}
+                                            </Link>
+                                        ) : (
+                                            (item.parcelCode ?? "-")
+                                        )}
+                                    </td>
+                                    <td className="px-4 py-3">{item.recipientName ?? "-"}</td>
                                     <td className="px-4 py-3">
                                         {item.recipientTownshipName ?? "-"}
                                     </td>
-                                    <td className="px-4 py-3 tabular-nums">
-                                        {formatMmk(item.snapshotCodAmount)}
-                                    </td>
-                                    <td className="px-4 py-3 tabular-nums">
-                                        {item.isDeliveryFeeDeducted
-                                            ? `-${formatMmk(item.snapshotDeliveryFee)}`
-                                            : formatMmk("0")}
-                                    </td>
                                     <td className="px-4 py-3 font-medium tabular-nums">
-                                        {formatMmk(item.netPayableAmount)}
+                                        {formatMmk(item.snapshotAmount)}
                                     </td>
                                 </tr>
                             ))}
@@ -279,22 +252,6 @@ export default async function SettlementDetailPage({
                                 </tr>
                             )}
                         </tbody>
-                        <tfoot className="border-t bg-muted/20 text-sm font-medium">
-                            <tr>
-                                <td className="px-4 py-3" colSpan={3}>
-                                    Totals
-                                </td>
-                                <td className="px-4 py-3 tabular-nums">
-                                    {formatMmk(settlement.totals.codSubtotal)}
-                                </td>
-                                <td className="px-4 py-3 tabular-nums">
-                                    -{formatMmk(settlement.totals.deliveryFeeDeductedTotal)}
-                                </td>
-                                <td className="px-4 py-3 tabular-nums">
-                                    {formatMmk(settlement.totals.netPayableTotal)}
-                                </td>
-                            </tr>
-                        </tfoot>
                     </table>
                 </div>
             </section>

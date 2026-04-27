@@ -1,3 +1,5 @@
+import { toSettlementMoneyString } from "./merchant-financial-item-utils";
+
 import type {
     COLLECTION_STATUSES,
     DELIVERY_FEE_PAYERS,
@@ -6,10 +8,6 @@ import type {
     PARCEL_STATUSES,
 } from "../../parcels/constants";
 import type { MerchantSettlementItemDto, MerchantSettlementTotalsDto } from "./dto";
-
-export function toSettlementMoneyString(value: number) {
-    return value.toFixed(2);
-}
 
 export function calculateSettlementItemAmounts(input: {
     codAmount: string;
@@ -25,6 +23,7 @@ export function calculateSettlementItemAmounts(input: {
         snapshotCodAmount: toSettlementMoneyString(codAmount),
         snapshotDeliveryFee: toSettlementMoneyString(deliveryFee),
         isDeliveryFeeDeducted,
+        snapshotAmount: toSettlementMoneyString(netPayableAmount),
         netPayableAmount: toSettlementMoneyString(netPayableAmount),
     };
 }
@@ -32,23 +31,34 @@ export function calculateSettlementItemAmounts(input: {
 export function calculateSettlementTotals(
     items: readonly Pick<
         MerchantSettlementItemDto,
-        "snapshotCodAmount" | "snapshotDeliveryFee" | "isDeliveryFeeDeducted" | "netPayableAmount"
+        "direction" | "snapshotAmount" | "netPayableAmount"
     >[],
 ): MerchantSettlementTotalsDto {
+    const totals = items.reduce(
+        (summary, item) => {
+            const amount =
+                item.snapshotAmount && Number.isFinite(Number(item.snapshotAmount))
+                    ? Number(item.snapshotAmount)
+                    : Math.abs(Number(item.netPayableAmount));
+
+            if (item.direction === "company_owes_merchant") {
+                summary.creditsTotal += amount;
+            } else {
+                summary.debitsTotal += amount;
+            }
+
+            return summary;
+        },
+        {
+            creditsTotal: 0,
+            debitsTotal: 0,
+        },
+    );
+
     return {
-        codSubtotal: toSettlementMoneyString(
-            items.reduce((sum, item) => sum + Number(item.snapshotCodAmount), 0),
-        ),
-        deliveryFeeDeductedTotal: toSettlementMoneyString(
-            items.reduce(
-                (sum, item) =>
-                    sum + (item.isDeliveryFeeDeducted ? Number(item.snapshotDeliveryFee) : 0),
-                0,
-            ),
-        ),
-        netPayableTotal: toSettlementMoneyString(
-            items.reduce((sum, item) => sum + Number(item.netPayableAmount), 0),
-        ),
+        creditsTotal: toSettlementMoneyString(totals.creditsTotal),
+        debitsTotal: toSettlementMoneyString(totals.debitsTotal),
+        netTotal: toSettlementMoneyString(totals.creditsTotal - totals.debitsTotal),
     };
 }
 
