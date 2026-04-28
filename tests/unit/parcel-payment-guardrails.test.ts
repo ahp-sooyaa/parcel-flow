@@ -12,10 +12,13 @@ import { toParcelListItemDto } from "../../src/features/parcels/server/dto";
 import { validateParcelPaymentState } from "../../src/features/parcels/server/payment-guardrails";
 import {
     adminCorrectParcelStateSchema,
+    buildParcelWriteValues,
+    createParcelBatchSchema,
     createParcelSchema,
     getDeliveryFeeResolutionOptions,
     getOfficeParcelMovementActions,
     getParcelOperationSummary,
+    parseCreateParcelFormData,
     updateParcelDetailSchema,
     validateCreateParcelMedia,
     validateDeliveryFeePaymentPlan,
@@ -444,6 +447,219 @@ describe("delivery fee payment plan guardrails", () => {
         if (updateParsed.success) {
             expect(updateParsed.data.deliveryFeePaymentPlan).toBeNull();
         }
+    });
+
+    it("parses repeated parcel rows from create form data", () => {
+        const formData = new FormData();
+
+        formData.set("merchantId", "00000000-0000-0000-0000-000000000002");
+        formData.set("riderId", "");
+        formData.set("recipientName", "Receiver");
+        formData.set("recipientPhone", "09123456");
+        formData.set("recipientTownshipId", "00000000-0000-0000-0000-000000000003");
+        formData.set("recipientAddress", "Yangon");
+        formData.set("deliveryFeePayer", "merchant");
+        formData.set("deliveryFeePaymentPlan", "merchant_cash_on_pickup");
+        formData.set("paymentNote", "Handle together");
+        formData.set("parcelRows[0].parcelDescription", "Shirt");
+        formData.set("parcelRows[0].packageCount", "1");
+        formData.set("parcelRows[0].specialHandlingNote", "");
+        formData.set("parcelRows[0].estimatedWeightKg", "");
+        formData.set("parcelRows[0].packageWidthCm", "");
+        formData.set("parcelRows[0].packageHeightCm", "");
+        formData.set("parcelRows[0].packageLengthCm", "");
+        formData.set("parcelRows[0].parcelType", "cod");
+        formData.set("parcelRows[0].codAmount", "12000");
+        formData.set("parcelRows[0].deliveryFee", "1500");
+        formData.set("parcelRows[1].parcelDescription", "Shoes");
+        formData.set("parcelRows[1].packageCount", "2");
+        formData.set("parcelRows[1].specialHandlingNote", "");
+        formData.set("parcelRows[1].estimatedWeightKg", "1.5");
+        formData.set("parcelRows[1].packageWidthCm", "");
+        formData.set("parcelRows[1].packageHeightCm", "");
+        formData.set("parcelRows[1].packageLengthCm", "");
+        formData.set("parcelRows[1].parcelType", "non_cod");
+        formData.set("parcelRows[1].codAmount", "0");
+        formData.set("parcelRows[1].deliveryFee", "1500");
+
+        const parsed = parseCreateParcelFormData(formData);
+
+        expect(parsed.ok).toBe(true);
+
+        if (parsed.ok) {
+            expect(parsed.data.parcelRows).toHaveLength(2);
+            expect(parsed.data.parcelRows[0]).toMatchObject({
+                parcelDescription: "Shirt",
+                packageCount: 1,
+                parcelType: "cod",
+                codAmount: 12000,
+                deliveryFee: 1500,
+            });
+            expect(parsed.data.parcelRows[1]).toMatchObject({
+                parcelDescription: "Shoes",
+                packageCount: 2,
+                parcelType: "non_cod",
+                codAmount: 0,
+                deliveryFee: 1500,
+            });
+            expect(parsed.fields["parcelRows[1].parcelDescription"]).toBe("Shoes");
+        }
+    });
+
+    it("requires at least one parcel row in batch create data", () => {
+        const formData = new FormData();
+
+        formData.set("merchantId", "00000000-0000-0000-0000-000000000002");
+        formData.set("riderId", "");
+        formData.set("recipientName", "Receiver");
+        formData.set("recipientPhone", "09123456");
+        formData.set("recipientTownshipId", "00000000-0000-0000-0000-000000000003");
+        formData.set("recipientAddress", "Yangon");
+        formData.set("deliveryFeePayer", "receiver");
+        formData.set("deliveryFeePaymentPlan", "receiver_collect_on_delivery");
+        formData.set("paymentNote", "");
+
+        const parsed = parseCreateParcelFormData(formData);
+
+        expect(parsed.ok).toBe(false);
+
+        if (!parsed.ok) {
+            expect(parsed.fieldErrors).toMatchObject({
+                parcelRows: ["Add at least one parcel row."],
+            });
+        }
+    });
+
+    it("allows mixed parcel rows when the shared payment plan supports them", () => {
+        const parsed = createParcelBatchSchema.safeParse({
+            merchantId: "00000000-0000-0000-0000-000000000002",
+            riderId: null,
+            recipientName: "Receiver",
+            recipientPhone: "09123456",
+            recipientTownshipId: "00000000-0000-0000-0000-000000000003",
+            recipientAddress: "Yangon",
+            deliveryFeePayer: "merchant",
+            deliveryFeePaymentPlan: "merchant_cash_on_pickup",
+            paymentNote: null,
+            parcelRows: [
+                {
+                    parcelDescription: "Shirt",
+                    packageCount: 1,
+                    specialHandlingNote: null,
+                    estimatedWeightKg: null,
+                    packageWidthCm: null,
+                    packageHeightCm: null,
+                    packageLengthCm: null,
+                    parcelType: "cod",
+                    codAmount: 12000,
+                    deliveryFee: 1500,
+                },
+                {
+                    parcelDescription: "Shoes",
+                    packageCount: 2,
+                    specialHandlingNote: null,
+                    estimatedWeightKg: 1.5,
+                    packageWidthCm: null,
+                    packageHeightCm: null,
+                    packageLengthCm: null,
+                    parcelType: "non_cod",
+                    codAmount: 0,
+                    deliveryFee: 1500,
+                },
+            ],
+        });
+
+        expect(parsed.success).toBe(true);
+    });
+
+    it("rejects non-cod rows for deduct-from-settlement batches", () => {
+        const parsed = createParcelBatchSchema.safeParse({
+            merchantId: "00000000-0000-0000-0000-000000000002",
+            riderId: null,
+            recipientName: "Receiver",
+            recipientPhone: "09123456",
+            recipientTownshipId: "00000000-0000-0000-0000-000000000003",
+            recipientAddress: "Yangon",
+            deliveryFeePayer: "merchant",
+            deliveryFeePaymentPlan: "merchant_deduct_from_cod_settlement",
+            paymentNote: null,
+            parcelRows: [
+                {
+                    parcelDescription: "Shirt",
+                    packageCount: 1,
+                    specialHandlingNote: null,
+                    estimatedWeightKg: null,
+                    packageWidthCm: null,
+                    packageHeightCm: null,
+                    packageLengthCm: null,
+                    parcelType: "cod",
+                    codAmount: 12000,
+                    deliveryFee: 1500,
+                },
+                {
+                    parcelDescription: "Shoes",
+                    packageCount: 2,
+                    specialHandlingNote: null,
+                    estimatedWeightKg: null,
+                    packageWidthCm: null,
+                    packageHeightCm: null,
+                    packageLengthCm: null,
+                    parcelType: "non_cod",
+                    codAmount: 0,
+                    deliveryFee: 1500,
+                },
+            ],
+        });
+
+        expect(parsed.success).toBe(false);
+
+        if (!parsed.success) {
+            expect(parsed.error.issues).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        path: ["parcelRows", 1, "parcelType"],
+                        message: "Deduct from COD settlement requires a COD parcel.",
+                    }),
+                ]),
+            );
+        }
+    });
+
+    it("normalizes non-cod row cod amount to zero when building write values", () => {
+        const parsed = createParcelSchema.parse({
+            merchantId: "00000000-0000-0000-0000-000000000002",
+            riderId: "",
+            recipientName: "Receiver",
+            recipientPhone: "09123456",
+            recipientTownshipId: "00000000-0000-0000-0000-000000000003",
+            recipientAddress: "Yangon",
+            parcelDescription: "Shoes",
+            packageCount: "1",
+            specialHandlingNote: "",
+            estimatedWeightKg: "",
+            packageWidthCm: "",
+            packageHeightCm: "",
+            packageLengthCm: "",
+            parcelType: "non_cod",
+            codAmount: "9999",
+            deliveryFee: "1500",
+            deliveryFeePayer: "receiver",
+            deliveryFeePaymentPlan: "receiver_collect_on_delivery",
+            paymentNote: "",
+        });
+
+        const values = buildParcelWriteValues({
+            data: parsed,
+            merchantId: parsed.merchantId,
+            riderId: parsed.riderId,
+            totalAmountToCollect: 1500,
+            deliveryFeePaymentPlan: parsed.deliveryFeePaymentPlan,
+            parcelStatus: "pending",
+            pickupImageKeys: [],
+            proofOfDeliveryImageKeys: [],
+        });
+
+        expect(values.codAmount).toBe("0.00");
     });
 
     it("allows payment slips only for prepaid bank transfer", () => {

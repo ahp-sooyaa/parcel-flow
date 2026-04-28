@@ -6,6 +6,7 @@ import { findMerchantProfileLinkByAppUserId } from "@/features/merchant/server/d
 import {
     COD_STATUSES,
     COLLECTION_STATUSES,
+    CREATE_PARCEL_MAX_ROWS,
     DELIVERY_FEE_PAYERS,
     DELIVERY_FEE_PAYMENT_PLANS,
     DELIVERY_FEE_STATUSES,
@@ -48,13 +49,18 @@ export const PARCEL_IMAGE_MAX_FILES = 5;
 export const PARCEL_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
 
 const PARCEL_IMAGE_ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const CREATE_PARCEL_FORM_FIELDS = [
+const CREATE_PARCEL_SHARED_FORM_FIELDS = [
     "merchantId",
     "riderId",
     "recipientName",
     "recipientPhone",
     "recipientTownshipId",
     "recipientAddress",
+    "deliveryFeePayer",
+    "deliveryFeePaymentPlan",
+    "paymentNote",
+] as const;
+const CREATE_PARCEL_ROW_FIELDS = [
     "parcelDescription",
     "packageCount",
     "specialHandlingNote",
@@ -65,9 +71,6 @@ const CREATE_PARCEL_FORM_FIELDS = [
     "parcelType",
     "codAmount",
     "deliveryFee",
-    "deliveryFeePayer",
-    "deliveryFeePaymentPlan",
-    "paymentNote",
 ] as const;
 const UPDATE_PARCEL_FORM_FIELDS = [
     "parcelId",
@@ -223,6 +226,57 @@ export const createParcelSchema = z.object({
     paymentNote: optionalNullableTrimmedString(1000),
 });
 
+export const createParcelSharedSchema = createParcelSchema.pick({
+    merchantId: true,
+    riderId: true,
+    recipientName: true,
+    recipientPhone: true,
+    recipientTownshipId: true,
+    recipientAddress: true,
+    deliveryFeePayer: true,
+    deliveryFeePaymentPlan: true,
+    paymentNote: true,
+});
+
+export const createParcelRowSchema = createParcelSchema.pick({
+    parcelDescription: true,
+    packageCount: true,
+    specialHandlingNote: true,
+    estimatedWeightKg: true,
+    packageWidthCm: true,
+    packageHeightCm: true,
+    packageLengthCm: true,
+    parcelType: true,
+    codAmount: true,
+    deliveryFee: true,
+});
+
+export const createParcelBatchSchema = createParcelSharedSchema
+    .extend({
+        parcelRows: z
+            .array(createParcelRowSchema)
+            .min(1, "Add at least one parcel row.")
+            .max(
+                CREATE_PARCEL_MAX_ROWS,
+                `You can create up to ${CREATE_PARCEL_MAX_ROWS} parcels at once.`,
+            ),
+    })
+    .superRefine((value, context) => {
+        if (value.deliveryFeePaymentPlan !== "merchant_deduct_from_cod_settlement") {
+            return;
+        }
+
+        value.parcelRows.forEach((row, index) => {
+            if (row.parcelType !== "cod") {
+                context.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ["parcelRows", index, "parcelType"],
+                    message: "Deduct from COD settlement requires a COD parcel.",
+                });
+            }
+        });
+    });
+
 export const updateParcelSchema = createParcelSchema.extend({
     deliveryFeePaymentPlan: optionalNullableDeliveryFeePaymentPlanField,
     parcelId: z.string().trim().uuid(),
@@ -266,6 +320,8 @@ export const adminCorrectParcelStateSchema = parcelIdActionSchema.extend({
 });
 
 export type ParcelCreateInput = z.infer<typeof createParcelSchema>;
+export type ParcelCreateBatchInput = z.infer<typeof createParcelBatchSchema>;
+export type ParcelCreateRowInput = z.infer<typeof createParcelRowSchema>;
 export type ParcelUpdateInput = z.infer<typeof updateParcelSchema>;
 export type ParcelDetailUpdateInput = z.infer<typeof updateParcelDetailSchema>;
 export type ParcelFormFields = Record<(typeof UPDATE_PARCEL_FORM_FIELDS)[number], string>;
@@ -835,6 +891,34 @@ function toFieldErrors(fieldErrors: Record<string, string[] | undefined>) {
     ) as ParcelFieldErrors;
 }
 
+function toFieldPath(path: (string | number)[]) {
+    return path.reduce((result, segment) => {
+        if (typeof segment === "number") {
+            return `${result}[${segment}]`;
+        }
+
+        return result ? `${result}.${segment}` : segment;
+    }, "");
+}
+
+function toIssueFieldErrors(issues: z.ZodIssue[]) {
+    const fieldErrors: ParcelFieldErrors = {};
+
+    for (const issue of issues) {
+        const fieldPath = toFieldPath(issue.path);
+
+        if (!fieldPath) {
+            continue;
+        }
+
+        const messages = fieldErrors[fieldPath] ?? [];
+        messages.push(issue.message);
+        fieldErrors[fieldPath] = messages;
+    }
+
+    return fieldErrors;
+}
+
 function createFieldErrors(fieldName: string, message: string): ParcelFieldErrors {
     return {
         [fieldName]: [message],
@@ -985,6 +1069,40 @@ function getParcelMediaFiles(formData: FormData): ParcelMediaFiles {
     };
 }
 
+function getCreateParcelRowIndexes(formData: FormData) {
+    const rowIndexes = new Set<number>();
+
+    for (const [key] of formData.entries()) {
+        const match = /^parcelRows\[(\d+)\]\./.exec(key);
+
+        if (match) {
+            rowIndexes.add(Number(match[1]));
+        }
+    }
+
+    return [...rowIndexes].sort((left, right) => left - right);
+}
+
+function getCreateParcelBatchFields(
+    formData: FormData,
+    rowIndexes: number[],
+): Record<string, string> {
+    const sharedFields = getScalarFields(formData, CREATE_PARCEL_SHARED_FORM_FIELDS);
+    const rowFields = Object.fromEntries(
+        rowIndexes.flatMap((rowIndex) =>
+            CREATE_PARCEL_ROW_FIELDS.map((fieldName) => [
+                `parcelRows[${rowIndex}].${fieldName}`,
+                getStringFieldValue(formData, `parcelRows[${rowIndex}].${fieldName}`),
+            ]),
+        ),
+    );
+
+    return {
+        ...sharedFields,
+        ...rowFields,
+    };
+}
+
 export function validateParcelMediaFiles(files: ParcelMediaFiles) {
     for (const fieldName of PARCEL_IMAGE_FIELD_NAMES) {
         const fieldFiles = files[fieldName];
@@ -1063,7 +1181,59 @@ function parseParcelFormData<TSchema extends z.ZodTypeAny>(
 }
 
 export function parseCreateParcelFormData(formData: FormData) {
-    return parseParcelFormData(formData, createParcelSchema, CREATE_PARCEL_FORM_FIELDS);
+    const rowIndexes = getCreateParcelRowIndexes(formData);
+    const fields = getCreateParcelBatchFields(formData, rowIndexes);
+    const files = getParcelMediaFiles(formData);
+    const mediaValidation = validateParcelMediaFiles(files);
+
+    if (!mediaValidation.ok) {
+        return {
+            ok: false as const,
+            message: mediaValidation.message,
+            fields,
+            fieldErrors: mediaValidation.fieldErrors,
+        };
+    }
+
+    const parsed = createParcelBatchSchema.safeParse({
+        merchantId: fields.merchantId,
+        riderId: fields.riderId,
+        recipientName: fields.recipientName,
+        recipientPhone: fields.recipientPhone,
+        recipientTownshipId: fields.recipientTownshipId,
+        recipientAddress: fields.recipientAddress,
+        deliveryFeePayer: fields.deliveryFeePayer,
+        deliveryFeePaymentPlan: fields.deliveryFeePaymentPlan,
+        paymentNote: fields.paymentNote,
+        parcelRows: rowIndexes.map((rowIndex) => ({
+            parcelDescription: fields[`parcelRows[${rowIndex}].parcelDescription`],
+            packageCount: fields[`parcelRows[${rowIndex}].packageCount`],
+            specialHandlingNote: fields[`parcelRows[${rowIndex}].specialHandlingNote`],
+            estimatedWeightKg: fields[`parcelRows[${rowIndex}].estimatedWeightKg`],
+            packageWidthCm: fields[`parcelRows[${rowIndex}].packageWidthCm`],
+            packageHeightCm: fields[`parcelRows[${rowIndex}].packageHeightCm`],
+            packageLengthCm: fields[`parcelRows[${rowIndex}].packageLengthCm`],
+            parcelType: fields[`parcelRows[${rowIndex}].parcelType`],
+            codAmount: fields[`parcelRows[${rowIndex}].codAmount`],
+            deliveryFee: fields[`parcelRows[${rowIndex}].deliveryFee`],
+        })),
+    });
+
+    if (!parsed.success) {
+        return {
+            ok: false as const,
+            message: "Please correct the highlighted fields.",
+            fields,
+            fieldErrors: toIssueFieldErrors(parsed.error.issues),
+        };
+    }
+
+    return {
+        ok: true as const,
+        data: parsed.data,
+        fields,
+        files,
+    };
 }
 
 export function parseUpdateParcelFormData(formData: FormData) {
@@ -1218,15 +1388,12 @@ export function mergeParcelImageKeys(existingKeys: string[], uploadedKeys: strin
     return [...existingKeys, ...uploadedKeys];
 }
 
-export async function uploadParcelMediaFiles(input: {
-    parcelCode: string;
-    files: ParcelMediaFiles;
-}) {
+export async function uploadParcelMediaFiles(input: { scope: string; files: ParcelMediaFiles }) {
     const uploadGroup = async (category: string, files: File[]) => {
         return Promise.all(
             files.map(async (file) => {
                 const key = buildR2ObjectKey({
-                    scope: input.parcelCode,
+                    scope: input.scope,
                     category,
                     originalFileName: file.name,
                 });
@@ -1397,4 +1564,73 @@ export async function validateParcelSubmission(input: {
         parcelType: input.parcelType,
         codStatus: input.codStatus,
     });
+}
+
+export async function validateCreateParcelBatchSubmission(input: {
+    merchantId: string;
+    riderId: string | null;
+    recipientTownshipId: string;
+    deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];
+    deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number];
+    parcelRows: ParcelCreateRowInput[];
+}) {
+    const merchant = await findMerchantProfileLinkByAppUserId(input.merchantId);
+
+    if (!merchant) {
+        return {
+            ok: false as const,
+            message: "Selected merchant was not found.",
+            fieldErrors: createFieldErrors("merchantId", "Selected merchant was not found."),
+        };
+    }
+
+    if (input.riderId) {
+        const rider = await getRiderById(input.riderId);
+
+        if (!rider?.isActive) {
+            return {
+                ok: false as const,
+                message: "Selected rider was not found.",
+                fieldErrors: createFieldErrors("riderId", "Selected rider was not found."),
+            };
+        }
+    }
+
+    const township = await findTownshipById(input.recipientTownshipId);
+
+    if (!township?.isActive) {
+        return {
+            ok: false as const,
+            message: "Selected recipient township was not found.",
+            fieldErrors: createFieldErrors(
+                "recipientTownshipId",
+                "Selected recipient township was not found.",
+            ),
+        };
+    }
+
+    for (const [rowIndex, row] of input.parcelRows.entries()) {
+        const paymentPlanGuard = validateDeliveryFeePaymentPlan({
+            parcelType: row.parcelType,
+            deliveryFeePayer: input.deliveryFeePayer,
+            deliveryFeePaymentPlan: input.deliveryFeePaymentPlan,
+            requireRecordedPlan: true,
+        });
+
+        if (!paymentPlanGuard.ok) {
+            return {
+                ok: false as const,
+                message: paymentPlanGuard.message,
+                fieldErrors:
+                    input.deliveryFeePaymentPlan === "merchant_deduct_from_cod_settlement"
+                        ? createFieldErrors(
+                              `parcelRows[${rowIndex}].parcelType`,
+                              "Deduct from COD settlement requires a COD parcel.",
+                          )
+                        : paymentPlanGuard.fieldErrors,
+            };
+        }
+    }
+
+    return { ok: true as const };
 }

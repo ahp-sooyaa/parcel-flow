@@ -1,4 +1,5 @@
 export const PARCEL_TYPES = ["cod", "non_cod"] as const;
+export const CREATE_PARCEL_MAX_ROWS = 20;
 export const DELIVERY_FEE_PAYERS = ["merchant", "receiver"] as const;
 export const DELIVERY_FEE_PAYMENT_PLANS = [
     "receiver_collect_on_delivery",

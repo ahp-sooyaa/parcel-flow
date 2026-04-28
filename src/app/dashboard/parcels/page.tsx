@@ -50,6 +50,17 @@ function OperationState({
     );
 }
 
+function parseCreatedCount(value: string | string[] | undefined) {
+    const normalized = Array.isArray(value) ? value[0] : value;
+    const count = Number(normalized);
+
+    if (!Number.isSafeInteger(count) || count < 1) {
+        return null;
+    }
+
+    return count;
+}
+
 export default async function ParcelsPage({ searchParams }: Readonly<ParcelsPageProps>) {
     // admin user - permission check
     // rider user - no access
@@ -64,7 +75,9 @@ export default async function ParcelsPage({ searchParams }: Readonly<ParcelsPage
 
     const parcelListQuery = normalizeParcelListQueryParams(rawSearchParams);
     const parcels = await getParcelsListForViewer(currentUser, parcelListQuery);
-    const parcelsReturnTo = buildDashboardHref("/dashboard/parcels", rawSearchParams);
+    const { created: _created, ...returnSearchParams } = rawSearchParams;
+    const createdCount = parseCreatedCount(rawSearchParams.created);
+    const parcelsReturnTo = buildDashboardHref("/dashboard/parcels", returnSearchParams);
     const parcelPaginationQuery = {
         q: parcelListQuery.query,
         parcelStatus: parcelListQuery.parcelStatus,
@@ -94,6 +107,12 @@ export default async function ParcelsPage({ searchParams }: Readonly<ParcelsPage
                 query={parcelListQuery}
                 clearHref="/dashboard/parcels"
             />
+
+            {createdCount ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                    Created {createdCount} parcel{createdCount === 1 ? "" : "s"} successfully.
+                </div>
+            ) : null}
 
             <div className="overflow-x-auto rounded-xl border bg-card">
                 <table className="w-full text-left text-sm">
