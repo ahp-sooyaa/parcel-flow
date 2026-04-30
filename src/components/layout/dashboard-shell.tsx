@@ -1,6 +1,7 @@
 "use client";
 
 import {
+    Calculator,
     LayoutDashboard,
     MapPinned,
     Menu,
@@ -43,6 +44,7 @@ const navIconByKey: Record<DashboardNavItemKey, ReactNode> = {
     parcels: <PackageSearch className="h-4 w-4" />,
     settlements: <ReceiptText className="h-4 w-4" />,
     townships: <MapPinned className="h-4 w-4" />,
+    "delivery-pricing": <Calculator className="h-4 w-4" />,
 };
 
 export function DashboardShell({ children, user }: Readonly<DashboardShellProps>) {

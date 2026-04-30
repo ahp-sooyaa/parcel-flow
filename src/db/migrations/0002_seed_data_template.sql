@@ -56,7 +56,10 @@ values
   ('merchant-settlement.view', 'View merchant settlements'),
   ('merchant-settlement.create', 'Create merchant settlements'),
   ('merchant-settlement.confirm', 'Confirm merchant settlement payments'),
-  ('merchant-settlement.cancel', 'Cancel merchant settlements');
+  ('merchant-settlement.cancel', 'Cancel merchant settlements'),
+  ('delivery-pricing.view', 'View delivery pricing'),
+  ('delivery-pricing.create', 'Create delivery pricing'),
+  ('delivery-pricing.update', 'Update delivery pricing');
 
 drop table if exists pg_temp.seed_office_admin_denied_permissions;
 create temporary table seed_office_admin_denied_permissions (

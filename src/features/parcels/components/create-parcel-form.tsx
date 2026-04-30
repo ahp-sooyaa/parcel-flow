@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { quoteDeliveryPricingAction } from "@/features/delivery-pricing/server/actions";
 import { PaymentSlipUpload } from "@/features/parcels/components/payment-slip-upload";
 import {
     CREATE_PARCEL_MAX_ROWS,
@@ -54,6 +55,21 @@ type ParcelRowDraft = {
     parcelType: ParcelType;
     packageCount: string;
     isLargeItem: boolean;
+};
+type ParcelRowQuoteFields = {
+    estimatedWeightKg: string;
+    packageWidthCm: string;
+    packageHeightCm: string;
+    packageLengthCm: string;
+    deliveryFee: string;
+};
+type ParcelRowQuoteState = {
+    status: "idle" | "loading" | "ready" | "missing" | "error";
+    message: string;
+    rateScope: "global" | "merchant_specific" | null;
+    chargeableWeightKg: string | null;
+    volumetricWeightKg: string | null;
+    lastRequestKey: string | null;
 };
 
 const textareaClassName =
@@ -164,6 +180,16 @@ function getParcelRowFieldValue(
     );
 }
 
+function getParcelRowQuoteFields(fields: Record<string, string> | undefined, rowIndex: number) {
+    return {
+        estimatedWeightKg: getParcelRowFieldValue(fields, rowIndex, "estimatedWeightKg"),
+        packageWidthCm: getParcelRowFieldValue(fields, rowIndex, "packageWidthCm"),
+        packageHeightCm: getParcelRowFieldValue(fields, rowIndex, "packageHeightCm"),
+        packageLengthCm: getParcelRowFieldValue(fields, rowIndex, "packageLengthCm"),
+        deliveryFee: getParcelRowFieldValue(fields, rowIndex, "deliveryFee"),
+    } satisfies ParcelRowQuoteFields;
+}
+
 function getRequestedParcelCount(value: string) {
     const count = Number(value);
 
@@ -182,6 +208,42 @@ function getSafePackageCountNumber(value: string | undefined) {
 
 function getSafePackageCountValue(value: string | undefined) {
     return getSafePackageCountNumber(value).toString();
+}
+
+function getParcelQuoteRequestKey(input: {
+    merchantId: string;
+    recipientTownshipId: string;
+    parcelType: ParcelType;
+    isLargeItem: boolean;
+    estimatedWeightKg: string;
+    packageWidthCm: string;
+    packageHeightCm: string;
+    packageLengthCm: string;
+}) {
+    return [
+        input.merchantId,
+        input.recipientTownshipId,
+        input.parcelType,
+        input.isLargeItem ? "large" : "standard",
+        input.estimatedWeightKg.trim(),
+        input.packageWidthCm.trim(),
+        input.packageHeightCm.trim(),
+        input.packageLengthCm.trim(),
+    ].join("|");
+}
+
+function getEmptyParcelQuoteState(
+    requestKey: string | null = null,
+    message = "Enter weight and township to calculate pricing.",
+): ParcelRowQuoteState {
+    return {
+        status: "idle",
+        message,
+        rateScope: null,
+        chargeableWeightKg: null,
+        volumetricWeightKg: null,
+        lastRequestKey: requestKey,
+    };
 }
 
 function SectionHeader({
@@ -287,10 +349,31 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
             ),
         );
     };
+    const buildQuoteFieldsByRowId = (
+        rows: ParcelRowDraft[],
+        fields: Record<string, string> | undefined,
+    ) =>
+        Object.fromEntries(
+            rows.map((row, rowIndex) => [row.id, getParcelRowQuoteFields(fields, rowIndex)]),
+        ) satisfies Record<string, ParcelRowQuoteFields>;
+    const buildQuoteStatesByRowId = (rows: ParcelRowDraft[]) =>
+        Object.fromEntries(
+            rows.map((row) => [row.id, getEmptyParcelQuoteState()]),
+        ) satisfies Record<string, ParcelRowQuoteState>;
+    const initialParcelRowsRef = useRef<ParcelRowDraft[] | null>(null);
+
+    if (!initialParcelRowsRef.current) {
+        initialParcelRowsRef.current = buildParcelRowsFromFields(state.fields);
+    }
+
+    const initialParcelRows = initialParcelRowsRef.current;
     const [selectedMerchantId, setSelectedMerchantId] = useState(
         state.fields?.merchantId ?? defaultMerchantSelection,
     );
     const [selectedRiderId, setSelectedRiderId] = useState(state.fields?.riderId ?? "");
+    const [selectedRecipientTownshipId, setSelectedRecipientTownshipId] = useState(
+        state.fields?.recipientTownshipId ?? "",
+    );
     const [selectedDeliveryFeePayer, setSelectedDeliveryFeePayer] = useState<DeliveryFeePayer>(
         getSafeDeliveryFeePayerValue(state.fields?.deliveryFeePayer),
     );
@@ -299,8 +382,21 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
             (state.fields?.deliveryFeePaymentPlan as DeliveryFeePaymentPlan | undefined) ??
                 DEFAULT_CREATE_PARCEL_STATE.deliveryFeePaymentPlan,
         );
-    const [parcelRows, setParcelRows] = useState<ParcelRowDraft[]>(() =>
-        buildParcelRowsFromFields(state.fields),
+    const [parcelRows, setParcelRows] = useState<ParcelRowDraft[]>(initialParcelRows);
+    const [rowQuoteFields, setRowQuoteFields] = useState<Record<string, ParcelRowQuoteFields>>(() =>
+        buildQuoteFieldsByRowId(initialParcelRows, state.fields),
+    );
+    const [rowQuoteStates, setRowQuoteStates] = useState<Record<string, ParcelRowQuoteState>>(() =>
+        buildQuoteStatesByRowId(initialParcelRows),
+    );
+    const [rowDeliveryFeeOverrides, setRowDeliveryFeeOverrides] = useState<Record<string, boolean>>(
+        () =>
+            Object.fromEntries(
+                initialParcelRows.map((row, rowIndex) => [
+                    row.id,
+                    Boolean(getParcelRowFieldValue(state.fields, rowIndex, "deliveryFee")),
+                ]),
+            ),
     );
 
     useEffect(() => {
@@ -326,11 +422,22 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
 
         setSelectedMerchantId(nextMerchantId);
         setSelectedRiderId(nextRiderId);
+        setSelectedRecipientTownshipId(state.fields.recipientTownshipId ?? "");
         setSelectedDeliveryFeePayer(nextDeliveryFeePayer);
         setSelectedDeliveryFeePaymentPlan(
             getSafePaymentPlanValue(state.fields.deliveryFeePaymentPlan, nextPaymentPlanOptions),
         );
         setParcelRows(nextParcelRows);
+        setRowQuoteFields(buildQuoteFieldsByRowId(nextParcelRows, state.fields));
+        setRowQuoteStates(buildQuoteStatesByRowId(nextParcelRows));
+        setRowDeliveryFeeOverrides(
+            Object.fromEntries(
+                nextParcelRows.map((row, rowIndex) => [
+                    row.id,
+                    Boolean(getParcelRowFieldValue(state.fields, rowIndex, "deliveryFee")),
+                ]),
+            ),
+        );
     }, [defaultMerchantSelection, state.fields]);
 
     const selectedMerchant = merchants.find((merchant) => merchant.id === selectedMerchantId);
@@ -367,6 +474,215 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
             getSafePaymentPlanValue(current, deliveryFeePaymentPlanOptions),
         );
     }, [allParcelRowsCod, selectedDeliveryFeePayer]);
+
+    useEffect(() => {
+        const timeoutIds: ReturnType<typeof setTimeout>[] = [];
+
+        for (const [rowIndex, row] of parcelRows.entries()) {
+            const rowFields =
+                rowQuoteFields[row.id] ?? getParcelRowQuoteFields(state.fields, rowIndex);
+            const requestKey = getParcelQuoteRequestKey({
+                merchantId: selectedMerchantId,
+                recipientTownshipId: selectedRecipientTownshipId,
+                parcelType: row.parcelType,
+                isLargeItem: row.isLargeItem,
+                estimatedWeightKg: rowFields.estimatedWeightKg,
+                packageWidthCm: rowFields.packageWidthCm,
+                packageHeightCm: rowFields.packageHeightCm,
+                packageLengthCm: rowFields.packageLengthCm,
+            });
+            const needsDimensions =
+                row.isLargeItem &&
+                (!rowFields.packageWidthCm.trim() ||
+                    !rowFields.packageHeightCm.trim() ||
+                    !rowFields.packageLengthCm.trim());
+            const currentQuoteState = rowQuoteStates[row.id];
+
+            if (
+                !selectedMerchantId ||
+                !selectedRecipientTownshipId ||
+                !rowFields.estimatedWeightKg.trim()
+            ) {
+                if (
+                    currentQuoteState?.status === "idle" &&
+                    currentQuoteState.lastRequestKey === requestKey &&
+                    currentQuoteState.message === "Enter weight and township to calculate pricing."
+                ) {
+                    continue;
+                }
+
+                setRowQuoteStates((current) => ({
+                    ...current,
+                    [row.id]: getEmptyParcelQuoteState(requestKey),
+                }));
+                continue;
+            }
+
+            if (needsDimensions) {
+                if (
+                    currentQuoteState?.status === "idle" &&
+                    currentQuoteState.lastRequestKey === requestKey &&
+                    currentQuoteState.message ===
+                        "Enter all large-item dimensions to calculate pricing."
+                ) {
+                    continue;
+                }
+
+                setRowQuoteStates((current) => ({
+                    ...current,
+                    [row.id]: getEmptyParcelQuoteState(
+                        requestKey,
+                        "Enter all large-item dimensions to calculate pricing.",
+                    ),
+                }));
+                continue;
+            }
+
+            if (currentQuoteState?.lastRequestKey === requestKey) {
+                continue;
+            }
+
+            timeoutIds.push(
+                setTimeout(() => {
+                    void requestDeliveryPricingQuote(row.id, requestKey, false);
+                }, 250),
+            );
+        }
+
+        return () => {
+            for (const timeoutId of timeoutIds) {
+                clearTimeout(timeoutId);
+            }
+        };
+    }, [
+        parcelRows,
+        rowQuoteFields,
+        rowQuoteStates,
+        selectedMerchantId,
+        selectedRecipientTownshipId,
+        state.fields,
+    ]);
+
+    const updateRowQuoteFields = (
+        rowId: string,
+        nextFields: Partial<ParcelRowQuoteFields>,
+        options?: { markDeliveryFeeOverride?: boolean },
+    ) => {
+        setRowQuoteFields((current) => ({
+            ...current,
+            [rowId]: {
+                ...(current[rowId] ?? {
+                    estimatedWeightKg: "",
+                    packageWidthCm: "",
+                    packageHeightCm: "",
+                    packageLengthCm: "",
+                    deliveryFee: "",
+                }),
+                ...nextFields,
+            },
+        }));
+
+        if (options?.markDeliveryFeeOverride) {
+            setRowDeliveryFeeOverrides((current) => ({
+                ...current,
+                [rowId]: true,
+            }));
+        }
+    };
+
+    const requestDeliveryPricingQuote = async (
+        rowId: string,
+        requestKey: string,
+        forceApplyFee: boolean,
+    ) => {
+        const row = parcelRows.find((item) => item.id === rowId);
+        const rowFields = rowQuoteFields[rowId];
+
+        if (!row || !rowFields) {
+            return;
+        }
+
+        setRowQuoteStates((current) => ({
+            ...current,
+            [rowId]: {
+                ...(current[rowId] ?? getEmptyParcelQuoteState()),
+                status: "loading",
+                message: "Calculating pricing...",
+                lastRequestKey: requestKey,
+            },
+        }));
+
+        const result = await quoteDeliveryPricingAction({
+            merchantId: selectedMerchantId,
+            recipientTownshipId: selectedRecipientTownshipId,
+            estimatedWeightKg: rowFields.estimatedWeightKg,
+            isLargeItem: row.isLargeItem,
+            packageWidthCm: rowFields.packageWidthCm,
+            packageHeightCm: rowFields.packageHeightCm,
+            packageLengthCm: rowFields.packageLengthCm,
+        });
+
+        if (!result.ok) {
+            setRowQuoteStates((current) => {
+                const existing = current[rowId];
+
+                if (existing?.lastRequestKey !== requestKey) {
+                    return current;
+                }
+
+                return {
+                    ...current,
+                    [rowId]: {
+                        status: "missing",
+                        message: result.message,
+                        rateScope: null,
+                        chargeableWeightKg: null,
+                        volumetricWeightKg: null,
+                        lastRequestKey: requestKey,
+                    },
+                };
+            });
+
+            return;
+        }
+
+        setRowQuoteStates((current) => {
+            const existing = current[rowId];
+
+            if (existing?.lastRequestKey !== requestKey) {
+                return current;
+            }
+
+            return {
+                ...current,
+                [rowId]: {
+                    status: "ready",
+                    message:
+                        result.rateScope === "merchant_specific"
+                            ? "Applied merchant contract pricing."
+                            : "Applied global township pricing.",
+                    rateScope: result.rateScope,
+                    chargeableWeightKg: result.chargeableWeightKg,
+                    volumetricWeightKg: result.volumetricWeightKg,
+                    lastRequestKey: requestKey,
+                },
+            };
+        });
+
+        if (forceApplyFee || !rowDeliveryFeeOverrides[rowId] || !rowFields.deliveryFee.trim()) {
+            updateRowQuoteFields(
+                rowId,
+                {
+                    deliveryFee: result.deliveryFee,
+                },
+                { markDeliveryFeeOverride: false },
+            );
+            setRowDeliveryFeeOverrides((current) => ({
+                ...current,
+                [rowId]: false,
+            }));
+        }
+    };
 
     const updateParcelType = (rowId: string, nextParcelType: ParcelType) => {
         setParcelRows((currentRows) =>
@@ -426,7 +742,28 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                 return currentRows;
             }
 
-            return [...currentRows, createParcelRow()];
+            const nextRow = createParcelRow();
+
+            setRowQuoteFields((current) => ({
+                ...current,
+                [nextRow.id]: {
+                    estimatedWeightKg: "",
+                    packageWidthCm: "",
+                    packageHeightCm: "",
+                    packageLengthCm: "",
+                    deliveryFee: "",
+                },
+            }));
+            setRowQuoteStates((current) => ({
+                ...current,
+                [nextRow.id]: getEmptyParcelQuoteState(),
+            }));
+            setRowDeliveryFeeOverrides((current) => ({
+                ...current,
+                [nextRow.id]: false,
+            }));
+
+            return [...currentRows, nextRow];
         });
     };
 
@@ -435,6 +772,22 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
             if (currentRows.length === 1) {
                 return currentRows;
             }
+
+            setRowQuoteFields((current) => {
+                const next = { ...current };
+                delete next[rowId];
+                return next;
+            });
+            setRowQuoteStates((current) => {
+                const next = { ...current };
+                delete next[rowId];
+                return next;
+            });
+            setRowDeliveryFeeOverrides((current) => {
+                const next = { ...current };
+                delete next[rowId];
+                return next;
+            });
 
             return currentRows.filter((row) => row.id !== rowId);
         });
@@ -541,12 +894,12 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                     <div className="grid gap-2">
                         <Label htmlFor="recipientTownshipId">Recipient Township *</Label>
                         <select
-                            key={state.fields?.recipientTownshipId ?? ""}
                             id="recipientTownshipId"
                             name="recipientTownshipId"
                             className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                             required
-                            defaultValue={state.fields?.recipientTownshipId ?? ""}
+                            value={selectedRecipientTownshipId}
+                            onChange={(event) => setSelectedRecipientTownshipId(event.target.value)}
                         >
                             <option value="" disabled>
                                 Select township
@@ -692,6 +1045,10 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                             const parcelType = row.parcelType;
                             const packageCount = getSafePackageCountNumber(row.packageCount);
                             const isLargeItem = row.isLargeItem;
+                            const quoteFields =
+                                rowQuoteFields[row.id] ??
+                                getParcelRowQuoteFields(state.fields, rowIndex);
+                            const quoteState = rowQuoteStates[row.id] ?? getEmptyParcelQuoteState();
                             const rowCodStatus =
                                 parcelType === "non_cod"
                                     ? "Not Applicable"
@@ -871,11 +1228,12 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                                 type="number"
                                                 min="0.01"
                                                 step="0.01"
-                                                defaultValue={getParcelRowFieldValue(
-                                                    state.fields,
-                                                    rowIndex,
-                                                    "estimatedWeightKg",
-                                                )}
+                                                defaultValue={quoteFields.estimatedWeightKg}
+                                                onChange={(event) =>
+                                                    updateRowQuoteFields(row.id, {
+                                                        estimatedWeightKg: event.target.value,
+                                                    })
+                                                }
                                                 required
                                             />
                                             <FormFieldError
@@ -938,11 +1296,12 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                                         step="0.01"
                                                         placeholder="L"
                                                         aria-label="Length (cm)"
-                                                        defaultValue={getParcelRowFieldValue(
-                                                            state.fields,
-                                                            rowIndex,
-                                                            "packageLengthCm",
-                                                        )}
+                                                        defaultValue={quoteFields.packageLengthCm}
+                                                        onChange={(event) =>
+                                                            updateRowQuoteFields(row.id, {
+                                                                packageLengthCm: event.target.value,
+                                                            })
+                                                        }
                                                     />
                                                     <FormFieldError
                                                         message={getParcelRowFieldError(
@@ -966,11 +1325,12 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                                         step="0.01"
                                                         placeholder="W"
                                                         aria-label="Width (cm)"
-                                                        defaultValue={getParcelRowFieldValue(
-                                                            state.fields,
-                                                            rowIndex,
-                                                            "packageWidthCm",
-                                                        )}
+                                                        defaultValue={quoteFields.packageWidthCm}
+                                                        onChange={(event) =>
+                                                            updateRowQuoteFields(row.id, {
+                                                                packageWidthCm: event.target.value,
+                                                            })
+                                                        }
                                                     />
                                                     <FormFieldError
                                                         message={getParcelRowFieldError(
@@ -994,11 +1354,12 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                                         step="0.01"
                                                         placeholder="H"
                                                         aria-label="Height (cm)"
-                                                        defaultValue={getParcelRowFieldValue(
-                                                            state.fields,
-                                                            rowIndex,
-                                                            "packageHeightCm",
-                                                        )}
+                                                        defaultValue={quoteFields.packageHeightCm}
+                                                        onChange={(event) =>
+                                                            updateRowQuoteFields(row.id, {
+                                                                packageHeightCm: event.target.value,
+                                                            })
+                                                        }
                                                     />
                                                     <FormFieldError
                                                         message={getParcelRowFieldError(
@@ -1026,17 +1387,78 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                                     type="number"
                                                     min="0.01"
                                                     step="0.01"
-                                                    defaultValue={getParcelRowFieldValue(
-                                                        state.fields,
-                                                        rowIndex,
-                                                        "deliveryFee",
-                                                    )}
+                                                    value={quoteFields.deliveryFee}
+                                                    onChange={(event) =>
+                                                        updateRowQuoteFields(
+                                                            row.id,
+                                                            {
+                                                                deliveryFee: event.target.value,
+                                                            },
+                                                            { markDeliveryFeeOverride: true },
+                                                        )
+                                                    }
                                                     required
                                                 />
                                                 <InputGroupAddon align="inline-start">
                                                     <InputGroupText>Ks</InputGroupText>
                                                 </InputGroupAddon>
                                             </InputGroup>
+                                            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                                <p
+                                                    className={cn("text-muted-foreground", {
+                                                        "text-foreground":
+                                                            quoteState.status === "ready",
+                                                        "text-destructive":
+                                                            quoteState.status === "missing" ||
+                                                            quoteState.status === "error",
+                                                    })}
+                                                >
+                                                    {quoteState.message}
+                                                    {quoteState.chargeableWeightKg
+                                                        ? ` Chargeable weight: ${quoteState.chargeableWeightKg} kg.`
+                                                        : ""}
+                                                    {quoteState.volumetricWeightKg
+                                                        ? ` Volumetric: ${quoteState.volumetricWeightKg} kg.`
+                                                        : ""}
+                                                </p>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        void requestDeliveryPricingQuote(
+                                                            row.id,
+                                                            getParcelQuoteRequestKey({
+                                                                merchantId: selectedMerchantId,
+                                                                recipientTownshipId:
+                                                                    selectedRecipientTownshipId,
+                                                                parcelType: row.parcelType,
+                                                                isLargeItem: row.isLargeItem,
+                                                                estimatedWeightKg:
+                                                                    quoteFields.estimatedWeightKg,
+                                                                packageWidthCm:
+                                                                    quoteFields.packageWidthCm,
+                                                                packageHeightCm:
+                                                                    quoteFields.packageHeightCm,
+                                                                packageLengthCm:
+                                                                    quoteFields.packageLengthCm,
+                                                            }),
+                                                            true,
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        quoteState.status === "loading" ||
+                                                        !selectedMerchantId ||
+                                                        !selectedRecipientTownshipId ||
+                                                        !quoteFields.estimatedWeightKg.trim()
+                                                    }
+                                                    className="hidden"
+                                                >
+                                                    {quoteState.status === "loading"
+                                                        ? "Refreshing..."
+                                                        : "Refresh Pricing"}
+                                                </Button>
+                                            </div>
                                             <FormFieldError
                                                 message={getParcelRowFieldError(
                                                     rowIndex,
@@ -1045,7 +1467,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                             />
                                         </div>
 
-                                        <div className="grid gap-2">
+                                        <div className="grid grid-rows-[min-content] items-start gap-2">
                                             <Label htmlFor={`codAmount-${row.id}`}>
                                                 COD Amount *
                                             </Label>

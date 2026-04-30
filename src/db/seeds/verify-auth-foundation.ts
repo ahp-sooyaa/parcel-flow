@@ -110,6 +110,18 @@ function verifyPermissionModel() {
         officeAdminPermissions.has("merchant-settlement.cancel"),
         "office_admin must have merchant-settlement.cancel",
     );
+    assert(
+        officeAdminPermissions.has("delivery-pricing.view"),
+        "office_admin must have delivery-pricing.view",
+    );
+    assert(
+        officeAdminPermissions.has("delivery-pricing.create"),
+        "office_admin must have delivery-pricing.create",
+    );
+    assert(
+        officeAdminPermissions.has("delivery-pricing.update"),
+        "office_admin must have delivery-pricing.update",
+    );
 
     const merchantPermissions = new Set(ROLE_PERMISSION_MATRIX.merchant);
     assert(!merchantPermissions.has("merchant.view"), "merchant must not have merchant.view");
@@ -156,6 +168,10 @@ function verifyPermissionModel() {
         !merchantPermissions.has("merchant-settlement.cancel"),
         "merchant must not have merchant-settlement.cancel",
     );
+    assert(
+        !merchantPermissions.has("delivery-pricing.view"),
+        "merchant must not have delivery-pricing.view",
+    );
 
     const riderPermissions = new Set(ROLE_PERMISSION_MATRIX.rider);
     assert(!riderPermissions.has("parcel-list.view"), "rider must not have parcel-list.view");
@@ -186,6 +202,10 @@ function verifyPermissionModel() {
     assert(
         !riderPermissions.has("merchant-settlement.cancel"),
         "rider must not have merchant-settlement.cancel",
+    );
+    assert(
+        !riderPermissions.has("delivery-pricing.view"),
+        "rider must not have delivery-pricing.view",
     );
 
     const superAdminPermissions = new Set(ROLE_PERMISSION_MATRIX.super_admin);
@@ -230,6 +250,11 @@ function verifySharedPermissionCodesExistAcrossRoles() {
     const settlementConfirmRoles = new Set(
         Object.entries(ROLE_PERMISSION_MATRIX)
             .filter(([, permissions]) => new Set(permissions).has("merchant-settlement.confirm"))
+            .map(([role]) => role),
+    );
+    const deliveryPricingViewRoles = new Set(
+        Object.entries(ROLE_PERMISSION_MATRIX)
+            .filter(([, permissions]) => new Set(permissions).has("delivery-pricing.view"))
             .map(([role]) => role),
     );
 
@@ -296,6 +321,22 @@ function verifySharedPermissionCodesExistAcrossRoles() {
     assert(
         !settlementConfirmRoles.has("rider"),
         "merchant-settlement.confirm must not be assigned to rider role",
+    );
+    assert(
+        deliveryPricingViewRoles.has("office_admin"),
+        "delivery-pricing.view must be assigned to office_admin role",
+    );
+    assert(
+        deliveryPricingViewRoles.has("super_admin"),
+        "delivery-pricing.view must be assigned to super_admin role",
+    );
+    assert(
+        !deliveryPricingViewRoles.has("merchant"),
+        "delivery-pricing.view must not be assigned to merchant role",
+    );
+    assert(
+        !deliveryPricingViewRoles.has("rider"),
+        "delivery-pricing.view must not be assigned to rider role",
     );
 }
 

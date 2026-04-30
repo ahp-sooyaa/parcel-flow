@@ -184,6 +184,66 @@ export const merchants = pgTable(
     ],
 );
 
+export const deliveryPricingRates = pgTable(
+    "delivery_pricing_rates",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        townshipId: uuid("township_id")
+            .notNull()
+            .references(() => townships.id, { onDelete: "restrict" }),
+        merchantId: uuid("merchant_id").references(() => merchants.appUserId, {
+            onDelete: "restrict",
+        }),
+        baseWeightKg: numeric("base_weight_kg", { precision: 12, scale: 2 }).notNull(),
+        baseFee: numeric("base_fee", { precision: 12, scale: 2 }).notNull(),
+        extraWeightUnitKg: numeric("extra_weight_unit_kg", { precision: 12, scale: 2 }).notNull(),
+        extraWeightFee: numeric("extra_weight_fee", { precision: 12, scale: 2 }).notNull(),
+        volumetricDivisor: integer("volumetric_divisor").notNull().default(5000),
+        codFeePercent: numeric("cod_fee_percent", { precision: 8, scale: 4 })
+            .notNull()
+            .default("0"),
+        returnFeePercent: numeric("return_fee_percent", { precision: 8, scale: 4 })
+            .notNull()
+            .default("0"),
+        isActive: boolean("is_active").notNull().default(true),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    },
+    (table) => [
+        index("delivery_pricing_rates_township_idx").on(table.townshipId),
+        index("delivery_pricing_rates_merchant_idx").on(table.merchantId),
+        index("delivery_pricing_rates_township_active_idx").on(table.townshipId, table.isActive),
+        uniqueIndex("delivery_pricing_rates_active_global_uidx")
+            .on(table.townshipId)
+            .where(sql`${table.merchantId} is null and ${table.isActive} = true`),
+        uniqueIndex("delivery_pricing_rates_active_merchant_uidx")
+            .on(table.townshipId, table.merchantId)
+            .where(sql`${table.merchantId} is not null and ${table.isActive} = true`),
+        check("delivery_pricing_rates_base_weight_positive", sql`${table.baseWeightKg} > 0`),
+        check("delivery_pricing_rates_base_fee_non_negative", sql`${table.baseFee} >= 0`),
+        check(
+            "delivery_pricing_rates_extra_weight_unit_positive",
+            sql`${table.extraWeightUnitKg} > 0`,
+        ),
+        check(
+            "delivery_pricing_rates_extra_weight_fee_non_negative",
+            sql`${table.extraWeightFee} >= 0`,
+        ),
+        check(
+            "delivery_pricing_rates_volumetric_divisor_positive",
+            sql`${table.volumetricDivisor} > 0`,
+        ),
+        check(
+            "delivery_pricing_rates_cod_fee_percent_non_negative",
+            sql`${table.codFeePercent} >= 0`,
+        ),
+        check(
+            "delivery_pricing_rates_return_fee_percent_non_negative",
+            sql`${table.returnFeePercent} >= 0`,
+        ),
+    ],
+);
+
 export const riders = pgTable(
     "riders",
     {
