@@ -262,6 +262,22 @@ export const createParcelBatchSchema = createParcelSharedSchema
             ),
     })
     .superRefine((value, context) => {
+        const totalRequestedParcels = value.parcelRows.reduce(
+            (total, row) => total + row.packageCount,
+            0,
+        );
+
+        if (
+            value.parcelRows.length <= CREATE_PARCEL_MAX_ROWS &&
+            totalRequestedParcels > CREATE_PARCEL_MAX_ROWS
+        ) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["parcelRows"],
+                message: `You can create up to ${CREATE_PARCEL_MAX_ROWS} parcels at once. Reduce the package counts.`,
+            });
+        }
+
         if (value.deliveryFeePaymentPlan !== "merchant_deduct_from_cod_settlement") {
             return;
         }
@@ -1633,4 +1649,22 @@ export async function validateCreateParcelBatchSubmission(input: {
     }
 
     return { ok: true as const };
+}
+
+export function validateImmutablePackageCount(input: {
+    currentPackageCount: number;
+    submittedPackageCount: number;
+}) {
+    if (input.submittedPackageCount === input.currentPackageCount) {
+        return { ok: true as const };
+    }
+
+    return {
+        ok: false as const,
+        message: "Package count cannot be changed after parcel creation.",
+        fieldErrors: createFieldErrors(
+            "packageCount",
+            "Package count cannot be changed after parcel creation.",
+        ),
+    };
 }

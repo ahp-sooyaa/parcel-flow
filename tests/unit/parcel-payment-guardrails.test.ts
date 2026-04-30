@@ -23,6 +23,7 @@ import {
     validateCreateParcelMedia,
     validateDeliveryFeePaymentPlan,
     validateDeliveryFeeStatusForParcel,
+    validateImmutablePackageCount,
     validateParcelStatusProofImages,
     validatePaymentSlipImagesForPlan,
 } from "../../src/features/parcels/server/utils";
@@ -570,6 +571,60 @@ describe("delivery fee payment plan guardrails", () => {
         });
 
         expect(parsed.success).toBe(true);
+    });
+
+    it("rejects create batches whose total expanded parcel count exceeds the limit", () => {
+        const parsed = createParcelBatchSchema.safeParse({
+            merchantId: "00000000-0000-0000-0000-000000000002",
+            riderId: null,
+            recipientName: "Receiver",
+            recipientPhone: "09123456",
+            recipientTownshipId: "00000000-0000-0000-0000-000000000003",
+            recipientAddress: "Yangon",
+            deliveryFeePayer: "merchant",
+            deliveryFeePaymentPlan: "merchant_cash_on_pickup",
+            paymentNote: null,
+            parcelRows: [
+                {
+                    parcelDescription: "Shirt",
+                    packageCount: 20,
+                    specialHandlingNote: null,
+                    estimatedWeightKg: null,
+                    packageWidthCm: null,
+                    packageHeightCm: null,
+                    packageLengthCm: null,
+                    parcelType: "cod",
+                    codAmount: 12000,
+                    deliveryFee: 1500,
+                },
+                {
+                    parcelDescription: "Shoes",
+                    packageCount: 1,
+                    specialHandlingNote: null,
+                    estimatedWeightKg: null,
+                    packageWidthCm: null,
+                    packageHeightCm: null,
+                    packageLengthCm: null,
+                    parcelType: "non_cod",
+                    codAmount: 0,
+                    deliveryFee: 1500,
+                },
+            ],
+        });
+
+        expect(parsed.success).toBe(false);
+
+        if (!parsed.success) {
+            expect(parsed.error.issues).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        path: ["parcelRows"],
+                        message:
+                            "You can create up to 20 parcels at once. Reduce the package counts.",
+                    }),
+                ]),
+            );
+        }
     });
 
     it("rejects non-cod rows for deduct-from-settlement batches", () => {
@@ -1202,6 +1257,30 @@ describe("parcel operation helpers", () => {
             expect("collectionStatus" in parsed.data).toBe(false);
             expect("collectedAmount" in parsed.data).toBe(false);
         }
+    });
+
+    it("rejects attempts to change a saved parcel package count", () => {
+        expect(
+            validateImmutablePackageCount({
+                currentPackageCount: 1,
+                submittedPackageCount: 2,
+            }),
+        ).toMatchObject({
+            ok: false,
+            message: "Package count cannot be changed after parcel creation.",
+            fieldErrors: {
+                packageCount: ["Package count cannot be changed after parcel creation."],
+            },
+        });
+    });
+
+    it("allows updates when the saved parcel package count is unchanged", () => {
+        expect(
+            validateImmutablePackageCount({
+                currentPackageCount: 2,
+                submittedPackageCount: 2,
+            }),
+        ).toEqual({ ok: true });
     });
 
     it("normalizes legacy non-COD payment display state", () => {

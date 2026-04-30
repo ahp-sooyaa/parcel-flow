@@ -1,6 +1,13 @@
 "use client";
 
-import { CheckCircle2Icon, ImageIcon, PlusIcon, Trash2Icon, UploadIcon } from "lucide-react";
+import {
+    CheckCircle2Icon,
+    ImageIcon,
+    MinusIcon,
+    PlusIcon,
+    Trash2Icon,
+    UploadIcon,
+} from "lucide-react";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { FormFieldError } from "@/components/shared/form-field-error";
 import { SearchableCombobox } from "@/components/shared/searchable-combobox";
@@ -21,6 +28,7 @@ import {
     InputGroupText,
 } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
     CREATE_PARCEL_MAX_ROWS,
     DEFAULT_CREATE_PARCEL_STATE,
@@ -58,6 +66,7 @@ type DeliveryFeePaymentPlan = (typeof DELIVERY_FEE_PAYMENT_PLANS)[number];
 type ParcelRowDraft = {
     id: string;
     parcelType: ParcelType;
+    packageCount: string;
 };
 
 const textareaClassName =
@@ -163,6 +172,26 @@ function getParcelRowFieldValue(
     );
 }
 
+function getRequestedParcelCount(value: string) {
+    const count = Number(value);
+
+    if (!Number.isSafeInteger(count) || count < 1) {
+        return 0;
+    }
+
+    return count;
+}
+
+function getSafePackageCountNumber(value: string | undefined) {
+    const count = getRequestedParcelCount(value ?? "");
+
+    return count === 0 ? 1 : count;
+}
+
+function getSafePackageCountValue(value: string | undefined) {
+    return getSafePackageCountNumber(value).toString();
+}
+
 function SectionHeader({
     step,
     title,
@@ -234,12 +263,13 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
     const defaultMerchantId = merchants[0]?.id ?? "";
     const defaultMerchantSelection = merchantFieldReadOnly ? defaultMerchantId : "";
     const nextRowIdRef = useRef(0);
-    const createParcelRow = (parcelType: ParcelType = "cod") => {
+    const createParcelRow = (parcelType: ParcelType = "cod", packageCount = "1") => {
         nextRowIdRef.current += 1;
 
         return {
             id: `parcel-row-${nextRowIdRef.current}`,
             parcelType,
+            packageCount: getSafePackageCountValue(packageCount),
         } satisfies ParcelRowDraft;
     };
     const buildParcelRowsFromFields = (fields: Record<string, string> | undefined) => {
@@ -252,6 +282,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
         return rowIndexes.map((rowIndex) =>
             createParcelRow(
                 getSafeParcelTypeValue(fields?.[getParcelRowFieldName(rowIndex, "parcelType")]),
+                getParcelRowFieldValue(fields, rowIndex, "packageCount"),
             ),
         );
     };
@@ -321,7 +352,12 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
         deliveryFeePaymentPlanOptions,
     );
     const showPaymentSlipField = deliveryFeePaymentPlanValue === "merchant_prepaid_bank_transfer";
-    const rowLimitReached = parcelRows.length >= CREATE_PARCEL_MAX_ROWS;
+    const totalRequestedParcels = parcelRows.reduce(
+        (total, row) => total + getRequestedParcelCount(row.packageCount),
+        0,
+    );
+    const rowLimitReached = totalRequestedParcels >= CREATE_PARCEL_MAX_ROWS;
+    const requestedParcelLimitExceeded = totalRequestedParcels > CREATE_PARCEL_MAX_ROWS;
     const getFieldError = (fieldName: string) => state.fieldErrors?.[fieldName]?.[0];
     const getParcelRowFieldError = (rowIndex: number, fieldName: ParcelRowFieldName) =>
         getFieldError(getParcelRowFieldName(rowIndex, fieldName));
@@ -346,9 +382,45 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
         );
     };
 
+    const updatePackageCount = (rowId: string, delta: -1 | 1) => {
+        setParcelRows((currentRows) => {
+            const currentTotalRequestedParcels = currentRows.reduce(
+                (total, row) => total + getRequestedParcelCount(row.packageCount),
+                0,
+            );
+
+            return currentRows.map((row) => {
+                if (row.id !== rowId) {
+                    return row;
+                }
+
+                const currentCount = getSafePackageCountNumber(row.packageCount);
+                const nextCount = currentCount + delta;
+
+                if (nextCount < 1) {
+                    return row;
+                }
+
+                if (delta > 0 && currentTotalRequestedParcels >= CREATE_PARCEL_MAX_ROWS) {
+                    return row;
+                }
+
+                return {
+                    ...row,
+                    packageCount: nextCount.toString(),
+                };
+            });
+        });
+    };
+
     const addParcelRow = () => {
         setParcelRows((currentRows) => {
-            if (currentRows.length >= CREATE_PARCEL_MAX_ROWS) {
+            const currentTotalRequestedParcels = currentRows.reduce(
+                (total, row) => total + getRequestedParcelCount(row.packageCount),
+                0,
+            );
+
+            if (currentTotalRequestedParcels >= CREATE_PARCEL_MAX_ROWS) {
                 return currentRows;
             }
 
@@ -367,514 +439,471 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
     };
 
     return (
-        <form action={action} className="space-y-5">
-            <div className="rounded-xl border bg-muted/30 p-4">
-                <p className="text-sm font-semibold">Batch Create for One Recipient</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                    Fill the shared recipient and billing details once, then add one parcel row per
-                    package. Parcel codes are generated automatically during create.
-                </p>
-            </div>
-
-            <section className="space-y-5 rounded-xl border bg-card p-4 sm:p-5">
-                <SectionHeader
-                    step={1}
-                    title="People"
-                    description="Assign the merchant and rider, then capture the shared recipient delivery details."
-                />
-
-                <div className="grid gap-4 md:grid-cols-2">
-                    <div className="grid gap-2">
-                        <Label htmlFor="merchantId">Merchant *</Label>
-                        {merchantFieldReadOnly ? (
-                            <>
-                                <Input
-                                    id="merchantId"
-                                    value={selectedMerchant?.label ?? merchants[0]?.label ?? "-"}
-                                    readOnly
-                                    disabled
-                                />
-                                <input type="hidden" name="merchantId" value={selectedMerchantId} />
-                            </>
-                        ) : (
-                            <SearchableCombobox
-                                id="merchantId"
-                                name="merchantId"
-                                value={selectedMerchantId}
-                                onValueChange={setSelectedMerchantId}
-                                options={merchantOptions}
-                                placeholder="Search merchant"
-                                emptyLabel="No merchant found."
-                                required
-                                invalid={Boolean(getFieldError("merchantId"))}
-                            />
-                        )}
-                        <FormFieldError message={getFieldError("merchantId")} />
-                    </div>
-
-                    <div className="grid gap-2">
-                        <Label htmlFor="riderId">Rider (Optional)</Label>
-                        <SearchableCombobox
-                            id="riderId"
-                            name="riderId"
-                            value={selectedRiderId}
-                            onValueChange={setSelectedRiderId}
-                            options={riderOptions}
-                            placeholder="Search rider"
-                            emptyLabel="No rider found."
-                            allowClear
-                            invalid={Boolean(getFieldError("riderId"))}
-                        />
-                        <FormFieldError message={getFieldError("riderId")} />
-                    </div>
+        <TooltipProvider>
+            <form action={action} className="space-y-5">
+                <div className="rounded-xl border bg-muted/30 p-4">
+                    <p className="text-sm font-semibold">Batch Create for One Recipient</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                        Fill the shared recipient and billing details once, then add one row per
+                        identical parcel setup. Package count creates separate parcel records;
+                        weight, dimensions, and fees are per parcel. Parcel codes are generated
+                        automatically during create.
+                    </p>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                    <div className="grid gap-2">
-                        <Label htmlFor="recipientName">Recipient Name *</Label>
-                        <Input
-                            id="recipientName"
-                            name="recipientName"
-                            placeholder="Receiver full name"
-                            defaultValue={state.fields?.recipientName}
-                            required
-                        />
-                        <FormFieldError message={getFieldError("recipientName")} />
-                    </div>
-
-                    <div className="grid gap-2">
-                        <Label htmlFor="recipientPhone">Recipient Phone *</Label>
-                        <Input
-                            id="recipientPhone"
-                            name="recipientPhone"
-                            placeholder="09xxxxxxxxx"
-                            defaultValue={state.fields?.recipientPhone}
-                            required
-                        />
-                        <FormFieldError message={getFieldError("recipientPhone")} />
-                    </div>
-                </div>
-
-                <div className="grid gap-2">
-                    <Label htmlFor="recipientTownshipId">Recipient Township *</Label>
-                    <select
-                        key={state.fields?.recipientTownshipId ?? ""}
-                        id="recipientTownshipId"
-                        name="recipientTownshipId"
-                        className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                        required
-                        defaultValue={state.fields?.recipientTownshipId ?? ""}
-                    >
-                        <option value="" disabled>
-                            Select township
-                        </option>
-                        {townships.map((township) => (
-                            <option key={township.id} value={township.id}>
-                                {township.label}
-                            </option>
-                        ))}
-                    </select>
-                    <FormFieldError message={getFieldError("recipientTownshipId")} />
-                </div>
-
-                <div className="grid gap-2">
-                    <Label htmlFor="recipientAddress">Recipient Address *</Label>
-                    <textarea
-                        id="recipientAddress"
-                        name="recipientAddress"
-                        rows={3}
-                        defaultValue={state.fields?.recipientAddress}
-                        required
-                        className={textareaClassName}
-                    />
-                    <FormFieldError message={getFieldError("recipientAddress")} />
-                </div>
-            </section>
-
-            <section className="space-y-5 rounded-xl border bg-card p-4 sm:p-5">
-                <SectionHeader
-                    step={2}
-                    title="Billing & Status"
-                    description="Apply one delivery fee payer and payment plan across this batch, then upload shared transfer proof if needed."
-                />
-
-                <div className="grid gap-4 md:grid-cols-2">
-                    <div className="grid gap-2 md:col-span-2">
-                        <Label>Delivery Fee Payer *</Label>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                            {DELIVERY_FEE_PAYERS.map((value) => (
-                                <ChoiceCard
-                                    key={value}
-                                    title={formatParcelStatusLabel(value)}
-                                    description={
-                                        value === "receiver"
-                                            ? "Receiver pays the delivery fee during delivery."
-                                            : "Merchant covers the delivery fee using the selected payment plan."
-                                    }
-                                    selected={selectedDeliveryFeePayer === value}
-                                    onClick={() => setSelectedDeliveryFeePayer(value)}
-                                />
-                            ))}
-                        </div>
-                        <input
-                            type="hidden"
-                            id="deliveryFeePayer"
-                            name="deliveryFeePayer"
-                            value={selectedDeliveryFeePayer}
-                        />
-                        <FormFieldError message={getFieldError("deliveryFeePayer")} />
-                    </div>
-
-                    <div className="grid gap-2 md:col-span-2">
-                        <Label>Delivery Fee Payment Plan *</Label>
-                        <div className="grid gap-3 md:grid-cols-2">
-                            {deliveryFeePaymentPlanOptions.map((value) => {
-                                const copy = deliveryFeePaymentPlanCopy[value];
-
-                                return (
-                                    <ChoiceCard
-                                        key={value}
-                                        title={copy.title}
-                                        description={copy.description}
-                                        selected={deliveryFeePaymentPlanValue === value}
-                                        onClick={() => setSelectedDeliveryFeePaymentPlan(value)}
-                                        className="h-[90px]"
-                                    />
-                                );
-                            })}
-                        </div>
-                        <input
-                            type="hidden"
-                            id="deliveryFeePaymentPlan"
-                            name="deliveryFeePaymentPlan"
-                            value={deliveryFeePaymentPlanValue}
-                        />
-                        <FormFieldError message={getFieldError("deliveryFeePaymentPlan")} />
-                    </div>
-                </div>
-
-                {showPaymentSlipField ? (
-                    <div className="grid gap-2">
-                        <Label>Payment Slip Images</Label>
-                        <input
-                            id="paymentSlipImages"
-                            name="paymentSlipImages"
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            multiple
-                            className="sr-only hidden"
-                            onChange={(event) =>
-                                setPaymentSlipFileCount(event.target.files?.length ?? 0)
-                            }
-                        />
-                        <Empty className="border bg-background">
-                            <EmptyHeader>
-                                <EmptyMedia variant="icon">
-                                    <ImageIcon className="size-5" />
-                                </EmptyMedia>
-                                <EmptyTitle>
-                                    {paymentSlipFileCount > 0
-                                        ? `${paymentSlipFileCount} payment slip image${paymentSlipFileCount === 1 ? "" : "s"} selected`
-                                        : "Upload Shared Payment Slip Images"}
-                                </EmptyTitle>
-                                <EmptyDescription>
-                                    Add JPG, PNG, or WEBP images once and they will be attached to
-                                    every parcel payment record in this batch.
-                                </EmptyDescription>
-                            </EmptyHeader>
-                            <EmptyContent>
-                                <label
-                                    htmlFor="paymentSlipImages"
-                                    className={cn(
-                                        buttonVariants({ variant: "outline" }),
-                                        "cursor-pointer",
-                                    )}
-                                >
-                                    <UploadIcon className="size-4" />
-                                    {paymentSlipFileCount > 0 ? "Change Images" : "Choose Images"}
-                                </label>
-                            </EmptyContent>
-                        </Empty>
-                        <FormFieldError message={getFieldError("paymentSlipImages")} />
-                    </div>
-                ) : null}
-
-                <div className="grid gap-2">
-                    <Label htmlFor="paymentNote">Payment Note (Optional)</Label>
-                    <textarea
-                        id="paymentNote"
-                        name="paymentNote"
-                        rows={4}
-                        defaultValue={state.fields?.paymentNote}
-                        className={textareaClassName}
-                    />
-                    <FormFieldError message={getFieldError("paymentNote")} />
-                </div>
-            </section>
-
-            <section className="space-y-5 rounded-xl border bg-card p-4 sm:p-5">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <section className="space-y-5 rounded-xl border bg-card p-4 sm:p-5">
                     <SectionHeader
-                        step={3}
-                        title="Parcel Details"
-                        description="Add one row per parcel for this recipient. Shared billing and recipient fields stay above."
+                        step={1}
+                        title="People"
+                        description="Assign the merchant and rider, then capture the shared recipient delivery details."
                     />
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">
-                            {parcelRows.length} / {CREATE_PARCEL_MAX_ROWS} rows
-                        </span>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={addParcelRow}
-                            disabled={rowLimitReached}
-                        >
-                            <PlusIcon className="size-4" />
-                            Add Parcel
-                        </Button>
-                    </div>
-                </div>
 
-                <FormFieldError message={getFieldError("parcelRows")} />
-
-                <div className="space-y-4">
-                    {parcelRows.map((row, rowIndex) => {
-                        const parcelType = row.parcelType;
-                        const rowCodStatus =
-                            parcelType === "non_cod"
-                                ? "Not Applicable"
-                                : formatParcelStatusLabel(DEFAULT_CREATE_PARCEL_STATE.codStatus);
-                        const rowCollectionStatus =
-                            parcelType === "non_cod"
-                                ? "Void"
-                                : formatParcelStatusLabel(
-                                      DEFAULT_CREATE_PARCEL_STATE.collectionStatus,
-                                  );
-
-                        return (
-                            <section
-                                key={row.id}
-                                className="space-y-4 rounded-xl border bg-background p-4"
-                            >
-                                <div className="flex items-center justify-between gap-3">
-                                    <div>
-                                        <h3 className="text-sm font-semibold">
-                                            Parcel {rowIndex + 1}
-                                        </h3>
-                                        <p className="text-xs text-muted-foreground">
-                                            Parcel status starts as Pending. COD status:{" "}
-                                            {rowCodStatus}. Collection status: {rowCollectionStatus}
-                                            .
-                                        </p>
-                                    </div>
-
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => removeParcelRow(row.id)}
-                                        disabled={parcelRows.length === 1}
-                                    >
-                                        <Trash2Icon className="size-4" />
-                                        Remove
-                                    </Button>
-                                </div>
-
-                                <div className="grid gap-2">
-                                    <Label>Parcel Type *</Label>
-                                    <div className="grid gap-3 sm:grid-cols-2">
-                                        {PARCEL_TYPES.map((type) => (
-                                            <ChoiceCard
-                                                key={type}
-                                                title={formatParcelStatusLabel(type)}
-                                                description={
-                                                    type === "cod"
-                                                        ? "Collect COD cash from the recipient on delivery."
-                                                        : "No COD collection. COD amount will stay at 0."
-                                                }
-                                                selected={parcelType === type}
-                                                onClick={() => updateParcelType(row.id, type)}
-                                            />
-                                        ))}
-                                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <div className="grid gap-2">
+                            <Label htmlFor="merchantId">Merchant *</Label>
+                            {merchantFieldReadOnly ? (
+                                <>
+                                    <Input
+                                        id="merchantId"
+                                        value={
+                                            selectedMerchant?.label ?? merchants[0]?.label ?? "-"
+                                        }
+                                        readOnly
+                                        disabled
+                                    />
                                     <input
                                         type="hidden"
-                                        name={getParcelRowFieldName(rowIndex, "parcelType")}
-                                        value={parcelType}
+                                        name="merchantId"
+                                        value={selectedMerchantId}
                                     />
-                                    <FormFieldError
-                                        message={getParcelRowFieldError(rowIndex, "parcelType")}
-                                    />
-                                </div>
+                                </>
+                            ) : (
+                                <SearchableCombobox
+                                    id="merchantId"
+                                    name="merchantId"
+                                    value={selectedMerchantId}
+                                    onValueChange={setSelectedMerchantId}
+                                    options={merchantOptions}
+                                    placeholder="Search merchant"
+                                    emptyLabel="No merchant found."
+                                    required
+                                    invalid={Boolean(getFieldError("merchantId"))}
+                                />
+                            )}
+                            <FormFieldError message={getFieldError("merchantId")} />
+                        </div>
 
-                                <div className="grid gap-2">
-                                    <Label htmlFor={`parcelDescription-${row.id}`}>
-                                        Parcel Description *
-                                    </Label>
-                                    <textarea
-                                        id={`parcelDescription-${row.id}`}
-                                        name={getParcelRowFieldName(rowIndex, "parcelDescription")}
-                                        rows={3}
-                                        defaultValue={getParcelRowFieldValue(
-                                            state.fields,
-                                            rowIndex,
-                                            "parcelDescription",
-                                        )}
-                                        required
-                                        className={textareaClassName}
-                                    />
-                                    <FormFieldError
-                                        message={getParcelRowFieldError(
-                                            rowIndex,
-                                            "parcelDescription",
-                                        )}
-                                    />
-                                </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="riderId">Rider (Optional)</Label>
+                            <SearchableCombobox
+                                id="riderId"
+                                name="riderId"
+                                value={selectedRiderId}
+                                onValueChange={setSelectedRiderId}
+                                options={riderOptions}
+                                placeholder="Search rider"
+                                emptyLabel="No rider found."
+                                allowClear
+                                invalid={Boolean(getFieldError("riderId"))}
+                            />
+                            <FormFieldError message={getFieldError("riderId")} />
+                        </div>
+                    </div>
 
-                                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <div className="grid gap-2">
+                            <Label htmlFor="recipientName">Recipient Name *</Label>
+                            <Input
+                                id="recipientName"
+                                name="recipientName"
+                                placeholder="Receiver full name"
+                                defaultValue={state.fields?.recipientName}
+                                required
+                            />
+                            <FormFieldError message={getFieldError("recipientName")} />
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="recipientPhone">Recipient Phone *</Label>
+                            <Input
+                                id="recipientPhone"
+                                name="recipientPhone"
+                                placeholder="09xxxxxxxxx"
+                                defaultValue={state.fields?.recipientPhone}
+                                required
+                            />
+                            <FormFieldError message={getFieldError("recipientPhone")} />
+                        </div>
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="recipientTownshipId">Recipient Township *</Label>
+                        <select
+                            key={state.fields?.recipientTownshipId ?? ""}
+                            id="recipientTownshipId"
+                            name="recipientTownshipId"
+                            className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                            required
+                            defaultValue={state.fields?.recipientTownshipId ?? ""}
+                        >
+                            <option value="" disabled>
+                                Select township
+                            </option>
+                            {townships.map((township) => (
+                                <option key={township.id} value={township.id}>
+                                    {township.label}
+                                </option>
+                            ))}
+                        </select>
+                        <FormFieldError message={getFieldError("recipientTownshipId")} />
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="recipientAddress">Recipient Address *</Label>
+                        <textarea
+                            id="recipientAddress"
+                            name="recipientAddress"
+                            rows={3}
+                            defaultValue={state.fields?.recipientAddress}
+                            required
+                            className={textareaClassName}
+                        />
+                        <FormFieldError message={getFieldError("recipientAddress")} />
+                    </div>
+                </section>
+
+                <section className="space-y-5 rounded-xl border bg-card p-4 sm:p-5">
+                    <SectionHeader
+                        step={2}
+                        title="Billing & Status"
+                        description="Apply one delivery fee payer and payment plan across this batch, then upload shared transfer proof if needed."
+                    />
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <div className="grid gap-2 md:col-span-2">
+                            <Label>Delivery Fee Payer *</Label>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                {DELIVERY_FEE_PAYERS.map((value) => (
+                                    <ChoiceCard
+                                        key={value}
+                                        title={formatParcelStatusLabel(value)}
+                                        description={
+                                            value === "receiver"
+                                                ? "Receiver pays the delivery fee during delivery."
+                                                : "Merchant covers the delivery fee using the selected payment plan."
+                                        }
+                                        selected={selectedDeliveryFeePayer === value}
+                                        onClick={() => setSelectedDeliveryFeePayer(value)}
+                                    />
+                                ))}
+                            </div>
+                            <input
+                                type="hidden"
+                                id="deliveryFeePayer"
+                                name="deliveryFeePayer"
+                                value={selectedDeliveryFeePayer}
+                            />
+                            <FormFieldError message={getFieldError("deliveryFeePayer")} />
+                        </div>
+
+                        <div className="grid gap-2 md:col-span-2">
+                            <Label>Delivery Fee Payment Plan *</Label>
+                            <div className="grid gap-3 md:grid-cols-2">
+                                {deliveryFeePaymentPlanOptions.map((value) => {
+                                    const copy = deliveryFeePaymentPlanCopy[value];
+
+                                    return (
+                                        <ChoiceCard
+                                            key={value}
+                                            title={copy.title}
+                                            description={copy.description}
+                                            selected={deliveryFeePaymentPlanValue === value}
+                                            onClick={() => setSelectedDeliveryFeePaymentPlan(value)}
+                                            className="h-[90px]"
+                                        />
+                                    );
+                                })}
+                            </div>
+                            <input
+                                type="hidden"
+                                id="deliveryFeePaymentPlan"
+                                name="deliveryFeePaymentPlan"
+                                value={deliveryFeePaymentPlanValue}
+                            />
+                            <FormFieldError message={getFieldError("deliveryFeePaymentPlan")} />
+                        </div>
+                    </div>
+
+                    {showPaymentSlipField ? (
+                        <div className="grid gap-2">
+                            <Label>Payment Slip Images</Label>
+                            <input
+                                id="paymentSlipImages"
+                                name="paymentSlipImages"
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                multiple
+                                className="sr-only hidden"
+                                onChange={(event) =>
+                                    setPaymentSlipFileCount(event.target.files?.length ?? 0)
+                                }
+                            />
+                            <Empty className="border bg-background">
+                                <EmptyHeader>
+                                    <EmptyMedia variant="icon">
+                                        <ImageIcon className="size-5" />
+                                    </EmptyMedia>
+                                    <EmptyTitle>
+                                        {paymentSlipFileCount > 0
+                                            ? `${paymentSlipFileCount} payment slip image${paymentSlipFileCount === 1 ? "" : "s"} selected`
+                                            : "Upload Shared Payment Slip Images"}
+                                    </EmptyTitle>
+                                    <EmptyDescription>
+                                        Add JPG, PNG, or WEBP images once and they will be attached
+                                        to every parcel payment record in this batch.
+                                    </EmptyDescription>
+                                </EmptyHeader>
+                                <EmptyContent>
+                                    <label
+                                        htmlFor="paymentSlipImages"
+                                        className={cn(
+                                            buttonVariants({ variant: "outline" }),
+                                            "cursor-pointer",
+                                        )}
+                                    >
+                                        <UploadIcon className="size-4" />
+                                        {paymentSlipFileCount > 0
+                                            ? "Change Images"
+                                            : "Choose Images"}
+                                    </label>
+                                </EmptyContent>
+                            </Empty>
+                            <FormFieldError message={getFieldError("paymentSlipImages")} />
+                        </div>
+                    ) : null}
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="paymentNote">Payment Note (Optional)</Label>
+                        <textarea
+                            id="paymentNote"
+                            name="paymentNote"
+                            rows={4}
+                            defaultValue={state.fields?.paymentNote}
+                            className={textareaClassName}
+                        />
+                        <FormFieldError message={getFieldError("paymentNote")} />
+                    </div>
+                </section>
+
+                <section className="space-y-5 rounded-xl border bg-card p-4 sm:p-5">
+                    <div className="flex flex-col gap-x-[50px] sm:flex-row sm:items-start sm:justify-between">
+                        <SectionHeader
+                            step={3}
+                            title="Parcel Details"
+                            description="Add one row per identical parcel setup for this recipient. Shared billing and recipient fields stay above."
+                        />
+                        <div className="flex flex-col-reverse items-center gap-2">
+                            <span
+                                className={cn("text-xs text-muted-foreground", {
+                                    "text-destructive": requestedParcelLimitExceeded,
+                                })}
+                            >
+                                {totalRequestedParcels} / {CREATE_PARCEL_MAX_ROWS} parcels
+                            </span>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={addParcelRow}
+                                disabled={rowLimitReached}
+                            >
+                                <PlusIcon className="size-4" />
+                                Add Parcel
+                            </Button>
+                        </div>
+                    </div>
+
+                    <FormFieldError message={getFieldError("parcelRows")} />
+
+                    <div className="space-y-4">
+                        {parcelRows.map((row, rowIndex) => {
+                            const parcelType = row.parcelType;
+                            const packageCount = getSafePackageCountNumber(row.packageCount);
+                            const rowCodStatus =
+                                parcelType === "non_cod"
+                                    ? "Not Applicable"
+                                    : formatParcelStatusLabel(
+                                          DEFAULT_CREATE_PARCEL_STATE.codStatus,
+                                      );
+                            const rowCollectionStatus =
+                                parcelType === "non_cod"
+                                    ? "Void"
+                                    : formatParcelStatusLabel(
+                                          DEFAULT_CREATE_PARCEL_STATE.collectionStatus,
+                                      );
+
+                            return (
+                                <section
+                                    key={row.id}
+                                    className="space-y-4 rounded-xl border bg-background p-4"
+                                >
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <h3 className="text-sm font-semibold">
+                                                Parcel {rowIndex + 1}
+                                            </h3>
+                                            <p className="text-xs text-muted-foreground">
+                                                Each created parcel starts as Pending. COD status:{" "}
+                                                {rowCodStatus}. Collection status:{" "}
+                                                {rowCollectionStatus}.
+                                            </p>
+                                        </div>
+
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => removeParcelRow(row.id)}
+                                            disabled={parcelRows.length === 1}
+                                        >
+                                            <Trash2Icon className="size-4" />
+                                            Remove
+                                        </Button>
+                                    </div>
+
                                     <div className="grid gap-2">
-                                        <Label htmlFor={`packageCount-${row.id}`}>
-                                            Package Count *
+                                        <Label>Parcel Type *</Label>
+                                        <div className="grid gap-3 sm:grid-cols-2">
+                                            {PARCEL_TYPES.map((type) => (
+                                                <ChoiceCard
+                                                    key={type}
+                                                    title={formatParcelStatusLabel(type)}
+                                                    description={
+                                                        type === "cod"
+                                                            ? "Collect COD cash from the recipient on delivery."
+                                                            : "No COD collection. COD amount will stay at 0."
+                                                    }
+                                                    selected={parcelType === type}
+                                                    onClick={() => updateParcelType(row.id, type)}
+                                                />
+                                            ))}
+                                        </div>
+                                        <input
+                                            type="hidden"
+                                            name={getParcelRowFieldName(rowIndex, "parcelType")}
+                                            value={parcelType}
+                                        />
+                                        <FormFieldError
+                                            message={getParcelRowFieldError(rowIndex, "parcelType")}
+                                        />
+                                    </div>
+
+                                    <div className="grid gap-2">
+                                        <Label htmlFor={`parcelDescription-${row.id}`}>
+                                            Parcel Description *
                                         </Label>
-                                        <Input
-                                            id={`packageCount-${row.id}`}
-                                            name={getParcelRowFieldName(rowIndex, "packageCount")}
-                                            type="number"
-                                            min="1"
-                                            step="1"
+                                        <textarea
+                                            id={`parcelDescription-${row.id}`}
+                                            name={getParcelRowFieldName(
+                                                rowIndex,
+                                                "parcelDescription",
+                                            )}
+                                            rows={3}
                                             defaultValue={getParcelRowFieldValue(
                                                 state.fields,
                                                 rowIndex,
-                                                "packageCount",
+                                                "parcelDescription",
                                             )}
                                             required
+                                            className={textareaClassName}
                                         />
                                         <FormFieldError
                                             message={getParcelRowFieldError(
                                                 rowIndex,
-                                                "packageCount",
+                                                "parcelDescription",
                                             )}
                                         />
                                     </div>
 
-                                    <div className="grid gap-2">
-                                        <Label htmlFor={`estimatedWeightKg-${row.id}`}>
-                                            Weight (kg)
-                                        </Label>
-                                        <Input
-                                            id={`estimatedWeightKg-${row.id}`}
-                                            name={getParcelRowFieldName(
-                                                rowIndex,
-                                                "estimatedWeightKg",
-                                            )}
-                                            type="number"
-                                            min="0"
-                                            step="0.01"
-                                            defaultValue={getParcelRowFieldValue(
-                                                state.fields,
-                                                rowIndex,
-                                                "estimatedWeightKg",
-                                            )}
-                                        />
-                                        <FormFieldError
-                                            message={getParcelRowFieldError(
-                                                rowIndex,
-                                                "estimatedWeightKg",
-                                            )}
-                                        />
-                                    </div>
-
-                                    <div className="grid gap-2">
-                                        <Label htmlFor={`packageWidthCm-${row.id}`}>
-                                            Width (cm)
-                                        </Label>
-                                        <Input
-                                            id={`packageWidthCm-${row.id}`}
-                                            name={getParcelRowFieldName(rowIndex, "packageWidthCm")}
-                                            type="number"
-                                            min="0"
-                                            step="0.01"
-                                            defaultValue={getParcelRowFieldValue(
-                                                state.fields,
-                                                rowIndex,
-                                                "packageWidthCm",
-                                            )}
-                                        />
-                                        <FormFieldError
-                                            message={getParcelRowFieldError(
-                                                rowIndex,
-                                                "packageWidthCm",
-                                            )}
-                                        />
-                                    </div>
-
-                                    <div className="grid gap-2">
-                                        <Label htmlFor={`packageHeightCm-${row.id}`}>
-                                            Height (cm)
-                                        </Label>
-                                        <Input
-                                            id={`packageHeightCm-${row.id}`}
-                                            name={getParcelRowFieldName(
-                                                rowIndex,
-                                                "packageHeightCm",
-                                            )}
-                                            type="number"
-                                            min="0"
-                                            step="0.01"
-                                            defaultValue={getParcelRowFieldValue(
-                                                state.fields,
-                                                rowIndex,
-                                                "packageHeightCm",
-                                            )}
-                                        />
-                                        <FormFieldError
-                                            message={getParcelRowFieldError(
-                                                rowIndex,
-                                                "packageHeightCm",
-                                            )}
-                                        />
-                                    </div>
-
-                                    <div className="grid gap-2">
-                                        <Label htmlFor={`packageLengthCm-${row.id}`}>
-                                            Length (cm)
-                                        </Label>
-                                        <Input
-                                            id={`packageLengthCm-${row.id}`}
-                                            name={getParcelRowFieldName(
-                                                rowIndex,
-                                                "packageLengthCm",
-                                            )}
-                                            type="number"
-                                            min="0"
-                                            step="0.01"
-                                            defaultValue={getParcelRowFieldValue(
-                                                state.fields,
-                                                rowIndex,
-                                                "packageLengthCm",
-                                            )}
-                                        />
-                                        <FormFieldError
-                                            message={getParcelRowFieldError(
-                                                rowIndex,
-                                                "packageLengthCm",
-                                            )}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="grid gap-4 md:grid-cols-2">
-                                    <div className="grid gap-2">
-                                        <Label htmlFor={`deliveryFee-${row.id}`}>
-                                            Delivery Fee *
-                                        </Label>
-                                        <InputGroup>
-                                            <InputGroupInput
-                                                id={`deliveryFee-${row.id}`}
+                                    <div className="grid gap-4 md:grid-cols-4">
+                                        <div className="grid gap-2">
+                                            <div className="flex items-center gap-1.5">
+                                                <Label htmlFor={`packageCount-${row.id}`}>
+                                                    Package Count *
+                                                </Label>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <button
+                                                            type="button"
+                                                            className="inline-flex size-4 items-center justify-center rounded-full border border-border text-[10px] leading-none font-semibold text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+                                                            aria-label="Package count info"
+                                                        >
+                                                            !
+                                                        </button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        Creates this many separate parcels with the
+                                                        same per-parcel weight, dimensions, delivery
+                                                        fee, and COD amount.
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </div>
+                                            <div className="flex h-8 w-full items-stretch overflow-hidden rounded-lg border border-input bg-background">
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon-sm"
+                                                    className="h-full rounded-l-[9px] border-r border-border"
+                                                    onClick={() => updatePackageCount(row.id, -1)}
+                                                    disabled={packageCount <= 1}
+                                                    aria-label={`Decrease package count for parcel setup ${rowIndex + 1}`}
+                                                >
+                                                    <MinusIcon className="size-4" />
+                                                </Button>
+                                                <Input
+                                                    id={`packageCount-${row.id}`}
+                                                    value={packageCount}
+                                                    readOnly
+                                                    aria-readonly="true"
+                                                    className="h-full w-full rounded-none border-0 text-center shadow-none focus-visible:ring-0"
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon-sm"
+                                                    className="h-full rounded-r-[9px] border-l border-border"
+                                                    onClick={() => updatePackageCount(row.id, 1)}
+                                                    disabled={rowLimitReached}
+                                                    aria-label={`Increase package count for parcel setup ${rowIndex + 1}`}
+                                                >
+                                                    <PlusIcon className="size-4" />
+                                                </Button>
+                                            </div>
+                                            <input
+                                                type="hidden"
                                                 name={getParcelRowFieldName(
                                                     rowIndex,
-                                                    "deliveryFee",
+                                                    "packageCount",
+                                                )}
+                                                value={packageCount}
+                                            />
+                                            <FormFieldError
+                                                message={getParcelRowFieldError(
+                                                    rowIndex,
+                                                    "packageCount",
+                                                )}
+                                            />
+                                        </div>
+
+                                        <div className="grid gap-2">
+                                            <Label htmlFor={`estimatedWeightKg-${row.id}`}>
+                                                Weight (kg)
+                                            </Label>
+                                            <Input
+                                                id={`estimatedWeightKg-${row.id}`}
+                                                name={getParcelRowFieldName(
+                                                    rowIndex,
+                                                    "estimatedWeightKg",
                                                 )}
                                                 type="number"
                                                 min="0"
@@ -882,49 +911,116 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                                 defaultValue={getParcelRowFieldValue(
                                                     state.fields,
                                                     rowIndex,
-                                                    "deliveryFee",
+                                                    "estimatedWeightKg",
                                                 )}
-                                                required
                                             />
-                                            <InputGroupAddon align="inline-start">
-                                                <InputGroupText>Ks</InputGroupText>
-                                            </InputGroupAddon>
-                                        </InputGroup>
-                                        <FormFieldError
-                                            message={getParcelRowFieldError(
-                                                rowIndex,
-                                                "deliveryFee",
-                                            )}
-                                        />
-                                    </div>
+                                            <FormFieldError
+                                                message={getParcelRowFieldError(
+                                                    rowIndex,
+                                                    "estimatedWeightKg",
+                                                )}
+                                            />
+                                        </div>
 
-                                    <div className="grid gap-2">
-                                        <Label htmlFor={`codAmount-${row.id}`}>COD Amount *</Label>
-                                        <InputGroup>
-                                            {parcelType === "non_cod" ? (
-                                                <>
-                                                    <input
-                                                        type="hidden"
+                                        <div className="grid gap-2 md:col-span-2">
+                                            <Label>Dimensions (cm)</Label>
+                                            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2">
+                                                <div className="grid gap-2">
+                                                    <Input
+                                                        id={`packageLengthCm-${row.id}`}
                                                         name={getParcelRowFieldName(
                                                             rowIndex,
-                                                            "codAmount",
+                                                            "packageLengthCm",
                                                         )}
-                                                        value="0"
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        placeholder="L"
+                                                        aria-label="Length (cm)"
+                                                        defaultValue={getParcelRowFieldValue(
+                                                            state.fields,
+                                                            rowIndex,
+                                                            "packageLengthCm",
+                                                        )}
                                                     />
-                                                    <InputGroupInput
-                                                        id={`codAmount-${row.id}`}
-                                                        value="0"
-                                                        readOnly
-                                                        disabled
-                                                        aria-readonly="true"
+                                                    <FormFieldError
+                                                        message={getParcelRowFieldError(
+                                                            rowIndex,
+                                                            "packageLengthCm",
+                                                        )}
                                                     />
-                                                </>
-                                            ) : (
+                                                </div>
+                                                <span className="flex h-8 items-center justify-center text-sm text-muted-foreground">
+                                                    x
+                                                </span>
+                                                <div className="grid gap-2">
+                                                    <Input
+                                                        id={`packageWidthCm-${row.id}`}
+                                                        name={getParcelRowFieldName(
+                                                            rowIndex,
+                                                            "packageWidthCm",
+                                                        )}
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        placeholder="W"
+                                                        aria-label="Width (cm)"
+                                                        defaultValue={getParcelRowFieldValue(
+                                                            state.fields,
+                                                            rowIndex,
+                                                            "packageWidthCm",
+                                                        )}
+                                                    />
+                                                    <FormFieldError
+                                                        message={getParcelRowFieldError(
+                                                            rowIndex,
+                                                            "packageWidthCm",
+                                                        )}
+                                                    />
+                                                </div>
+                                                <span className="flex h-8 items-center justify-center text-sm text-muted-foreground">
+                                                    x
+                                                </span>
+                                                <div className="grid gap-2">
+                                                    <Input
+                                                        id={`packageHeightCm-${row.id}`}
+                                                        name={getParcelRowFieldName(
+                                                            rowIndex,
+                                                            "packageHeightCm",
+                                                        )}
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        placeholder="H"
+                                                        aria-label="Height (cm)"
+                                                        defaultValue={getParcelRowFieldValue(
+                                                            state.fields,
+                                                            rowIndex,
+                                                            "packageHeightCm",
+                                                        )}
+                                                    />
+                                                    <FormFieldError
+                                                        message={getParcelRowFieldError(
+                                                            rowIndex,
+                                                            "packageHeightCm",
+                                                        )}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid gap-4 md:grid-cols-2">
+                                        <div className="grid gap-2">
+                                            <Label htmlFor={`deliveryFee-${row.id}`}>
+                                                Delivery Fee *
+                                            </Label>
+                                            <InputGroup>
                                                 <InputGroupInput
-                                                    id={`codAmount-${row.id}`}
+                                                    id={`deliveryFee-${row.id}`}
                                                     name={getParcelRowFieldName(
                                                         rowIndex,
-                                                        "codAmount",
+                                                        "deliveryFee",
                                                     )}
                                                     type="number"
                                                     min="0"
@@ -932,81 +1028,137 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                                     defaultValue={getParcelRowFieldValue(
                                                         state.fields,
                                                         rowIndex,
-                                                        "codAmount",
+                                                        "deliveryFee",
                                                     )}
                                                     required
                                                 />
+                                                <InputGroupAddon align="inline-start">
+                                                    <InputGroupText>Ks</InputGroupText>
+                                                </InputGroupAddon>
+                                            </InputGroup>
+                                            <FormFieldError
+                                                message={getParcelRowFieldError(
+                                                    rowIndex,
+                                                    "deliveryFee",
+                                                )}
+                                            />
+                                        </div>
+
+                                        <div className="grid gap-2">
+                                            <Label htmlFor={`codAmount-${row.id}`}>
+                                                COD Amount *
+                                            </Label>
+                                            <InputGroup>
+                                                {parcelType === "non_cod" ? (
+                                                    <>
+                                                        <input
+                                                            type="hidden"
+                                                            name={getParcelRowFieldName(
+                                                                rowIndex,
+                                                                "codAmount",
+                                                            )}
+                                                            value="0"
+                                                        />
+                                                        <InputGroupInput
+                                                            id={`codAmount-${row.id}`}
+                                                            value="0"
+                                                            readOnly
+                                                            disabled
+                                                            aria-readonly="true"
+                                                        />
+                                                    </>
+                                                ) : (
+                                                    <InputGroupInput
+                                                        id={`codAmount-${row.id}`}
+                                                        name={getParcelRowFieldName(
+                                                            rowIndex,
+                                                            "codAmount",
+                                                        )}
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        defaultValue={getParcelRowFieldValue(
+                                                            state.fields,
+                                                            rowIndex,
+                                                            "codAmount",
+                                                        )}
+                                                        required
+                                                    />
+                                                )}
+                                                <InputGroupAddon align="inline-start">
+                                                    <InputGroupText>Ks</InputGroupText>
+                                                </InputGroupAddon>
+                                            </InputGroup>
+                                            {parcelType === "non_cod" ? (
+                                                <p className="text-xs text-muted-foreground">
+                                                    Non-COD parcels do not collect COD. COD amount
+                                                    will be submitted as 0.
+                                                </p>
+                                            ) : null}
+                                            <FormFieldError
+                                                message={getParcelRowFieldError(
+                                                    rowIndex,
+                                                    "codAmount",
+                                                )}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid gap-2">
+                                        <Label htmlFor={`specialHandlingNote-${row.id}`}>
+                                            Special Handling Note (Optional)
+                                        </Label>
+                                        <textarea
+                                            id={`specialHandlingNote-${row.id}`}
+                                            name={getParcelRowFieldName(
+                                                rowIndex,
+                                                "specialHandlingNote",
                                             )}
-                                            <InputGroupAddon align="inline-start">
-                                                <InputGroupText>Ks</InputGroupText>
-                                            </InputGroupAddon>
-                                        </InputGroup>
-                                        {parcelType === "non_cod" ? (
-                                            <p className="text-xs text-muted-foreground">
-                                                Non-COD parcels do not collect COD. COD amount will
-                                                be submitted as 0.
-                                            </p>
-                                        ) : null}
+                                            rows={3}
+                                            defaultValue={getParcelRowFieldValue(
+                                                state.fields,
+                                                rowIndex,
+                                                "specialHandlingNote",
+                                            )}
+                                            className={textareaClassName}
+                                        />
                                         <FormFieldError
-                                            message={getParcelRowFieldError(rowIndex, "codAmount")}
+                                            message={getParcelRowFieldError(
+                                                rowIndex,
+                                                "specialHandlingNote",
+                                            )}
                                         />
                                     </div>
-                                </div>
+                                </section>
+                            );
+                        })}
+                    </div>
+                </section>
 
-                                <div className="grid gap-2">
-                                    <Label htmlFor={`specialHandlingNote-${row.id}`}>
-                                        Special Handling Note (Optional)
-                                    </Label>
-                                    <textarea
-                                        id={`specialHandlingNote-${row.id}`}
-                                        name={getParcelRowFieldName(
-                                            rowIndex,
-                                            "specialHandlingNote",
-                                        )}
-                                        rows={3}
-                                        defaultValue={getParcelRowFieldValue(
-                                            state.fields,
-                                            rowIndex,
-                                            "specialHandlingNote",
-                                        )}
-                                        className={textareaClassName}
-                                    />
-                                    <FormFieldError
-                                        message={getParcelRowFieldError(
-                                            rowIndex,
-                                            "specialHandlingNote",
-                                        )}
-                                    />
-                                </div>
-                            </section>
-                        );
-                    })}
-                </div>
-            </section>
-
-            {state.message ? (
-                <div
-                    className={cn("rounded-lg border p-3", {
-                        "border-emerald-300 bg-emerald-50": state.ok,
-                        "border-red-300 bg-red-50": !state.ok,
-                    })}
-                >
-                    <p
-                        className={cn("text-xs", {
-                            "text-emerald-800": state.ok,
-                            "text-destructive": !state.ok,
+                {state.message ? (
+                    <div
+                        className={cn("rounded-lg border p-3", {
+                            "border-emerald-300 bg-emerald-50": state.ok,
+                            "border-red-300 bg-red-50": !state.ok,
                         })}
                     >
-                        {state.message}
-                    </p>
-                </div>
-            ) : null}
+                        <p
+                            className={cn("text-xs", {
+                                "text-emerald-800": state.ok,
+                                "text-destructive": !state.ok,
+                            })}
+                        >
+                            {state.message}
+                        </p>
+                    </div>
+                ) : null}
 
-            <Button type="submit" disabled={isPending}>
-                {isPending
-                    ? `Creating ${parcelRows.length} Parcel${parcelRows.length === 1 ? "" : "s"}...`
-                    : `Create ${parcelRows.length} Parcel${parcelRows.length === 1 ? "" : "s"}`}
-            </Button>
-        </form>
+                <Button type="submit" disabled={isPending}>
+                    {isPending
+                        ? `Creating ${totalRequestedParcels} Parcel${totalRequestedParcels === 1 ? "" : "s"}...`
+                        : `Create ${totalRequestedParcels} Parcel${totalRequestedParcels === 1 ? "" : "s"}`}
+                </Button>
+            </form>
+        </TooltipProvider>
     );
 }

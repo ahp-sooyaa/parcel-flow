@@ -344,13 +344,15 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                     <Label htmlFor="package-count">Package Count *</Label>
                     <Input
                         id="package-count"
-                        name="packageCount"
-                        type="number"
-                        min="1"
-                        step="1"
-                        defaultValue={fields.packageCount}
-                        required
+                        value={fields.packageCount}
+                        readOnly
+                        disabled
+                        aria-readonly="true"
                     />
+                    <input type="hidden" name="packageCount" value={fields.packageCount} />
+                    <p className="text-xs text-muted-foreground">
+                        Package count is locked after parcel creation.
+                    </p>
                     <FormFieldError message={getFieldError("packageCount")} />
                 </div>
 

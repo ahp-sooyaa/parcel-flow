@@ -35,6 +35,7 @@ import {
     validateCreateParcelMedia,
     validateCreateParcelBatchSubmission,
     validateDeliveryFeeStatusForParcel,
+    validateImmutablePackageCount,
     validateParcelImageAppendLimits,
     validateParcelPaymentState,
     validateParcelStatusProofImages,
@@ -378,47 +379,49 @@ export async function createParcelAction(
         const reservedParcelCodes = new Set<string>();
         const { parcelRows, ...sharedFields } = parsed.data;
         const createItems = await Promise.all(
-            parcelRows.map(async (row) => {
-                const parcelCode = await generateUniqueParcelCode({
-                    reservedCodes: reservedParcelCodes,
-                });
-                const parcelData = { ...sharedFields, ...row };
-                const createCodStatus = getDefaultCreateCodStatus(row.parcelType);
-                const createCollectionStatus = getDefaultCreateCollectionStatus(row.parcelType);
-                const totalAmountToCollect = computeTotalAmountToCollect({
-                    parcelType: row.parcelType,
-                    codAmount: row.codAmount,
-                    deliveryFee: row.deliveryFee,
-                    deliveryFeePayer: sharedFields.deliveryFeePayer,
-                });
+            parcelRows.flatMap((row) =>
+                Array.from({ length: row.packageCount }, async () => {
+                    const parcelCode = await generateUniqueParcelCode({
+                        reservedCodes: reservedParcelCodes,
+                    });
+                    const parcelData = { ...sharedFields, ...row, packageCount: 1 };
+                    const createCodStatus = getDefaultCreateCodStatus(row.parcelType);
+                    const createCollectionStatus = getDefaultCreateCollectionStatus(row.parcelType);
+                    const totalAmountToCollect = computeTotalAmountToCollect({
+                        parcelType: row.parcelType,
+                        codAmount: row.codAmount,
+                        deliveryFee: row.deliveryFee,
+                        deliveryFeePayer: sharedFields.deliveryFeePayer,
+                    });
 
-                return {
-                    parcelValues: {
-                        parcelCode,
-                        ...buildParcelWriteValues({
-                            data: parcelData,
-                            merchantId: createAuthorization.merchantId,
-                            riderId: sharedFields.riderId,
-                            totalAmountToCollect,
-                            deliveryFeePaymentPlan: sharedFields.deliveryFeePaymentPlan,
-                            parcelStatus: DEFAULT_CREATE_PARCEL_STATE.parcelStatus,
-                            pickupImageKeys: uploadedMedia.pickupImageKeys,
-                            proofOfDeliveryImageKeys: uploadedMedia.proofOfDeliveryImageKeys,
+                    return {
+                        parcelValues: {
+                            parcelCode,
+                            ...buildParcelWriteValues({
+                                data: parcelData,
+                                merchantId: createAuthorization.merchantId,
+                                riderId: sharedFields.riderId,
+                                totalAmountToCollect,
+                                deliveryFeePaymentPlan: sharedFields.deliveryFeePaymentPlan,
+                                parcelStatus: DEFAULT_CREATE_PARCEL_STATE.parcelStatus,
+                                pickupImageKeys: uploadedMedia.pickupImageKeys,
+                                proofOfDeliveryImageKeys: uploadedMedia.proofOfDeliveryImageKeys,
+                            }),
+                        },
+                        paymentValues: buildParcelPaymentWriteValues({
+                            deliveryFeeStatus: DEFAULT_CREATE_PARCEL_STATE.deliveryFeeStatus,
+                            codStatus: createCodStatus,
+                            collectedAmount: 0,
+                            collectionStatus: createCollectionStatus,
+                            merchantSettlementStatus:
+                                DEFAULT_CREATE_PARCEL_STATE.merchantSettlementStatus,
+                            riderPayoutStatus: DEFAULT_CREATE_PARCEL_STATE.riderPayoutStatus,
+                            paymentNote: sharedFields.paymentNote,
+                            paymentSlipImageKeys: uploadedMedia.paymentSlipImageKeys,
                         }),
-                    },
-                    paymentValues: buildParcelPaymentWriteValues({
-                        deliveryFeeStatus: DEFAULT_CREATE_PARCEL_STATE.deliveryFeeStatus,
-                        codStatus: createCodStatus,
-                        collectedAmount: 0,
-                        collectionStatus: createCollectionStatus,
-                        merchantSettlementStatus:
-                            DEFAULT_CREATE_PARCEL_STATE.merchantSettlementStatus,
-                        riderPayoutStatus: DEFAULT_CREATE_PARCEL_STATE.riderPayoutStatus,
-                        paymentNote: sharedFields.paymentNote,
-                        paymentSlipImageKeys: uploadedMedia.paymentSlipImageKeys,
-                    }),
-                };
-            }),
+                    };
+                }),
+            ),
         );
         const created = await createParcelsWithPaymentsAndAudit({
             actorAppUserId: currentUser.appUserId,
@@ -539,6 +542,20 @@ export async function updateParcelAction(
                 ok: false,
                 message: "Merchant users can only manage parcels for their own merchant profile.",
                 fields: submittedFields,
+            };
+        }
+
+        const packageCountGuard = validateImmutablePackageCount({
+            currentPackageCount: current.parcel.packageCount,
+            submittedPackageCount: parsed.data.packageCount,
+        });
+
+        if (!packageCountGuard.ok) {
+            return {
+                ok: false,
+                message: packageCountGuard.message,
+                fields: submittedFields,
+                fieldErrors: packageCountGuard.fieldErrors,
             };
         }
 
