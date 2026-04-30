@@ -6,6 +6,7 @@ import { findMerchantProfileLinkByAppUserId } from "@/features/merchant/server/d
 import {
     COD_STATUSES,
     COLLECTION_STATUSES,
+    CREATE_PARCEL_MAX_ROWS,
     DELIVERY_FEE_PAYERS,
     DELIVERY_FEE_PAYMENT_PLANS,
     DELIVERY_FEE_STATUSES,
@@ -48,26 +49,29 @@ export const PARCEL_IMAGE_MAX_FILES = 5;
 export const PARCEL_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
 
 const PARCEL_IMAGE_ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const CREATE_PARCEL_FORM_FIELDS = [
+const CREATE_PARCEL_SHARED_FORM_FIELDS = [
     "merchantId",
     "riderId",
     "recipientName",
     "recipientPhone",
     "recipientTownshipId",
     "recipientAddress",
+    "deliveryFeePayer",
+    "deliveryFeePaymentPlan",
+    "paymentNote",
+] as const;
+const CREATE_PARCEL_ROW_FIELDS = [
     "parcelDescription",
     "packageCount",
     "specialHandlingNote",
     "estimatedWeightKg",
+    "isLargeItem",
     "packageWidthCm",
     "packageHeightCm",
     "packageLengthCm",
     "parcelType",
     "codAmount",
     "deliveryFee",
-    "deliveryFeePayer",
-    "deliveryFeePaymentPlan",
-    "paymentNote",
 ] as const;
 const UPDATE_PARCEL_FORM_FIELDS = [
     "parcelId",
@@ -81,6 +85,7 @@ const UPDATE_PARCEL_FORM_FIELDS = [
     "packageCount",
     "specialHandlingNote",
     "estimatedWeightKg",
+    "isLargeItem",
     "packageWidthCm",
     "packageHeightCm",
     "packageLengthCm",
@@ -108,6 +113,7 @@ const UPDATE_PARCEL_DETAIL_FORM_FIELDS = [
     "packageCount",
     "specialHandlingNote",
     "estimatedWeightKg",
+    "isLargeItem",
     "packageWidthCm",
     "packageHeightCm",
     "packageLengthCm",
@@ -128,6 +134,7 @@ const parcelImageFieldLabels: Record<ParcelImageFieldName, string> = {
     proofOfDeliveryImages: "Proof of delivery images",
     paymentSlipImages: "Payment slip images",
 };
+const STANDARD_PARCEL_DIMENSION_CM = 1;
 
 const moneyField = z.preprocess((value) => {
     if (typeof value === "number") {
@@ -146,6 +153,24 @@ const moneyField = z.preprocess((value) => {
 
     return Number(normalized);
 }, z.number().finite().min(0).max(999999999));
+
+const positiveMoneyField = z.preprocess((value) => {
+    if (typeof value === "number") {
+        return value;
+    }
+
+    if (typeof value !== "string") {
+        return Number.NaN;
+    }
+
+    const normalized = value.trim();
+
+    if (!normalized) {
+        return Number.NaN;
+    }
+
+    return Number(normalized);
+}, z.number().finite().gt(0).max(999999999));
 
 const optionalDecimalField = z
     .preprocess((value) => {
@@ -167,6 +192,24 @@ const optionalDecimalField = z
     }, z.number().finite().min(0).max(999999999).optional())
     .transform((value) => value ?? null);
 
+const positiveDecimalField = z.preprocess((value) => {
+    if (typeof value === "number") {
+        return value;
+    }
+
+    if (typeof value !== "string") {
+        return Number.NaN;
+    }
+
+    const normalized = value.trim();
+
+    if (!normalized) {
+        return Number.NaN;
+    }
+
+    return Number(normalized);
+}, z.number().finite().gt(0).max(999999999));
+
 const positiveIntegerField = z.preprocess((value) => {
     if (typeof value === "number") {
         return value;
@@ -185,6 +228,28 @@ const positiveIntegerField = z.preprocess((value) => {
     return Number(normalized);
 }, z.number().int().min(1).max(9999));
 
+const booleanField = z.preprocess((value) => {
+    if (typeof value === "boolean") {
+        return value;
+    }
+
+    if (typeof value !== "string") {
+        return value;
+    }
+
+    const normalized = value.trim().toLowerCase();
+
+    if (normalized === "true") {
+        return true;
+    }
+
+    if (normalized === "false") {
+        return false;
+    }
+
+    return value;
+}, z.boolean());
+
 const optionalNullableDeliveryFeePaymentPlanField = z
     .preprocess((value) => {
         if (typeof value !== "string") {
@@ -201,7 +266,7 @@ const optionalNullableDeliveryFeePaymentPlanField = z
     }, z.enum(DELIVERY_FEE_PAYMENT_PLANS).optional())
     .transform((value) => value ?? null);
 
-export const createParcelSchema = z.object({
+const createParcelBaseSchema = z.object({
     merchantId: z.string().trim().uuid(),
     riderId: optionalNullableUuid(),
     recipientName: z.string().trim().min(2).max(120),
@@ -211,32 +276,151 @@ export const createParcelSchema = z.object({
     parcelDescription: z.string().trim().min(1).max(2000),
     packageCount: positiveIntegerField,
     specialHandlingNote: optionalNullableTrimmedString(1000),
-    estimatedWeightKg: optionalDecimalField,
+    estimatedWeightKg: positiveDecimalField,
+    isLargeItem: booleanField,
     packageWidthCm: optionalDecimalField,
     packageHeightCm: optionalDecimalField,
     packageLengthCm: optionalDecimalField,
     parcelType: z.enum(PARCEL_TYPES),
     codAmount: moneyField,
-    deliveryFee: moneyField,
+    deliveryFee: positiveMoneyField,
     deliveryFeePayer: z.enum(DELIVERY_FEE_PAYERS),
     deliveryFeePaymentPlan: z.enum(DELIVERY_FEE_PAYMENT_PLANS),
     paymentNote: optionalNullableTrimmedString(1000),
 });
 
-export const updateParcelSchema = createParcelSchema.extend({
-    deliveryFeePaymentPlan: optionalNullableDeliveryFeePaymentPlanField,
-    parcelId: z.string().trim().uuid(),
-    parcelStatus: z.enum(PARCEL_STATUSES),
-    deliveryFeeStatus: z.enum(DELIVERY_FEE_STATUSES),
-    codStatus: z.enum(COD_STATUSES),
-    collectionStatus: z.enum(COLLECTION_STATUSES),
-    collectedAmount: moneyField,
+function refineParcelDetailFields(
+    value: Pick<
+        z.infer<typeof createParcelBaseSchema>,
+        | "parcelType"
+        | "codAmount"
+        | "isLargeItem"
+        | "packageWidthCm"
+        | "packageHeightCm"
+        | "packageLengthCm"
+    >,
+    context: z.RefinementCtx,
+) {
+    if (value.parcelType === "cod" && value.codAmount <= 0) {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["codAmount"],
+            message: "COD amount must be greater than zero for COD parcels.",
+        });
+    }
+
+    if (!value.isLargeItem) {
+        return;
+    }
+
+    const dimensions = [
+        ["packageLengthCm", value.packageLengthCm, "Length is required for large items."],
+        ["packageWidthCm", value.packageWidthCm, "Width is required for large items."],
+        ["packageHeightCm", value.packageHeightCm, "Height is required for large items."],
+    ] as const;
+
+    for (const [fieldName, dimension, message] of dimensions) {
+        if (dimension === null || dimension <= 0) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: [fieldName],
+                message,
+            });
+        }
+    }
+}
+
+export const createParcelSchema = createParcelBaseSchema.superRefine(refineParcelDetailFields);
+
+export const createParcelSharedSchema = createParcelBaseSchema.pick({
+    merchantId: true,
+    riderId: true,
+    recipientName: true,
+    recipientPhone: true,
+    recipientTownshipId: true,
+    recipientAddress: true,
+    deliveryFeePayer: true,
+    deliveryFeePaymentPlan: true,
+    paymentNote: true,
 });
 
-export const updateParcelDetailSchema = createParcelSchema.omit({ paymentNote: true }).extend({
-    deliveryFeePaymentPlan: optionalNullableDeliveryFeePaymentPlanField,
-    parcelId: z.string().trim().uuid(),
-});
+export const createParcelRowSchema = createParcelBaseSchema
+    .pick({
+        parcelDescription: true,
+        packageCount: true,
+        specialHandlingNote: true,
+        estimatedWeightKg: true,
+        isLargeItem: true,
+        packageWidthCm: true,
+        packageHeightCm: true,
+        packageLengthCm: true,
+        parcelType: true,
+        codAmount: true,
+        deliveryFee: true,
+    })
+    .superRefine(refineParcelDetailFields);
+
+export const createParcelBatchSchema = createParcelSharedSchema
+    .extend({
+        parcelRows: z
+            .array(createParcelRowSchema)
+            .min(1, "Add at least one parcel row.")
+            .max(
+                CREATE_PARCEL_MAX_ROWS,
+                `You can create up to ${CREATE_PARCEL_MAX_ROWS} parcels at once.`,
+            ),
+    })
+    .superRefine((value, context) => {
+        const totalRequestedParcels = value.parcelRows.reduce(
+            (total, row) => total + row.packageCount,
+            0,
+        );
+
+        if (
+            value.parcelRows.length <= CREATE_PARCEL_MAX_ROWS &&
+            totalRequestedParcels > CREATE_PARCEL_MAX_ROWS
+        ) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["parcelRows"],
+                message: `You can create up to ${CREATE_PARCEL_MAX_ROWS} parcels at once. Reduce the package counts.`,
+            });
+        }
+
+        if (value.deliveryFeePaymentPlan !== "merchant_deduct_from_cod_settlement") {
+            return;
+        }
+
+        value.parcelRows.forEach((row, index) => {
+            if (row.parcelType !== "cod") {
+                context.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ["parcelRows", index, "parcelType"],
+                    message: "Deduct from COD settlement requires a COD parcel.",
+                });
+            }
+        });
+    });
+
+export const updateParcelSchema = createParcelBaseSchema
+    .extend({
+        deliveryFeePaymentPlan: optionalNullableDeliveryFeePaymentPlanField,
+        parcelId: z.string().trim().uuid(),
+        parcelStatus: z.enum(PARCEL_STATUSES),
+        deliveryFeeStatus: z.enum(DELIVERY_FEE_STATUSES),
+        codStatus: z.enum(COD_STATUSES),
+        collectionStatus: z.enum(COLLECTION_STATUSES),
+        collectedAmount: moneyField,
+    })
+    .superRefine(refineParcelDetailFields);
+
+export const updateParcelDetailSchema = createParcelBaseSchema
+    .omit({ paymentNote: true })
+    .extend({
+        deliveryFeePaymentPlan: optionalNullableDeliveryFeePaymentPlanField,
+        parcelId: z.string().trim().uuid(),
+    })
+    .superRefine(refineParcelDetailFields);
 
 export const advanceRiderParcelSchema = z.object({
     parcelId: z.string().trim().uuid(),
@@ -266,6 +450,8 @@ export const adminCorrectParcelStateSchema = parcelIdActionSchema.extend({
 });
 
 export type ParcelCreateInput = z.infer<typeof createParcelSchema>;
+export type ParcelCreateBatchInput = z.infer<typeof createParcelBatchSchema>;
+export type ParcelCreateRowInput = z.infer<typeof createParcelRowSchema>;
 export type ParcelUpdateInput = z.infer<typeof updateParcelSchema>;
 export type ParcelDetailUpdateInput = z.infer<typeof updateParcelDetailSchema>;
 export type ParcelFormFields = Record<(typeof UPDATE_PARCEL_FORM_FIELDS)[number], string>;
@@ -297,9 +483,10 @@ export type ParcelWriteValues = {
     packageCount: number;
     specialHandlingNote: string | null;
     estimatedWeightKg: string | null;
-    packageWidthCm: string | null;
-    packageHeightCm: string | null;
-    packageLengthCm: string | null;
+    isLargeItem: boolean;
+    packageWidthCm: string;
+    packageHeightCm: string;
+    packageLengthCm: string;
     parcelType: "cod" | "non_cod";
     codAmount: string;
     deliveryFee: string;
@@ -835,6 +1022,34 @@ function toFieldErrors(fieldErrors: Record<string, string[] | undefined>) {
     ) as ParcelFieldErrors;
 }
 
+function toFieldPath(path: (string | number)[]) {
+    return path.reduce((result, segment) => {
+        if (typeof segment === "number") {
+            return `${result}[${segment}]`;
+        }
+
+        return result ? `${result}.${segment}` : segment;
+    }, "");
+}
+
+function toIssueFieldErrors(issues: z.ZodIssue[]) {
+    const fieldErrors: ParcelFieldErrors = {};
+
+    for (const issue of issues) {
+        const fieldPath = toFieldPath(issue.path);
+
+        if (!fieldPath) {
+            continue;
+        }
+
+        const messages = fieldErrors[fieldPath] ?? [];
+        messages.push(issue.message);
+        fieldErrors[fieldPath] = messages;
+    }
+
+    return fieldErrors;
+}
+
 function createFieldErrors(fieldName: string, message: string): ParcelFieldErrors {
     return {
         [fieldName]: [message],
@@ -938,12 +1153,14 @@ export function validateCreateParcelMedia(input: {
     return validatePaymentSlipImagesForPlan({
         deliveryFeePaymentPlan: input.deliveryFeePaymentPlan,
         paymentSlipImages: input.files.paymentSlipImages,
+        existingPaymentSlipImageCount: 0,
     });
 }
 
 export function validatePaymentSlipImagesForPlan(input: {
     deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
     paymentSlipImages: File[];
+    existingPaymentSlipImageCount?: number;
 }) {
     if (
         input.paymentSlipImages.length > 0 &&
@@ -955,6 +1172,23 @@ export function validatePaymentSlipImagesForPlan(input: {
             fieldErrors: createFieldErrors(
                 "paymentSlipImages",
                 "Payment slips are only allowed for prepaid bank transfer.",
+            ),
+        };
+    }
+
+    const totalPaymentSlipImageCount =
+        (input.existingPaymentSlipImageCount ?? 0) + input.paymentSlipImages.length;
+
+    if (
+        input.deliveryFeePaymentPlan === "merchant_prepaid_bank_transfer" &&
+        totalPaymentSlipImageCount === 0
+    ) {
+        return {
+            ok: false as const,
+            message: "Upload at least one payment slip for prepaid bank transfer.",
+            fieldErrors: createFieldErrors(
+                "paymentSlipImages",
+                "Upload at least one payment slip for prepaid bank transfer.",
             ),
         };
     }
@@ -982,6 +1216,40 @@ function getParcelMediaFiles(formData: FormData): ParcelMediaFiles {
                 (value): value is File =>
                     value instanceof File && value.size > 0 && value.name !== "",
             ),
+    };
+}
+
+function getCreateParcelRowIndexes(formData: FormData) {
+    const rowIndexes = new Set<number>();
+
+    for (const [key] of formData.entries()) {
+        const match = /^parcelRows\[(\d+)\]\./.exec(key);
+
+        if (match) {
+            rowIndexes.add(Number(match[1]));
+        }
+    }
+
+    return [...rowIndexes].sort((left, right) => left - right);
+}
+
+function getCreateParcelBatchFields(
+    formData: FormData,
+    rowIndexes: number[],
+): Record<string, string> {
+    const sharedFields = getScalarFields(formData, CREATE_PARCEL_SHARED_FORM_FIELDS);
+    const rowFields = Object.fromEntries(
+        rowIndexes.flatMap((rowIndex) =>
+            CREATE_PARCEL_ROW_FIELDS.map((fieldName) => [
+                `parcelRows[${rowIndex}].${fieldName}`,
+                getStringFieldValue(formData, `parcelRows[${rowIndex}].${fieldName}`),
+            ]),
+        ),
+    );
+
+    return {
+        ...sharedFields,
+        ...rowFields,
     };
 }
 
@@ -1063,7 +1331,60 @@ function parseParcelFormData<TSchema extends z.ZodTypeAny>(
 }
 
 export function parseCreateParcelFormData(formData: FormData) {
-    return parseParcelFormData(formData, createParcelSchema, CREATE_PARCEL_FORM_FIELDS);
+    const rowIndexes = getCreateParcelRowIndexes(formData);
+    const fields = getCreateParcelBatchFields(formData, rowIndexes);
+    const files = getParcelMediaFiles(formData);
+    const mediaValidation = validateParcelMediaFiles(files);
+
+    if (!mediaValidation.ok) {
+        return {
+            ok: false as const,
+            message: mediaValidation.message,
+            fields,
+            fieldErrors: mediaValidation.fieldErrors,
+        };
+    }
+
+    const parsed = createParcelBatchSchema.safeParse({
+        merchantId: fields.merchantId,
+        riderId: fields.riderId,
+        recipientName: fields.recipientName,
+        recipientPhone: fields.recipientPhone,
+        recipientTownshipId: fields.recipientTownshipId,
+        recipientAddress: fields.recipientAddress,
+        deliveryFeePayer: fields.deliveryFeePayer,
+        deliveryFeePaymentPlan: fields.deliveryFeePaymentPlan,
+        paymentNote: fields.paymentNote,
+        parcelRows: rowIndexes.map((rowIndex) => ({
+            parcelDescription: fields[`parcelRows[${rowIndex}].parcelDescription`],
+            packageCount: fields[`parcelRows[${rowIndex}].packageCount`],
+            specialHandlingNote: fields[`parcelRows[${rowIndex}].specialHandlingNote`],
+            estimatedWeightKg: fields[`parcelRows[${rowIndex}].estimatedWeightKg`],
+            isLargeItem: fields[`parcelRows[${rowIndex}].isLargeItem`],
+            packageWidthCm: fields[`parcelRows[${rowIndex}].packageWidthCm`],
+            packageHeightCm: fields[`parcelRows[${rowIndex}].packageHeightCm`],
+            packageLengthCm: fields[`parcelRows[${rowIndex}].packageLengthCm`],
+            parcelType: fields[`parcelRows[${rowIndex}].parcelType`],
+            codAmount: fields[`parcelRows[${rowIndex}].codAmount`],
+            deliveryFee: fields[`parcelRows[${rowIndex}].deliveryFee`],
+        })),
+    });
+
+    if (!parsed.success) {
+        return {
+            ok: false as const,
+            message: "Please correct the highlighted fields.",
+            fields,
+            fieldErrors: toIssueFieldErrors(parsed.error.issues),
+        };
+    }
+
+    return {
+        ok: true as const,
+        data: parsed.data,
+        fields,
+        files,
+    };
 }
 
 export function parseUpdateParcelFormData(formData: FormData) {
@@ -1152,6 +1473,29 @@ export function generateParcelCode(date = new Date()) {
     return `PF-${year}${month}${day}-${random}`;
 }
 
+function getStoredParcelDimensions(input: {
+    isLargeItem: boolean;
+    packageWidthCm: number | null;
+    packageHeightCm: number | null;
+    packageLengthCm: number | null;
+}) {
+    if (!input.isLargeItem) {
+        const standardDimension = toMoneyString(STANDARD_PARCEL_DIMENSION_CM);
+
+        return {
+            packageWidthCm: standardDimension,
+            packageHeightCm: standardDimension,
+            packageLengthCm: standardDimension,
+        };
+    }
+
+    return {
+        packageWidthCm: toMoneyString(input.packageWidthCm ?? STANDARD_PARCEL_DIMENSION_CM),
+        packageHeightCm: toMoneyString(input.packageHeightCm ?? STANDARD_PARCEL_DIMENSION_CM),
+        packageLengthCm: toMoneyString(input.packageLengthCm ?? STANDARD_PARCEL_DIMENSION_CM),
+    };
+}
+
 export function buildParcelWriteValues(input: {
     data: ParcelCreateInput | ParcelUpdateInput | ParcelDetailUpdateInput;
     merchantId: string;
@@ -1162,6 +1506,13 @@ export function buildParcelWriteValues(input: {
     pickupImageKeys: string[];
     proofOfDeliveryImageKeys: string[];
 }) {
+    const storedDimensions = getStoredParcelDimensions({
+        isLargeItem: input.data.isLargeItem,
+        packageWidthCm: input.data.packageWidthCm,
+        packageHeightCm: input.data.packageHeightCm,
+        packageLengthCm: input.data.packageLengthCm,
+    });
+
     return {
         merchantId: input.merchantId,
         riderId: input.riderId,
@@ -1172,10 +1523,11 @@ export function buildParcelWriteValues(input: {
         parcelDescription: input.data.parcelDescription,
         packageCount: input.data.packageCount,
         specialHandlingNote: input.data.specialHandlingNote,
-        estimatedWeightKg: toOptionalMoneyString(input.data.estimatedWeightKg),
-        packageWidthCm: toOptionalMoneyString(input.data.packageWidthCm),
-        packageHeightCm: toOptionalMoneyString(input.data.packageHeightCm),
-        packageLengthCm: toOptionalMoneyString(input.data.packageLengthCm),
+        estimatedWeightKg: toMoneyString(input.data.estimatedWeightKg),
+        isLargeItem: input.data.isLargeItem,
+        packageWidthCm: storedDimensions.packageWidthCm,
+        packageHeightCm: storedDimensions.packageHeightCm,
+        packageLengthCm: storedDimensions.packageLengthCm,
         parcelType: input.data.parcelType,
         codAmount: toMoneyString(input.data.parcelType === "cod" ? input.data.codAmount : 0),
         deliveryFee: toMoneyString(input.data.deliveryFee),
@@ -1218,15 +1570,12 @@ export function mergeParcelImageKeys(existingKeys: string[], uploadedKeys: strin
     return [...existingKeys, ...uploadedKeys];
 }
 
-export async function uploadParcelMediaFiles(input: {
-    parcelCode: string;
-    files: ParcelMediaFiles;
-}) {
+export async function uploadParcelMediaFiles(input: { scope: string; files: ParcelMediaFiles }) {
     const uploadGroup = async (category: string, files: File[]) => {
         return Promise.all(
             files.map(async (file) => {
                 const key = buildR2ObjectKey({
-                    scope: input.parcelCode,
+                    scope: input.scope,
                     category,
                     originalFileName: file.name,
                 });
@@ -1397,4 +1746,91 @@ export async function validateParcelSubmission(input: {
         parcelType: input.parcelType,
         codStatus: input.codStatus,
     });
+}
+
+export async function validateCreateParcelBatchSubmission(input: {
+    merchantId: string;
+    riderId: string | null;
+    recipientTownshipId: string;
+    deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];
+    deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number];
+    parcelRows: ParcelCreateRowInput[];
+}) {
+    const merchant = await findMerchantProfileLinkByAppUserId(input.merchantId);
+
+    if (!merchant) {
+        return {
+            ok: false as const,
+            message: "Selected merchant was not found.",
+            fieldErrors: createFieldErrors("merchantId", "Selected merchant was not found."),
+        };
+    }
+
+    if (input.riderId) {
+        const rider = await getRiderById(input.riderId);
+
+        if (!rider?.isActive) {
+            return {
+                ok: false as const,
+                message: "Selected rider was not found.",
+                fieldErrors: createFieldErrors("riderId", "Selected rider was not found."),
+            };
+        }
+    }
+
+    const township = await findTownshipById(input.recipientTownshipId);
+
+    if (!township?.isActive) {
+        return {
+            ok: false as const,
+            message: "Selected recipient township was not found.",
+            fieldErrors: createFieldErrors(
+                "recipientTownshipId",
+                "Selected recipient township was not found.",
+            ),
+        };
+    }
+
+    for (const [rowIndex, row] of input.parcelRows.entries()) {
+        const paymentPlanGuard = validateDeliveryFeePaymentPlan({
+            parcelType: row.parcelType,
+            deliveryFeePayer: input.deliveryFeePayer,
+            deliveryFeePaymentPlan: input.deliveryFeePaymentPlan,
+            requireRecordedPlan: true,
+        });
+
+        if (!paymentPlanGuard.ok) {
+            return {
+                ok: false as const,
+                message: paymentPlanGuard.message,
+                fieldErrors:
+                    input.deliveryFeePaymentPlan === "merchant_deduct_from_cod_settlement"
+                        ? createFieldErrors(
+                              `parcelRows[${rowIndex}].parcelType`,
+                              "Deduct from COD settlement requires a COD parcel.",
+                          )
+                        : paymentPlanGuard.fieldErrors,
+            };
+        }
+    }
+
+    return { ok: true as const };
+}
+
+export function validateImmutablePackageCount(input: {
+    currentPackageCount: number;
+    submittedPackageCount: number;
+}) {
+    if (input.submittedPackageCount === input.currentPackageCount) {
+        return { ok: true as const };
+    }
+
+    return {
+        ok: false as const,
+        message: "Package count cannot be changed after parcel creation.",
+        fieldErrors: createFieldErrors(
+            "packageCount",
+            "Package count cannot be changed after parcel creation.",
+        ),
+    };
 }

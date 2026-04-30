@@ -478,6 +478,7 @@ async function findParcelDetailRowById(parcelId: string) {
             packageCount: parcels.packageCount,
             specialHandlingNote: parcels.specialHandlingNote,
             estimatedWeightKg: parcels.estimatedWeightKg,
+            isLargeItem: parcels.isLargeItem,
             packageWidthCm: parcels.packageWidthCm,
             packageHeightCm: parcels.packageHeightCm,
             packageLengthCm: parcels.packageLengthCm,
@@ -656,6 +657,61 @@ export async function createParcelWithPaymentAndAudit(input: {
     return created;
 }
 
+export async function createParcelsWithPaymentsAndAudit(input: {
+    actorAppUserId: string;
+    items: Array<{
+        parcelValues: CreateParcelInsertInput;
+        paymentValues: CreatePaymentInsertInput;
+    }>;
+}) {
+    const created = await db.transaction(async (tx) => {
+        const results: Array<{ parcelId: string; paymentRecordId: string }> = [];
+
+        for (const item of input.items) {
+            const [parcel] = await tx
+                .insert(parcels)
+                .values({
+                    ...item.parcelValues,
+                })
+                .returning({ id: parcels.id });
+
+            const [payment] = await tx
+                .insert(parcelPaymentRecords)
+                .values({
+                    parcelId: parcel.id,
+                    ...item.paymentValues,
+                })
+                .returning({ id: parcelPaymentRecords.id });
+
+            const parcelAuditPayload: AuditLogInsertInput = {
+                parcelId: parcel.id,
+                updatedBy: input.actorAppUserId,
+                sourceTable: "parcels",
+                event: "parcel.create",
+                oldValues: null,
+                newValues: item.parcelValues,
+            };
+            const paymentAuditPayload: AuditLogInsertInput = {
+                parcelId: parcel.id,
+                updatedBy: input.actorAppUserId,
+                sourceTable: "parcel_payment_records",
+                event: "parcel_payment_record.create",
+                oldValues: null,
+                newValues: item.paymentValues,
+            };
+
+            await tx.insert(parcelAuditLogs).values([parcelAuditPayload, paymentAuditPayload]);
+            await reconcileMerchantFinancialItemsForParcelWithClient(tx, parcel.id);
+
+            results.push({ parcelId: parcel.id, paymentRecordId: payment.id });
+        }
+
+        return results;
+    });
+
+    return created;
+}
+
 async function findParcelUpdateContextById(
     parcelId: string,
 ): Promise<ParcelUpdateContextDto | null> {
@@ -673,6 +729,7 @@ async function findParcelUpdateContextById(
             packageCount: parcels.packageCount,
             specialHandlingNote: parcels.specialHandlingNote,
             estimatedWeightKg: parcels.estimatedWeightKg,
+            isLargeItem: parcels.isLargeItem,
             packageWidthCm: parcels.packageWidthCm,
             packageHeightCm: parcels.packageHeightCm,
             packageLengthCm: parcels.packageLengthCm,

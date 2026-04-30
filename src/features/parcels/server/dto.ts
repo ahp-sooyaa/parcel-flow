@@ -83,9 +83,10 @@ export type ParcelDetailDto = {
     packageCount: number;
     specialHandlingNote: string | null;
     estimatedWeightKg: string | null;
-    packageWidthCm: string | null;
-    packageHeightCm: string | null;
-    packageLengthCm: string | null;
+    isLargeItem: boolean;
+    packageWidthCm: string;
+    packageHeightCm: string;
+    packageLengthCm: string;
     parcelType: (typeof PARCEL_TYPES)[number];
     codAmount: string;
     deliveryFee: string;
@@ -121,9 +122,10 @@ export type RiderParcelDetailDto = {
     packageCount: number;
     specialHandlingNote: string | null;
     estimatedWeightKg: string | null;
-    packageWidthCm: string | null;
-    packageHeightCm: string | null;
-    packageLengthCm: string | null;
+    isLargeItem: boolean;
+    packageWidthCm: string;
+    packageHeightCm: string;
+    packageLengthCm: string;
     parcelType: (typeof PARCEL_TYPES)[number];
     parcelStatus: (typeof PARCEL_STATUSES)[number];
     codAmount: string;
@@ -316,9 +318,10 @@ export function toParcelDetailDto(input: {
     packageCount: number;
     specialHandlingNote: string | null;
     estimatedWeightKg: string | null;
-    packageWidthCm: string | null;
-    packageHeightCm: string | null;
-    packageLengthCm: string | null;
+    isLargeItem: boolean;
+    packageWidthCm: string;
+    packageHeightCm: string;
+    packageLengthCm: string;
     parcelType: (typeof PARCEL_TYPES)[number];
     codAmount: string;
     deliveryFee: string;
@@ -356,6 +359,7 @@ export function toParcelDetailDto(input: {
         packageCount: input.packageCount,
         specialHandlingNote: input.specialHandlingNote,
         estimatedWeightKg: input.estimatedWeightKg,
+        isLargeItem: input.isLargeItem,
         packageWidthCm: input.packageWidthCm,
         packageHeightCm: input.packageHeightCm,
         packageLengthCm: input.packageLengthCm,
@@ -403,6 +407,7 @@ export function toRiderParcelDetailDto(
         | "packageCount"
         | "specialHandlingNote"
         | "estimatedWeightKg"
+        | "isLargeItem"
         | "packageWidthCm"
         | "packageHeightCm"
         | "packageLengthCm"
@@ -431,6 +436,7 @@ export function toRiderParcelDetailDto(
         packageCount: input.packageCount,
         specialHandlingNote: input.specialHandlingNote,
         estimatedWeightKg: input.estimatedWeightKg,
+        isLargeItem: input.isLargeItem,
         packageWidthCm: input.packageWidthCm,
         packageHeightCm: input.packageHeightCm,
         packageLengthCm: input.packageLengthCm,
@@ -459,9 +465,10 @@ export function toParcelUpdateContextDto(input: {
     packageCount: number;
     specialHandlingNote: string | null;
     estimatedWeightKg: string | null;
-    packageWidthCm: string | null;
-    packageHeightCm: string | null;
-    packageLengthCm: string | null;
+    isLargeItem: boolean;
+    packageWidthCm: string;
+    packageHeightCm: string;
+    packageLengthCm: string;
     pickupImageKeys: string[] | null;
     proofOfDeliveryImageKeys: string[] | null;
     parcelType: (typeof PARCEL_TYPES)[number];
@@ -496,6 +503,7 @@ export function toParcelUpdateContextDto(input: {
             packageCount: input.packageCount,
             specialHandlingNote: input.specialHandlingNote,
             estimatedWeightKg: input.estimatedWeightKg,
+            isLargeItem: input.isLargeItem,
             packageWidthCm: input.packageWidthCm,
             packageHeightCm: input.packageHeightCm,
             packageLengthCm: input.packageLengthCm,

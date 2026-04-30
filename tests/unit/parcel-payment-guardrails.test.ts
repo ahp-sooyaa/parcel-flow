@@ -12,14 +12,18 @@ import { toParcelListItemDto } from "../../src/features/parcels/server/dto";
 import { validateParcelPaymentState } from "../../src/features/parcels/server/payment-guardrails";
 import {
     adminCorrectParcelStateSchema,
+    buildParcelWriteValues,
+    createParcelBatchSchema,
     createParcelSchema,
     getDeliveryFeeResolutionOptions,
     getOfficeParcelMovementActions,
     getParcelOperationSummary,
+    parseCreateParcelFormData,
     updateParcelDetailSchema,
     validateCreateParcelMedia,
     validateDeliveryFeePaymentPlan,
     validateDeliveryFeeStatusForParcel,
+    validateImmutablePackageCount,
     validateParcelStatusProofImages,
     validatePaymentSlipImagesForPlan,
 } from "../../src/features/parcels/server/utils";
@@ -404,7 +408,8 @@ describe("delivery fee payment plan guardrails", () => {
             parcelDescription: "Box",
             packageCount: "1",
             specialHandlingNote: "",
-            estimatedWeightKg: "",
+            estimatedWeightKg: "1.25",
+            isLargeItem: "false",
             packageWidthCm: "",
             packageHeightCm: "",
             packageLengthCm: "",
@@ -428,7 +433,8 @@ describe("delivery fee payment plan guardrails", () => {
             parcelDescription: "Box",
             packageCount: "1",
             specialHandlingNote: "",
-            estimatedWeightKg: "",
+            estimatedWeightKg: "1.25",
+            isLargeItem: "false",
             packageWidthCm: "",
             packageHeightCm: "",
             packageLengthCm: "",
@@ -446,6 +452,370 @@ describe("delivery fee payment plan guardrails", () => {
         }
     });
 
+    it("parses repeated parcel rows from create form data", () => {
+        const formData = new FormData();
+
+        formData.set("merchantId", "00000000-0000-0000-0000-000000000002");
+        formData.set("riderId", "");
+        formData.set("recipientName", "Receiver");
+        formData.set("recipientPhone", "09123456");
+        formData.set("recipientTownshipId", "00000000-0000-0000-0000-000000000003");
+        formData.set("recipientAddress", "Yangon");
+        formData.set("deliveryFeePayer", "merchant");
+        formData.set("deliveryFeePaymentPlan", "merchant_cash_on_pickup");
+        formData.set("paymentNote", "Handle together");
+        formData.set("parcelRows[0].parcelDescription", "Shirt");
+        formData.set("parcelRows[0].packageCount", "1");
+        formData.set("parcelRows[0].specialHandlingNote", "");
+        formData.set("parcelRows[0].estimatedWeightKg", "0.75");
+        formData.set("parcelRows[0].isLargeItem", "false");
+        formData.set("parcelRows[0].packageWidthCm", "");
+        formData.set("parcelRows[0].packageHeightCm", "");
+        formData.set("parcelRows[0].packageLengthCm", "");
+        formData.set("parcelRows[0].parcelType", "cod");
+        formData.set("parcelRows[0].codAmount", "12000");
+        formData.set("parcelRows[0].deliveryFee", "1500");
+        formData.set("parcelRows[1].parcelDescription", "Shoes");
+        formData.set("parcelRows[1].packageCount", "2");
+        formData.set("parcelRows[1].specialHandlingNote", "");
+        formData.set("parcelRows[1].isLargeItem", "true");
+        formData.set("parcelRows[1].estimatedWeightKg", "1.5");
+        formData.set("parcelRows[1].packageWidthCm", "20");
+        formData.set("parcelRows[1].packageHeightCm", "15");
+        formData.set("parcelRows[1].packageLengthCm", "30");
+        formData.set("parcelRows[1].parcelType", "non_cod");
+        formData.set("parcelRows[1].codAmount", "0");
+        formData.set("parcelRows[1].deliveryFee", "1500");
+
+        const parsed = parseCreateParcelFormData(formData);
+
+        expect(parsed.ok).toBe(true);
+
+        if (parsed.ok) {
+            expect(parsed.data.parcelRows).toHaveLength(2);
+            expect(parsed.data.parcelRows[0]).toMatchObject({
+                parcelDescription: "Shirt",
+                packageCount: 1,
+                isLargeItem: false,
+                parcelType: "cod",
+                codAmount: 12000,
+                deliveryFee: 1500,
+            });
+            expect(parsed.data.parcelRows[1]).toMatchObject({
+                parcelDescription: "Shoes",
+                packageCount: 2,
+                isLargeItem: true,
+                packageWidthCm: 20,
+                packageHeightCm: 15,
+                packageLengthCm: 30,
+                parcelType: "non_cod",
+                codAmount: 0,
+                deliveryFee: 1500,
+            });
+            expect(parsed.fields["parcelRows[1].parcelDescription"]).toBe("Shoes");
+        }
+    });
+
+    it("requires at least one parcel row in batch create data", () => {
+        const formData = new FormData();
+
+        formData.set("merchantId", "00000000-0000-0000-0000-000000000002");
+        formData.set("riderId", "");
+        formData.set("recipientName", "Receiver");
+        formData.set("recipientPhone", "09123456");
+        formData.set("recipientTownshipId", "00000000-0000-0000-0000-000000000003");
+        formData.set("recipientAddress", "Yangon");
+        formData.set("deliveryFeePayer", "receiver");
+        formData.set("deliveryFeePaymentPlan", "receiver_collect_on_delivery");
+        formData.set("paymentNote", "");
+
+        const parsed = parseCreateParcelFormData(formData);
+
+        expect(parsed.ok).toBe(false);
+
+        if (!parsed.ok) {
+            expect(parsed.fieldErrors).toMatchObject({
+                parcelRows: ["Add at least one parcel row."],
+            });
+        }
+    });
+
+    it("allows mixed parcel rows when the shared payment plan supports them", () => {
+        const parsed = createParcelBatchSchema.safeParse({
+            merchantId: "00000000-0000-0000-0000-000000000002",
+            riderId: null,
+            recipientName: "Receiver",
+            recipientPhone: "09123456",
+            recipientTownshipId: "00000000-0000-0000-0000-000000000003",
+            recipientAddress: "Yangon",
+            deliveryFeePayer: "merchant",
+            deliveryFeePaymentPlan: "merchant_cash_on_pickup",
+            paymentNote: null,
+            parcelRows: [
+                {
+                    parcelDescription: "Shirt",
+                    packageCount: 1,
+                    specialHandlingNote: null,
+                    estimatedWeightKg: 0.75,
+                    isLargeItem: false,
+                    packageWidthCm: null,
+                    packageHeightCm: null,
+                    packageLengthCm: null,
+                    parcelType: "cod",
+                    codAmount: 12000,
+                    deliveryFee: 1500,
+                },
+                {
+                    parcelDescription: "Shoes",
+                    packageCount: 2,
+                    specialHandlingNote: null,
+                    estimatedWeightKg: 1.5,
+                    isLargeItem: false,
+                    packageWidthCm: null,
+                    packageHeightCm: null,
+                    packageLengthCm: null,
+                    parcelType: "non_cod",
+                    codAmount: 0,
+                    deliveryFee: 1500,
+                },
+            ],
+        });
+
+        expect(parsed.success).toBe(true);
+    });
+
+    it("rejects create batches whose total expanded parcel count exceeds the limit", () => {
+        const parsed = createParcelBatchSchema.safeParse({
+            merchantId: "00000000-0000-0000-0000-000000000002",
+            riderId: null,
+            recipientName: "Receiver",
+            recipientPhone: "09123456",
+            recipientTownshipId: "00000000-0000-0000-0000-000000000003",
+            recipientAddress: "Yangon",
+            deliveryFeePayer: "merchant",
+            deliveryFeePaymentPlan: "merchant_cash_on_pickup",
+            paymentNote: null,
+            parcelRows: [
+                {
+                    parcelDescription: "Shirt",
+                    packageCount: 20,
+                    specialHandlingNote: null,
+                    estimatedWeightKg: 0.75,
+                    isLargeItem: false,
+                    packageWidthCm: null,
+                    packageHeightCm: null,
+                    packageLengthCm: null,
+                    parcelType: "cod",
+                    codAmount: 12000,
+                    deliveryFee: 1500,
+                },
+                {
+                    parcelDescription: "Shoes",
+                    packageCount: 1,
+                    specialHandlingNote: null,
+                    estimatedWeightKg: 1.5,
+                    isLargeItem: false,
+                    packageWidthCm: null,
+                    packageHeightCm: null,
+                    packageLengthCm: null,
+                    parcelType: "non_cod",
+                    codAmount: 0,
+                    deliveryFee: 1500,
+                },
+            ],
+        });
+
+        expect(parsed.success).toBe(false);
+
+        if (!parsed.success) {
+            expect(parsed.error.issues).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        path: ["parcelRows"],
+                        message:
+                            "You can create up to 20 parcels at once. Reduce the package counts.",
+                    }),
+                ]),
+            );
+        }
+    });
+
+    it("rejects non-cod rows for deduct-from-settlement batches", () => {
+        const parsed = createParcelBatchSchema.safeParse({
+            merchantId: "00000000-0000-0000-0000-000000000002",
+            riderId: null,
+            recipientName: "Receiver",
+            recipientPhone: "09123456",
+            recipientTownshipId: "00000000-0000-0000-0000-000000000003",
+            recipientAddress: "Yangon",
+            deliveryFeePayer: "merchant",
+            deliveryFeePaymentPlan: "merchant_deduct_from_cod_settlement",
+            paymentNote: null,
+            parcelRows: [
+                {
+                    parcelDescription: "Shirt",
+                    packageCount: 1,
+                    specialHandlingNote: null,
+                    estimatedWeightKg: 0.75,
+                    isLargeItem: false,
+                    packageWidthCm: null,
+                    packageHeightCm: null,
+                    packageLengthCm: null,
+                    parcelType: "cod",
+                    codAmount: 12000,
+                    deliveryFee: 1500,
+                },
+                {
+                    parcelDescription: "Shoes",
+                    packageCount: 2,
+                    specialHandlingNote: null,
+                    estimatedWeightKg: 1.5,
+                    isLargeItem: false,
+                    packageWidthCm: null,
+                    packageHeightCm: null,
+                    packageLengthCm: null,
+                    parcelType: "non_cod",
+                    codAmount: 0,
+                    deliveryFee: 1500,
+                },
+            ],
+        });
+
+        expect(parsed.success).toBe(false);
+
+        if (!parsed.success) {
+            expect(parsed.error.issues).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        path: ["parcelRows", 1, "parcelType"],
+                        message: "Deduct from COD settlement requires a COD parcel.",
+                    }),
+                ]),
+            );
+        }
+    });
+
+    it("normalizes non-cod row cod amount to zero when building write values", () => {
+        const parsed = createParcelSchema.parse({
+            merchantId: "00000000-0000-0000-0000-000000000002",
+            riderId: "",
+            recipientName: "Receiver",
+            recipientPhone: "09123456",
+            recipientTownshipId: "00000000-0000-0000-0000-000000000003",
+            recipientAddress: "Yangon",
+            parcelDescription: "Shoes",
+            packageCount: "1",
+            specialHandlingNote: "",
+            estimatedWeightKg: "1.5",
+            isLargeItem: "false",
+            packageWidthCm: "22",
+            packageHeightCm: "18",
+            packageLengthCm: "30",
+            parcelType: "non_cod",
+            codAmount: "9999",
+            deliveryFee: "1500",
+            deliveryFeePayer: "receiver",
+            deliveryFeePaymentPlan: "receiver_collect_on_delivery",
+            paymentNote: "",
+        });
+
+        const values = buildParcelWriteValues({
+            data: parsed,
+            merchantId: parsed.merchantId,
+            riderId: parsed.riderId,
+            totalAmountToCollect: 1500,
+            deliveryFeePaymentPlan: parsed.deliveryFeePaymentPlan,
+            parcelStatus: "pending",
+            pickupImageKeys: [],
+            proofOfDeliveryImageKeys: [],
+        });
+
+        expect(values.codAmount).toBe("0.00");
+        expect(values.isLargeItem).toBe(false);
+        expect(values.packageLengthCm).toBe("1.00");
+        expect(values.packageWidthCm).toBe("1.00");
+        expect(values.packageHeightCm).toBe("1.00");
+    });
+
+    it("rejects blank or zero delivery fee, cod amount, and actual weight", () => {
+        expect(
+            createParcelSchema.safeParse({
+                merchantId: "00000000-0000-0000-0000-000000000002",
+                riderId: "",
+                recipientName: "Receiver",
+                recipientPhone: "09123456",
+                recipientTownshipId: "00000000-0000-0000-0000-000000000003",
+                recipientAddress: "Yangon",
+                parcelDescription: "Box",
+                packageCount: "1",
+                specialHandlingNote: "",
+                estimatedWeightKg: "",
+                isLargeItem: "false",
+                packageWidthCm: "",
+                packageHeightCm: "",
+                packageLengthCm: "",
+                parcelType: "cod",
+                codAmount: "0",
+                deliveryFee: "0",
+                deliveryFeePayer: "receiver",
+                deliveryFeePaymentPlan: "receiver_collect_on_delivery",
+                paymentNote: "",
+            }).success,
+        ).toBe(false);
+    });
+
+    it("requires dimensions only for large items", () => {
+        expect(
+            createParcelSchema.safeParse({
+                merchantId: "00000000-0000-0000-0000-000000000002",
+                riderId: "",
+                recipientName: "Receiver",
+                recipientPhone: "09123456",
+                recipientTownshipId: "00000000-0000-0000-0000-000000000003",
+                recipientAddress: "Yangon",
+                parcelDescription: "Box",
+                packageCount: "1",
+                specialHandlingNote: "",
+                estimatedWeightKg: "1.25",
+                isLargeItem: "true",
+                packageWidthCm: "",
+                packageHeightCm: "",
+                packageLengthCm: "",
+                parcelType: "cod",
+                codAmount: "10000",
+                deliveryFee: "1000",
+                deliveryFeePayer: "receiver",
+                deliveryFeePaymentPlan: "receiver_collect_on_delivery",
+                paymentNote: "",
+            }).success,
+        ).toBe(false);
+
+        expect(
+            createParcelSchema.safeParse({
+                merchantId: "00000000-0000-0000-0000-000000000002",
+                riderId: "",
+                recipientName: "Receiver",
+                recipientPhone: "09123456",
+                recipientTownshipId: "00000000-0000-0000-0000-000000000003",
+                recipientAddress: "Yangon",
+                parcelDescription: "Box",
+                packageCount: "1",
+                specialHandlingNote: "",
+                estimatedWeightKg: "1.25",
+                isLargeItem: "false",
+                packageWidthCm: "",
+                packageHeightCm: "",
+                packageLengthCm: "",
+                parcelType: "cod",
+                codAmount: "10000",
+                deliveryFee: "1000",
+                deliveryFeePayer: "receiver",
+                deliveryFeePaymentPlan: "receiver_collect_on_delivery",
+                paymentNote: "",
+            }).success,
+        ).toBe(true);
+    });
+
     it("allows payment slips only for prepaid bank transfer", () => {
         const imageFile = {} as File;
 
@@ -457,6 +827,17 @@ describe("delivery fee payment plan guardrails", () => {
         ).toEqual({ ok: true });
         expect(
             validatePaymentSlipImagesForPlan({
+                deliveryFeePaymentPlan: "merchant_prepaid_bank_transfer",
+                paymentSlipImages: [],
+            }),
+        ).toMatchObject({
+            ok: false,
+            fieldErrors: {
+                paymentSlipImages: ["Upload at least one payment slip for prepaid bank transfer."],
+            },
+        });
+        expect(
+            validatePaymentSlipImagesForPlan({
                 deliveryFeePaymentPlan: "merchant_cash_on_pickup",
                 paymentSlipImages: [imageFile],
             }),
@@ -466,6 +847,13 @@ describe("delivery fee payment plan guardrails", () => {
                 paymentSlipImages: ["Payment slips are only allowed for prepaid bank transfer."],
             },
         });
+        expect(
+            validatePaymentSlipImagesForPlan({
+                deliveryFeePaymentPlan: "merchant_prepaid_bank_transfer",
+                paymentSlipImages: [],
+                existingPaymentSlipImageCount: 1,
+            }),
+        ).toEqual({ ok: true });
     });
 
     it("rejects pickup and proof images during parcel create", () => {
@@ -475,6 +863,18 @@ describe("delivery fee payment plan guardrails", () => {
             proofOfDeliveryImages: [],
             paymentSlipImages: [],
         };
+
+        expect(
+            validateCreateParcelMedia({
+                deliveryFeePaymentPlan: "merchant_prepaid_bank_transfer",
+                files: emptyFiles,
+            }),
+        ).toMatchObject({
+            ok: false,
+            fieldErrors: {
+                paymentSlipImages: ["Upload at least one payment slip for prepaid bank transfer."],
+            },
+        });
 
         expect(
             validateCreateParcelMedia({
@@ -960,7 +1360,8 @@ describe("parcel operation helpers", () => {
             parcelDescription: "Box",
             packageCount: "1",
             specialHandlingNote: "",
-            estimatedWeightKg: "",
+            estimatedWeightKg: "1.25",
+            isLargeItem: "false",
             packageWidthCm: "",
             packageHeightCm: "",
             packageLengthCm: "",
@@ -986,6 +1387,30 @@ describe("parcel operation helpers", () => {
             expect("collectionStatus" in parsed.data).toBe(false);
             expect("collectedAmount" in parsed.data).toBe(false);
         }
+    });
+
+    it("rejects attempts to change a saved parcel package count", () => {
+        expect(
+            validateImmutablePackageCount({
+                currentPackageCount: 1,
+                submittedPackageCount: 2,
+            }),
+        ).toMatchObject({
+            ok: false,
+            message: "Package count cannot be changed after parcel creation.",
+            fieldErrors: {
+                packageCount: ["Package count cannot be changed after parcel creation."],
+            },
+        });
+    });
+
+    it("allows updates when the saved parcel package count is unchanged", () => {
+        expect(
+            validateImmutablePackageCount({
+                currentPackageCount: 2,
+                submittedPackageCount: 2,
+            }),
+        ).toEqual({ ok: true });
     });
 
     it("normalizes legacy non-COD payment display state", () => {

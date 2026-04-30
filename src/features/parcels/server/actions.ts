@@ -2,10 +2,12 @@
 
 import "server-only";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { randomUUID } from "node:crypto";
 import {
     buildParcelPatch,
     buildPaymentPatch,
-    createParcelWithPaymentAndAudit,
+    createParcelsWithPaymentsAndAudit,
     getParcelUpdateContextForViewer,
     isParcelCodeInUse,
     updateParcelAndPaymentWithAudit,
@@ -31,7 +33,9 @@ import {
     resolveParcelDeliveryFeeSchema,
     uploadParcelMediaFiles,
     validateCreateParcelMedia,
+    validateCreateParcelBatchSubmission,
     validateDeliveryFeeStatusForParcel,
+    validateImmutablePackageCount,
     validateParcelImageAppendLimits,
     validateParcelPaymentState,
     validateParcelStatusProofImages,
@@ -56,12 +60,24 @@ import type {
     UpdateParcelActionResult,
 } from "./dto";
 
-async function generateUniqueParcelCode(maxAttempts = 10) {
+async function generateUniqueParcelCode(input?: {
+    maxAttempts?: number;
+    reservedCodes?: Set<string>;
+}) {
+    const maxAttempts = input?.maxAttempts ?? 10;
+
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         const code = generateParcelCode();
+
+        if (input?.reservedCodes?.has(code)) {
+            continue;
+        }
+
         const alreadyUsed = await isParcelCodeInUse(code);
 
-        if (!alreadyUsed) {
+        // Another row in the same batch can reserve this code while we're awaiting the DB check.
+        if (!alreadyUsed && !input?.reservedCodes?.has(code)) {
+            input?.reservedCodes?.add(code);
             return code;
         }
     }
@@ -70,13 +86,23 @@ async function generateUniqueParcelCode(maxAttempts = 10) {
 }
 
 function revalidateParcelPaths(input: {
-    parcelId: string;
+    parcelId?: string;
+    parcelIds?: string[];
     merchantIds?: Array<string | null | undefined>;
     riderIds?: Array<string | null | undefined>;
 }) {
     revalidatePath("/dashboard/parcels");
-    revalidatePath(`/dashboard/parcels/${input.parcelId}`);
-    revalidatePath(`/dashboard/parcels/${input.parcelId}/edit`);
+
+    const parcelIds = new Set(
+        [input.parcelId, ...(input.parcelIds ?? [])].filter((parcelId): parcelId is string =>
+            Boolean(parcelId),
+        ),
+    );
+
+    for (const parcelId of parcelIds) {
+        revalidatePath(`/dashboard/parcels/${parcelId}`);
+        revalidatePath(`/dashboard/parcels/${parcelId}/edit`);
+    }
 
     const merchantIds = new Set(
         (input.merchantIds ?? []).filter((merchantId): merchantId is string => Boolean(merchantId)),
@@ -268,6 +294,7 @@ export async function createParcelAction(
     formData: FormData,
 ): Promise<CreateParcelActionResult> {
     let submittedFields: Record<string, string> = {};
+    let successRedirectPath: string | null = null;
 
     try {
         const currentUser = await requirePermission("parcel.create");
@@ -307,19 +334,13 @@ export async function createParcelAction(
             return { ok: false, message: createAuthorization.message, fields: submittedFields };
         }
 
-        const createCodStatus = getDefaultCreateCodStatus(parsed.data.parcelType);
-        const createCollectionStatus = getDefaultCreateCollectionStatus(parsed.data.parcelType);
-
-        const submissionGuard = await validateParcelSubmission({
+        const submissionGuard = await validateCreateParcelBatchSubmission({
             merchantId: createAuthorization.merchantId,
             riderId: parsed.data.riderId,
             recipientTownshipId: parsed.data.recipientTownshipId,
-            parcelType: parsed.data.parcelType,
-            codAmount: parsed.data.codAmount,
-            deliveryFee: parsed.data.deliveryFee,
             deliveryFeePayer: parsed.data.deliveryFeePayer,
             deliveryFeePaymentPlan: parsed.data.deliveryFeePaymentPlan,
-            codStatus: createCodStatus,
+            parcelRows: parsed.data.parcelRows,
         });
 
         if (!submissionGuard.ok) {
@@ -350,62 +371,84 @@ export async function createParcelAction(
             };
         }
 
-        const parcelCode = await generateUniqueParcelCode();
-
-        const totalAmountToCollect = computeTotalAmountToCollect({
-            parcelType: parsed.data.parcelType,
-            codAmount: parsed.data.codAmount,
-            deliveryFee: parsed.data.deliveryFee,
-            deliveryFeePayer: parsed.data.deliveryFeePayer,
-        });
+        const batchUploadScope = `batch-${randomUUID()}`;
         const uploadedMedia = await uploadParcelMediaFiles({
-            parcelCode,
+            scope: batchUploadScope,
             files: parsed.files,
         });
+        const reservedParcelCodes = new Set<string>();
+        const { parcelRows, ...sharedFields } = parsed.data;
+        const createItems = await Promise.all(
+            parcelRows.flatMap((row) =>
+                Array.from({ length: row.packageCount }, async () => {
+                    const parcelCode = await generateUniqueParcelCode({
+                        reservedCodes: reservedParcelCodes,
+                    });
+                    const parcelData = { ...sharedFields, ...row, packageCount: 1 };
+                    const createCodStatus = getDefaultCreateCodStatus(row.parcelType);
+                    const createCollectionStatus = getDefaultCreateCollectionStatus(row.parcelType);
+                    const totalAmountToCollect = computeTotalAmountToCollect({
+                        parcelType: row.parcelType,
+                        codAmount: row.codAmount,
+                        deliveryFee: row.deliveryFee,
+                        deliveryFeePayer: sharedFields.deliveryFeePayer,
+                    });
 
-        const created = await createParcelWithPaymentAndAudit({
-            actorAppUserId: currentUser.appUserId,
-            parcelValues: {
-                parcelCode,
-                ...buildParcelWriteValues({
-                    data: parsed.data,
-                    merchantId: createAuthorization.merchantId,
-                    riderId: parsed.data.riderId,
-                    totalAmountToCollect,
-                    deliveryFeePaymentPlan: parsed.data.deliveryFeePaymentPlan,
-                    parcelStatus: DEFAULT_CREATE_PARCEL_STATE.parcelStatus,
-                    pickupImageKeys: uploadedMedia.pickupImageKeys,
-                    proofOfDeliveryImageKeys: uploadedMedia.proofOfDeliveryImageKeys,
+                    return {
+                        parcelValues: {
+                            parcelCode,
+                            ...buildParcelWriteValues({
+                                data: parcelData,
+                                merchantId: createAuthorization.merchantId,
+                                riderId: sharedFields.riderId,
+                                totalAmountToCollect,
+                                deliveryFeePaymentPlan: sharedFields.deliveryFeePaymentPlan,
+                                parcelStatus: DEFAULT_CREATE_PARCEL_STATE.parcelStatus,
+                                pickupImageKeys: uploadedMedia.pickupImageKeys,
+                                proofOfDeliveryImageKeys: uploadedMedia.proofOfDeliveryImageKeys,
+                            }),
+                        },
+                        paymentValues: buildParcelPaymentWriteValues({
+                            deliveryFeeStatus: DEFAULT_CREATE_PARCEL_STATE.deliveryFeeStatus,
+                            codStatus: createCodStatus,
+                            collectedAmount: 0,
+                            collectionStatus: createCollectionStatus,
+                            merchantSettlementStatus:
+                                DEFAULT_CREATE_PARCEL_STATE.merchantSettlementStatus,
+                            riderPayoutStatus: DEFAULT_CREATE_PARCEL_STATE.riderPayoutStatus,
+                            paymentNote: sharedFields.paymentNote,
+                            paymentSlipImageKeys: uploadedMedia.paymentSlipImageKeys,
+                        }),
+                    };
                 }),
-            },
-            paymentValues: buildParcelPaymentWriteValues({
-                deliveryFeeStatus: DEFAULT_CREATE_PARCEL_STATE.deliveryFeeStatus,
-                codStatus: createCodStatus,
-                collectedAmount: 0,
-                collectionStatus: createCollectionStatus,
-                merchantSettlementStatus: DEFAULT_CREATE_PARCEL_STATE.merchantSettlementStatus,
-                riderPayoutStatus: DEFAULT_CREATE_PARCEL_STATE.riderPayoutStatus,
-                paymentNote: parsed.data.paymentNote,
-                paymentSlipImageKeys: uploadedMedia.paymentSlipImageKeys,
-            }),
+            ),
+        );
+        const created = await createParcelsWithPaymentsAndAudit({
+            actorAppUserId: currentUser.appUserId,
+            items: createItems,
         });
 
         revalidateParcelPaths({
-            parcelId: created.parcelId,
+            parcelIds: created.map((item) => item.parcelId),
             merchantIds: [createAuthorization.merchantId],
             riderIds: [parsed.data.riderId],
         });
-
-        return {
-            ok: true,
-            message: "Parcel created successfully.",
-            parcelId: created.parcelId,
-        };
+        successRedirectPath = `/dashboard/parcels?created=${created.length}`;
     } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to create parcel.";
 
         return { ok: false, message, fields: submittedFields };
     }
+
+    if (successRedirectPath) {
+        redirect(successRedirectPath);
+    }
+
+    return {
+        ok: false,
+        message: "Unable to create parcel.",
+        fields: submittedFields,
+    };
 }
 
 export async function updateParcelAction(
@@ -439,9 +482,16 @@ export async function updateParcelAction(
             return merchantUploadGuard;
         }
 
+        const current = await getParcelUpdateContextForViewer(currentUser, parsed.data.parcelId);
+
+        if (!current) {
+            return { ok: false, message: "Parcel was not found.", fields: submittedFields };
+        }
+
         const paymentSlipPlanGuard = validatePaymentSlipImagesForPlan({
             deliveryFeePaymentPlan: parsed.data.deliveryFeePaymentPlan,
             paymentSlipImages: parsed.files.paymentSlipImages,
+            existingPaymentSlipImageCount: current.payment.paymentSlipImageKeys.length,
         });
 
         if (!paymentSlipPlanGuard.ok) {
@@ -451,12 +501,6 @@ export async function updateParcelAction(
                 fields: submittedFields,
                 fieldErrors: paymentSlipPlanGuard.fieldErrors,
             };
-        }
-
-        const current = await getParcelUpdateContextForViewer(currentUser, parsed.data.parcelId);
-
-        if (!current) {
-            return { ok: false, message: "Parcel was not found.", fields: submittedFields };
         }
 
         const appendLimitGuard = validateParcelImageAppendLimits({
@@ -499,6 +543,20 @@ export async function updateParcelAction(
                 ok: false,
                 message: "Merchant users can only manage parcels for their own merchant profile.",
                 fields: submittedFields,
+            };
+        }
+
+        const packageCountGuard = validateImmutablePackageCount({
+            currentPackageCount: current.parcel.packageCount,
+            submittedPackageCount: parsed.data.packageCount,
+        });
+
+        if (!packageCountGuard.ok) {
+            return {
+                ok: false,
+                message: packageCountGuard.message,
+                fields: submittedFields,
+                fieldErrors: packageCountGuard.fieldErrors,
             };
         }
 
@@ -579,7 +637,7 @@ export async function updateParcelAction(
             deliveryFeePayer: parsed.data.deliveryFeePayer,
         });
         const uploadedMedia = await uploadParcelMediaFiles({
-            parcelCode: current.parcel.parcelCode,
+            scope: current.parcel.parcelCode,
             files: parsed.files,
         });
 
@@ -1357,7 +1415,7 @@ export async function uploadRiderParcelImagesAction(
         }
 
         const uploadedMedia = await uploadParcelMediaFiles({
-            parcelCode: current.parcel.parcelCode,
+            scope: current.parcel.parcelCode,
             files: parsed.files,
         });
 

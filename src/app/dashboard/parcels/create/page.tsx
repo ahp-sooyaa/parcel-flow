@@ -13,7 +13,7 @@ export default async function CreateParcelPage() {
     });
 
     return (
-        <section className="mx-auto w-full max-w-3xl space-y-6 rounded-xl border bg-card p-6">
+        <section className="mx-auto w-full max-w-3xl space-y-6">
             <header className="space-y-1">
                 <h1 className="text-2xl font-semibold tracking-tight">Create Parcel</h1>
                 <p className="text-sm text-muted-foreground">
