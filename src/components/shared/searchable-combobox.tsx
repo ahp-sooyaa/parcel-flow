@@ -16,6 +16,7 @@ type SearchableComboboxProps = {
     name: string;
     value: string;
     onValueChange: (value: string) => void;
+    onInputValueChange?: (value: string) => void;
     placeholder: string;
     emptyLabel: string;
     disabled?: boolean;
@@ -31,6 +32,7 @@ export function SearchableCombobox({
     name,
     value,
     onValueChange,
+    onInputValueChange,
     placeholder,
     emptyLabel,
     disabled = false,
@@ -66,6 +68,7 @@ export function SearchableCombobox({
             }}
             onInputValueChange={(nextInputValue) => {
                 setInputValue(nextInputValue);
+                onInputValueChange?.(nextInputValue);
 
                 // Preserve the user's current search query when typing over an existing selection.
                 if (selectedOption && nextInputValue !== selectedOption.label) {
@@ -101,6 +104,7 @@ export function SearchableCombobox({
                         onClick={() => {
                             skipSelectedValueSyncRef.current = true;
                             setInputValue("");
+                            onInputValueChange?.("");
                             onValueChange("");
                         }}
                         disabled={disabled}

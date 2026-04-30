@@ -8,7 +8,8 @@ export type DashboardNavItemKey =
     | "parcels"
     | "settlements"
     | "townships"
-    | "delivery-pricing";
+    | "delivery-pricing"
+    | "address-book";
 
 export type DashboardNavItem = {
     key: DashboardNavItemKey;
@@ -61,6 +62,7 @@ const topLevelLabelByPath = {
     "/dashboard/settlements": "Settlements",
     "/dashboard/townships": "Townships",
     "/dashboard/delivery-pricing": "Delivery Pricing",
+    "/dashboard/address-book": "Address Book",
     "/dashboard/users": "Users",
 } as const satisfies Record<string, string>;
 
@@ -269,6 +271,11 @@ function resolveDashboardRoute({
         case "delivery-pricing":
             return {
                 label: "Delivery Pricing",
+                parentHref: null,
+            };
+        case "address-book":
+            return {
+                label: "Address Book",
                 parentHref: null,
             };
         default:

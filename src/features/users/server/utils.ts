@@ -17,9 +17,10 @@ export const createUserSchema = z.object({
     role: z.enum(ROLE_SLUGS),
     isActive: checkboxBoolean,
     merchantShopName: optionalNullableTrimmedString(120),
-    merchantPickupTownshipId: optionalNullableUuid(),
-    merchantDefaultPickupAddress: optionalNullableTrimmedString(255),
     merchantNotes: optionalNullableTrimmedString(1000),
+    primaryPickupLabel: optionalNullableTrimmedString(120),
+    primaryPickupTownshipId: optionalNullableUuid(),
+    primaryPickupAddress: optionalNullableTrimmedString(255),
     riderTownshipId: optionalNullableUuid(),
     riderVehicleType: optionalNullableTrimmedString(50),
     riderLicensePlate: optionalNullableTrimmedString(50),
@@ -70,10 +71,48 @@ export async function validateCreateUserInput(
         };
     }
 
+    if (input.role === "merchant") {
+        if (!input.primaryPickupLabel) {
+            return {
+                ok: false as const,
+                message: "Primary pickup location label is required for merchant users.",
+                fieldErrors: {
+                    primaryPickupLabel: [
+                        "Primary pickup location label is required for merchant users.",
+                    ],
+                },
+            };
+        }
+
+        if (!input.primaryPickupTownshipId) {
+            return {
+                ok: false as const,
+                message: "Primary pickup township is required for merchant users.",
+                fieldErrors: {
+                    primaryPickupTownshipId: [
+                        "Primary pickup township is required for merchant users.",
+                    ],
+                },
+            };
+        }
+
+        if (!input.primaryPickupAddress) {
+            return {
+                ok: false as const,
+                message: "Primary pickup address is required for merchant users.",
+                fieldErrors: {
+                    primaryPickupAddress: [
+                        "Primary pickup address is required for merchant users.",
+                    ],
+                },
+            };
+        }
+    }
+
     const townshipChecks = [
         {
-            townshipId: input.merchantPickupTownshipId,
-            message: "Selected merchant township was not found.",
+            townshipId: input.primaryPickupTownshipId,
+            message: "Selected primary pickup township was not found.",
         },
         {
             townshipId: input.riderTownshipId,
@@ -89,7 +128,18 @@ export async function validateCreateUserInput(
         const township = await findTownshipById(check.townshipId);
 
         if (!township?.isActive) {
-            return { ok: false as const, message: check.message };
+            return {
+                ok: false as const,
+                message: check.message,
+                fieldErrors:
+                    check.townshipId === input.primaryPickupTownshipId
+                        ? {
+                              primaryPickupTownshipId: [check.message],
+                          }
+                        : {
+                              riderTownshipId: [check.message],
+                          },
+            };
         }
     }
 

@@ -59,7 +59,11 @@ values
   ('merchant-settlement.cancel', 'Cancel merchant settlements'),
   ('delivery-pricing.view', 'View delivery pricing'),
   ('delivery-pricing.create', 'Create delivery pricing'),
-  ('delivery-pricing.update', 'Update delivery pricing');
+  ('delivery-pricing.update', 'Update delivery pricing'),
+  ('address-book.view', 'View address book'),
+  ('address-book.create', 'Create address book records'),
+  ('address-book.update', 'Update address book records'),
+  ('address-book.delete', 'Delete address book records');
 
 drop table if exists pg_temp.seed_office_admin_denied_permissions;
 create temporary table seed_office_admin_denied_permissions (
@@ -92,7 +96,11 @@ create temporary table seed_merchant_allowed_permissions (
 
 insert into seed_merchant_allowed_permissions (permission_slug)
 values
-  ('parcel.create');
+  ('parcel.create'),
+  ('address-book.view'),
+  ('address-book.create'),
+  ('address-book.update'),
+  ('address-book.delete');
 
 drop table if exists pg_temp.seed_essential_permissions;
 create temporary table seed_essential_permissions (

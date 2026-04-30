@@ -44,6 +44,8 @@ import {
 import type { ParcelListQuery, ParcelPaymentWriteValues, ParcelWriteValues } from "./utils";
 import type { AppAccessViewer } from "@/features/auth/server/dto";
 
+type ParcelWriteTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 const deliveryFeeStatusValue = sql<ParcelListItemDto["deliveryFeeStatus"]>`
     coalesce(${parcelPaymentRecords.deliveryFeeStatus}, 'unpaid')
 `;
@@ -469,6 +471,16 @@ async function findParcelDetailRowById(parcelId: string) {
             merchantLabel: merchants.shopName,
             riderId: parcels.riderId,
             riderLabel: appUsers.fullName,
+            pickupLocationId: parcels.pickupLocationId,
+            pickupLocationLabel: parcels.pickupLocationLabel,
+            pickupTownshipId: parcels.pickupTownshipId,
+            pickupTownshipName: sql<string | null>`(
+                select ${townships.name}
+                from ${townships}
+                where ${townships.id} = ${parcels.pickupTownshipId}
+                limit 1
+            )`,
+            pickupAddress: parcels.pickupAddress,
             recipientName: parcels.recipientName,
             recipientPhone: parcels.recipientPhone,
             recipientTownshipId: parcels.recipientTownshipId,
@@ -659,15 +671,28 @@ export async function createParcelWithPaymentAndAudit(input: {
 
 export async function createParcelsWithPaymentsAndAudit(input: {
     actorAppUserId: string;
-    items: Array<{
+    items?: Array<{
         parcelValues: CreateParcelInsertInput;
         paymentValues: CreatePaymentInsertInput;
     }>;
+    buildItems?: (tx: ParcelWriteTransaction) => Promise<
+        Array<{
+            parcelValues: CreateParcelInsertInput;
+            paymentValues: CreatePaymentInsertInput;
+        }>
+    >;
+    beforeCreate?: (tx: ParcelWriteTransaction) => Promise<void>;
 }) {
     const created = await db.transaction(async (tx) => {
         const results: Array<{ parcelId: string; paymentRecordId: string }> = [];
 
-        for (const item of input.items) {
+        if (input.beforeCreate) {
+            await input.beforeCreate(tx);
+        }
+
+        const items = input.buildItems ? await input.buildItems(tx) : (input.items ?? []);
+
+        for (const item of items) {
             const [parcel] = await tx
                 .insert(parcels)
                 .values({
@@ -721,6 +746,10 @@ async function findParcelUpdateContextById(
             parcelCode: parcels.parcelCode,
             merchantId: parcels.merchantId,
             riderId: parcels.riderId,
+            pickupLocationId: parcels.pickupLocationId,
+            pickupTownshipId: parcels.pickupTownshipId,
+            pickupLocationLabel: parcels.pickupLocationLabel,
+            pickupAddress: parcels.pickupAddress,
             recipientName: parcels.recipientName,
             recipientPhone: parcels.recipientPhone,
             recipientTownshipId: parcels.recipientTownshipId,
@@ -800,8 +829,13 @@ export async function updateParcelAndPaymentWithAudit(input: {
     parcelEvent: string;
     paymentEvent?: string;
     auditMetadata?: Record<string, unknown>;
+    beforeCommit?: (tx: ParcelWriteTransaction) => Promise<void>;
 }) {
     await db.transaction(async (tx) => {
+        if (input.beforeCommit) {
+            await input.beforeCommit(tx);
+        }
+
         if (Object.keys(input.parcelPatch).length > 0) {
             await tx
                 .update(parcels)

@@ -141,6 +141,18 @@ export default async function ParcelDetailPage({
                     <p>{parcel.riderLabel ?? "-"}</p>
                 </div>
                 <div className="grid gap-1">
+                    <p className="text-xs text-muted-foreground">Pickup Location</p>
+                    <p>{parcel.pickupLocationLabel ?? "-"}</p>
+                </div>
+                <div className="grid gap-1">
+                    <p className="text-xs text-muted-foreground">Pickup Township</p>
+                    <p>{parcel.pickupTownshipName ?? "-"}</p>
+                </div>
+                <div className="grid gap-1">
+                    <p className="text-xs text-muted-foreground">Pickup Address</p>
+                    <p>{parcel.pickupAddress ?? "-"}</p>
+                </div>
+                <div className="grid gap-1">
                     <p className="text-xs text-muted-foreground">Recipient</p>
                     <p>
                         {parcel.recipientName} ({parcel.recipientPhone})

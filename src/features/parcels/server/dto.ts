@@ -74,6 +74,11 @@ export type ParcelDetailDto = {
     merchantLabel: string;
     riderId: string | null;
     riderLabel: string | null;
+    pickupLocationId: string | null;
+    pickupLocationLabel: string | null;
+    pickupTownshipId: string | null;
+    pickupTownshipName: string | null;
+    pickupAddress: string | null;
     recipientName: string;
     recipientPhone: string;
     recipientTownshipId: string;
@@ -309,6 +314,11 @@ export function toParcelDetailDto(input: {
     merchantLabel: string;
     riderId: string | null;
     riderLabel: string | null;
+    pickupLocationId: string | null;
+    pickupLocationLabel: string | null;
+    pickupTownshipId: string | null;
+    pickupTownshipName: string | null;
+    pickupAddress: string | null;
     recipientName: string;
     recipientPhone: string;
     recipientTownshipId: string;
@@ -350,6 +360,11 @@ export function toParcelDetailDto(input: {
         merchantLabel: input.merchantLabel,
         riderId: input.riderId,
         riderLabel: input.riderLabel,
+        pickupLocationId: input.pickupLocationId,
+        pickupLocationLabel: input.pickupLocationLabel,
+        pickupTownshipId: input.pickupTownshipId,
+        pickupTownshipName: input.pickupTownshipName,
+        pickupAddress: input.pickupAddress,
         recipientName: input.recipientName,
         recipientPhone: input.recipientPhone,
         recipientTownshipId: input.recipientTownshipId,
@@ -457,6 +472,10 @@ export function toParcelUpdateContextDto(input: {
     parcelCode: string;
     merchantId: string;
     riderId: string | null;
+    pickupLocationId: string | null;
+    pickupTownshipId: string | null;
+    pickupLocationLabel: string | null;
+    pickupAddress: string | null;
     recipientName: string;
     recipientPhone: string;
     recipientTownshipId: string;
@@ -495,6 +514,10 @@ export function toParcelUpdateContextDto(input: {
             parcelCode: input.parcelCode,
             merchantId: input.merchantId,
             riderId: input.riderId,
+            pickupLocationId: input.pickupLocationId,
+            pickupTownshipId: input.pickupTownshipId,
+            pickupLocationLabel: input.pickupLocationLabel,
+            pickupAddress: input.pickupAddress,
             recipientName: input.recipientName,
             recipientPhone: input.recipientPhone,
             recipientTownshipId: input.recipientTownshipId,

@@ -133,7 +133,7 @@ export async function UserSettingsEditor({
         riderProfile = await getRiderProfileByAppUserIdForViewer(viewer, targetUserId);
     }
 
-    if (canEditMerchantDetails || canEditRiderDetails) {
+    if (canEditRiderDetails) {
         townships = await getTownshipOptions();
     }
 
@@ -256,8 +256,6 @@ export async function UserSettingsEditor({
                             merchant={{
                                 merchantId: merchantProfile.appUserId,
                                 shopName: merchantProfile.shopName,
-                                townshipId: merchantProfile.pickupTownshipId,
-                                defaultPickupAddress: merchantProfile.defaultPickupAddress,
                                 notes: merchantProfile.notes,
                             }}
                             contact={{
@@ -265,7 +263,6 @@ export async function UserSettingsEditor({
                                 email: accountUser.email,
                                 phoneNumber: accountUser.phoneNumber,
                             }}
-                            townships={townships}
                         />
                     </div>
                 )}

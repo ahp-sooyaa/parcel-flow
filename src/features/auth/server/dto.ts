@@ -32,7 +32,8 @@ export type DashboardShellUserDto = {
             | "parcels"
             | "settlements"
             | "townships"
-            | "delivery-pricing";
+            | "delivery-pricing"
+            | "address-book";
         href: string;
         label: string;
     }[];
@@ -123,6 +124,14 @@ export function toDashboardShellUserDto(input: {
             key: "delivery-pricing",
             href: "/dashboard/delivery-pricing",
             label: "Delivery Pricing",
+        });
+    }
+
+    if (input.permissions.includes("address-book.view")) {
+        navItems.push({
+            key: "address-book",
+            href: "/dashboard/address-book",
+            label: "Address Book",
         });
     }
 

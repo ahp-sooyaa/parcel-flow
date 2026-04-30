@@ -11,8 +11,6 @@ type EditMerchantFormProps = {
     merchant: {
         merchantId: string;
         shopName: string;
-        townshipId: string | null;
-        defaultPickupAddress: string | null;
         notes: string | null;
     };
     contact: {
@@ -20,10 +18,6 @@ type EditMerchantFormProps = {
         email: string;
         phoneNumber: string | null;
     };
-    townships: {
-        id: string;
-        name: string;
-    }[];
 };
 
 const initialState = {
@@ -31,24 +25,16 @@ const initialState = {
     message: "",
 };
 
-export function EditMerchantForm({
-    merchant,
-    contact,
-    townships,
-}: Readonly<EditMerchantFormProps>) {
+export function EditMerchantForm({ merchant, contact }: Readonly<EditMerchantFormProps>) {
     const [state, action, isPending] = useActionState(updateMerchantProfileAction, initialState);
     const [values, setValues] = useState({
         shopName: merchant.shopName,
-        pickupTownshipId: merchant.townshipId ?? "",
-        defaultPickupAddress: merchant.defaultPickupAddress ?? "",
         notes: merchant.notes ?? "",
     });
 
     useEffect(() => {
         setValues({
             shopName: merchant.shopName,
-            pickupTownshipId: merchant.townshipId ?? "",
-            defaultPickupAddress: merchant.defaultPickupAddress ?? "",
             notes: merchant.notes ?? "",
         });
     }, [merchant]);
@@ -90,44 +76,6 @@ export function EditMerchantForm({
             </div>
 
             <div className="grid gap-2">
-                <Label htmlFor="merchant-pickup-township">Pickup Township</Label>
-                <select
-                    id="merchant-pickup-township"
-                    name="pickupTownshipId"
-                    className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                    value={values.pickupTownshipId}
-                    onChange={(event) => {
-                        setValues((prev) => ({
-                            ...prev,
-                            pickupTownshipId: event.target.value,
-                        }));
-                    }}
-                >
-                    <option value="">No township selected</option>
-                    {townships.map((township) => (
-                        <option key={township.id} value={township.id}>
-                            {township.name}
-                        </option>
-                    ))}
-                </select>
-            </div>
-
-            <div className="grid gap-2">
-                <Label htmlFor="merchant-default-pickup-address">Default Pickup Address</Label>
-                <Input
-                    id="merchant-default-pickup-address"
-                    name="defaultPickupAddress"
-                    value={values.defaultPickupAddress}
-                    onChange={(event) => {
-                        setValues((prev) => ({
-                            ...prev,
-                            defaultPickupAddress: event.target.value,
-                        }));
-                    }}
-                />
-            </div>
-
-            <div className="grid gap-2">
                 <Label htmlFor="merchant-notes">Notes</Label>
                 <textarea
                     id="merchant-notes"
@@ -154,6 +102,10 @@ export function EditMerchantForm({
                     {state.message}
                 </p>
             )}
+
+            <p className="text-xs text-muted-foreground">
+                Pickup locations are now managed from the Address Book page.
+            </p>
 
             <Button type="submit" disabled={isPending}>
                 {isPending ? "Saving..." : "Save Merchant Profile"}

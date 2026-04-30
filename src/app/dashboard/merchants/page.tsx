@@ -79,14 +79,10 @@ export default async function MerchantsPage({ searchParams }: Readonly<Merchants
                                 <tr key={merchant.id} className="border-t">
                                     <td className="px-4 py-3">
                                         <p className="font-medium">{merchant.shopName}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {merchant.defaultPickupAddress ??
-                                                "No default pickup address"}
-                                        </p>
                                     </td>
                                     <td className="px-4 py-3">{merchant.contactName}</td>
                                     <td className="px-4 py-3">{merchant.phoneNumber ?? "-"}</td>
-                                    <td className="px-4 py-3">{merchant.townshipName ?? "-"}</td>
+                                    <td className="px-4 py-3">Address Book</td>
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-2">
                                             <Button asChild size="sm" variant="outline">
