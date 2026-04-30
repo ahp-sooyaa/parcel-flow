@@ -1,19 +1,11 @@
 "use client";
 
-import { CheckCircle2Icon, ImageIcon, UploadIcon } from "lucide-react";
+import { CheckCircle2Icon } from "lucide-react";
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { FormFieldError } from "@/components/shared/form-field-error";
 import { SearchableCombobox } from "@/components/shared/searchable-combobox";
-import { Button, buttonVariants } from "@/components/ui/button";
-import {
-    Empty,
-    EmptyContent,
-    EmptyDescription,
-    EmptyHeader,
-    EmptyMedia,
-    EmptyTitle,
-} from "@/components/ui/empty";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
     InputGroup,
@@ -24,6 +16,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { ParcelImageList } from "@/features/parcels/components/parcel-image-list";
 import { ParcelStatusPill } from "@/features/parcels/components/parcel-status-pill";
+import { PaymentSlipUpload } from "@/features/parcels/components/payment-slip-upload";
 import {
     COD_STATUSES,
     COLLECTION_STATUSES,
@@ -304,7 +297,6 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                 }),
             ),
         );
-    const [paymentSlipFileCount, setPaymentSlipFileCount] = useState(0);
 
     useEffect(() => {
         const nextParcelType = getSafeParcelTypeValue(fields.parcelType);
@@ -359,12 +351,6 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
         label: rider.label,
     }));
     const getFieldError = (fieldName: string) => state.fieldErrors?.[fieldName]?.[0];
-
-    useEffect(() => {
-        if (!showPaymentSlipField) {
-            setPaymentSlipFileCount(0);
-        }
-    }, [showPaymentSlipField]);
 
     return (
         <form action={action} className="space-y-5">
@@ -576,57 +562,13 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
 
                 {!accountingFieldsReadOnly ? (
                     <>
-                        <ParcelImageList
-                            title="Payment Slip Images"
-                            images={parcel.paymentSlipImages}
-                        />
-
                         {showPaymentSlipField ? (
-                            <div className="grid gap-2">
-                                <Label>Payment Slip Images</Label>
-                                <input
-                                    id="paymentSlipImages"
-                                    name="paymentSlipImages"
-                                    type="file"
-                                    accept="image/jpeg,image/png,image/webp"
-                                    multiple
-                                    className="sr-only hidden"
-                                    onChange={(event) =>
-                                        setPaymentSlipFileCount(event.target.files?.length ?? 0)
-                                    }
-                                />
-                                <Empty className="border bg-background">
-                                    <EmptyHeader>
-                                        <EmptyMedia variant="icon">
-                                            <ImageIcon className="size-5" />
-                                        </EmptyMedia>
-                                        <EmptyTitle>
-                                            {paymentSlipFileCount > 0
-                                                ? `${paymentSlipFileCount} payment slip image${paymentSlipFileCount === 1 ? "" : "s"} selected`
-                                                : "Upload Payment Slip Images"}
-                                        </EmptyTitle>
-                                        <EmptyDescription>
-                                            Add JPG, PNG, or WEBP images. Existing payment slips are
-                                            kept and new uploads are appended to this parcel.
-                                        </EmptyDescription>
-                                    </EmptyHeader>
-                                    <EmptyContent>
-                                        <label
-                                            htmlFor="paymentSlipImages"
-                                            className={cn(
-                                                buttonVariants({ variant: "outline" }),
-                                                "cursor-pointer",
-                                            )}
-                                        >
-                                            <UploadIcon className="size-4" />
-                                            {paymentSlipFileCount > 0
-                                                ? "Change Images"
-                                                : "Choose Images"}
-                                        </label>
-                                    </EmptyContent>
-                                </Empty>
-                                <FormFieldError message={getFieldError("paymentSlipImages")} />
-                            </div>
+                            <PaymentSlipUpload
+                                mode="edit"
+                                existingImages={parcel.paymentSlipImages}
+                                errorMessage={getFieldError("paymentSlipImages")}
+                                showMissingWarning={parcel.paymentSlipImages.length === 0}
+                            />
                         ) : (
                             <p className="text-xs text-muted-foreground">
                                 Payment slips are only available for prepaid bank transfer parcels.

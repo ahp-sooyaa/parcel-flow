@@ -1,25 +1,10 @@
 "use client";
 
-import {
-    CheckCircle2Icon,
-    ImageIcon,
-    MinusIcon,
-    PlusIcon,
-    Trash2Icon,
-    UploadIcon,
-} from "lucide-react";
+import { CheckCircle2Icon, MinusIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { FormFieldError } from "@/components/shared/form-field-error";
 import { SearchableCombobox } from "@/components/shared/searchable-combobox";
-import { Button, buttonVariants } from "@/components/ui/button";
-import {
-    Empty,
-    EmptyContent,
-    EmptyDescription,
-    EmptyHeader,
-    EmptyMedia,
-    EmptyTitle,
-} from "@/components/ui/empty";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
     InputGroup,
@@ -29,6 +14,7 @@ import {
 } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { PaymentSlipUpload } from "@/features/parcels/components/payment-slip-upload";
 import {
     CREATE_PARCEL_MAX_ROWS,
     DEFAULT_CREATE_PARCEL_STATE,
@@ -313,7 +299,6 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
             (state.fields?.deliveryFeePaymentPlan as DeliveryFeePaymentPlan | undefined) ??
                 DEFAULT_CREATE_PARCEL_STATE.deliveryFeePaymentPlan,
         );
-    const [paymentSlipFileCount, setPaymentSlipFileCount] = useState(0);
     const [parcelRows, setParcelRows] = useState<ParcelRowDraft[]>(() =>
         buildParcelRowsFromFields(state.fields),
     );
@@ -382,12 +367,6 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
             getSafePaymentPlanValue(current, deliveryFeePaymentPlanOptions),
         );
     }, [allParcelRowsCod, selectedDeliveryFeePayer]);
-
-    useEffect(() => {
-        if (!showPaymentSlipField) {
-            setPaymentSlipFileCount(0);
-        }
-    }, [showPaymentSlipField]);
 
     const updateParcelType = (rowId: string, nextParcelType: ParcelType) => {
         setParcelRows((currentRows) =>
@@ -659,51 +638,10 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                     </div>
 
                     {showPaymentSlipField ? (
-                        <div className="grid gap-2">
-                            <Label>Payment Slip Images</Label>
-                            <input
-                                id="paymentSlipImages"
-                                name="paymentSlipImages"
-                                type="file"
-                                accept="image/jpeg,image/png,image/webp"
-                                multiple
-                                className="sr-only hidden"
-                                onChange={(event) =>
-                                    setPaymentSlipFileCount(event.target.files?.length ?? 0)
-                                }
-                            />
-                            <Empty className="border bg-background">
-                                <EmptyHeader>
-                                    <EmptyMedia variant="icon">
-                                        <ImageIcon className="size-5" />
-                                    </EmptyMedia>
-                                    <EmptyTitle>
-                                        {paymentSlipFileCount > 0
-                                            ? `${paymentSlipFileCount} payment slip image${paymentSlipFileCount === 1 ? "" : "s"} selected`
-                                            : "Upload Shared Payment Slip Images"}
-                                    </EmptyTitle>
-                                    <EmptyDescription>
-                                        Add JPG, PNG, or WEBP images once and they will be attached
-                                        to every parcel payment record in this batch.
-                                    </EmptyDescription>
-                                </EmptyHeader>
-                                <EmptyContent>
-                                    <label
-                                        htmlFor="paymentSlipImages"
-                                        className={cn(
-                                            buttonVariants({ variant: "outline" }),
-                                            "cursor-pointer",
-                                        )}
-                                    >
-                                        <UploadIcon className="size-4" />
-                                        {paymentSlipFileCount > 0
-                                            ? "Change Images"
-                                            : "Choose Images"}
-                                    </label>
-                                </EmptyContent>
-                            </Empty>
-                            <FormFieldError message={getFieldError("paymentSlipImages")} />
-                        </div>
+                        <PaymentSlipUpload
+                            mode="create"
+                            errorMessage={getFieldError("paymentSlipImages")}
+                        />
                     ) : null}
 
                     <div className="grid gap-2">
