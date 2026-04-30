@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { getUserManagementAccess } from "@/features/auth/server/policies/user-management";
-import { requirePermission } from "@/features/auth/server/utils";
+import { hasPermission, requirePermission } from "@/features/auth/server/utils";
 
 export default async function DashboardPage() {
     const currentUser = await requirePermission("dashboard-page.view");
@@ -57,6 +57,18 @@ export default async function DashboardPage() {
                         </p>
                         <Button asChild className="mt-4" size="sm" variant="outline">
                             <Link href="/dashboard/townships">Open Townships</Link>
+                        </Button>
+                    </article>
+                )}
+
+                {hasPermission(currentUser.permissions, "delivery-pricing.view") && (
+                    <article className="rounded-xl border bg-card p-4">
+                        <p className="text-xs text-muted-foreground">Delivery Pricing</p>
+                        <p className="mt-2 text-sm">
+                            Configure township delivery fees and merchant contract overrides.
+                        </p>
+                        <Button asChild className="mt-4" size="sm" variant="outline">
+                            <Link href="/dashboard/delivery-pricing">Open Delivery Pricing</Link>
                         </Button>
                     </article>
                 )}

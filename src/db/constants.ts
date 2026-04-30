@@ -39,6 +39,9 @@ export const PERMISSION_SLUGS = [
     "merchant-settlement.create",
     "merchant-settlement.confirm",
     "merchant-settlement.cancel",
+    "delivery-pricing.view",
+    "delivery-pricing.create",
+    "delivery-pricing.update",
 ] as const;
 
 export type PermissionSlug = (typeof PERMISSION_SLUGS)[number];
@@ -74,6 +77,9 @@ export const ROLE_PERMISSION_MATRIX: Record<RoleSlug, PermissionSlug[]> = {
         "merchant-settlement.view",
         "merchant-settlement.create",
         "merchant-settlement.cancel",
+        "delivery-pricing.view",
+        "delivery-pricing.create",
+        "delivery-pricing.update",
     ]),
     rider: withEssentialPermissions([]),
     merchant: withEssentialPermissions(["parcel.create"]),

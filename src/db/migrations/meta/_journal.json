@@ -106,6 +106,13 @@
             "when": 1777522057513,
             "tag": "0015_medical_shape",
             "breakpoints": true
+        },
+        {
+            "idx": 16,
+            "version": "7",
+            "when": 1777538406380,
+            "tag": "0016_ancient_sauron",
+            "breakpoints": true
         }
     ]
 }

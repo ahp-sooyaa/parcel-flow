@@ -31,7 +31,8 @@ export type DashboardShellUserDto = {
             | "riders"
             | "parcels"
             | "settlements"
-            | "townships";
+            | "townships"
+            | "delivery-pricing";
         href: string;
         label: string;
     }[];
@@ -115,6 +116,14 @@ export function toDashboardShellUserDto(input: {
 
     if (input.permissions.includes("township-list.view")) {
         navItems.push({ key: "townships", href: "/dashboard/townships", label: "Townships" });
+    }
+
+    if (input.permissions.includes("delivery-pricing.view")) {
+        navItems.push({
+            key: "delivery-pricing",
+            href: "/dashboard/delivery-pricing",
+            label: "Delivery Pricing",
+        });
     }
 
     return {
