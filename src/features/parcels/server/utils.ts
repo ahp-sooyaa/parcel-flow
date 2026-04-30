@@ -65,6 +65,7 @@ const CREATE_PARCEL_ROW_FIELDS = [
     "packageCount",
     "specialHandlingNote",
     "estimatedWeightKg",
+    "isLargeItem",
     "packageWidthCm",
     "packageHeightCm",
     "packageLengthCm",
@@ -84,6 +85,7 @@ const UPDATE_PARCEL_FORM_FIELDS = [
     "packageCount",
     "specialHandlingNote",
     "estimatedWeightKg",
+    "isLargeItem",
     "packageWidthCm",
     "packageHeightCm",
     "packageLengthCm",
@@ -111,6 +113,7 @@ const UPDATE_PARCEL_DETAIL_FORM_FIELDS = [
     "packageCount",
     "specialHandlingNote",
     "estimatedWeightKg",
+    "isLargeItem",
     "packageWidthCm",
     "packageHeightCm",
     "packageLengthCm",
@@ -131,6 +134,7 @@ const parcelImageFieldLabels: Record<ParcelImageFieldName, string> = {
     proofOfDeliveryImages: "Proof of delivery images",
     paymentSlipImages: "Payment slip images",
 };
+const STANDARD_PARCEL_DIMENSION_CM = 1;
 
 const moneyField = z.preprocess((value) => {
     if (typeof value === "number") {
@@ -149,6 +153,24 @@ const moneyField = z.preprocess((value) => {
 
     return Number(normalized);
 }, z.number().finite().min(0).max(999999999));
+
+const positiveMoneyField = z.preprocess((value) => {
+    if (typeof value === "number") {
+        return value;
+    }
+
+    if (typeof value !== "string") {
+        return Number.NaN;
+    }
+
+    const normalized = value.trim();
+
+    if (!normalized) {
+        return Number.NaN;
+    }
+
+    return Number(normalized);
+}, z.number().finite().gt(0).max(999999999));
 
 const optionalDecimalField = z
     .preprocess((value) => {
@@ -170,6 +192,24 @@ const optionalDecimalField = z
     }, z.number().finite().min(0).max(999999999).optional())
     .transform((value) => value ?? null);
 
+const positiveDecimalField = z.preprocess((value) => {
+    if (typeof value === "number") {
+        return value;
+    }
+
+    if (typeof value !== "string") {
+        return Number.NaN;
+    }
+
+    const normalized = value.trim();
+
+    if (!normalized) {
+        return Number.NaN;
+    }
+
+    return Number(normalized);
+}, z.number().finite().gt(0).max(999999999));
+
 const positiveIntegerField = z.preprocess((value) => {
     if (typeof value === "number") {
         return value;
@@ -188,6 +228,28 @@ const positiveIntegerField = z.preprocess((value) => {
     return Number(normalized);
 }, z.number().int().min(1).max(9999));
 
+const booleanField = z.preprocess((value) => {
+    if (typeof value === "boolean") {
+        return value;
+    }
+
+    if (typeof value !== "string") {
+        return value;
+    }
+
+    const normalized = value.trim().toLowerCase();
+
+    if (normalized === "true") {
+        return true;
+    }
+
+    if (normalized === "false") {
+        return false;
+    }
+
+    return value;
+}, z.boolean());
+
 const optionalNullableDeliveryFeePaymentPlanField = z
     .preprocess((value) => {
         if (typeof value !== "string") {
@@ -204,7 +266,7 @@ const optionalNullableDeliveryFeePaymentPlanField = z
     }, z.enum(DELIVERY_FEE_PAYMENT_PLANS).optional())
     .transform((value) => value ?? null);
 
-export const createParcelSchema = z.object({
+const createParcelBaseSchema = z.object({
     merchantId: z.string().trim().uuid(),
     riderId: optionalNullableUuid(),
     recipientName: z.string().trim().min(2).max(120),
@@ -214,19 +276,63 @@ export const createParcelSchema = z.object({
     parcelDescription: z.string().trim().min(1).max(2000),
     packageCount: positiveIntegerField,
     specialHandlingNote: optionalNullableTrimmedString(1000),
-    estimatedWeightKg: optionalDecimalField,
+    estimatedWeightKg: positiveDecimalField,
+    isLargeItem: booleanField,
     packageWidthCm: optionalDecimalField,
     packageHeightCm: optionalDecimalField,
     packageLengthCm: optionalDecimalField,
     parcelType: z.enum(PARCEL_TYPES),
     codAmount: moneyField,
-    deliveryFee: moneyField,
+    deliveryFee: positiveMoneyField,
     deliveryFeePayer: z.enum(DELIVERY_FEE_PAYERS),
     deliveryFeePaymentPlan: z.enum(DELIVERY_FEE_PAYMENT_PLANS),
     paymentNote: optionalNullableTrimmedString(1000),
 });
 
-export const createParcelSharedSchema = createParcelSchema.pick({
+function refineParcelDetailFields(
+    value: Pick<
+        z.infer<typeof createParcelBaseSchema>,
+        | "parcelType"
+        | "codAmount"
+        | "isLargeItem"
+        | "packageWidthCm"
+        | "packageHeightCm"
+        | "packageLengthCm"
+    >,
+    context: z.RefinementCtx,
+) {
+    if (value.parcelType === "cod" && value.codAmount <= 0) {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["codAmount"],
+            message: "COD amount must be greater than zero for COD parcels.",
+        });
+    }
+
+    if (!value.isLargeItem) {
+        return;
+    }
+
+    const dimensions = [
+        ["packageLengthCm", value.packageLengthCm, "Length is required for large items."],
+        ["packageWidthCm", value.packageWidthCm, "Width is required for large items."],
+        ["packageHeightCm", value.packageHeightCm, "Height is required for large items."],
+    ] as const;
+
+    for (const [fieldName, dimension, message] of dimensions) {
+        if (dimension === null || dimension <= 0) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: [fieldName],
+                message,
+            });
+        }
+    }
+}
+
+export const createParcelSchema = createParcelBaseSchema.superRefine(refineParcelDetailFields);
+
+export const createParcelSharedSchema = createParcelBaseSchema.pick({
     merchantId: true,
     riderId: true,
     recipientName: true,
@@ -238,18 +344,21 @@ export const createParcelSharedSchema = createParcelSchema.pick({
     paymentNote: true,
 });
 
-export const createParcelRowSchema = createParcelSchema.pick({
-    parcelDescription: true,
-    packageCount: true,
-    specialHandlingNote: true,
-    estimatedWeightKg: true,
-    packageWidthCm: true,
-    packageHeightCm: true,
-    packageLengthCm: true,
-    parcelType: true,
-    codAmount: true,
-    deliveryFee: true,
-});
+export const createParcelRowSchema = createParcelBaseSchema
+    .pick({
+        parcelDescription: true,
+        packageCount: true,
+        specialHandlingNote: true,
+        estimatedWeightKg: true,
+        isLargeItem: true,
+        packageWidthCm: true,
+        packageHeightCm: true,
+        packageLengthCm: true,
+        parcelType: true,
+        codAmount: true,
+        deliveryFee: true,
+    })
+    .superRefine(refineParcelDetailFields);
 
 export const createParcelBatchSchema = createParcelSharedSchema
     .extend({
@@ -293,20 +402,25 @@ export const createParcelBatchSchema = createParcelSharedSchema
         });
     });
 
-export const updateParcelSchema = createParcelSchema.extend({
-    deliveryFeePaymentPlan: optionalNullableDeliveryFeePaymentPlanField,
-    parcelId: z.string().trim().uuid(),
-    parcelStatus: z.enum(PARCEL_STATUSES),
-    deliveryFeeStatus: z.enum(DELIVERY_FEE_STATUSES),
-    codStatus: z.enum(COD_STATUSES),
-    collectionStatus: z.enum(COLLECTION_STATUSES),
-    collectedAmount: moneyField,
-});
+export const updateParcelSchema = createParcelBaseSchema
+    .extend({
+        deliveryFeePaymentPlan: optionalNullableDeliveryFeePaymentPlanField,
+        parcelId: z.string().trim().uuid(),
+        parcelStatus: z.enum(PARCEL_STATUSES),
+        deliveryFeeStatus: z.enum(DELIVERY_FEE_STATUSES),
+        codStatus: z.enum(COD_STATUSES),
+        collectionStatus: z.enum(COLLECTION_STATUSES),
+        collectedAmount: moneyField,
+    })
+    .superRefine(refineParcelDetailFields);
 
-export const updateParcelDetailSchema = createParcelSchema.omit({ paymentNote: true }).extend({
-    deliveryFeePaymentPlan: optionalNullableDeliveryFeePaymentPlanField,
-    parcelId: z.string().trim().uuid(),
-});
+export const updateParcelDetailSchema = createParcelBaseSchema
+    .omit({ paymentNote: true })
+    .extend({
+        deliveryFeePaymentPlan: optionalNullableDeliveryFeePaymentPlanField,
+        parcelId: z.string().trim().uuid(),
+    })
+    .superRefine(refineParcelDetailFields);
 
 export const advanceRiderParcelSchema = z.object({
     parcelId: z.string().trim().uuid(),
@@ -369,9 +483,10 @@ export type ParcelWriteValues = {
     packageCount: number;
     specialHandlingNote: string | null;
     estimatedWeightKg: string | null;
-    packageWidthCm: string | null;
-    packageHeightCm: string | null;
-    packageLengthCm: string | null;
+    isLargeItem: boolean;
+    packageWidthCm: string;
+    packageHeightCm: string;
+    packageLengthCm: string;
     parcelType: "cod" | "non_cod";
     codAmount: string;
     deliveryFee: string;
@@ -1038,12 +1153,14 @@ export function validateCreateParcelMedia(input: {
     return validatePaymentSlipImagesForPlan({
         deliveryFeePaymentPlan: input.deliveryFeePaymentPlan,
         paymentSlipImages: input.files.paymentSlipImages,
+        existingPaymentSlipImageCount: 0,
     });
 }
 
 export function validatePaymentSlipImagesForPlan(input: {
     deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
     paymentSlipImages: File[];
+    existingPaymentSlipImageCount?: number;
 }) {
     if (
         input.paymentSlipImages.length > 0 &&
@@ -1055,6 +1172,23 @@ export function validatePaymentSlipImagesForPlan(input: {
             fieldErrors: createFieldErrors(
                 "paymentSlipImages",
                 "Payment slips are only allowed for prepaid bank transfer.",
+            ),
+        };
+    }
+
+    const totalPaymentSlipImageCount =
+        (input.existingPaymentSlipImageCount ?? 0) + input.paymentSlipImages.length;
+
+    if (
+        input.deliveryFeePaymentPlan === "merchant_prepaid_bank_transfer" &&
+        totalPaymentSlipImageCount === 0
+    ) {
+        return {
+            ok: false as const,
+            message: "Upload at least one payment slip for prepaid bank transfer.",
+            fieldErrors: createFieldErrors(
+                "paymentSlipImages",
+                "Upload at least one payment slip for prepaid bank transfer.",
             ),
         };
     }
@@ -1226,6 +1360,7 @@ export function parseCreateParcelFormData(formData: FormData) {
             packageCount: fields[`parcelRows[${rowIndex}].packageCount`],
             specialHandlingNote: fields[`parcelRows[${rowIndex}].specialHandlingNote`],
             estimatedWeightKg: fields[`parcelRows[${rowIndex}].estimatedWeightKg`],
+            isLargeItem: fields[`parcelRows[${rowIndex}].isLargeItem`],
             packageWidthCm: fields[`parcelRows[${rowIndex}].packageWidthCm`],
             packageHeightCm: fields[`parcelRows[${rowIndex}].packageHeightCm`],
             packageLengthCm: fields[`parcelRows[${rowIndex}].packageLengthCm`],
@@ -1338,6 +1473,29 @@ export function generateParcelCode(date = new Date()) {
     return `PF-${year}${month}${day}-${random}`;
 }
 
+function getStoredParcelDimensions(input: {
+    isLargeItem: boolean;
+    packageWidthCm: number | null;
+    packageHeightCm: number | null;
+    packageLengthCm: number | null;
+}) {
+    if (!input.isLargeItem) {
+        const standardDimension = toMoneyString(STANDARD_PARCEL_DIMENSION_CM);
+
+        return {
+            packageWidthCm: standardDimension,
+            packageHeightCm: standardDimension,
+            packageLengthCm: standardDimension,
+        };
+    }
+
+    return {
+        packageWidthCm: toMoneyString(input.packageWidthCm ?? STANDARD_PARCEL_DIMENSION_CM),
+        packageHeightCm: toMoneyString(input.packageHeightCm ?? STANDARD_PARCEL_DIMENSION_CM),
+        packageLengthCm: toMoneyString(input.packageLengthCm ?? STANDARD_PARCEL_DIMENSION_CM),
+    };
+}
+
 export function buildParcelWriteValues(input: {
     data: ParcelCreateInput | ParcelUpdateInput | ParcelDetailUpdateInput;
     merchantId: string;
@@ -1348,6 +1506,13 @@ export function buildParcelWriteValues(input: {
     pickupImageKeys: string[];
     proofOfDeliveryImageKeys: string[];
 }) {
+    const storedDimensions = getStoredParcelDimensions({
+        isLargeItem: input.data.isLargeItem,
+        packageWidthCm: input.data.packageWidthCm,
+        packageHeightCm: input.data.packageHeightCm,
+        packageLengthCm: input.data.packageLengthCm,
+    });
+
     return {
         merchantId: input.merchantId,
         riderId: input.riderId,
@@ -1358,10 +1523,11 @@ export function buildParcelWriteValues(input: {
         parcelDescription: input.data.parcelDescription,
         packageCount: input.data.packageCount,
         specialHandlingNote: input.data.specialHandlingNote,
-        estimatedWeightKg: toOptionalMoneyString(input.data.estimatedWeightKg),
-        packageWidthCm: toOptionalMoneyString(input.data.packageWidthCm),
-        packageHeightCm: toOptionalMoneyString(input.data.packageHeightCm),
-        packageLengthCm: toOptionalMoneyString(input.data.packageLengthCm),
+        estimatedWeightKg: toMoneyString(input.data.estimatedWeightKg),
+        isLargeItem: input.data.isLargeItem,
+        packageWidthCm: storedDimensions.packageWidthCm,
+        packageHeightCm: storedDimensions.packageHeightCm,
+        packageLengthCm: storedDimensions.packageLengthCm,
         parcelType: input.data.parcelType,
         codAmount: toMoneyString(input.data.parcelType === "cod" ? input.data.codAmount : 0),
         deliveryFee: toMoneyString(input.data.deliveryFee),

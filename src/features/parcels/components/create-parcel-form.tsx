@@ -67,6 +67,7 @@ type ParcelRowDraft = {
     id: string;
     parcelType: ParcelType;
     packageCount: string;
+    isLargeItem: boolean;
 };
 
 const textareaClassName =
@@ -77,12 +78,13 @@ const parcelRowFieldDefaults = {
     packageCount: "1",
     specialHandlingNote: "",
     estimatedWeightKg: "",
+    isLargeItem: "false",
     packageWidthCm: "",
     packageHeightCm: "",
     packageLengthCm: "",
     parcelType: "cod",
-    codAmount: "0",
-    deliveryFee: "0",
+    codAmount: "",
+    deliveryFee: "",
 } satisfies Record<string, string>;
 
 type ParcelRowFieldName = keyof typeof parcelRowFieldDefaults;
@@ -138,6 +140,10 @@ function getSafeDeliveryFeePayerValue(value: string | undefined) {
     }
 
     return DEFAULT_CREATE_PARCEL_STATE.deliveryFeePayer;
+}
+
+function getSafeIsLargeItemValue(value: string | undefined) {
+    return value === "true";
 }
 
 function getParcelRowFieldName(rowIndex: number, fieldName: ParcelRowFieldName) {
@@ -246,9 +252,12 @@ function ChoiceCard({
                     <p className="text-xs text-muted-foreground">{description}</p>
                 </div>
 
-                {selected ? (
-                    <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-foreground" />
-                ) : null}
+                <CheckCircle2Icon
+                    aria-hidden={!selected}
+                    className={cn("mt-0.5 size-4 shrink-0 text-foreground transition-opacity", {
+                        "opacity-0": !selected,
+                    })}
+                />
             </div>
         </button>
     );
@@ -263,13 +272,18 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
     const defaultMerchantId = merchants[0]?.id ?? "";
     const defaultMerchantSelection = merchantFieldReadOnly ? defaultMerchantId : "";
     const nextRowIdRef = useRef(0);
-    const createParcelRow = (parcelType: ParcelType = "cod", packageCount = "1") => {
+    const createParcelRow = (
+        parcelType: ParcelType = "cod",
+        packageCount = "1",
+        isLargeItem = false,
+    ) => {
         nextRowIdRef.current += 1;
 
         return {
             id: `parcel-row-${nextRowIdRef.current}`,
             parcelType,
             packageCount: getSafePackageCountValue(packageCount),
+            isLargeItem,
         } satisfies ParcelRowDraft;
     };
     const buildParcelRowsFromFields = (fields: Record<string, string> | undefined) => {
@@ -283,6 +297,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
             createParcelRow(
                 getSafeParcelTypeValue(fields?.[getParcelRowFieldName(rowIndex, "parcelType")]),
                 getParcelRowFieldValue(fields, rowIndex, "packageCount"),
+                getSafeIsLargeItemValue(fields?.[getParcelRowFieldName(rowIndex, "isLargeItem")]),
             ),
         );
     };
@@ -378,6 +393,14 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
         setParcelRows((currentRows) =>
             currentRows.map((row) =>
                 row.id === rowId ? { ...row, parcelType: nextParcelType } : row,
+            ),
+        );
+    };
+
+    const updateLargeItem = (rowId: string, nextIsLargeItem: boolean) => {
+        setParcelRows((currentRows) =>
+            currentRows.map((row) =>
+                row.id === rowId ? { ...row, isLargeItem: nextIsLargeItem } : row,
             ),
         );
     };
@@ -594,6 +617,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                         }
                                         selected={selectedDeliveryFeePayer === value}
                                         onClick={() => setSelectedDeliveryFeePayer(value)}
+                                        className="h-[90px]"
                                     />
                                 ))}
                             </div>
@@ -729,6 +753,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                         {parcelRows.map((row, rowIndex) => {
                             const parcelType = row.parcelType;
                             const packageCount = getSafePackageCountNumber(row.packageCount);
+                            const isLargeItem = row.isLargeItem;
                             const rowCodStatus =
                                 parcelType === "non_cod"
                                     ? "Not Applicable"
@@ -825,7 +850,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                         />
                                     </div>
 
-                                    <div className="grid gap-4 md:grid-cols-4">
+                                    <div className="grid gap-4 md:grid-cols-2">
                                         <div className="grid gap-2">
                                             <div className="flex items-center gap-1.5">
                                                 <Label htmlFor={`packageCount-${row.id}`}>
@@ -897,7 +922,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
 
                                         <div className="grid gap-2">
                                             <Label htmlFor={`estimatedWeightKg-${row.id}`}>
-                                                Weight (kg)
+                                                Weight (kg) *
                                             </Label>
                                             <Input
                                                 id={`estimatedWeightKg-${row.id}`}
@@ -906,13 +931,14 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                                     "estimatedWeightKg",
                                                 )}
                                                 type="number"
-                                                min="0"
+                                                min="0.01"
                                                 step="0.01"
                                                 defaultValue={getParcelRowFieldValue(
                                                     state.fields,
                                                     rowIndex,
                                                     "estimatedWeightKg",
                                                 )}
+                                                required
                                             />
                                             <FormFieldError
                                                 message={getParcelRowFieldError(
@@ -921,9 +947,46 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                                 )}
                                             />
                                         </div>
+                                    </div>
 
-                                        <div className="grid gap-2 md:col-span-2">
-                                            <Label>Dimensions (cm)</Label>
+                                    <div className="grid gap-4 md:grid-cols-2">
+                                        <div className="grid gap-2">
+                                            <Label>Item Size</Label>
+                                            <ChoiceCard
+                                                title="Large Item"
+                                                description="Show length, width, and height for bulky parcels. Standard items save as 1 x 1 x 1 cm."
+                                                selected={isLargeItem}
+                                                onClick={() =>
+                                                    updateLargeItem(row.id, !isLargeItem)
+                                                }
+                                                className="h-full"
+                                            />
+                                            <input
+                                                type="hidden"
+                                                name={getParcelRowFieldName(
+                                                    rowIndex,
+                                                    "isLargeItem",
+                                                )}
+                                                value={isLargeItem ? "true" : "false"}
+                                            />
+                                            <FormFieldError
+                                                message={getParcelRowFieldError(
+                                                    rowIndex,
+                                                    "isLargeItem",
+                                                )}
+                                            />
+                                        </div>
+
+                                        <div
+                                            className={cn(
+                                                "grid grid-rows-[min-content] items-start gap-2",
+                                                {
+                                                    hidden: !isLargeItem,
+                                                },
+                                            )}
+                                            aria-hidden={!isLargeItem}
+                                        >
+                                            <Label>Dimensions (cm) *</Label>
                                             <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2">
                                                 <div className="grid gap-2">
                                                     <Input
@@ -933,7 +996,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                                             "packageLengthCm",
                                                         )}
                                                         type="number"
-                                                        min="0"
+                                                        min="0.01"
                                                         step="0.01"
                                                         placeholder="L"
                                                         aria-label="Length (cm)"
@@ -961,7 +1024,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                                             "packageWidthCm",
                                                         )}
                                                         type="number"
-                                                        min="0"
+                                                        min="0.01"
                                                         step="0.01"
                                                         placeholder="W"
                                                         aria-label="Width (cm)"
@@ -989,7 +1052,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                                             "packageHeightCm",
                                                         )}
                                                         type="number"
-                                                        min="0"
+                                                        min="0.01"
                                                         step="0.01"
                                                         placeholder="H"
                                                         aria-label="Height (cm)"
@@ -1023,7 +1086,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                                         "deliveryFee",
                                                     )}
                                                     type="number"
-                                                    min="0"
+                                                    min="0.01"
                                                     step="0.01"
                                                     defaultValue={getParcelRowFieldValue(
                                                         state.fields,
@@ -1075,7 +1138,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                                             "codAmount",
                                                         )}
                                                         type="number"
-                                                        min="0"
+                                                        min="0.01"
                                                         step="0.01"
                                                         defaultValue={getParcelRowFieldValue(
                                                             state.fields,

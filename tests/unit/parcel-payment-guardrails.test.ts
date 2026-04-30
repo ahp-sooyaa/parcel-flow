@@ -408,7 +408,8 @@ describe("delivery fee payment plan guardrails", () => {
             parcelDescription: "Box",
             packageCount: "1",
             specialHandlingNote: "",
-            estimatedWeightKg: "",
+            estimatedWeightKg: "1.25",
+            isLargeItem: "false",
             packageWidthCm: "",
             packageHeightCm: "",
             packageLengthCm: "",
@@ -432,7 +433,8 @@ describe("delivery fee payment plan guardrails", () => {
             parcelDescription: "Box",
             packageCount: "1",
             specialHandlingNote: "",
-            estimatedWeightKg: "",
+            estimatedWeightKg: "1.25",
+            isLargeItem: "false",
             packageWidthCm: "",
             packageHeightCm: "",
             packageLengthCm: "",
@@ -465,7 +467,8 @@ describe("delivery fee payment plan guardrails", () => {
         formData.set("parcelRows[0].parcelDescription", "Shirt");
         formData.set("parcelRows[0].packageCount", "1");
         formData.set("parcelRows[0].specialHandlingNote", "");
-        formData.set("parcelRows[0].estimatedWeightKg", "");
+        formData.set("parcelRows[0].estimatedWeightKg", "0.75");
+        formData.set("parcelRows[0].isLargeItem", "false");
         formData.set("parcelRows[0].packageWidthCm", "");
         formData.set("parcelRows[0].packageHeightCm", "");
         formData.set("parcelRows[0].packageLengthCm", "");
@@ -475,10 +478,11 @@ describe("delivery fee payment plan guardrails", () => {
         formData.set("parcelRows[1].parcelDescription", "Shoes");
         formData.set("parcelRows[1].packageCount", "2");
         formData.set("parcelRows[1].specialHandlingNote", "");
+        formData.set("parcelRows[1].isLargeItem", "true");
         formData.set("parcelRows[1].estimatedWeightKg", "1.5");
-        formData.set("parcelRows[1].packageWidthCm", "");
-        formData.set("parcelRows[1].packageHeightCm", "");
-        formData.set("parcelRows[1].packageLengthCm", "");
+        formData.set("parcelRows[1].packageWidthCm", "20");
+        formData.set("parcelRows[1].packageHeightCm", "15");
+        formData.set("parcelRows[1].packageLengthCm", "30");
         formData.set("parcelRows[1].parcelType", "non_cod");
         formData.set("parcelRows[1].codAmount", "0");
         formData.set("parcelRows[1].deliveryFee", "1500");
@@ -492,6 +496,7 @@ describe("delivery fee payment plan guardrails", () => {
             expect(parsed.data.parcelRows[0]).toMatchObject({
                 parcelDescription: "Shirt",
                 packageCount: 1,
+                isLargeItem: false,
                 parcelType: "cod",
                 codAmount: 12000,
                 deliveryFee: 1500,
@@ -499,6 +504,10 @@ describe("delivery fee payment plan guardrails", () => {
             expect(parsed.data.parcelRows[1]).toMatchObject({
                 parcelDescription: "Shoes",
                 packageCount: 2,
+                isLargeItem: true,
+                packageWidthCm: 20,
+                packageHeightCm: 15,
+                packageLengthCm: 30,
                 parcelType: "non_cod",
                 codAmount: 0,
                 deliveryFee: 1500,
@@ -547,7 +556,8 @@ describe("delivery fee payment plan guardrails", () => {
                     parcelDescription: "Shirt",
                     packageCount: 1,
                     specialHandlingNote: null,
-                    estimatedWeightKg: null,
+                    estimatedWeightKg: 0.75,
+                    isLargeItem: false,
                     packageWidthCm: null,
                     packageHeightCm: null,
                     packageLengthCm: null,
@@ -560,6 +570,7 @@ describe("delivery fee payment plan guardrails", () => {
                     packageCount: 2,
                     specialHandlingNote: null,
                     estimatedWeightKg: 1.5,
+                    isLargeItem: false,
                     packageWidthCm: null,
                     packageHeightCm: null,
                     packageLengthCm: null,
@@ -589,7 +600,8 @@ describe("delivery fee payment plan guardrails", () => {
                     parcelDescription: "Shirt",
                     packageCount: 20,
                     specialHandlingNote: null,
-                    estimatedWeightKg: null,
+                    estimatedWeightKg: 0.75,
+                    isLargeItem: false,
                     packageWidthCm: null,
                     packageHeightCm: null,
                     packageLengthCm: null,
@@ -601,7 +613,8 @@ describe("delivery fee payment plan guardrails", () => {
                     parcelDescription: "Shoes",
                     packageCount: 1,
                     specialHandlingNote: null,
-                    estimatedWeightKg: null,
+                    estimatedWeightKg: 1.5,
+                    isLargeItem: false,
                     packageWidthCm: null,
                     packageHeightCm: null,
                     packageLengthCm: null,
@@ -643,7 +656,8 @@ describe("delivery fee payment plan guardrails", () => {
                     parcelDescription: "Shirt",
                     packageCount: 1,
                     specialHandlingNote: null,
-                    estimatedWeightKg: null,
+                    estimatedWeightKg: 0.75,
+                    isLargeItem: false,
                     packageWidthCm: null,
                     packageHeightCm: null,
                     packageLengthCm: null,
@@ -655,7 +669,8 @@ describe("delivery fee payment plan guardrails", () => {
                     parcelDescription: "Shoes",
                     packageCount: 2,
                     specialHandlingNote: null,
-                    estimatedWeightKg: null,
+                    estimatedWeightKg: 1.5,
+                    isLargeItem: false,
                     packageWidthCm: null,
                     packageHeightCm: null,
                     packageLengthCm: null,
@@ -691,10 +706,11 @@ describe("delivery fee payment plan guardrails", () => {
             parcelDescription: "Shoes",
             packageCount: "1",
             specialHandlingNote: "",
-            estimatedWeightKg: "",
-            packageWidthCm: "",
-            packageHeightCm: "",
-            packageLengthCm: "",
+            estimatedWeightKg: "1.5",
+            isLargeItem: "false",
+            packageWidthCm: "22",
+            packageHeightCm: "18",
+            packageLengthCm: "30",
             parcelType: "non_cod",
             codAmount: "9999",
             deliveryFee: "1500",
@@ -715,6 +731,89 @@ describe("delivery fee payment plan guardrails", () => {
         });
 
         expect(values.codAmount).toBe("0.00");
+        expect(values.isLargeItem).toBe(false);
+        expect(values.packageLengthCm).toBe("1.00");
+        expect(values.packageWidthCm).toBe("1.00");
+        expect(values.packageHeightCm).toBe("1.00");
+    });
+
+    it("rejects blank or zero delivery fee, cod amount, and actual weight", () => {
+        expect(
+            createParcelSchema.safeParse({
+                merchantId: "00000000-0000-0000-0000-000000000002",
+                riderId: "",
+                recipientName: "Receiver",
+                recipientPhone: "09123456",
+                recipientTownshipId: "00000000-0000-0000-0000-000000000003",
+                recipientAddress: "Yangon",
+                parcelDescription: "Box",
+                packageCount: "1",
+                specialHandlingNote: "",
+                estimatedWeightKg: "",
+                isLargeItem: "false",
+                packageWidthCm: "",
+                packageHeightCm: "",
+                packageLengthCm: "",
+                parcelType: "cod",
+                codAmount: "0",
+                deliveryFee: "0",
+                deliveryFeePayer: "receiver",
+                deliveryFeePaymentPlan: "receiver_collect_on_delivery",
+                paymentNote: "",
+            }).success,
+        ).toBe(false);
+    });
+
+    it("requires dimensions only for large items", () => {
+        expect(
+            createParcelSchema.safeParse({
+                merchantId: "00000000-0000-0000-0000-000000000002",
+                riderId: "",
+                recipientName: "Receiver",
+                recipientPhone: "09123456",
+                recipientTownshipId: "00000000-0000-0000-0000-000000000003",
+                recipientAddress: "Yangon",
+                parcelDescription: "Box",
+                packageCount: "1",
+                specialHandlingNote: "",
+                estimatedWeightKg: "1.25",
+                isLargeItem: "true",
+                packageWidthCm: "",
+                packageHeightCm: "",
+                packageLengthCm: "",
+                parcelType: "cod",
+                codAmount: "10000",
+                deliveryFee: "1000",
+                deliveryFeePayer: "receiver",
+                deliveryFeePaymentPlan: "receiver_collect_on_delivery",
+                paymentNote: "",
+            }).success,
+        ).toBe(false);
+
+        expect(
+            createParcelSchema.safeParse({
+                merchantId: "00000000-0000-0000-0000-000000000002",
+                riderId: "",
+                recipientName: "Receiver",
+                recipientPhone: "09123456",
+                recipientTownshipId: "00000000-0000-0000-0000-000000000003",
+                recipientAddress: "Yangon",
+                parcelDescription: "Box",
+                packageCount: "1",
+                specialHandlingNote: "",
+                estimatedWeightKg: "1.25",
+                isLargeItem: "false",
+                packageWidthCm: "",
+                packageHeightCm: "",
+                packageLengthCm: "",
+                parcelType: "cod",
+                codAmount: "10000",
+                deliveryFee: "1000",
+                deliveryFeePayer: "receiver",
+                deliveryFeePaymentPlan: "receiver_collect_on_delivery",
+                paymentNote: "",
+            }).success,
+        ).toBe(true);
     });
 
     it("allows payment slips only for prepaid bank transfer", () => {
@@ -728,6 +827,17 @@ describe("delivery fee payment plan guardrails", () => {
         ).toEqual({ ok: true });
         expect(
             validatePaymentSlipImagesForPlan({
+                deliveryFeePaymentPlan: "merchant_prepaid_bank_transfer",
+                paymentSlipImages: [],
+            }),
+        ).toMatchObject({
+            ok: false,
+            fieldErrors: {
+                paymentSlipImages: ["Upload at least one payment slip for prepaid bank transfer."],
+            },
+        });
+        expect(
+            validatePaymentSlipImagesForPlan({
                 deliveryFeePaymentPlan: "merchant_cash_on_pickup",
                 paymentSlipImages: [imageFile],
             }),
@@ -737,6 +847,13 @@ describe("delivery fee payment plan guardrails", () => {
                 paymentSlipImages: ["Payment slips are only allowed for prepaid bank transfer."],
             },
         });
+        expect(
+            validatePaymentSlipImagesForPlan({
+                deliveryFeePaymentPlan: "merchant_prepaid_bank_transfer",
+                paymentSlipImages: [],
+                existingPaymentSlipImageCount: 1,
+            }),
+        ).toEqual({ ok: true });
     });
 
     it("rejects pickup and proof images during parcel create", () => {
@@ -746,6 +863,18 @@ describe("delivery fee payment plan guardrails", () => {
             proofOfDeliveryImages: [],
             paymentSlipImages: [],
         };
+
+        expect(
+            validateCreateParcelMedia({
+                deliveryFeePaymentPlan: "merchant_prepaid_bank_transfer",
+                files: emptyFiles,
+            }),
+        ).toMatchObject({
+            ok: false,
+            fieldErrors: {
+                paymentSlipImages: ["Upload at least one payment slip for prepaid bank transfer."],
+            },
+        });
 
         expect(
             validateCreateParcelMedia({
@@ -1231,7 +1360,8 @@ describe("parcel operation helpers", () => {
             parcelDescription: "Box",
             packageCount: "1",
             specialHandlingNote: "",
-            estimatedWeightKg: "",
+            estimatedWeightKg: "1.25",
+            isLargeItem: "false",
             packageWidthCm: "",
             packageHeightCm: "",
             packageLengthCm: "",

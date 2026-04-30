@@ -482,9 +482,16 @@ export async function updateParcelAction(
             return merchantUploadGuard;
         }
 
+        const current = await getParcelUpdateContextForViewer(currentUser, parsed.data.parcelId);
+
+        if (!current) {
+            return { ok: false, message: "Parcel was not found.", fields: submittedFields };
+        }
+
         const paymentSlipPlanGuard = validatePaymentSlipImagesForPlan({
             deliveryFeePaymentPlan: parsed.data.deliveryFeePaymentPlan,
             paymentSlipImages: parsed.files.paymentSlipImages,
+            existingPaymentSlipImageCount: current.payment.paymentSlipImageKeys.length,
         });
 
         if (!paymentSlipPlanGuard.ok) {
@@ -494,12 +501,6 @@ export async function updateParcelAction(
                 fields: submittedFields,
                 fieldErrors: paymentSlipPlanGuard.fieldErrors,
             };
-        }
-
-        const current = await getParcelUpdateContextForViewer(currentUser, parsed.data.parcelId);
-
-        if (!current) {
-            return { ok: false, message: "Parcel was not found.", fields: submittedFields };
         }
 
         const appendLimitGuard = validateParcelImageAppendLimits({

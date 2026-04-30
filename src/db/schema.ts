@@ -412,9 +412,16 @@ export const parcels = pgTable(
         packageCount: integer("package_count").notNull().default(1),
         specialHandlingNote: text("special_handling_note"),
         estimatedWeightKg: numeric("estimated_weight_kg", { precision: 12, scale: 2 }),
-        packageWidthCm: numeric("package_width_cm", { precision: 12, scale: 2 }),
-        packageHeightCm: numeric("package_height_cm", { precision: 12, scale: 2 }),
-        packageLengthCm: numeric("package_length_cm", { precision: 12, scale: 2 }),
+        isLargeItem: boolean("is_large_item").notNull().default(false),
+        packageWidthCm: numeric("package_width_cm", { precision: 12, scale: 2 })
+            .notNull()
+            .default("1.00"),
+        packageHeightCm: numeric("package_height_cm", { precision: 12, scale: 2 })
+            .notNull()
+            .default("1.00"),
+        packageLengthCm: numeric("package_length_cm", { precision: 12, scale: 2 })
+            .notNull()
+            .default("1.00"),
         pickupImageKeys: jsonb("pickup_image_keys").$type<string[]>().notNull().default([]),
         proofOfDeliveryImageKeys: jsonb("proof_of_delivery_image_keys")
             .$type<string[]>()

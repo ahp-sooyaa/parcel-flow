@@ -1,10 +1,26 @@
 "use client";
 
+import { CheckCircle2Icon, ImageIcon, UploadIcon } from "lucide-react";
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { FormFieldError } from "@/components/shared/form-field-error";
-import { Button } from "@/components/ui/button";
+import { SearchableCombobox } from "@/components/shared/searchable-combobox";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+    Empty,
+    EmptyContent,
+    EmptyDescription,
+    EmptyHeader,
+    EmptyMedia,
+    EmptyTitle,
+} from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
+import {
+    InputGroup,
+    InputGroupAddon,
+    InputGroupInput,
+    InputGroupText,
+} from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import { ParcelImageList } from "@/features/parcels/components/parcel-image-list";
 import { ParcelStatusPill } from "@/features/parcels/components/parcel-status-pill";
@@ -36,6 +52,7 @@ type EditParcelFormProps = {
         packageCount: number;
         specialHandlingNote: string | null;
         estimatedWeightKg: string | null;
+        isLargeItem: boolean;
         packageWidthCm: string | null;
         packageHeightCm: string | null;
         packageLengthCm: string | null;
@@ -80,6 +97,55 @@ type DeliveryFeePayer = (typeof DELIVERY_FEE_PAYERS)[number];
 type DeliveryFeePaymentPlan = (typeof DELIVERY_FEE_PAYMENT_PLANS)[number];
 type DeliveryFeePaymentPlanValue = DeliveryFeePaymentPlan | "";
 
+const textareaClassName =
+    "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+
+const deliveryFeePaymentPlanCopy: Record<
+    DeliveryFeePaymentPlan,
+    { title: string; description: string }
+> = {
+    receiver_collect_on_delivery: {
+        title: "Collect on Delivery",
+        description: "Receiver pays the delivery fee during delivery.",
+    },
+    merchant_prepaid_bank_transfer: {
+        title: "Prepaid Bank Transfer",
+        description: "Merchant pays by bank transfer before pickup.",
+    },
+    merchant_cash_on_pickup: {
+        title: "Cash on Pickup",
+        description: "Merchant pays cash to the rider during pickup.",
+    },
+    merchant_deduct_from_cod_settlement: {
+        title: "Deduct from COD Settlement",
+        description: "Deduct the delivery fee from each COD parcel's settlement.",
+    },
+    merchant_bill_later: {
+        title: "Bill Later",
+        description: "Bill the merchant separately at a later time.",
+    },
+};
+
+function getSafeParcelTypeValue(value: string | undefined) {
+    if (PARCEL_TYPES.includes(value as ParcelType)) {
+        return value as ParcelType;
+    }
+
+    return "cod";
+}
+
+function getSafeDeliveryFeePayerValue(value: string | undefined) {
+    if (DELIVERY_FEE_PAYERS.includes(value as DeliveryFeePayer)) {
+        return value as DeliveryFeePayer;
+    }
+
+    return "receiver";
+}
+
+function getSafeIsLargeItemValue(value: string | undefined) {
+    return value === "true";
+}
+
 function getSafePaymentPlanValue(
     value: string | null | undefined,
     options: readonly DeliveryFeePaymentPlan[],
@@ -107,6 +173,7 @@ function buildFormValues(parcel: EditParcelFormProps["parcel"]) {
         packageCount: parcel.packageCount.toString(),
         specialHandlingNote: parcel.specialHandlingNote ?? "",
         estimatedWeightKg: parcel.estimatedWeightKg ?? "",
+        isLargeItem: parcel.isLargeItem ? "true" : "false",
         packageWidthCm: parcel.packageWidthCm ?? "",
         packageHeightCm: parcel.packageHeightCm ?? "",
         packageLengthCm: parcel.packageLengthCm ?? "",
@@ -116,6 +183,75 @@ function buildFormValues(parcel: EditParcelFormProps["parcel"]) {
         deliveryFeePayer: parcel.deliveryFeePayer,
         deliveryFeePaymentPlan: parcel.deliveryFeePaymentPlan ?? "",
     };
+}
+
+function SectionHeader({
+    step,
+    title,
+    description,
+}: Readonly<{
+    step: number;
+    title: string;
+    description: string;
+}>) {
+    return (
+        <div className="flex items-start gap-3">
+            <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-background text-xs font-semibold text-foreground ring-1 ring-border">
+                {step}
+            </div>
+            <div className="space-y-1">
+                <h2 className="text-sm font-semibold">{title}</h2>
+                <p className="text-xs text-muted-foreground">{description}</p>
+            </div>
+        </div>
+    );
+}
+
+function ChoiceCard({
+    title,
+    description,
+    selected,
+    onClick,
+    disabled = false,
+    className,
+}: Readonly<{
+    title: string;
+    description: string;
+    selected: boolean;
+    onClick: () => void;
+    disabled?: boolean;
+    className?: string;
+}>) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className={cn(
+                "rounded-xl border bg-background p-4 text-left transition-colors hover:border-foreground/30",
+                {
+                    "border-foreground/80 bg-foreground/5": selected,
+                    "cursor-not-allowed opacity-70 hover:border-input": disabled,
+                },
+                className,
+            )}
+            aria-pressed={selected}
+        >
+            <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                    <p className="text-sm font-semibold">{title}</p>
+                    <p className="text-xs text-muted-foreground">{description}</p>
+                </div>
+
+                <CheckCircle2Icon
+                    aria-hidden={!selected}
+                    className={cn("mt-0.5 size-4 shrink-0 text-foreground transition-opacity", {
+                        "opacity-0": !selected,
+                    })}
+                />
+            </div>
+        </button>
+    );
 }
 
 function ReadOnlyValue({
@@ -147,125 +283,154 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
 
     const defaultFields = buildFormValues(parcel);
     const fields: ReturnType<typeof buildFormValues> = { ...defaultFields, ...state.fields };
-    const selectedMerchant = merchants.find((merchant) => merchant.id === fields.merchantId);
-    const selectedRider = riders.find((rider) => rider.id === fields.riderId);
-    const getFieldError = (fieldName: string) => state.fieldErrors?.[fieldName]?.[0];
+    const [selectedMerchantId, setSelectedMerchantId] = useState(fields.merchantId);
+    const [selectedRiderId, setSelectedRiderId] = useState(fields.riderId);
     const [selectedParcelType, setSelectedParcelType] = useState<ParcelType>(
-        fields.parcelType as ParcelType,
+        getSafeParcelTypeValue(fields.parcelType),
+    );
+    const [selectedIsLargeItem, setSelectedIsLargeItem] = useState(
+        getSafeIsLargeItemValue(fields.isLargeItem),
     );
     const [selectedDeliveryFeePayer, setSelectedDeliveryFeePayer] = useState<DeliveryFeePayer>(
-        fields.deliveryFeePayer as DeliveryFeePayer,
+        getSafeDeliveryFeePayerValue(fields.deliveryFeePayer),
     );
     const [selectedDeliveryFeePaymentPlan, setSelectedDeliveryFeePaymentPlan] =
         useState<DeliveryFeePaymentPlanValue>(() =>
             getSafePaymentPlanValue(
                 fields.deliveryFeePaymentPlan,
                 getDeliveryFeePaymentPlanOptions({
-                    parcelType: fields.parcelType as ParcelType,
-                    deliveryFeePayer: fields.deliveryFeePayer as DeliveryFeePayer,
+                    parcelType: getSafeParcelTypeValue(fields.parcelType),
+                    deliveryFeePayer: getSafeDeliveryFeePayerValue(fields.deliveryFeePayer),
                 }),
             ),
         );
+    const [paymentSlipFileCount, setPaymentSlipFileCount] = useState(0);
 
     useEffect(() => {
-        const nextParcelType = fields.parcelType as ParcelType;
-        const nextDeliveryFeePayer = fields.deliveryFeePayer as DeliveryFeePayer;
+        const nextParcelType = getSafeParcelTypeValue(fields.parcelType);
+        const nextDeliveryFeePayer = getSafeDeliveryFeePayerValue(fields.deliveryFeePayer);
         const nextOptions = getDeliveryFeePaymentPlanOptions({
             parcelType: nextParcelType,
             deliveryFeePayer: nextDeliveryFeePayer,
         });
 
+        setSelectedMerchantId(fields.merchantId);
+        setSelectedRiderId(fields.riderId);
         setSelectedParcelType(nextParcelType);
+        setSelectedIsLargeItem(getSafeIsLargeItemValue(fields.isLargeItem));
         setSelectedDeliveryFeePayer(nextDeliveryFeePayer);
         setSelectedDeliveryFeePaymentPlan(
             getSafePaymentPlanValue(fields.deliveryFeePaymentPlan, nextOptions),
         );
-    }, [fields.deliveryFeePayer, fields.deliveryFeePaymentPlan, fields.parcelType]);
+    }, [
+        fields.deliveryFeePayer,
+        fields.deliveryFeePaymentPlan,
+        fields.isLargeItem,
+        fields.merchantId,
+        fields.parcelType,
+        fields.riderId,
+    ]);
 
     const deliveryFeePaymentPlanOptions = getDeliveryFeePaymentPlanOptions({
         parcelType: selectedParcelType,
         deliveryFeePayer: selectedDeliveryFeePayer,
     });
+
+    useEffect(() => {
+        setSelectedDeliveryFeePaymentPlan((current) =>
+            getSafePaymentPlanValue(current, deliveryFeePaymentPlanOptions),
+        );
+    }, [selectedDeliveryFeePayer, selectedParcelType]);
+
     const deliveryFeePaymentPlanValue = getSafePaymentPlanValue(
         selectedDeliveryFeePaymentPlan,
         deliveryFeePaymentPlanOptions,
     );
     const allowBlankDeliveryFeePaymentPlan = parcel.deliveryFeePaymentPlan === null;
     const showPaymentSlipField = deliveryFeePaymentPlanValue === "merchant_prepaid_bank_transfer";
+    const selectedMerchant = merchants.find((merchant) => merchant.id === selectedMerchantId);
+    const selectedRider = riders.find((rider) => rider.id === selectedRiderId);
+    const merchantOptions = merchants.map((merchant) => ({
+        value: merchant.id,
+        label: merchant.label,
+    }));
+    const riderOptions = riders.map((rider) => ({
+        value: rider.id,
+        label: rider.label,
+    }));
+    const getFieldError = (fieldName: string) => state.fieldErrors?.[fieldName]?.[0];
+
+    useEffect(() => {
+        if (!showPaymentSlipField) {
+            setPaymentSlipFileCount(0);
+        }
+    }, [showPaymentSlipField]);
 
     return (
-        <form action={action} className="space-y-6">
+        <form action={action} className="space-y-5">
             <input type="hidden" name="parcelId" value={parcel.id} />
+            <input type="hidden" name="packageCount" value={fields.packageCount} />
 
-            <section className="space-y-4 rounded-xl border bg-card p-4">
-                <div className="space-y-1">
-                    <h2 className="text-sm font-semibold">Parcel Details</h2>
-                    <p className="text-xs text-muted-foreground">
-                        Edit recipient, package, merchant, and rider assignment details.
-                    </p>
-                </div>
-
-                <ReadOnlyValue label="Parcel Code" value={parcel.parcelCode} />
+            <section className="space-y-5 rounded-xl border bg-card p-4 sm:p-5">
+                <SectionHeader
+                    step={1}
+                    title="People"
+                    description="Assign the merchant and rider, then update the recipient delivery details."
+                />
 
                 <div className="grid gap-4 md:grid-cols-2">
                     <div className="grid gap-2">
-                        <Label htmlFor="merchant-id">Merchant *</Label>
+                        <Label htmlFor="merchantId">Merchant *</Label>
                         {merchantFieldReadOnly ? (
                             <>
                                 <Input
-                                    id="merchant-id"
-                                    value={selectedMerchant?.label ?? "-"}
+                                    id="merchantId"
+                                    value={selectedMerchant?.label ?? merchants[0]?.label ?? "-"}
                                     readOnly
                                     disabled
                                 />
-                                <input type="hidden" name="merchantId" value={fields.merchantId} />
+                                <input type="hidden" name="merchantId" value={selectedMerchantId} />
                             </>
                         ) : (
-                            <select
-                                key={fields.merchantId}
-                                id="merchant-id"
+                            <SearchableCombobox
+                                id="merchantId"
                                 name="merchantId"
-                                defaultValue={fields.merchantId}
-                                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                                value={selectedMerchantId}
+                                onValueChange={setSelectedMerchantId}
+                                options={merchantOptions}
+                                placeholder="Search merchant"
+                                emptyLabel="No merchant found."
                                 required
-                            >
-                                {merchants.map((merchant) => (
-                                    <option key={merchant.id} value={merchant.id}>
-                                        {merchant.label}
-                                    </option>
-                                ))}
-                            </select>
+                                invalid={Boolean(getFieldError("merchantId"))}
+                            />
                         )}
                         <FormFieldError message={getFieldError("merchantId")} />
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="rider-id">Rider (Optional)</Label>
+                        <Label htmlFor="riderId">Rider (Optional)</Label>
                         {accountingFieldsReadOnly ? (
                             <>
                                 <Input
-                                    id="rider-id"
+                                    id="riderId"
                                     value={selectedRider?.label ?? "No rider assigned"}
                                     readOnly
                                     disabled
                                 />
-                                <input type="hidden" name="riderId" value={fields.riderId} />
+                                <input type="hidden" name="riderId" value={selectedRiderId} />
                             </>
                         ) : (
-                            <select
-                                key={fields.riderId}
-                                id="rider-id"
+                            <SearchableCombobox
+                                id="riderId"
                                 name="riderId"
-                                defaultValue={fields.riderId}
-                                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                            >
-                                <option value="">No rider assigned</option>
-                                {riders.map((rider) => (
-                                    <option key={rider.id} value={rider.id}>
-                                        {rider.label}
-                                    </option>
-                                ))}
-                            </select>
+                                value={selectedRiderId}
+                                onValueChange={setSelectedRiderId}
+                                options={riderOptions}
+                                placeholder="Search rider"
+                                emptyLabel="No rider found."
+                                allowClear
+                                invalid={Boolean(getFieldError("riderId"))}
+                            />
                         )}
                         <FormFieldError message={getFieldError("riderId")} />
                     </div>
@@ -273,10 +438,11 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
 
                 <div className="grid gap-4 md:grid-cols-2">
                     <div className="grid gap-2">
-                        <Label htmlFor="recipient-name">Recipient Name *</Label>
+                        <Label htmlFor="recipientName">Recipient Name *</Label>
                         <Input
-                            id="recipient-name"
+                            id="recipientName"
                             name="recipientName"
+                            placeholder="Receiver full name"
                             defaultValue={fields.recipientName}
                             required
                         />
@@ -284,10 +450,11 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="recipient-phone">Recipient Phone *</Label>
+                        <Label htmlFor="recipientPhone">Recipient Phone *</Label>
                         <Input
-                            id="recipient-phone"
+                            id="recipientPhone"
                             name="recipientPhone"
+                            placeholder="09xxxxxxxxx"
                             defaultValue={fields.recipientPhone}
                             required
                         />
@@ -296,15 +463,18 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                 </div>
 
                 <div className="grid gap-2">
-                    <Label htmlFor="recipient-township-id">Recipient Township *</Label>
+                    <Label htmlFor="recipientTownshipId">Recipient Township *</Label>
                     <select
                         key={fields.recipientTownshipId}
-                        id="recipient-township-id"
+                        id="recipientTownshipId"
                         name="recipientTownshipId"
-                        defaultValue={fields.recipientTownshipId}
                         className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                        defaultValue={fields.recipientTownshipId}
                         required
                     >
+                        <option value="" disabled>
+                            Select township
+                        </option>
                         {townships.map((township) => (
                             <option key={township.id} value={township.id}>
                                 {township.label}
@@ -315,298 +485,363 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                 </div>
 
                 <div className="grid gap-2">
-                    <Label htmlFor="recipient-address">Recipient Address *</Label>
+                    <Label htmlFor="recipientAddress">Recipient Address *</Label>
                     <textarea
-                        id="recipient-address"
+                        id="recipientAddress"
                         name="recipientAddress"
                         rows={3}
                         defaultValue={fields.recipientAddress}
                         required
-                        className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                        className={textareaClassName}
                     />
                     <FormFieldError message={getFieldError("recipientAddress")} />
                 </div>
-
-                <div className="grid gap-2">
-                    <Label htmlFor="parcel-description">Parcel Description *</Label>
-                    <textarea
-                        id="parcel-description"
-                        name="parcelDescription"
-                        rows={3}
-                        defaultValue={fields.parcelDescription}
-                        required
-                        className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                    />
-                    <FormFieldError message={getFieldError("parcelDescription")} />
-                </div>
-
-                <div className="grid gap-2">
-                    <Label htmlFor="package-count">Package Count *</Label>
-                    <Input
-                        id="package-count"
-                        value={fields.packageCount}
-                        readOnly
-                        disabled
-                        aria-readonly="true"
-                    />
-                    <input type="hidden" name="packageCount" value={fields.packageCount} />
-                    <p className="text-xs text-muted-foreground">
-                        Package count is locked after parcel creation.
-                    </p>
-                    <FormFieldError message={getFieldError("packageCount")} />
-                </div>
-
-                <div className="grid gap-2">
-                    <Label htmlFor="special-handling-note">Special Handling Note (Optional)</Label>
-                    <textarea
-                        id="special-handling-note"
-                        name="specialHandlingNote"
-                        rows={3}
-                        defaultValue={fields.specialHandlingNote}
-                        className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                    />
-                    <FormFieldError message={getFieldError("specialHandlingNote")} />
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="grid gap-2">
-                        <Label htmlFor="estimated-weight-kg">Estimated Weight (kg)</Label>
-                        <Input
-                            id="estimated-weight-kg"
-                            name="estimatedWeightKg"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            defaultValue={fields.estimatedWeightKg}
-                        />
-                        <FormFieldError message={getFieldError("estimatedWeightKg")} />
-                    </div>
-
-                    <div className="grid gap-2">
-                        <Label htmlFor="package-width-cm">Width (cm)</Label>
-                        <Input
-                            id="package-width-cm"
-                            name="packageWidthCm"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            defaultValue={fields.packageWidthCm}
-                        />
-                        <FormFieldError message={getFieldError("packageWidthCm")} />
-                    </div>
-
-                    <div className="grid gap-2">
-                        <Label htmlFor="package-height-cm">Height (cm)</Label>
-                        <Input
-                            id="package-height-cm"
-                            name="packageHeightCm"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            defaultValue={fields.packageHeightCm}
-                        />
-                        <FormFieldError message={getFieldError("packageHeightCm")} />
-                    </div>
-
-                    <div className="grid gap-2">
-                        <Label htmlFor="package-length-cm">Length (cm)</Label>
-                        <Input
-                            id="package-length-cm"
-                            name="packageLengthCm"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            defaultValue={fields.packageLengthCm}
-                        />
-                        <FormFieldError message={getFieldError("packageLengthCm")} />
-                    </div>
-                </div>
             </section>
 
-            <section className="space-y-4 rounded-xl border bg-card p-4">
-                <div className="space-y-1">
-                    <h2 className="text-sm font-semibold">Collection Setup</h2>
-                    <p className="text-xs text-muted-foreground">
-                        Edit parcel type, COD amount, delivery fee, fee payer, and payment plan.
-                    </p>
-                </div>
+            <section className="space-y-5 rounded-xl border bg-card p-4 sm:p-5">
+                <SectionHeader
+                    step={2}
+                    title="Billing"
+                    description="Set who pays the delivery fee, choose the payment plan, and append transfer proof when needed."
+                />
 
-                {financialFieldsReadOnly && (
+                {financialFieldsReadOnly ? (
                     <p className="rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground">
                         Financial fields are locked by merchant settlement.
                     </p>
-                )}
+                ) : null}
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4">
                     <div className="grid gap-2">
-                        <Label htmlFor="parcel-type">Parcel Type *</Label>
-                        {financialFieldsReadOnly ? (
-                            <>
-                                <Input
-                                    id="parcel-type"
-                                    value={formatParcelStatusLabel(fields.parcelType)}
-                                    readOnly
-                                    disabled
+                        <Label>Delivery Fee Payer *</Label>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            {DELIVERY_FEE_PAYERS.map((value) => (
+                                <ChoiceCard
+                                    key={value}
+                                    title={formatParcelStatusLabel(value)}
+                                    description={
+                                        value === "receiver"
+                                            ? "Receiver pays the delivery fee during delivery."
+                                            : "Merchant covers the delivery fee using the selected payment plan."
+                                    }
+                                    selected={selectedDeliveryFeePayer === value}
+                                    onClick={() => setSelectedDeliveryFeePayer(value)}
+                                    disabled={financialFieldsReadOnly}
+                                    className="h-[90px]"
                                 />
-                                <input type="hidden" name="parcelType" value={fields.parcelType} />
-                            </>
-                        ) : (
-                            <select
-                                id="parcel-type"
-                                name="parcelType"
-                                value={selectedParcelType}
-                                onChange={(event) => {
-                                    const nextParcelType = event.target.value as ParcelType;
-                                    const nextOptions = getDeliveryFeePaymentPlanOptions({
-                                        parcelType: nextParcelType,
-                                        deliveryFeePayer: selectedDeliveryFeePayer,
-                                    });
-
-                                    setSelectedParcelType(nextParcelType);
-                                    setSelectedDeliveryFeePaymentPlan(
-                                        getSafePaymentPlanValue(
-                                            selectedDeliveryFeePaymentPlan,
-                                            nextOptions,
-                                        ),
-                                    );
-                                }}
-                                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                                required
-                            >
-                                {PARCEL_TYPES.map((type) => (
-                                    <option key={type} value={type}>
-                                        {formatParcelStatusLabel(type)}
-                                    </option>
-                                ))}
-                            </select>
-                        )}
-                        <FormFieldError message={getFieldError("parcelType")} />
-                    </div>
-
-                    <div className="grid gap-2">
-                        <Label htmlFor="delivery-fee-payer">Delivery Fee Payer *</Label>
-                        {financialFieldsReadOnly ? (
-                            <>
-                                <Input
-                                    id="delivery-fee-payer"
-                                    value={formatParcelStatusLabel(fields.deliveryFeePayer)}
-                                    readOnly
-                                    disabled
-                                />
-                                <input
-                                    type="hidden"
-                                    name="deliveryFeePayer"
-                                    value={fields.deliveryFeePayer}
-                                />
-                            </>
-                        ) : (
-                            <select
-                                id="delivery-fee-payer"
-                                name="deliveryFeePayer"
-                                value={selectedDeliveryFeePayer}
-                                onChange={(event) => {
-                                    const nextDeliveryFeePayer = event.target
-                                        .value as DeliveryFeePayer;
-                                    const nextOptions = getDeliveryFeePaymentPlanOptions({
-                                        parcelType: selectedParcelType,
-                                        deliveryFeePayer: nextDeliveryFeePayer,
-                                    });
-
-                                    setSelectedDeliveryFeePayer(nextDeliveryFeePayer);
-                                    setSelectedDeliveryFeePaymentPlan(
-                                        getSafePaymentPlanValue(
-                                            selectedDeliveryFeePaymentPlan,
-                                            nextOptions,
-                                        ),
-                                    );
-                                }}
-                                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                                required
-                            >
-                                {DELIVERY_FEE_PAYERS.map((value) => (
-                                    <option key={value} value={value}>
-                                        {formatParcelStatusLabel(value)}
-                                    </option>
-                                ))}
-                            </select>
-                        )}
+                            ))}
+                        </div>
+                        <input
+                            type="hidden"
+                            id="deliveryFeePayer"
+                            name="deliveryFeePayer"
+                            value={selectedDeliveryFeePayer}
+                        />
                         <FormFieldError message={getFieldError("deliveryFeePayer")} />
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="delivery-fee-payment-plan">Delivery Fee Payment Plan</Label>
-                        {financialFieldsReadOnly ? (
-                            <>
-                                <Input
-                                    id="delivery-fee-payment-plan"
-                                    value={
-                                        deliveryFeePaymentPlanValue
-                                            ? formatParcelStatusLabel(deliveryFeePaymentPlanValue)
-                                            : "Not recorded"
-                                    }
-                                    readOnly
-                                    disabled
-                                />
-                                <input
-                                    type="hidden"
-                                    name="deliveryFeePaymentPlan"
-                                    value={deliveryFeePaymentPlanValue}
-                                />
-                            </>
-                        ) : (
-                            <select
-                                id="delivery-fee-payment-plan"
-                                name="deliveryFeePaymentPlan"
-                                value={deliveryFeePaymentPlanValue}
-                                onChange={(event) =>
-                                    setSelectedDeliveryFeePaymentPlan(
-                                        event.target.value as DeliveryFeePaymentPlanValue,
-                                    )
-                                }
-                                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                            >
-                                {allowBlankDeliveryFeePaymentPlan && (
-                                    <option value="">Select delivery fee payment plan</option>
-                                )}
-                                {deliveryFeePaymentPlanOptions.map((value) => (
-                                    <option key={value} value={value}>
-                                        {formatParcelStatusLabel(value)}
-                                    </option>
-                                ))}
-                            </select>
-                        )}
+                        <Label>Delivery Fee Payment Plan</Label>
+                        <div className="grid gap-3 md:grid-cols-2">
+                            {deliveryFeePaymentPlanOptions.map((value) => {
+                                const copy = deliveryFeePaymentPlanCopy[value];
+
+                                return (
+                                    <ChoiceCard
+                                        key={value}
+                                        title={copy.title}
+                                        description={copy.description}
+                                        selected={deliveryFeePaymentPlanValue === value}
+                                        onClick={() => setSelectedDeliveryFeePaymentPlan(value)}
+                                        disabled={financialFieldsReadOnly}
+                                        className="h-[90px]"
+                                    />
+                                );
+                            })}
+                        </div>
+                        <input
+                            type="hidden"
+                            id="deliveryFeePaymentPlan"
+                            name="deliveryFeePaymentPlan"
+                            value={deliveryFeePaymentPlanValue}
+                        />
+                        {!deliveryFeePaymentPlanValue && allowBlankDeliveryFeePaymentPlan ? (
+                            <p className="text-xs text-muted-foreground">
+                                No delivery fee payment plan has been recorded yet.
+                            </p>
+                        ) : null}
                         <FormFieldError message={getFieldError("deliveryFeePaymentPlan")} />
                     </div>
+                </div>
 
+                {!accountingFieldsReadOnly ? (
+                    <>
+                        <ParcelImageList
+                            title="Payment Slip Images"
+                            images={parcel.paymentSlipImages}
+                        />
+
+                        {showPaymentSlipField ? (
+                            <div className="grid gap-2">
+                                <Label>Payment Slip Images</Label>
+                                <input
+                                    id="paymentSlipImages"
+                                    name="paymentSlipImages"
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp"
+                                    multiple
+                                    className="sr-only hidden"
+                                    onChange={(event) =>
+                                        setPaymentSlipFileCount(event.target.files?.length ?? 0)
+                                    }
+                                />
+                                <Empty className="border bg-background">
+                                    <EmptyHeader>
+                                        <EmptyMedia variant="icon">
+                                            <ImageIcon className="size-5" />
+                                        </EmptyMedia>
+                                        <EmptyTitle>
+                                            {paymentSlipFileCount > 0
+                                                ? `${paymentSlipFileCount} payment slip image${paymentSlipFileCount === 1 ? "" : "s"} selected`
+                                                : "Upload Payment Slip Images"}
+                                        </EmptyTitle>
+                                        <EmptyDescription>
+                                            Add JPG, PNG, or WEBP images. Existing payment slips are
+                                            kept and new uploads are appended to this parcel.
+                                        </EmptyDescription>
+                                    </EmptyHeader>
+                                    <EmptyContent>
+                                        <label
+                                            htmlFor="paymentSlipImages"
+                                            className={cn(
+                                                buttonVariants({ variant: "outline" }),
+                                                "cursor-pointer",
+                                            )}
+                                        >
+                                            <UploadIcon className="size-4" />
+                                            {paymentSlipFileCount > 0
+                                                ? "Change Images"
+                                                : "Choose Images"}
+                                        </label>
+                                    </EmptyContent>
+                                </Empty>
+                                <FormFieldError message={getFieldError("paymentSlipImages")} />
+                            </div>
+                        ) : (
+                            <p className="text-xs text-muted-foreground">
+                                Payment slips are only available for prepaid bank transfer parcels.
+                            </p>
+                        )}
+                    </>
+                ) : null}
+            </section>
+
+            <section className="space-y-5 rounded-xl border bg-card p-4 sm:p-5">
+                <SectionHeader
+                    step={3}
+                    title="Parcel Details"
+                    description="Edit the single parcel record details. Package count stays fixed and is hidden in edit mode."
+                />
+
+                <ReadOnlyValue label="Parcel Code" value={parcel.parcelCode} />
+
+                <div className="grid gap-2">
+                    <Label>Parcel Type *</Label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        {PARCEL_TYPES.map((type) => (
+                            <ChoiceCard
+                                key={type}
+                                title={formatParcelStatusLabel(type)}
+                                description={
+                                    type === "cod"
+                                        ? "Collect COD cash from the recipient on delivery."
+                                        : "No COD collection. COD amount will stay at 0."
+                                }
+                                selected={selectedParcelType === type}
+                                onClick={() => setSelectedParcelType(type)}
+                                disabled={financialFieldsReadOnly}
+                            />
+                        ))}
+                    </div>
+                    <input type="hidden" name="parcelType" value={selectedParcelType} />
+                    <FormFieldError message={getFieldError("parcelType")} />
+                </div>
+
+                <div className="grid gap-2">
+                    <Label htmlFor="parcelDescription">Parcel Description *</Label>
+                    <textarea
+                        id="parcelDescription"
+                        name="parcelDescription"
+                        rows={3}
+                        defaultValue={fields.parcelDescription}
+                        required
+                        className={textareaClassName}
+                    />
+                    <FormFieldError message={getFieldError("parcelDescription")} />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
                     <div className="grid gap-2">
-                        <Label htmlFor="cod-amount">COD Amount *</Label>
+                        <Label htmlFor="estimatedWeightKg">Weight (kg) *</Label>
                         <Input
-                            id="cod-amount"
-                            name="codAmount"
+                            id="estimatedWeightKg"
+                            name="estimatedWeightKg"
                             type="number"
-                            min="0"
+                            min="0.01"
                             step="0.01"
-                            defaultValue={fields.codAmount}
-                            readOnly={financialFieldsReadOnly}
+                            defaultValue={fields.estimatedWeightKg}
                             required
                         />
-                        <FormFieldError message={getFieldError("codAmount")} />
+                        <FormFieldError message={getFieldError("estimatedWeightKg")} />
+                    </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid gap-2">
+                        <Label>Item Size</Label>
+                        <ChoiceCard
+                            title="Large Item"
+                            description="Show length, width, and height for bulky parcels. Standard items save as 1 x 1 x 1 cm."
+                            selected={selectedIsLargeItem}
+                            onClick={() => setSelectedIsLargeItem((current) => !current)}
+                            className="h-full"
+                        />
+                        <input
+                            type="hidden"
+                            name="isLargeItem"
+                            value={selectedIsLargeItem ? "true" : "false"}
+                        />
+                        <FormFieldError message={getFieldError("isLargeItem")} />
                     </div>
 
+                    <div
+                        className={cn("grid grid-rows-[min-content] items-start gap-2", {
+                            hidden: !selectedIsLargeItem,
+                        })}
+                        aria-hidden={!selectedIsLargeItem}
+                    >
+                        <Label>Dimensions (cm) *</Label>
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2">
+                            <div className="grid gap-2">
+                                <Input
+                                    id="packageLengthCm"
+                                    name="packageLengthCm"
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    placeholder="L"
+                                    aria-label="Length (cm)"
+                                    defaultValue={fields.packageLengthCm}
+                                />
+                                <FormFieldError message={getFieldError("packageLengthCm")} />
+                            </div>
+                            <span className="flex h-8 items-center justify-center text-sm text-muted-foreground">
+                                x
+                            </span>
+                            <div className="grid gap-2">
+                                <Input
+                                    id="packageWidthCm"
+                                    name="packageWidthCm"
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    placeholder="W"
+                                    aria-label="Width (cm)"
+                                    defaultValue={fields.packageWidthCm}
+                                />
+                                <FormFieldError message={getFieldError("packageWidthCm")} />
+                            </div>
+                            <span className="flex h-8 items-center justify-center text-sm text-muted-foreground">
+                                x
+                            </span>
+                            <div className="grid gap-2">
+                                <Input
+                                    id="packageHeightCm"
+                                    name="packageHeightCm"
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    placeholder="H"
+                                    aria-label="Height (cm)"
+                                    defaultValue={fields.packageHeightCm}
+                                />
+                                <FormFieldError message={getFieldError("packageHeightCm")} />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
                     <div className="grid gap-2">
-                        <Label htmlFor="delivery-fee">Delivery Fee *</Label>
-                        <Input
-                            id="delivery-fee"
-                            name="deliveryFee"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            defaultValue={fields.deliveryFee}
-                            readOnly={financialFieldsReadOnly}
-                            required
-                        />
+                        <Label htmlFor="deliveryFee">Delivery Fee *</Label>
+                        <InputGroup>
+                            <InputGroupInput
+                                id="deliveryFee"
+                                name="deliveryFee"
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                defaultValue={fields.deliveryFee}
+                                readOnly={financialFieldsReadOnly}
+                                required
+                            />
+                            <InputGroupAddon align="inline-start">
+                                <InputGroupText>Ks</InputGroupText>
+                            </InputGroupAddon>
+                        </InputGroup>
                         <FormFieldError message={getFieldError("deliveryFee")} />
                     </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="codAmount">COD Amount *</Label>
+                        <InputGroup>
+                            {selectedParcelType === "non_cod" && !financialFieldsReadOnly ? (
+                                <>
+                                    <input type="hidden" name="codAmount" value="0" />
+                                    <InputGroupInput
+                                        id="codAmount"
+                                        value="0"
+                                        readOnly
+                                        disabled
+                                        aria-readonly="true"
+                                    />
+                                </>
+                            ) : (
+                                <InputGroupInput
+                                    id="codAmount"
+                                    name="codAmount"
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    defaultValue={fields.codAmount}
+                                    readOnly={financialFieldsReadOnly}
+                                    required
+                                />
+                            )}
+                            <InputGroupAddon align="inline-start">
+                                <InputGroupText>Ks</InputGroupText>
+                            </InputGroupAddon>
+                        </InputGroup>
+                        {selectedParcelType === "non_cod" ? (
+                            <p className="text-xs text-muted-foreground">
+                                Non-COD parcels do not collect COD. COD amount will be submitted as
+                                0.
+                            </p>
+                        ) : null}
+                        <FormFieldError message={getFieldError("codAmount")} />
+                    </div>
+                </div>
+
+                <div className="grid gap-2">
+                    <Label htmlFor="specialHandlingNote">Special Handling Note (Optional)</Label>
+                    <textarea
+                        id="specialHandlingNote"
+                        name="specialHandlingNote"
+                        rows={3}
+                        defaultValue={fields.specialHandlingNote}
+                        className={textareaClassName}
+                    />
+                    <FormFieldError message={getFieldError("specialHandlingNote")} />
                 </div>
             </section>
 
@@ -620,9 +855,9 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
 
                 <ParcelImageList title="Pickup Images" images={parcel.pickupImages} />
                 <div className="grid gap-2">
-                    <Label htmlFor="pickup-images">Add Pickup Images</Label>
+                    <Label htmlFor="pickupImages">Add Pickup Images</Label>
                     <Input
-                        id="pickup-images"
+                        id="pickupImages"
                         name="pickupImages"
                         type="file"
                         accept="image/jpeg,image/png,image/webp"
@@ -636,9 +871,9 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                     images={parcel.proofOfDeliveryImages}
                 />
                 <div className="grid gap-2">
-                    <Label htmlFor="proof-of-delivery-images">Add Proof Of Delivery Images</Label>
+                    <Label htmlFor="proofOfDeliveryImages">Add Proof Of Delivery Images</Label>
                     <Input
-                        id="proof-of-delivery-images"
+                        id="proofOfDeliveryImages"
                         name="proofOfDeliveryImages"
                         type="file"
                         accept="image/jpeg,image/png,image/webp"
@@ -646,32 +881,6 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                     />
                     <FormFieldError message={getFieldError("proofOfDeliveryImages")} />
                 </div>
-
-                {!accountingFieldsReadOnly && (
-                    <>
-                        <ParcelImageList
-                            title="Payment Slip Images"
-                            images={parcel.paymentSlipImages}
-                        />
-                        {showPaymentSlipField ? (
-                            <div className="grid gap-2">
-                                <Label htmlFor="payment-slip-images">Add Payment Slip Images</Label>
-                                <Input
-                                    id="payment-slip-images"
-                                    name="paymentSlipImages"
-                                    type="file"
-                                    accept="image/jpeg,image/png,image/webp"
-                                    multiple
-                                />
-                                <FormFieldError message={getFieldError("paymentSlipImages")} />
-                            </div>
-                        ) : (
-                            <p className="text-xs text-muted-foreground">
-                                Payment slips are only available for prepaid bank transfer parcels.
-                            </p>
-                        )}
-                    </>
-                )}
             </section>
 
             <section className="space-y-4 rounded-xl border bg-card p-4">
@@ -723,7 +932,7 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                 </div>
             </section>
 
-            {state.message && (
+            {state.message ? (
                 <div
                     className={cn("rounded-lg border p-3", {
                         "border-emerald-300 bg-emerald-50": state.ok,
@@ -739,7 +948,7 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                         {state.message}
                     </p>
                 </div>
-            )}
+            ) : null}
 
             <Button type="submit" disabled={isPending}>
                 {isPending ? "Saving..." : "Save Parcel Details"}

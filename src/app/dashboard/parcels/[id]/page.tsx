@@ -173,7 +173,10 @@ export default async function ParcelDetailPage({
                 <div className="grid gap-1">
                     <p className="text-xs text-muted-foreground">Dimensions</p>
                     <p>
-                        {parcel.packageWidthCm && parcel.packageHeightCm && parcel.packageLengthCm
+                        {parcel.isLargeItem &&
+                        parcel.packageWidthCm &&
+                        parcel.packageHeightCm &&
+                        parcel.packageLengthCm
                             ? `${parcel.packageWidthCm} x ${parcel.packageHeightCm} x ${parcel.packageLengthCm} cm`
                             : "-"}
                     </p>
