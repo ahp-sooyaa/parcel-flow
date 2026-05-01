@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { getMerchantAccess } from "@/features/auth/server/policies/merchant";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
+import { MerchantListSearchAndFiltersForm } from "@/features/merchant/components/merchant-list-search-and-filters-form";
 import { getMerchantsListForViewer } from "@/features/merchant/server/dal";
 import { normalizeMerchantSearchQuery } from "@/features/merchant/server/utils";
 import { appendDashboardReturnTo, buildDashboardHref } from "@/lib/dashboard-navigation";
@@ -44,17 +45,7 @@ export default async function MerchantsPage({ searchParams }: Readonly<Merchants
                 )}
             </header>
 
-            <form className="flex items-center gap-2 rounded-xl border bg-card p-3" method="get">
-                <input
-                    name="q"
-                    defaultValue={query}
-                    placeholder="Search by shop name or contact name"
-                    className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                />
-                <Button type="submit" variant="outline" size="sm">
-                    Search
-                </Button>
-            </form>
+            <MerchantListSearchAndFiltersForm query={query} clearHref="/dashboard/merchants" />
 
             <div className="overflow-hidden rounded-xl border bg-card">
                 <table className="w-full text-left text-sm">

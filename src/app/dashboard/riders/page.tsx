@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { getRiderAccess } from "@/features/auth/server/policies/rider";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
+import { RiderListSearchAndFiltersForm } from "@/features/rider/components/rider-list-search-and-filters-form";
 import { getRidersListForViewer } from "@/features/rider/server/dal";
 import { normalizeRiderSearchQuery } from "@/features/rider/server/utils";
 import { appendDashboardReturnTo, buildDashboardHref } from "@/lib/dashboard-navigation";
@@ -45,17 +46,7 @@ export default async function RidersPage({ searchParams }: Readonly<RidersPagePr
                 )}
             </header>
 
-            <form className="flex items-center gap-2 rounded-xl border bg-card p-3" method="get">
-                <input
-                    name="q"
-                    defaultValue={query}
-                    placeholder="Search by rider name, phone, vehicle type or license plate"
-                    className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                />
-                <Button type="submit" variant="outline" size="sm">
-                    Search
-                </Button>
-            </form>
+            <RiderListSearchAndFiltersForm query={query} clearHref="/dashboard/riders" />
 
             <div className="overflow-hidden rounded-xl border bg-card">
                 <table className="w-full text-left text-sm">

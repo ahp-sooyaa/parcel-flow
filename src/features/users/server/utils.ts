@@ -10,6 +10,14 @@ import { optionalNullableTrimmedString, optionalNullableUuid } from "@/lib/valid
 import type { RoleSlug } from "@/db/constants";
 const checkboxBoolean = z.preprocess((value) => value === "on" || value === "true", z.boolean());
 
+export function normalizeUserSearchQuery(raw: string | undefined) {
+    return raw?.trim() ?? "";
+}
+
+export function toUserSearchPattern(query: string) {
+    return `%${query.replaceAll("%", "").replaceAll("_", "")}%`;
+}
+
 export const createUserSchema = z.object({
     fullName: z.string().trim().min(2).max(120),
     email: z.string().trim().email(),

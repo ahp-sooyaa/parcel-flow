@@ -3,9 +3,21 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { getTownshipAccess } from "@/features/auth/server/policies/townships";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
+import { TownshipListSearchAndFiltersForm } from "@/features/townships/components/township-list-search-and-filters-form";
 import { getTownshipsListForViewer } from "@/features/townships/server/dal";
+import { normalizeTownshipSearchQuery } from "@/features/townships/server/utils";
 
-export default async function TownshipsPage() {
+type TownshipsPageProps = {
+    searchParams: Promise<{
+        q?: string | string[];
+    }>;
+};
+
+function getSearchParamValue(raw: string | string[] | undefined) {
+    return Array.isArray(raw) ? raw[0] : raw;
+}
+
+export default async function TownshipsPage({ searchParams }: Readonly<TownshipsPageProps>) {
     const currentUser = await requireAppAccessContext();
     const townshipAccess = getTownshipAccess(currentUser);
 
@@ -13,7 +25,9 @@ export default async function TownshipsPage() {
         notFound();
     }
 
-    const townships = await getTownshipsListForViewer(currentUser);
+    const rawSearchParams = await searchParams;
+    const query = normalizeTownshipSearchQuery(getSearchParamValue(rawSearchParams.q));
+    const townships = await getTownshipsListForViewer(currentUser, { query });
 
     return (
         <section className="space-y-5">
@@ -30,6 +44,8 @@ export default async function TownshipsPage() {
                     </Button>
                 )}
             </header>
+
+            <TownshipListSearchAndFiltersForm query={query} clearHref="/dashboard/townships" />
 
             <div className="overflow-hidden rounded-xl border bg-card">
                 <table className="w-full text-left text-sm">

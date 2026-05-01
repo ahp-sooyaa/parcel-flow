@@ -1,6 +1,7 @@
 import "server-only";
-import { and, count, desc, eq, isNull } from "drizzle-orm";
+import { and, count, desc, eq, ilike, isNull, or } from "drizzle-orm";
 import { toAppUserListItemDto, type AppUserListItemDto, type UserWithRole } from "./dto";
+import { normalizeUserSearchQuery, toUserSearchPattern } from "./utils";
 import { db } from "@/db";
 import { appUsers, bankAccounts, merchants, riders, roles } from "@/db/schema";
 import { getUserManagementAccess } from "@/features/auth/server/policies/user-management";
@@ -11,7 +12,13 @@ import { createRiderProfile } from "@/features/rider/server/dal";
 import type { CreateUserInput } from "./utils";
 import type { AppAccessViewer } from "@/features/auth/server/dto";
 
-async function listUsers(): Promise<AppUserListItemDto[]> {
+async function listUsers(
+    input: {
+        query?: string;
+    } = {},
+): Promise<AppUserListItemDto[]> {
+    const normalizedQuery = normalizeUserSearchQuery(input.query);
+    const searchPattern = normalizedQuery ? toUserSearchPattern(normalizedQuery) : null;
     const rows = await db
         .select({
             id: appUsers.id,
@@ -25,7 +32,19 @@ async function listUsers(): Promise<AppUserListItemDto[]> {
         })
         .from(appUsers)
         .innerJoin(roles, eq(appUsers.roleId, roles.id))
-        .where(isNull(appUsers.deletedAt))
+        .where(
+            and(
+                isNull(appUsers.deletedAt),
+                searchPattern
+                    ? or(
+                          ilike(appUsers.fullName, searchPattern),
+                          ilike(appUsers.email, searchPattern),
+                          ilike(appUsers.phoneNumber, searchPattern),
+                          ilike(roles.slug, searchPattern),
+                      )
+                    : undefined,
+            ),
+        )
         .orderBy(desc(appUsers.createdAt));
 
     return rows.map((row) => toAppUserListItemDto(row));
@@ -33,6 +52,9 @@ async function listUsers(): Promise<AppUserListItemDto[]> {
 
 export async function getUsersListForViewer(
     viewer: AppAccessViewer,
+    input: {
+        query?: string;
+    } = {},
 ): Promise<AppUserListItemDto[]> {
     const userManagementAccess = getUserManagementAccess(viewer);
 
@@ -40,7 +62,7 @@ export async function getUsersListForViewer(
         return [];
     }
 
-    return listUsers();
+    return listUsers(input);
 }
 
 async function findUserWithRoleById(userId: string): Promise<UserWithRole | null> {
