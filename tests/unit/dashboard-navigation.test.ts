@@ -9,6 +9,7 @@ const adminNavItems: DashboardNavItem[] = [
     { key: "merchants", href: "/dashboard/merchants", label: "Merchants" },
     { key: "riders", href: "/dashboard/riders", label: "Riders" },
     { key: "parcels", href: "/dashboard/parcels", label: "Parcels" },
+    { key: "address-book", href: "/dashboard/address-book", label: "Address Book" },
     { key: "settlements", href: "/dashboard/settlements", label: "Settlements" },
     { key: "townships", href: "/dashboard/townships", label: "Townships" },
 ];
@@ -23,6 +24,17 @@ describe("dashboard navigation", () => {
             }),
         ).toEqual({
             breadcrumbs: [{ label: "Parcels" }],
+            backHref: null,
+        });
+
+        expect(
+            getDashboardNavigation({
+                pathname: "/dashboard/address-book",
+                searchParams: new URLSearchParams("merchantId=merchant-1"),
+                navItems: adminNavItems,
+            }),
+        ).toEqual({
+            breadcrumbs: [{ label: "Address Book" }],
             backHref: null,
         });
     });

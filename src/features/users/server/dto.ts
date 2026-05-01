@@ -24,6 +24,7 @@ export type CreateUserActionResult = {
     ok: boolean;
     message: string;
     temporaryPassword?: string;
+    fieldErrors?: Partial<Record<string, string[]>>;
 };
 
 export type AccountActionResult = {

@@ -1,6 +1,8 @@
 import "server-only";
 import { randomInt } from "node:crypto";
 import { z } from "zod";
+import { merchantContactReferenceSchema } from "@/features/merchant-contacts/server/utils";
+import { pickupLocationReferenceSchema } from "@/features/merchant-pickup-locations/server/utils";
 import { getMerchantSettlementBlockedReasons } from "@/features/merchant-settlements/server/settlement-calculations";
 import { findMerchantProfileLinkByAppUserId } from "@/features/merchant/server/dal";
 import {
@@ -52,6 +54,16 @@ const PARCEL_IMAGE_ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/we
 const CREATE_PARCEL_SHARED_FORM_FIELDS = [
     "merchantId",
     "riderId",
+    "pickupLocationId",
+    "pickupLocationLabel",
+    "pickupTownshipId",
+    "pickupAddress",
+    "pickupContactName",
+    "pickupContactPhone",
+    "savePickupLocation",
+    "selectedMerchantContactId",
+    "contactLabel",
+    "saveRecipientContact",
     "recipientName",
     "recipientPhone",
     "recipientTownshipId",
@@ -77,6 +89,16 @@ const UPDATE_PARCEL_FORM_FIELDS = [
     "parcelId",
     "merchantId",
     "riderId",
+    "pickupLocationId",
+    "pickupLocationLabel",
+    "pickupTownshipId",
+    "pickupAddress",
+    "pickupContactName",
+    "pickupContactPhone",
+    "savePickupLocation",
+    "selectedMerchantContactId",
+    "contactLabel",
+    "saveRecipientContact",
     "recipientName",
     "recipientPhone",
     "recipientTownshipId",
@@ -105,6 +127,16 @@ const UPDATE_PARCEL_DETAIL_FORM_FIELDS = [
     "parcelId",
     "merchantId",
     "riderId",
+    "pickupLocationId",
+    "pickupLocationLabel",
+    "pickupTownshipId",
+    "pickupAddress",
+    "pickupContactName",
+    "pickupContactPhone",
+    "savePickupLocation",
+    "selectedMerchantContactId",
+    "contactLabel",
+    "saveRecipientContact",
     "recipientName",
     "recipientPhone",
     "recipientTownshipId",
@@ -332,17 +364,20 @@ function refineParcelDetailFields(
 
 export const createParcelSchema = createParcelBaseSchema.superRefine(refineParcelDetailFields);
 
-export const createParcelSharedSchema = createParcelBaseSchema.pick({
-    merchantId: true,
-    riderId: true,
-    recipientName: true,
-    recipientPhone: true,
-    recipientTownshipId: true,
-    recipientAddress: true,
-    deliveryFeePayer: true,
-    deliveryFeePaymentPlan: true,
-    paymentNote: true,
-});
+export const createParcelSharedSchema = createParcelBaseSchema
+    .pick({
+        merchantId: true,
+        riderId: true,
+        recipientName: true,
+        recipientPhone: true,
+        recipientTownshipId: true,
+        recipientAddress: true,
+        deliveryFeePayer: true,
+        deliveryFeePaymentPlan: true,
+        paymentNote: true,
+    })
+    .merge(merchantContactReferenceSchema)
+    .merge(pickupLocationReferenceSchema);
 
 export const createParcelRowSchema = createParcelBaseSchema
     .pick({
@@ -403,6 +438,8 @@ export const createParcelBatchSchema = createParcelSharedSchema
     });
 
 export const updateParcelSchema = createParcelBaseSchema
+    .merge(merchantContactReferenceSchema)
+    .merge(pickupLocationReferenceSchema)
     .extend({
         deliveryFeePaymentPlan: optionalNullableDeliveryFeePaymentPlanField,
         parcelId: z.string().trim().uuid(),
@@ -420,6 +457,8 @@ export const updateParcelDetailSchema = createParcelBaseSchema
         deliveryFeePaymentPlan: optionalNullableDeliveryFeePaymentPlanField,
         parcelId: z.string().trim().uuid(),
     })
+    .merge(merchantContactReferenceSchema)
+    .merge(pickupLocationReferenceSchema)
     .superRefine(refineParcelDetailFields);
 
 export const advanceRiderParcelSchema = z.object({
@@ -475,6 +514,14 @@ export type ParcelListQuery = {
 export type ParcelWriteValues = {
     merchantId: string;
     riderId: string | null;
+    pickupLocationId: string | null;
+    merchantContactId: string | null;
+    pickupTownshipId: string | null;
+    pickupLocationLabel: string | null;
+    pickupAddress: string | null;
+    pickupContactName: string | null;
+    pickupContactPhone: string | null;
+    recipientContactLabel: string | null;
     recipientName: string;
     recipientPhone: string;
     recipientTownshipId: string;
@@ -1348,6 +1395,16 @@ export function parseCreateParcelFormData(formData: FormData) {
     const parsed = createParcelBatchSchema.safeParse({
         merchantId: fields.merchantId,
         riderId: fields.riderId,
+        pickupLocationId: fields.pickupLocationId,
+        pickupLocationLabel: fields.pickupLocationLabel,
+        pickupTownshipId: fields.pickupTownshipId,
+        pickupAddress: fields.pickupAddress,
+        pickupContactName: fields.pickupContactName,
+        pickupContactPhone: fields.pickupContactPhone,
+        savePickupLocation: fields.savePickupLocation,
+        selectedMerchantContactId: fields.selectedMerchantContactId,
+        contactLabel: fields.contactLabel,
+        saveRecipientContact: fields.saveRecipientContact,
         recipientName: fields.recipientName,
         recipientPhone: fields.recipientPhone,
         recipientTownshipId: fields.recipientTownshipId,
@@ -1497,9 +1554,20 @@ function getStoredParcelDimensions(input: {
 }
 
 export function buildParcelWriteValues(input: {
-    data: ParcelCreateInput | ParcelUpdateInput | ParcelDetailUpdateInput;
+    data: (ParcelCreateInput | ParcelUpdateInput | ParcelDetailUpdateInput) & {
+        selectedMerchantContactId: string | null;
+        contactLabel: string | null;
+    };
     merchantId: string;
     riderId: string | null;
+    pickupDetails: {
+        id: string | null;
+        label: string;
+        townshipId: string;
+        pickupAddress: string;
+        contactName: string;
+        contactPhone: string;
+    };
     totalAmountToCollect: number;
     deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number] | null;
     parcelStatus: (typeof PARCEL_STATUSES)[number];
@@ -1516,6 +1584,14 @@ export function buildParcelWriteValues(input: {
     return {
         merchantId: input.merchantId,
         riderId: input.riderId,
+        pickupLocationId: input.pickupDetails.id,
+        merchantContactId: input.data.selectedMerchantContactId,
+        pickupTownshipId: input.pickupDetails.townshipId,
+        pickupLocationLabel: input.pickupDetails.label,
+        pickupAddress: input.pickupDetails.pickupAddress,
+        pickupContactName: input.pickupDetails.contactName,
+        pickupContactPhone: input.pickupDetails.contactPhone,
+        recipientContactLabel: input.data.contactLabel,
         recipientName: input.data.recipientName,
         recipientPhone: input.data.recipientPhone,
         recipientTownshipId: input.data.recipientTownshipId,
@@ -1671,6 +1747,7 @@ export function getDefaultCreateCollectionStatus(parcelType: (typeof PARCEL_TYPE
 export async function validateParcelSubmission(input: {
     merchantId: string;
     riderId: string | null;
+    pickupTownshipId: string;
     recipientTownshipId: string;
     parcelType: (typeof PARCEL_TYPES)[number];
     codAmount: number;
@@ -1700,6 +1777,12 @@ export async function validateParcelSubmission(input: {
 
     if (!township?.isActive) {
         return { ok: false as const, message: "Selected recipient township was not found." };
+    }
+
+    const pickupTownship = await findTownshipById(input.pickupTownshipId);
+
+    if (!pickupTownship?.isActive) {
+        return { ok: false as const, message: "Selected pickup township was not found." };
     }
 
     if (input.deliveryFeeStatus) {
@@ -1751,6 +1834,7 @@ export async function validateParcelSubmission(input: {
 export async function validateCreateParcelBatchSubmission(input: {
     merchantId: string;
     riderId: string | null;
+    pickupTownshipId: string;
     recipientTownshipId: string;
     deliveryFeePayer: (typeof DELIVERY_FEE_PAYERS)[number];
     deliveryFeePaymentPlan: (typeof DELIVERY_FEE_PAYMENT_PLANS)[number];
@@ -1787,6 +1871,19 @@ export async function validateCreateParcelBatchSubmission(input: {
             fieldErrors: createFieldErrors(
                 "recipientTownshipId",
                 "Selected recipient township was not found.",
+            ),
+        };
+    }
+
+    const pickupTownship = await findTownshipById(input.pickupTownshipId);
+
+    if (!pickupTownship?.isActive) {
+        return {
+            ok: false as const,
+            message: "Selected pickup township was not found.",
+            fieldErrors: createFieldErrors(
+                "pickupTownshipId",
+                "Selected pickup township was not found.",
             ),
         };
     }

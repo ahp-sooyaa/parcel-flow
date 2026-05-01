@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useActionState } from "react";
+import { FormFieldError } from "@/components/shared/form-field-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +14,7 @@ const initialState = {
     ok: true,
     message: "",
     temporaryPassword: undefined,
+    fieldErrors: undefined,
 };
 
 type CreateUserFormProps = {
@@ -39,12 +41,14 @@ export function CreateUserForm({
     const [selectedRole, setSelectedRole] = useState<RoleSlug>(safeDefaultRole);
     const showMerchantFields = selectedRole === "merchant";
     const showRiderFields = selectedRole === "rider";
+    const getFieldError = (fieldName: string) => state.fieldErrors?.[fieldName]?.[0];
 
     return (
         <form action={action} className="space-y-5">
             <div className="grid gap-2">
                 <Label htmlFor="full-name">Full Name</Label>
                 <Input id="full-name" name="fullName" placeholder="Enter full name" required />
+                <FormFieldError message={getFieldError("fullName")} />
             </div>
 
             <div className="grid gap-2">
@@ -56,11 +60,13 @@ export function CreateUserForm({
                     placeholder="name@company.com"
                     required
                 />
+                <FormFieldError message={getFieldError("email")} />
             </div>
 
             <div className="grid gap-2">
                 <Label htmlFor="phone-number">Phone Number (Contact)</Label>
                 <Input id="phone-number" name="phoneNumber" placeholder="09xxxxxxxxx" />
+                <FormFieldError message={getFieldError("phoneNumber")} />
             </div>
 
             <div className="grid gap-2">
@@ -79,6 +85,7 @@ export function CreateUserForm({
                         </option>
                     ))}
                 </select>
+                <FormFieldError message={getFieldError("role")} />
             </div>
 
             <label className="flex items-center gap-2 text-sm">
@@ -91,7 +98,8 @@ export function CreateUserForm({
                     <div className="space-y-1">
                         <h2 className="text-sm font-semibold">Merchant Profile</h2>
                         <p className="text-xs text-muted-foreground">
-                            Leave optional fields blank to use defaults or null values.
+                            Set the merchant's first default pickup location during account
+                            creation.
                         </p>
                     </div>
 
@@ -102,34 +110,93 @@ export function CreateUserForm({
                             name="merchantShopName"
                             placeholder="Defaults to user full name"
                         />
+                        <FormFieldError message={getFieldError("merchantShopName")} />
                     </div>
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="merchant-pickup-township">Pickup Township (Optional)</Label>
-                        <select
-                            id="merchant-pickup-township"
-                            name="merchantPickupTownshipId"
-                            className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                            defaultValue=""
-                        >
-                            <option value="">No township selected</option>
-                            {townships.map((township) => (
-                                <option key={township.id} value={township.id}>
-                                    {township.name}
+                    <div className="space-y-4 rounded-xl border bg-background p-4">
+                        <div className="space-y-1">
+                            <h3 className="text-sm font-semibold">Primary Pickup Location</h3>
+                            <p className="text-xs text-muted-foreground">
+                                This will be saved as the merchant&apos;s default pickup location.
+                            </p>
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="primary-pickup-label">Location Label *</Label>
+                            <Input
+                                id="primary-pickup-label"
+                                name="primaryPickupLabel"
+                                placeholder="Main shop"
+                                required={showMerchantFields}
+                            />
+                            <FormFieldError message={getFieldError("primaryPickupLabel")} />
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="primary-pickup-township">Township *</Label>
+                            <select
+                                id="primary-pickup-township"
+                                name="primaryPickupTownshipId"
+                                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                                defaultValue=""
+                                required={showMerchantFields}
+                            >
+                                <option value="" disabled>
+                                    Select township
                                 </option>
-                            ))}
-                        </select>
-                    </div>
+                                {townships.map((township) => (
+                                    <option key={township.id} value={township.id}>
+                                        {township.name}
+                                    </option>
+                                ))}
+                            </select>
+                            <FormFieldError message={getFieldError("primaryPickupTownshipId")} />
+                        </div>
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="merchant-default-pickup-address">
-                            Default Pickup Address (Optional)
-                        </Label>
-                        <Input
-                            id="merchant-default-pickup-address"
-                            name="merchantDefaultPickupAddress"
-                            placeholder="No, Street, Ward"
-                        />
+                        <div className="grid gap-2">
+                            <Label htmlFor="primary-pickup-address">Address *</Label>
+                            <textarea
+                                id="primary-pickup-address"
+                                name="primaryPickupAddress"
+                                rows={3}
+                                placeholder="Pickup address"
+                                required={showMerchantFields}
+                                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                            />
+                            <FormFieldError message={getFieldError("primaryPickupAddress")} />
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <div className="grid gap-2">
+                                <Label htmlFor="primary-pickup-contact-name">
+                                    Pickup Contact Name *
+                                </Label>
+                                <Input
+                                    id="primary-pickup-contact-name"
+                                    name="primaryPickupContactName"
+                                    placeholder="Main pickup contact"
+                                    required={showMerchantFields}
+                                />
+                                <FormFieldError
+                                    message={getFieldError("primaryPickupContactName")}
+                                />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="primary-pickup-contact-phone">
+                                    Pickup Contact Phone *
+                                </Label>
+                                <Input
+                                    id="primary-pickup-contact-phone"
+                                    name="primaryPickupContactPhone"
+                                    placeholder="09xxxxxxxxx"
+                                    required={showMerchantFields}
+                                />
+                                <FormFieldError
+                                    message={getFieldError("primaryPickupContactPhone")}
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     <div className="grid gap-2">
@@ -141,6 +208,7 @@ export function CreateUserForm({
                             placeholder="Merchant notes"
                             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                         />
+                        <FormFieldError message={getFieldError("merchantNotes")} />
                     </div>
                 </div>
             )}
@@ -170,6 +238,7 @@ export function CreateUserForm({
                                 </option>
                             ))}
                         </select>
+                        <FormFieldError message={getFieldError("riderTownshipId")} />
                     </div>
 
                     <div className="grid gap-2">
@@ -179,6 +248,7 @@ export function CreateUserForm({
                             name="riderVehicleType"
                             placeholder="Defaults to bike"
                         />
+                        <FormFieldError message={getFieldError("riderVehicleType")} />
                     </div>
 
                     <div className="grid gap-2">
@@ -188,6 +258,7 @@ export function CreateUserForm({
                             name="riderLicensePlate"
                             placeholder="License plate"
                         />
+                        <FormFieldError message={getFieldError("riderLicensePlate")} />
                     </div>
 
                     <div className="grid gap-2">
@@ -199,6 +270,7 @@ export function CreateUserForm({
                             placeholder="Rider notes"
                             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                         />
+                        <FormFieldError message={getFieldError("riderNotes")} />
                     </div>
 
                     <label className="flex items-center gap-2 text-sm">

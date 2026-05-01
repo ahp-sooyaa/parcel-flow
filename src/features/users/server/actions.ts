@@ -46,13 +46,21 @@ export async function createUserAction(
         const parsed = createUserSchema.safeParse(Object.fromEntries(formData));
 
         if (!parsed.success) {
-            return { ok: false, message: "Please provide valid user details." };
+            return {
+                ok: false,
+                message: "Please provide valid user details.",
+                fieldErrors: parsed.error.flatten().fieldErrors,
+            };
         }
 
         const guards = await validateCreateUserInput(parsed.data, currentUser.roleSlug);
 
         if (!guards.ok) {
-            return { ok: false, message: guards.message };
+            return {
+                ok: false,
+                message: guards.message,
+                fieldErrors: "fieldErrors" in guards ? guards.fieldErrors : undefined,
+            };
         }
 
         const tempPassword = generateStrongPassword(20);
@@ -84,7 +92,6 @@ export async function createUserAction(
             metadata: {
                 role: parsed.data.role,
                 isActive: parsed.data.isActive,
-                merchantTownshipId: parsed.data.merchantPickupTownshipId,
                 riderTownshipId: parsed.data.riderTownshipId,
                 riderIsActive: parsed.data.riderIsActive,
             },

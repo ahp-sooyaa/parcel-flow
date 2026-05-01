@@ -49,6 +49,15 @@ import {
     getRiderParcelActionAccess,
 } from "@/features/auth/server/policies/parcels";
 import { requireAppAccessContext, requirePermission } from "@/features/auth/server/utils";
+import {
+    findMerchantContactById,
+    upsertMerchantContact,
+} from "@/features/merchant-contacts/server/dal";
+import {
+    findMerchantPickupLocationById,
+    findMerchantPickupLocationByLabel,
+    saveMerchantPickupLocationDraft,
+} from "@/features/merchant-pickup-locations/server/dal";
 import { getSettlementManagedParcelFinancialState } from "@/features/merchant-settlements/server/merchant-financial-item-dal";
 import { computeTotalAmountToCollect } from "@/features/parcels/server/utils";
 
@@ -83,6 +92,145 @@ async function generateUniqueParcelCode(input?: {
     }
 
     throw new Error("Could not generate unique parcel code.");
+}
+
+async function validateRecipientContactReference(input: {
+    merchantId: string;
+    selectedMerchantContactId: string | null;
+    saveRecipientContact: boolean;
+    contactLabel: string | null;
+    recipientName: string;
+    recipientPhone: string;
+    recipientTownshipId: string;
+    recipientAddress: string;
+}) {
+    if (input.selectedMerchantContactId) {
+        const selectedContact = await findMerchantContactById({
+            merchantId: input.merchantId,
+            contactId: input.selectedMerchantContactId,
+        });
+
+        if (!selectedContact) {
+            return {
+                ok: false as const,
+                message: "Selected contact was not found for this merchant.",
+                fieldErrors: {
+                    selectedMerchantContactId: [
+                        "Selected contact was not found for this merchant.",
+                    ],
+                },
+            };
+        }
+    }
+
+    if (!input.saveRecipientContact) {
+        return { ok: true as const };
+    }
+
+    if (!input.contactLabel) {
+        return {
+            ok: false as const,
+            message: "Contact label is required when saving to the address book.",
+            fieldErrors: {
+                contactLabel: ["Contact label is required when saving to the address book."],
+            },
+        };
+    }
+
+    return { ok: true as const };
+}
+
+function buildRecipientContactUpsertInput(input: {
+    merchantId: string;
+    contactLabel: string;
+    recipientName: string;
+    recipientPhone: string;
+    recipientTownshipId: string;
+    recipientAddress: string;
+}) {
+    return {
+        merchantId: input.merchantId,
+        contactLabel: input.contactLabel,
+        recipientName: input.recipientName,
+        recipientPhone: input.recipientPhone,
+        recipientTownshipId: input.recipientTownshipId,
+        recipientAddress: input.recipientAddress,
+    };
+}
+
+async function validateCreatePickupLocationReference(input: {
+    merchantId: string;
+    pickupLocationId: string | null;
+    pickupLocationLabel: string;
+    pickupTownshipId: string;
+    pickupAddress: string;
+    pickupContactName: string;
+    pickupContactPhone: string;
+    savePickupLocation: boolean;
+}) {
+    if (input.pickupLocationId) {
+        const selectedPickupLocation = await findMerchantPickupLocationById({
+            merchantId: input.merchantId,
+            pickupLocationId: input.pickupLocationId,
+        });
+
+        if (!selectedPickupLocation) {
+            return {
+                ok: false as const,
+                message: "Selected pickup location was not found for this merchant.",
+                fieldErrors: {
+                    pickupLocationId: ["Selected pickup location was not found for this merchant."],
+                },
+            };
+        }
+
+        if (!input.savePickupLocation) {
+            return { ok: true as const };
+        }
+
+        const conflict = await findMerchantPickupLocationByLabel({
+            merchantId: input.merchantId,
+            label: input.pickupLocationLabel,
+            excludePickupLocationId: input.pickupLocationId,
+        });
+
+        if (conflict) {
+            return {
+                ok: false as const,
+                message: "A pickup location with this label already exists for the merchant.",
+                fieldErrors: {
+                    pickupLocationLabel: [
+                        "A pickup location with this label already exists for the merchant.",
+                    ],
+                },
+            };
+        }
+
+        return { ok: true as const };
+    }
+
+    if (!input.savePickupLocation) {
+        return { ok: true as const };
+    }
+
+    const conflict = await findMerchantPickupLocationByLabel({
+        merchantId: input.merchantId,
+        label: input.pickupLocationLabel,
+    });
+
+    if (conflict) {
+        return {
+            ok: false as const,
+            message: "A pickup location with this label already exists for the merchant.",
+            fieldErrors: {
+                pickupLocationLabel: [
+                    "A pickup location with this label already exists for the merchant.",
+                ],
+            },
+        };
+    }
+
+    return { ok: true as const };
 }
 
 function revalidateParcelPaths(input: {
@@ -337,6 +485,7 @@ export async function createParcelAction(
         const submissionGuard = await validateCreateParcelBatchSubmission({
             merchantId: createAuthorization.merchantId,
             riderId: parsed.data.riderId,
+            pickupTownshipId: parsed.data.pickupTownshipId,
             recipientTownshipId: parsed.data.recipientTownshipId,
             deliveryFeePayer: parsed.data.deliveryFeePayer,
             deliveryFeePaymentPlan: parsed.data.deliveryFeePaymentPlan,
@@ -352,6 +501,46 @@ export async function createParcelAction(
                     "fieldErrors" in submissionGuard
                         ? (submissionGuard.fieldErrors as CreateParcelActionResult["fieldErrors"])
                         : undefined,
+            };
+        }
+
+        const recipientContactGuard = await validateRecipientContactReference({
+            merchantId: createAuthorization.merchantId,
+            selectedMerchantContactId: parsed.data.selectedMerchantContactId,
+            saveRecipientContact: parsed.data.saveRecipientContact,
+            contactLabel: parsed.data.contactLabel,
+            recipientName: parsed.data.recipientName,
+            recipientPhone: parsed.data.recipientPhone,
+            recipientTownshipId: parsed.data.recipientTownshipId,
+            recipientAddress: parsed.data.recipientAddress,
+        });
+
+        if (!recipientContactGuard.ok) {
+            return {
+                ok: false,
+                message: recipientContactGuard.message,
+                fields: submittedFields,
+                fieldErrors: recipientContactGuard.fieldErrors,
+            };
+        }
+
+        const pickupLocationGuard = await validateCreatePickupLocationReference({
+            merchantId: createAuthorization.merchantId,
+            pickupLocationId: parsed.data.pickupLocationId,
+            pickupLocationLabel: parsed.data.pickupLocationLabel,
+            pickupTownshipId: parsed.data.pickupTownshipId,
+            pickupAddress: parsed.data.pickupAddress,
+            pickupContactName: parsed.data.pickupContactName,
+            pickupContactPhone: parsed.data.pickupContactPhone,
+            savePickupLocation: parsed.data.savePickupLocation,
+        });
+
+        if (!pickupLocationGuard.ok) {
+            return {
+                ok: false,
+                message: pickupLocationGuard.message,
+                fields: submittedFields,
+                fieldErrors: pickupLocationGuard.fieldErrors,
             };
         }
 
@@ -376,56 +565,94 @@ export async function createParcelAction(
             scope: batchUploadScope,
             files: parsed.files,
         });
-        const reservedParcelCodes = new Set<string>();
-        const { parcelRows, ...sharedFields } = parsed.data;
-        const createItems = await Promise.all(
-            parcelRows.flatMap((row) =>
-                Array.from({ length: row.packageCount }, async () => {
-                    const parcelCode = await generateUniqueParcelCode({
-                        reservedCodes: reservedParcelCodes,
-                    });
-                    const parcelData = { ...sharedFields, ...row, packageCount: 1 };
-                    const createCodStatus = getDefaultCreateCodStatus(row.parcelType);
-                    const createCollectionStatus = getDefaultCreateCollectionStatus(row.parcelType);
-                    const totalAmountToCollect = computeTotalAmountToCollect({
-                        parcelType: row.parcelType,
-                        codAmount: row.codAmount,
-                        deliveryFee: row.deliveryFee,
-                        deliveryFeePayer: sharedFields.deliveryFeePayer,
-                    });
-
-                    return {
-                        parcelValues: {
-                            parcelCode,
-                            ...buildParcelWriteValues({
-                                data: parcelData,
-                                merchantId: createAuthorization.merchantId,
-                                riderId: sharedFields.riderId,
-                                totalAmountToCollect,
-                                deliveryFeePaymentPlan: sharedFields.deliveryFeePaymentPlan,
-                                parcelStatus: DEFAULT_CREATE_PARCEL_STATE.parcelStatus,
-                                pickupImageKeys: uploadedMedia.pickupImageKeys,
-                                proofOfDeliveryImageKeys: uploadedMedia.proofOfDeliveryImageKeys,
-                            }),
-                        },
-                        paymentValues: buildParcelPaymentWriteValues({
-                            deliveryFeeStatus: DEFAULT_CREATE_PARCEL_STATE.deliveryFeeStatus,
-                            codStatus: createCodStatus,
-                            collectedAmount: 0,
-                            collectionStatus: createCollectionStatus,
-                            merchantSettlementStatus:
-                                DEFAULT_CREATE_PARCEL_STATE.merchantSettlementStatus,
-                            riderPayoutStatus: DEFAULT_CREATE_PARCEL_STATE.riderPayoutStatus,
-                            paymentNote: sharedFields.paymentNote,
-                            paymentSlipImageKeys: uploadedMedia.paymentSlipImageKeys,
-                        }),
-                    };
-                }),
-            ),
-        );
         const created = await createParcelsWithPaymentsAndAudit({
             actorAppUserId: currentUser.appUserId,
-            items: createItems,
+            buildItems: async (tx) => {
+                if (parsed.data.saveRecipientContact) {
+                    await upsertMerchantContact({
+                        ...buildRecipientContactUpsertInput({
+                            merchantId: createAuthorization.merchantId,
+                            contactLabel: parsed.data.contactLabel ?? "",
+                            recipientName: parsed.data.recipientName,
+                            recipientPhone: parsed.data.recipientPhone,
+                            recipientTownshipId: parsed.data.recipientTownshipId,
+                            recipientAddress: parsed.data.recipientAddress,
+                        }),
+                        dbClient: tx,
+                    });
+                }
+
+                const pickupDetails = await saveMerchantPickupLocationDraft({
+                    merchantId: createAuthorization.merchantId,
+                    pickupLocationId: parsed.data.pickupLocationId,
+                    label: parsed.data.pickupLocationLabel,
+                    townshipId: parsed.data.pickupTownshipId,
+                    pickupAddress: parsed.data.pickupAddress,
+                    contactName: parsed.data.pickupContactName,
+                    contactPhone: parsed.data.pickupContactPhone,
+                    savePickupLocation: parsed.data.savePickupLocation,
+                    dbClient: tx,
+                });
+
+                if (!pickupDetails) {
+                    throw new Error("Selected pickup location was not found for this merchant.");
+                }
+
+                const reservedParcelCodes = new Set<string>();
+                const { parcelRows, ...sharedFields } = parsed.data;
+
+                return Promise.all(
+                    parcelRows.flatMap((row) =>
+                        Array.from({ length: row.packageCount }, async () => {
+                            const parcelCode = await generateUniqueParcelCode({
+                                reservedCodes: reservedParcelCodes,
+                            });
+                            const parcelData = { ...sharedFields, ...row, packageCount: 1 };
+                            const createCodStatus = getDefaultCreateCodStatus(row.parcelType);
+                            const createCollectionStatus = getDefaultCreateCollectionStatus(
+                                row.parcelType,
+                            );
+                            const totalAmountToCollect = computeTotalAmountToCollect({
+                                parcelType: row.parcelType,
+                                codAmount: row.codAmount,
+                                deliveryFee: row.deliveryFee,
+                                deliveryFeePayer: sharedFields.deliveryFeePayer,
+                            });
+
+                            return {
+                                parcelValues: {
+                                    parcelCode,
+                                    ...buildParcelWriteValues({
+                                        data: parcelData,
+                                        merchantId: createAuthorization.merchantId,
+                                        riderId: sharedFields.riderId,
+                                        pickupDetails,
+                                        totalAmountToCollect,
+                                        deliveryFeePaymentPlan: sharedFields.deliveryFeePaymentPlan,
+                                        parcelStatus: DEFAULT_CREATE_PARCEL_STATE.parcelStatus,
+                                        pickupImageKeys: uploadedMedia.pickupImageKeys,
+                                        proofOfDeliveryImageKeys:
+                                            uploadedMedia.proofOfDeliveryImageKeys,
+                                    }),
+                                },
+                                paymentValues: buildParcelPaymentWriteValues({
+                                    deliveryFeeStatus:
+                                        DEFAULT_CREATE_PARCEL_STATE.deliveryFeeStatus,
+                                    codStatus: createCodStatus,
+                                    collectedAmount: 0,
+                                    collectionStatus: createCollectionStatus,
+                                    merchantSettlementStatus:
+                                        DEFAULT_CREATE_PARCEL_STATE.merchantSettlementStatus,
+                                    riderPayoutStatus:
+                                        DEFAULT_CREATE_PARCEL_STATE.riderPayoutStatus,
+                                    paymentNote: sharedFields.paymentNote,
+                                    paymentSlipImageKeys: uploadedMedia.paymentSlipImageKeys,
+                                }),
+                            };
+                        }),
+                    ),
+                );
+            },
         });
 
         revalidateParcelPaths({
@@ -587,6 +814,7 @@ export async function updateParcelAction(
         const submissionGuard = await validateParcelSubmission({
             merchantId: actorScopedUpdate.merchantId,
             riderId: actorScopedUpdate.riderId,
+            pickupTownshipId: parsed.data.pickupTownshipId,
             recipientTownshipId: parsed.data.recipientTownshipId,
             parcelType: parsed.data.parcelType,
             codAmount: parsed.data.codAmount,
@@ -608,6 +836,68 @@ export async function updateParcelAction(
                     "fieldErrors" in submissionGuard
                         ? (submissionGuard.fieldErrors as UpdateParcelActionResult["fieldErrors"])
                         : undefined,
+            };
+        }
+
+        const recipientContactGuard = await validateRecipientContactReference({
+            merchantId: actorScopedUpdate.merchantId,
+            selectedMerchantContactId: parsed.data.selectedMerchantContactId,
+            saveRecipientContact: parsed.data.saveRecipientContact,
+            contactLabel: parsed.data.contactLabel,
+            recipientName: parsed.data.recipientName,
+            recipientPhone: parsed.data.recipientPhone,
+            recipientTownshipId: parsed.data.recipientTownshipId,
+            recipientAddress: parsed.data.recipientAddress,
+        });
+
+        if (!recipientContactGuard.ok) {
+            return {
+                ok: false,
+                message: recipientContactGuard.message,
+                fields: submittedFields,
+                fieldErrors: recipientContactGuard.fieldErrors,
+            };
+        }
+
+        const pickupLocationGuard = await validateCreatePickupLocationReference({
+            merchantId: actorScopedUpdate.merchantId,
+            pickupLocationId: parsed.data.pickupLocationId,
+            pickupLocationLabel: parsed.data.pickupLocationLabel,
+            pickupTownshipId: parsed.data.pickupTownshipId,
+            pickupAddress: parsed.data.pickupAddress,
+            pickupContactName: parsed.data.pickupContactName,
+            pickupContactPhone: parsed.data.pickupContactPhone,
+            savePickupLocation: parsed.data.savePickupLocation,
+        });
+
+        if (!pickupLocationGuard.ok) {
+            return {
+                ok: false,
+                message: pickupLocationGuard.message,
+                fields: submittedFields,
+                fieldErrors: pickupLocationGuard.fieldErrors,
+            };
+        }
+
+        const pickupDetails = await saveMerchantPickupLocationDraft({
+            merchantId: actorScopedUpdate.merchantId,
+            pickupLocationId: parsed.data.pickupLocationId,
+            label: parsed.data.pickupLocationLabel,
+            townshipId: parsed.data.pickupTownshipId,
+            pickupAddress: parsed.data.pickupAddress,
+            contactName: parsed.data.pickupContactName,
+            contactPhone: parsed.data.pickupContactPhone,
+            savePickupLocation: parsed.data.savePickupLocation,
+        });
+
+        if (!pickupDetails) {
+            return {
+                ok: false,
+                message: "Selected pickup location was not found for this merchant.",
+                fields: submittedFields,
+                fieldErrors: {
+                    pickupLocationId: ["Selected pickup location was not found for this merchant."],
+                },
             };
         }
 
@@ -647,6 +937,7 @@ export async function updateParcelAction(
                 data: parsed.data,
                 merchantId: actorScopedUpdate.merchantId,
                 riderId: actorScopedUpdate.riderId,
+                pickupDetails,
                 totalAmountToCollect,
                 deliveryFeePaymentPlan: parsed.data.deliveryFeePaymentPlan,
                 parcelStatus: current.parcel.status,
@@ -692,6 +983,21 @@ export async function updateParcelAction(
             parcelOldValues: parcelPatch.oldValues,
             paymentOldValues: paymentPatch.oldValues,
             parcelEvent: "parcel.update",
+            beforeCommit: parsed.data.saveRecipientContact
+                ? async (tx) => {
+                      await upsertMerchantContact({
+                          ...buildRecipientContactUpsertInput({
+                              merchantId: actorScopedUpdate.merchantId,
+                              contactLabel: parsed.data.contactLabel ?? "",
+                              recipientName: parsed.data.recipientName,
+                              recipientPhone: parsed.data.recipientPhone,
+                              recipientTownshipId: parsed.data.recipientTownshipId,
+                              recipientAddress: parsed.data.recipientAddress,
+                          }),
+                          dbClient: tx,
+                      });
+                  }
+                : undefined,
         });
 
         revalidateParcelPaths({

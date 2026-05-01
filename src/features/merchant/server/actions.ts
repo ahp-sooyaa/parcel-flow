@@ -6,7 +6,6 @@ import { updateMerchantProfileSchema } from "./utils";
 import { getMerchantAccess } from "@/features/auth/server/policies/merchant";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
 import { updateMerchantProfile } from "@/features/merchant/server/dal";
-import { findTownshipById } from "@/features/townships/server/dal";
 import { logAuditEvent } from "@/lib/security/audit";
 
 export type UpdateMerchantProfileActionResult = {
@@ -36,19 +35,9 @@ export async function updateMerchantProfileAction(
             return { ok: false, message: "Forbidden" };
         }
 
-        if (parsed.data.pickupTownshipId) {
-            const township = await findTownshipById(parsed.data.pickupTownshipId);
-
-            if (!township?.isActive) {
-                return { ok: false, message: "Selected township was not found." };
-            }
-        }
-
         await updateMerchantProfile({
             merchantId: parsed.data.merchantId,
             shopName: parsed.data.shopName,
-            pickupTownshipId: parsed.data.pickupTownshipId,
-            defaultPickupAddress: parsed.data.defaultPickupAddress,
             notes: parsed.data.notes,
         });
 
@@ -56,9 +45,7 @@ export async function updateMerchantProfileAction(
             event: "merchant.update",
             actorAppUserId: currentUser.appUserId,
             targetAppUserId: parsed.data.merchantId,
-            metadata: {
-                pickupTownshipId: parsed.data.pickupTownshipId,
-            },
+            metadata: undefined,
         });
 
         revalidatePath(`/dashboard/merchants/${parsed.data.merchantId}`);

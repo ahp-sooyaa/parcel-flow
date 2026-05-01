@@ -244,6 +244,74 @@ export const deliveryPricingRates = pgTable(
     ],
 );
 
+export const merchantContacts = pgTable(
+    "merchant_contacts",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        merchantId: uuid("merchant_id")
+            .notNull()
+            .references(() => merchants.appUserId, { onDelete: "cascade" }),
+        contactLabel: text("contact_label").notNull(),
+        normalizedContactLabel: text("normalized_contact_label").notNull(),
+        recipientName: text("recipient_name").notNull(),
+        recipientPhone: text("recipient_phone").notNull(),
+        recipientTownshipId: uuid("recipient_township_id")
+            .notNull()
+            .references(() => townships.id, { onDelete: "restrict" }),
+        recipientAddress: text("recipient_address").notNull(),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    },
+    (table) => [
+        index("merchant_contacts_merchant_idx").on(table.merchantId),
+        index("merchant_contacts_recipient_township_idx").on(table.recipientTownshipId),
+        index("merchant_contacts_merchant_label_idx").on(
+            table.merchantId,
+            table.normalizedContactLabel,
+        ),
+        uniqueIndex("merchant_contacts_merchant_label_uidx").on(
+            table.merchantId,
+            table.normalizedContactLabel,
+        ),
+    ],
+);
+
+export const merchantPickupLocations = pgTable(
+    "merchant_pickup_locations",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        merchantId: uuid("merchant_id")
+            .notNull()
+            .references(() => merchants.appUserId, { onDelete: "cascade" }),
+        label: text("label").notNull(),
+        normalizedLabel: text("normalized_label").notNull(),
+        townshipId: uuid("township_id")
+            .notNull()
+            .references(() => townships.id, { onDelete: "restrict" }),
+        pickupAddress: text("pickup_address").notNull(),
+        contactName: text("contact_name"),
+        contactPhone: text("contact_phone"),
+        isDefault: boolean("is_default").notNull().default(false),
+        createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    },
+    (table) => [
+        index("merchant_pickup_locations_merchant_idx").on(table.merchantId),
+        index("merchant_pickup_locations_township_idx").on(table.townshipId),
+        index("merchant_pickup_locations_merchant_label_idx").on(
+            table.merchantId,
+            table.normalizedLabel,
+        ),
+        uniqueIndex("merchant_pickup_locations_merchant_label_uidx").on(
+            table.merchantId,
+            table.normalizedLabel,
+        ),
+        uniqueIndex("merchant_pickup_locations_default_uidx")
+            .on(table.merchantId)
+            .where(sql`${table.isDefault} = true`),
+    ],
+);
+
 export const riders = pgTable(
     "riders",
     {
@@ -462,6 +530,20 @@ export const parcels = pgTable(
             .notNull()
             .references(() => merchants.appUserId, { onDelete: "restrict" }),
         riderId: uuid("rider_id").references(() => riders.appUserId, { onDelete: "set null" }),
+        pickupLocationId: uuid("pickup_location_id").references(() => merchantPickupLocations.id, {
+            onDelete: "set null",
+        }),
+        merchantContactId: uuid("merchant_contact_id").references(() => merchantContacts.id, {
+            onDelete: "set null",
+        }),
+        pickupTownshipId: uuid("pickup_township_id").references(() => townships.id, {
+            onDelete: "restrict",
+        }),
+        pickupLocationLabel: text("pickup_location_label"),
+        pickupAddress: text("pickup_address"),
+        pickupContactName: text("pickup_contact_name"),
+        pickupContactPhone: text("pickup_contact_phone"),
+        recipientContactLabel: text("recipient_contact_label"),
         recipientName: text("recipient_name").notNull(),
         recipientPhone: text("recipient_phone").notNull(),
         recipientTownshipId: uuid("recipient_township_id")
@@ -507,6 +589,9 @@ export const parcels = pgTable(
         uniqueIndex("parcels_code_uidx").on(table.parcelCode),
         index("parcels_merchant_idx").on(table.merchantId),
         index("parcels_rider_idx").on(table.riderId),
+        index("parcels_pickup_location_idx").on(table.pickupLocationId),
+        index("parcels_merchant_contact_idx").on(table.merchantContactId),
+        index("parcels_pickup_township_idx").on(table.pickupTownshipId),
         index("parcels_recipient_township_idx").on(table.recipientTownshipId),
         index("parcels_status_idx").on(table.status),
         index("parcels_created_at_idx").on(table.createdAt),

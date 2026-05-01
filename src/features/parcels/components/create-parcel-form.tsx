@@ -15,6 +15,14 @@ import {
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { quoteDeliveryPricingAction } from "@/features/delivery-pricing/server/actions";
+import {
+    RecipientAddressBookFields,
+    type RecipientAddressBookFieldsValue,
+} from "@/features/merchant-contacts/components/recipient-address-book-fields";
+import {
+    PickupAddressBookFields,
+    type PickupAddressBookFieldsValue,
+} from "@/features/merchant-pickup-locations/components/pickup-address-book-fields";
 import { PaymentSlipUpload } from "@/features/parcels/components/payment-slip-upload";
 import {
     CREATE_PARCEL_MAX_ROWS,
@@ -246,6 +254,36 @@ function getEmptyParcelQuoteState(
     };
 }
 
+function getRecipientAddressBookDefaults(
+    fields: Record<string, string> | undefined,
+): RecipientAddressBookFieldsValue {
+    return {
+        selectedMerchantContactId: fields?.selectedMerchantContactId ?? "",
+        contactLabel: fields?.contactLabel ?? "",
+        saveRecipientContact:
+            fields?.saveRecipientContact === "true" || fields?.saveRecipientContact === "on",
+        recipientName: fields?.recipientName ?? "",
+        recipientPhone: fields?.recipientPhone ?? "",
+        recipientTownshipId: fields?.recipientTownshipId ?? "",
+        recipientAddress: fields?.recipientAddress ?? "",
+    };
+}
+
+function getPickupLocationDefaults(
+    fields: Record<string, string> | undefined,
+): PickupAddressBookFieldsValue {
+    return {
+        pickupLocationId: fields?.pickupLocationId ?? "",
+        pickupLocationLabel: fields?.pickupLocationLabel ?? "",
+        pickupTownshipId: fields?.pickupTownshipId ?? "",
+        pickupAddress: fields?.pickupAddress ?? "",
+        pickupContactName: fields?.pickupContactName ?? "",
+        pickupContactPhone: fields?.pickupContactPhone ?? "",
+        savePickupLocation:
+            fields?.savePickupLocation === "true" || fields?.savePickupLocation === "on",
+    };
+}
+
 function SectionHeader({
     step,
     title,
@@ -362,18 +400,20 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
         ) satisfies Record<string, ParcelRowQuoteState>;
     const initialParcelRowsRef = useRef<ParcelRowDraft[] | null>(null);
 
-    if (!initialParcelRowsRef.current) {
-        initialParcelRowsRef.current = buildParcelRowsFromFields(state.fields);
-    }
+    initialParcelRowsRef.current ??= buildParcelRowsFromFields(state.fields);
 
     const initialParcelRows = initialParcelRowsRef.current;
     const [selectedMerchantId, setSelectedMerchantId] = useState(
         state.fields?.merchantId ?? defaultMerchantSelection,
     );
     const [selectedRiderId, setSelectedRiderId] = useState(state.fields?.riderId ?? "");
-    const [selectedRecipientTownshipId, setSelectedRecipientTownshipId] = useState(
-        state.fields?.recipientTownshipId ?? "",
+    const [pickupLocationValues, setPickupLocationValues] = useState<PickupAddressBookFieldsValue>(
+        () => getPickupLocationDefaults(state.fields),
     );
+    const [recipientAddressBookValues, setRecipientAddressBookValues] =
+        useState<RecipientAddressBookFieldsValue>(() =>
+            getRecipientAddressBookDefaults(state.fields),
+        );
     const [selectedDeliveryFeePayer, setSelectedDeliveryFeePayer] = useState<DeliveryFeePayer>(
         getSafeDeliveryFeePayerValue(state.fields?.deliveryFeePayer),
     );
@@ -422,7 +462,8 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
 
         setSelectedMerchantId(nextMerchantId);
         setSelectedRiderId(nextRiderId);
-        setSelectedRecipientTownshipId(state.fields.recipientTownshipId ?? "");
+        setPickupLocationValues(getPickupLocationDefaults(state.fields));
+        setRecipientAddressBookValues(getRecipientAddressBookDefaults(state.fields));
         setSelectedDeliveryFeePayer(nextDeliveryFeePayer);
         setSelectedDeliveryFeePaymentPlan(
             getSafePaymentPlanValue(state.fields.deliveryFeePaymentPlan, nextPaymentPlanOptions),
@@ -483,7 +524,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                 rowQuoteFields[row.id] ?? getParcelRowQuoteFields(state.fields, rowIndex);
             const requestKey = getParcelQuoteRequestKey({
                 merchantId: selectedMerchantId,
-                recipientTownshipId: selectedRecipientTownshipId,
+                recipientTownshipId: recipientAddressBookValues.recipientTownshipId,
                 parcelType: row.parcelType,
                 isLargeItem: row.isLargeItem,
                 estimatedWeightKg: rowFields.estimatedWeightKg,
@@ -500,7 +541,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
 
             if (
                 !selectedMerchantId ||
-                !selectedRecipientTownshipId ||
+                !recipientAddressBookValues.recipientTownshipId ||
                 !rowFields.estimatedWeightKg.trim()
             ) {
                 if (
@@ -559,7 +600,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
         rowQuoteFields,
         rowQuoteStates,
         selectedMerchantId,
-        selectedRecipientTownshipId,
+        recipientAddressBookValues.recipientTownshipId,
         state.fields,
     ]);
 
@@ -614,7 +655,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
 
         const result = await quoteDeliveryPricingAction({
             merchantId: selectedMerchantId,
-            recipientTownshipId: selectedRecipientTownshipId,
+            recipientTownshipId: recipientAddressBookValues.recipientTownshipId,
             estimatedWeightKg: rowFields.estimatedWeightKg,
             isLargeItem: row.isLargeItem,
             packageWidthCm: rowFields.packageWidthCm,
@@ -841,6 +882,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                     options={merchantOptions}
                                     placeholder="Search merchant"
                                     emptyLabel="No merchant found."
+                                    allowClear
                                     required
                                     invalid={Boolean(getFieldError("merchantId"))}
                                 />
@@ -865,66 +907,31 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                         </div>
                     </div>
 
-                    <div className="grid gap-4 md:grid-cols-2">
-                        <div className="grid gap-2">
-                            <Label htmlFor="recipientName">Recipient Name *</Label>
-                            <Input
-                                id="recipientName"
-                                name="recipientName"
-                                placeholder="Receiver full name"
-                                defaultValue={state.fields?.recipientName}
-                                required
-                            />
-                            <FormFieldError message={getFieldError("recipientName")} />
-                        </div>
+                    <PickupAddressBookFields
+                        merchantId={selectedMerchantId}
+                        townships={townships}
+                        values={pickupLocationValues}
+                        onChange={(next) =>
+                            setPickupLocationValues((current) => ({
+                                ...current,
+                                ...next,
+                            }))
+                        }
+                        fieldErrors={state.fieldErrors}
+                    />
 
-                        <div className="grid gap-2">
-                            <Label htmlFor="recipientPhone">Recipient Phone *</Label>
-                            <Input
-                                id="recipientPhone"
-                                name="recipientPhone"
-                                placeholder="09xxxxxxxxx"
-                                defaultValue={state.fields?.recipientPhone}
-                                required
-                            />
-                            <FormFieldError message={getFieldError("recipientPhone")} />
-                        </div>
-                    </div>
-
-                    <div className="grid gap-2">
-                        <Label htmlFor="recipientTownshipId">Recipient Township *</Label>
-                        <select
-                            id="recipientTownshipId"
-                            name="recipientTownshipId"
-                            className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                            required
-                            value={selectedRecipientTownshipId}
-                            onChange={(event) => setSelectedRecipientTownshipId(event.target.value)}
-                        >
-                            <option value="" disabled>
-                                Select township
-                            </option>
-                            {townships.map((township) => (
-                                <option key={township.id} value={township.id}>
-                                    {township.label}
-                                </option>
-                            ))}
-                        </select>
-                        <FormFieldError message={getFieldError("recipientTownshipId")} />
-                    </div>
-
-                    <div className="grid gap-2">
-                        <Label htmlFor="recipientAddress">Recipient Address *</Label>
-                        <textarea
-                            id="recipientAddress"
-                            name="recipientAddress"
-                            rows={3}
-                            defaultValue={state.fields?.recipientAddress}
-                            required
-                            className={textareaClassName}
-                        />
-                        <FormFieldError message={getFieldError("recipientAddress")} />
-                    </div>
+                    <RecipientAddressBookFields
+                        merchantId={selectedMerchantId}
+                        townships={townships}
+                        values={recipientAddressBookValues}
+                        onChange={(next) =>
+                            setRecipientAddressBookValues((current) => ({
+                                ...current,
+                                ...next,
+                            }))
+                        }
+                        fieldErrors={state.fieldErrors}
+                    />
                 </section>
 
                 <section className="space-y-5 rounded-xl border bg-card p-4 sm:p-5">
@@ -1431,7 +1438,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                                             getParcelQuoteRequestKey({
                                                                 merchantId: selectedMerchantId,
                                                                 recipientTownshipId:
-                                                                    selectedRecipientTownshipId,
+                                                                    recipientAddressBookValues.recipientTownshipId,
                                                                 parcelType: row.parcelType,
                                                                 isLargeItem: row.isLargeItem,
                                                                 estimatedWeightKg:
@@ -1449,7 +1456,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                                     disabled={
                                                         quoteState.status === "loading" ||
                                                         !selectedMerchantId ||
-                                                        !selectedRecipientTownshipId ||
+                                                        !recipientAddressBookValues.recipientTownshipId ||
                                                         !quoteFields.estimatedWeightKg.trim()
                                                     }
                                                     className="hidden"

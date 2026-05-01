@@ -4,6 +4,7 @@ import { toAppUserListItemDto, type AppUserListItemDto, type UserWithRole } from
 import { db } from "@/db";
 import { appUsers, bankAccounts, merchants, riders, roles } from "@/db/schema";
 import { getUserManagementAccess } from "@/features/auth/server/policies/user-management";
+import { createMerchantPickupLocation } from "@/features/merchant-pickup-locations/server/dal";
 import { createMerchantProfile } from "@/features/merchant/server/dal";
 import { createRiderProfile } from "@/features/rider/server/dal";
 
@@ -104,12 +105,31 @@ export async function createAppUserWithProfiles(params: {
                 .returning({ id: appUsers.id });
 
             if (input.role === "merchant") {
+                if (
+                    !input.primaryPickupLabel ||
+                    !input.primaryPickupTownshipId ||
+                    !input.primaryPickupAddress ||
+                    !input.primaryPickupContactName ||
+                    !input.primaryPickupContactPhone
+                ) {
+                    throw new Error("Primary pickup location is required for merchant users.");
+                }
+
                 await createMerchantProfile({
                     appUserId: createdUser.id,
                     shopName: input.merchantShopName ?? input.fullName,
-                    pickupTownshipId: input.merchantPickupTownshipId,
-                    defaultPickupAddress: input.merchantDefaultPickupAddress,
                     notes: input.merchantNotes,
+                    dbClient: tx,
+                });
+
+                await createMerchantPickupLocation({
+                    merchantId: createdUser.id,
+                    label: input.primaryPickupLabel,
+                    townshipId: input.primaryPickupTownshipId,
+                    pickupAddress: input.primaryPickupAddress,
+                    contactName: input.primaryPickupContactName,
+                    contactPhone: input.primaryPickupContactPhone,
+                    isDefault: true,
                     dbClient: tx,
                 });
             }

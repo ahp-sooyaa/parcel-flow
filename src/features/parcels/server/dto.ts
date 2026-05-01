@@ -74,6 +74,15 @@ export type ParcelDetailDto = {
     merchantLabel: string;
     riderId: string | null;
     riderLabel: string | null;
+    pickupLocationId: string | null;
+    merchantContactId: string | null;
+    pickupLocationLabel: string | null;
+    pickupTownshipId: string | null;
+    pickupTownshipName: string | null;
+    pickupAddress: string | null;
+    pickupContactName: string | null;
+    pickupContactPhone: string | null;
+    recipientContactLabel: string | null;
     recipientName: string;
     recipientPhone: string;
     recipientTownshipId: string;
@@ -309,6 +318,15 @@ export function toParcelDetailDto(input: {
     merchantLabel: string;
     riderId: string | null;
     riderLabel: string | null;
+    pickupLocationId: string | null;
+    merchantContactId: string | null;
+    pickupLocationLabel: string | null;
+    pickupTownshipId: string | null;
+    pickupTownshipName: string | null;
+    pickupAddress: string | null;
+    pickupContactName: string | null;
+    pickupContactPhone: string | null;
+    recipientContactLabel: string | null;
     recipientName: string;
     recipientPhone: string;
     recipientTownshipId: string;
@@ -350,6 +368,15 @@ export function toParcelDetailDto(input: {
         merchantLabel: input.merchantLabel,
         riderId: input.riderId,
         riderLabel: input.riderLabel,
+        pickupLocationId: input.pickupLocationId,
+        merchantContactId: input.merchantContactId,
+        pickupLocationLabel: input.pickupLocationLabel,
+        pickupTownshipId: input.pickupTownshipId,
+        pickupTownshipName: input.pickupTownshipName,
+        pickupAddress: input.pickupAddress,
+        pickupContactName: input.pickupContactName,
+        pickupContactPhone: input.pickupContactPhone,
+        recipientContactLabel: input.recipientContactLabel,
         recipientName: input.recipientName,
         recipientPhone: input.recipientPhone,
         recipientTownshipId: input.recipientTownshipId,
@@ -457,6 +484,14 @@ export function toParcelUpdateContextDto(input: {
     parcelCode: string;
     merchantId: string;
     riderId: string | null;
+    pickupLocationId: string | null;
+    merchantContactId: string | null;
+    pickupTownshipId: string | null;
+    pickupLocationLabel: string | null;
+    pickupAddress: string | null;
+    pickupContactName: string | null;
+    pickupContactPhone: string | null;
+    recipientContactLabel: string | null;
     recipientName: string;
     recipientPhone: string;
     recipientTownshipId: string;
@@ -495,6 +530,14 @@ export function toParcelUpdateContextDto(input: {
             parcelCode: input.parcelCode,
             merchantId: input.merchantId,
             riderId: input.riderId,
+            pickupLocationId: input.pickupLocationId,
+            merchantContactId: input.merchantContactId,
+            pickupTownshipId: input.pickupTownshipId,
+            pickupLocationLabel: input.pickupLocationLabel,
+            pickupAddress: input.pickupAddress,
+            pickupContactName: input.pickupContactName,
+            pickupContactPhone: input.pickupContactPhone,
+            recipientContactLabel: input.recipientContactLabel,
             recipientName: input.recipientName,
             recipientPhone: input.recipientPhone,
             recipientTownshipId: input.recipientTownshipId,

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, ilike, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import {
     toMerchantDetailDto,
     toMerchantListItemDto,
@@ -10,7 +10,7 @@ import {
 } from "./dto";
 import { isMerchantId, normalizeMerchantSearchQuery, toMerchantSearchPattern } from "./utils";
 import { db, type DbClient } from "@/db";
-import { appUsers, merchants, townships } from "@/db/schema";
+import { appUsers, merchants } from "@/db/schema";
 import { getMerchantAccess } from "@/features/auth/server/policies/merchant";
 
 import type { AppAccessViewer } from "@/features/auth/server/dto";
@@ -35,13 +35,12 @@ async function listMerchants(
             shopName: merchants.shopName,
             contactName: appUsers.fullName,
             phoneNumber: appUsers.phoneNumber,
-            townshipName: townships.name,
-            defaultPickupAddress: merchants.defaultPickupAddress,
+            townshipName: sql<string | null>`null`,
+            defaultPickupAddress: sql<string | null>`null`,
             createdAt: merchants.createdAt,
         })
         .from(merchants)
         .innerJoin(appUsers, eq(merchants.appUserId, appUsers.id))
-        .leftJoin(townships, eq(merchants.pickupTownshipId, townships.id))
         .where(
             and(
                 isNull(merchants.deletedAt),
@@ -88,16 +87,15 @@ async function findMerchantById(merchantId: string): Promise<MerchantDetailDto |
             contactName: appUsers.fullName,
             email: appUsers.email,
             phoneNumber: appUsers.phoneNumber,
-            pickupTownshipId: merchants.pickupTownshipId,
-            townshipName: townships.name,
-            defaultPickupAddress: merchants.defaultPickupAddress,
+            pickupTownshipId: sql<string | null>`null`,
+            townshipName: sql<string | null>`null`,
+            defaultPickupAddress: sql<string | null>`null`,
             notes: merchants.notes,
             createdAt: merchants.createdAt,
             updatedAt: merchants.updatedAt,
         })
         .from(merchants)
         .innerJoin(appUsers, eq(merchants.appUserId, appUsers.id))
-        .leftJoin(townships, eq(merchants.pickupTownshipId, townships.id))
         .where(
             and(
                 eq(merchants.appUserId, merchantId),
@@ -141,8 +139,8 @@ async function findMerchantProfileByAppUserId(
         .select({
             appUserId: merchants.appUserId,
             shopName: merchants.shopName,
-            pickupTownshipId: merchants.pickupTownshipId,
-            defaultPickupAddress: merchants.defaultPickupAddress,
+            pickupTownshipId: sql<string | null>`null`,
+            defaultPickupAddress: sql<string | null>`null`,
             notes: merchants.notes,
             createdAt: merchants.createdAt,
             updatedAt: merchants.updatedAt,
@@ -177,8 +175,6 @@ export async function getMerchantProfileByAppUserIdForViewer(
 export async function createMerchantProfile(input: {
     appUserId: string;
     shopName: string;
-    pickupTownshipId: string | null;
-    defaultPickupAddress: string | null;
     notes: string | null;
     dbClient?: MerchantWriteClient;
 }) {
@@ -188,8 +184,6 @@ export async function createMerchantProfile(input: {
         .values({
             appUserId: input.appUserId,
             shopName: input.shopName,
-            pickupTownshipId: input.pickupTownshipId,
-            defaultPickupAddress: input.defaultPickupAddress,
             notes: input.notes,
         })
         .returning({ id: merchants.appUserId });
@@ -200,16 +194,12 @@ export async function createMerchantProfile(input: {
 export async function updateMerchantProfile(input: {
     merchantId: string;
     shopName: string;
-    pickupTownshipId: string | null;
-    defaultPickupAddress: string | null;
     notes: string | null;
 }) {
     await db
         .update(merchants)
         .set({
             shopName: input.shopName,
-            pickupTownshipId: input.pickupTownshipId,
-            defaultPickupAddress: input.defaultPickupAddress,
             notes: input.notes,
             updatedAt: new Date(),
         })

@@ -14,6 +14,14 @@ import {
     InputGroupText,
 } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
+import {
+    RecipientAddressBookFields,
+    type RecipientAddressBookFieldsValue,
+} from "@/features/merchant-contacts/components/recipient-address-book-fields";
+import {
+    PickupAddressBookFields,
+    type PickupAddressBookFieldsValue,
+} from "@/features/merchant-pickup-locations/components/pickup-address-book-fields";
 import { ParcelImageList } from "@/features/parcels/components/parcel-image-list";
 import { ParcelStatusPill } from "@/features/parcels/components/parcel-status-pill";
 import { PaymentSlipUpload } from "@/features/parcels/components/payment-slip-upload";
@@ -37,6 +45,14 @@ type EditParcelFormProps = {
         parcelCode: string;
         merchantId: string;
         riderId: string | null;
+        pickupLocationId: string | null;
+        merchantContactId: string | null;
+        pickupLocationLabel: string | null;
+        pickupTownshipId: string | null;
+        pickupAddress: string | null;
+        pickupContactName: string | null;
+        pickupContactPhone: string | null;
+        recipientContactLabel: string | null;
         recipientName: string;
         recipientPhone: string;
         recipientTownshipId: string;
@@ -158,6 +174,16 @@ function buildFormValues(parcel: EditParcelFormProps["parcel"]) {
     return {
         merchantId: parcel.merchantId,
         riderId: parcel.riderId ?? "",
+        pickupLocationId: parcel.pickupLocationId ?? "",
+        pickupLocationLabel: parcel.pickupLocationLabel ?? "",
+        pickupTownshipId: parcel.pickupTownshipId ?? "",
+        pickupAddress: parcel.pickupAddress ?? "",
+        pickupContactName: parcel.pickupContactName ?? "",
+        pickupContactPhone: parcel.pickupContactPhone ?? "",
+        selectedMerchantContactId: parcel.merchantContactId ?? "",
+        contactLabel: parcel.recipientContactLabel ?? "",
+        saveRecipientContact: "false",
+        savePickupLocation: "false",
         recipientName: parcel.recipientName,
         recipientPhone: parcel.recipientPhone,
         recipientTownshipId: parcel.recipientTownshipId,
@@ -176,6 +202,32 @@ function buildFormValues(parcel: EditParcelFormProps["parcel"]) {
         deliveryFeePayer: parcel.deliveryFeePayer,
         deliveryFeePaymentPlan: parcel.deliveryFeePaymentPlan ?? "",
     };
+}
+
+function getRecipientAddressBookDefaults(fields: ReturnType<typeof buildFormValues>) {
+    return {
+        selectedMerchantContactId: fields.selectedMerchantContactId,
+        contactLabel: fields.contactLabel,
+        saveRecipientContact:
+            fields.saveRecipientContact === "true" || fields.saveRecipientContact === "on",
+        recipientName: fields.recipientName,
+        recipientPhone: fields.recipientPhone,
+        recipientTownshipId: fields.recipientTownshipId,
+        recipientAddress: fields.recipientAddress,
+    } satisfies RecipientAddressBookFieldsValue;
+}
+
+function getPickupLocationDefaults(fields: ReturnType<typeof buildFormValues>) {
+    return {
+        pickupLocationId: fields.pickupLocationId,
+        pickupLocationLabel: fields.pickupLocationLabel,
+        pickupTownshipId: fields.pickupTownshipId,
+        pickupAddress: fields.pickupAddress,
+        pickupContactName: fields.pickupContactName,
+        pickupContactPhone: fields.pickupContactPhone,
+        savePickupLocation:
+            fields.savePickupLocation === "true" || fields.savePickupLocation === "on",
+    } satisfies PickupAddressBookFieldsValue;
 }
 
 function SectionHeader({
@@ -278,6 +330,11 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
     const fields: ReturnType<typeof buildFormValues> = { ...defaultFields, ...state.fields };
     const [selectedMerchantId, setSelectedMerchantId] = useState(fields.merchantId);
     const [selectedRiderId, setSelectedRiderId] = useState(fields.riderId);
+    const [pickupLocationValues, setPickupLocationValues] = useState<PickupAddressBookFieldsValue>(
+        () => getPickupLocationDefaults(fields),
+    );
+    const [recipientAddressBookValues, setRecipientAddressBookValues] =
+        useState<RecipientAddressBookFieldsValue>(() => getRecipientAddressBookDefaults(fields));
     const [selectedParcelType, setSelectedParcelType] = useState<ParcelType>(
         getSafeParcelTypeValue(fields.parcelType),
     );
@@ -308,6 +365,8 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
 
         setSelectedMerchantId(fields.merchantId);
         setSelectedRiderId(fields.riderId);
+        setPickupLocationValues(getPickupLocationDefaults(fields));
+        setRecipientAddressBookValues(getRecipientAddressBookDefaults(fields));
         setSelectedParcelType(nextParcelType);
         setSelectedIsLargeItem(getSafeIsLargeItemValue(fields.isLargeItem));
         setSelectedDeliveryFeePayer(nextDeliveryFeePayer);
@@ -319,6 +378,14 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
         fields.deliveryFeePaymentPlan,
         fields.isLargeItem,
         fields.merchantId,
+        fields.pickupAddress,
+        fields.pickupContactName,
+        fields.pickupContactPhone,
+        fields.pickupLocationId,
+        fields.pickupLocationLabel,
+        fields.pickupTownshipId,
+        fields.selectedMerchantContactId,
+        fields.contactLabel,
         fields.parcelType,
         fields.riderId,
     ]);
@@ -386,6 +453,7 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                                 options={merchantOptions}
                                 placeholder="Search merchant"
                                 emptyLabel="No merchant found."
+                                allowClear
                                 required
                                 invalid={Boolean(getFieldError("merchantId"))}
                             />
@@ -422,66 +490,31 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                     </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                    <div className="grid gap-2">
-                        <Label htmlFor="recipientName">Recipient Name *</Label>
-                        <Input
-                            id="recipientName"
-                            name="recipientName"
-                            placeholder="Receiver full name"
-                            defaultValue={fields.recipientName}
-                            required
-                        />
-                        <FormFieldError message={getFieldError("recipientName")} />
-                    </div>
+                <PickupAddressBookFields
+                    merchantId={selectedMerchantId}
+                    townships={townships}
+                    values={pickupLocationValues}
+                    onChange={(next) =>
+                        setPickupLocationValues((current) => ({
+                            ...current,
+                            ...next,
+                        }))
+                    }
+                    fieldErrors={state.fieldErrors}
+                />
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="recipientPhone">Recipient Phone *</Label>
-                        <Input
-                            id="recipientPhone"
-                            name="recipientPhone"
-                            placeholder="09xxxxxxxxx"
-                            defaultValue={fields.recipientPhone}
-                            required
-                        />
-                        <FormFieldError message={getFieldError("recipientPhone")} />
-                    </div>
-                </div>
-
-                <div className="grid gap-2">
-                    <Label htmlFor="recipientTownshipId">Recipient Township *</Label>
-                    <select
-                        key={fields.recipientTownshipId}
-                        id="recipientTownshipId"
-                        name="recipientTownshipId"
-                        className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                        defaultValue={fields.recipientTownshipId}
-                        required
-                    >
-                        <option value="" disabled>
-                            Select township
-                        </option>
-                        {townships.map((township) => (
-                            <option key={township.id} value={township.id}>
-                                {township.label}
-                            </option>
-                        ))}
-                    </select>
-                    <FormFieldError message={getFieldError("recipientTownshipId")} />
-                </div>
-
-                <div className="grid gap-2">
-                    <Label htmlFor="recipientAddress">Recipient Address *</Label>
-                    <textarea
-                        id="recipientAddress"
-                        name="recipientAddress"
-                        rows={3}
-                        defaultValue={fields.recipientAddress}
-                        required
-                        className={textareaClassName}
-                    />
-                    <FormFieldError message={getFieldError("recipientAddress")} />
-                </div>
+                <RecipientAddressBookFields
+                    merchantId={selectedMerchantId}
+                    townships={townships}
+                    values={recipientAddressBookValues}
+                    onChange={(next) =>
+                        setRecipientAddressBookValues((current) => ({
+                            ...current,
+                            ...next,
+                        }))
+                    }
+                    fieldErrors={state.fieldErrors}
+                />
             </section>
 
             <section className="space-y-5 rounded-xl border bg-card p-4 sm:p-5">

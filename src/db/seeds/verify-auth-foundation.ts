@@ -122,6 +122,22 @@ function verifyPermissionModel() {
         officeAdminPermissions.has("delivery-pricing.update"),
         "office_admin must have delivery-pricing.update",
     );
+    assert(
+        officeAdminPermissions.has("address-book.view"),
+        "office_admin must have address-book.view",
+    );
+    assert(
+        officeAdminPermissions.has("address-book.create"),
+        "office_admin must have address-book.create",
+    );
+    assert(
+        officeAdminPermissions.has("address-book.update"),
+        "office_admin must have address-book.update",
+    );
+    assert(
+        officeAdminPermissions.has("address-book.delete"),
+        "office_admin must have address-book.delete",
+    );
 
     const merchantPermissions = new Set(ROLE_PERMISSION_MATRIX.merchant);
     assert(!merchantPermissions.has("merchant.view"), "merchant must not have merchant.view");
@@ -172,6 +188,19 @@ function verifyPermissionModel() {
         !merchantPermissions.has("delivery-pricing.view"),
         "merchant must not have delivery-pricing.view",
     );
+    assert(merchantPermissions.has("address-book.view"), "merchant must have address-book.view");
+    assert(
+        merchantPermissions.has("address-book.create"),
+        "merchant must have address-book.create",
+    );
+    assert(
+        merchantPermissions.has("address-book.update"),
+        "merchant must have address-book.update",
+    );
+    assert(
+        merchantPermissions.has("address-book.delete"),
+        "merchant must have address-book.delete",
+    );
 
     const riderPermissions = new Set(ROLE_PERMISSION_MATRIX.rider);
     assert(!riderPermissions.has("parcel-list.view"), "rider must not have parcel-list.view");
@@ -207,6 +236,10 @@ function verifyPermissionModel() {
         !riderPermissions.has("delivery-pricing.view"),
         "rider must not have delivery-pricing.view",
     );
+    assert(!riderPermissions.has("address-book.view"), "rider must not have address-book.view");
+    assert(!riderPermissions.has("address-book.create"), "rider must not have address-book.create");
+    assert(!riderPermissions.has("address-book.update"), "rider must not have address-book.update");
+    assert(!riderPermissions.has("address-book.delete"), "rider must not have address-book.delete");
 
     const superAdminPermissions = new Set(ROLE_PERMISSION_MATRIX.super_admin);
     for (const permission of PERMISSION_SLUGS) {
