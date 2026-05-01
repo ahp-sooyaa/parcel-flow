@@ -42,6 +42,7 @@ type CreateParcelFormProps = {
         riders: { id: string; label: string }[];
         townships: { id: string; label: string }[];
     };
+    initialMerchantId?: string | null;
     readOnly?: {
         merchantField?: boolean;
     };
@@ -349,14 +350,24 @@ function ChoiceCard({
     );
 }
 
-export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFormProps>) {
+export function CreateParcelForm({
+    options,
+    initialMerchantId = null,
+    readOnly,
+}: Readonly<CreateParcelFormProps>) {
     const [state, action, isPending] = useActionState(createParcelAction, initialState);
     const merchants = options.merchants;
     const riders = options.riders;
     const townships = options.townships;
     const merchantFieldReadOnly = readOnly?.merchantField ?? false;
     const defaultMerchantId = merchants[0]?.id ?? "";
-    const defaultMerchantSelection = merchantFieldReadOnly ? defaultMerchantId : "";
+    const initialMerchantSelection =
+        initialMerchantId && merchants.some((merchant) => merchant.id === initialMerchantId)
+            ? initialMerchantId
+            : "";
+    const defaultMerchantSelection = merchantFieldReadOnly
+        ? defaultMerchantId
+        : initialMerchantSelection;
     const nextRowIdRef = useRef(0);
     const createParcelRow = (
         parcelType: ParcelType = "cod",

@@ -15,33 +15,19 @@ import {
     SheetTitle,
     SheetTrigger,
 } from "@/components/ui/sheet";
-import { MERCHANT_SETTLEMENT_RECORD_STATUSES } from "@/features/merchant-settlements/constants";
 import { cn } from "@/lib/utils";
 
-import type { MerchantSettlementListQuery } from "@/features/merchant-settlements/server/dto";
-
-type MerchantSettlementListSearchAndFiltersFormProps = {
-    query: MerchantSettlementListQuery;
+type UserListSearchAndFiltersFormProps = {
+    query: string;
     clearHref: string;
     className?: string;
 };
 
-function formatLabel(value: string) {
-    return value
-        .split("_")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ");
-}
-
-function getActiveFilterSummary(query: MerchantSettlementListQuery) {
+function getActiveFilterSummary(query: string) {
     const activeFilters = [];
 
-    if (query.query) {
+    if (query) {
         activeFilters.push("Search");
-    }
-
-    if (query.status.length > 0) {
-        activeFilters.push("Status");
     }
 
     return {
@@ -50,11 +36,11 @@ function getActiveFilterSummary(query: MerchantSettlementListQuery) {
     };
 }
 
-export function MerchantSettlementListSearchAndFiltersForm({
+export function UserListSearchAndFiltersForm({
     query,
     clearHref,
     className,
-}: Readonly<MerchantSettlementListSearchAndFiltersFormProps>) {
+}: Readonly<UserListSearchAndFiltersFormProps>) {
     const { activeFilters, hasActiveFilters } = getActiveFilterSummary(query);
 
     return (
@@ -100,46 +86,19 @@ export function MerchantSettlementListSearchAndFiltersForm({
                             <SheetHeader className="pr-8">
                                 <SheetTitle>Filters</SheetTitle>
                                 <SheetDescription>
-                                    Search settlements and narrow the list by status.
+                                    Search users and narrow the list.
                                 </SheetDescription>
                             </SheetHeader>
 
                             <div className="flex-1 space-y-6 overflow-y-auto py-6">
                                 <div className="space-y-2">
-                                    <Label htmlFor="settlement-list-search">Search</Label>
+                                    <Label htmlFor="user-list-search">Search</Label>
                                     <Input
-                                        id="settlement-list-search"
+                                        id="user-list-search"
                                         name="q"
-                                        defaultValue={query.query}
-                                        placeholder="Search by settlement id, reference or merchant"
+                                        defaultValue={query}
+                                        placeholder="Search by name, email, phone or role"
                                     />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <div className="space-y-1">
-                                        <Label>Status</Label>
-                                        <p className="text-xs text-muted-foreground">
-                                            Select one or more options.
-                                        </p>
-                                    </div>
-
-                                    <div className="grid gap-2 sm:grid-cols-2">
-                                        {MERCHANT_SETTLEMENT_RECORD_STATUSES.map((status) => (
-                                            <label
-                                                key={status}
-                                                className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    name="status"
-                                                    value={status}
-                                                    defaultChecked={query.status.includes(status)}
-                                                    className="size-4 rounded border-input text-primary focus-visible:ring-2 focus-visible:ring-ring"
-                                                />
-                                                <span>{formatLabel(status)}</span>
-                                            </label>
-                                        ))}
-                                    </div>
                                 </div>
                             </div>
 

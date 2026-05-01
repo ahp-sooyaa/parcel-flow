@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
+import { FormFieldError } from "@/components/shared/form-field-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -78,7 +79,10 @@ function isEditableSettlement(status: MerchantSettlementHistoryDto["status"]) {
 }
 
 function SettlementActionMessage({ state }: { state: MerchantSettlementActionResult }) {
-    if (!state.message) {
+    if (
+        !state.message ||
+        (!state.ok && state.fieldErrors && Object.keys(state.fieldErrors).length > 0)
+    ) {
         return null;
     }
 
@@ -211,6 +215,7 @@ function SettlementHistoryItem({
                     <div className="grid gap-2">
                         <Label htmlFor={`reference-${settlement.id}`}>Reference Number</Label>
                         <Input id={`reference-${settlement.id}`} name="referenceNo" required />
+                        <FormFieldError message={confirmState.fieldErrors?.referenceNo?.[0]} />
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor={`payment-slip-${settlement.id}`}>Payment Slip</Label>
@@ -221,6 +226,7 @@ function SettlementHistoryItem({
                             accept="image/jpeg,image/png,image/webp"
                             required
                         />
+                        <FormFieldError message={confirmState.fieldErrors?.paymentSlipImage?.[0]} />
                     </div>
                     <div className="flex items-end">
                         <Button type="submit" disabled={isConfirmPending}>

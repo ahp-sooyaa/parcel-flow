@@ -5,9 +5,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomUUID } from "node:crypto";
 import {
+    bulkUpdateParcelRidersWithAudit,
     buildParcelPatch,
     buildPaymentPatch,
     createParcelsWithPaymentsAndAudit,
+    getBulkParcelRiderAssignmentContextsForViewer,
     getParcelUpdateContextForViewer,
     isParcelCodeInUse,
     updateParcelAndPaymentWithAudit,
@@ -27,6 +29,7 @@ import {
     getOfficeParcelMovementActions,
     mergeParcelImageKeys,
     parcelIdActionSchema,
+    parseBulkAssignParcelRiderFormData,
     parseCreateParcelFormData,
     parseRiderParcelImageUploadFormData,
     parseUpdateParcelDetailFormData,
@@ -60,8 +63,10 @@ import {
 } from "@/features/merchant-pickup-locations/server/dal";
 import { getSettlementManagedParcelFinancialState } from "@/features/merchant-settlements/server/merchant-financial-item-dal";
 import { computeTotalAmountToCollect } from "@/features/parcels/server/utils";
+import { getRiderById } from "@/features/rider/server/dal";
 
 import type {
+    BulkAssignParcelRiderActionResult,
     CreateParcelActionResult,
     ParcelOperationActionResult,
     ParcelUpdateContextDto,
@@ -410,6 +415,113 @@ function getSubmittedStringFields(formData: FormData) {
             .filter((entry): entry is [string, string] => typeof entry[1] === "string")
             .map(([key, value]) => [key, value]),
     );
+}
+
+export async function bulkAssignParcelRiderAction(
+    _prevState: BulkAssignParcelRiderActionResult,
+    formData: FormData,
+): Promise<BulkAssignParcelRiderActionResult> {
+    try {
+        const currentUser = await requirePermission("parcel.update");
+        const parsed = parseBulkAssignParcelRiderFormData(formData);
+
+        if (!parsed.ok) {
+            return parsed;
+        }
+
+        if (parsed.data.riderId) {
+            const rider = await getRiderById(parsed.data.riderId);
+
+            if (!rider?.isActive) {
+                return {
+                    ok: false,
+                    message: "Selected rider was not found.",
+                    fieldErrors: { riderId: ["Selected rider was not found."] },
+                };
+            }
+        }
+
+        const contexts = await getBulkParcelRiderAssignmentContextsForViewer(
+            currentUser,
+            parsed.data.parcelIds,
+        );
+
+        if (contexts.length !== parsed.data.parcelIds.length) {
+            return { ok: false, message: "One or more selected parcels were not found." };
+        }
+
+        const unauthorizedParcel = contexts.find((context) => {
+            const parcelAccess = getParcelAccess({
+                viewer: currentUser,
+                parcel: {
+                    merchantId: context.merchantId,
+                    riderId: context.riderId,
+                },
+            });
+
+            return !parcelAccess.canUpdate;
+        });
+
+        if (unauthorizedParcel) {
+            return {
+                ok: false,
+                message: "You are not allowed to update one or more selected parcels.",
+            };
+        }
+
+        const assignments = contexts
+            .map((context) => {
+                return {
+                    parcelId: context.parcelId,
+                    previousRiderId: context.riderId,
+                    parcelPatch:
+                        context.riderId === parsed.data.riderId
+                            ? {}
+                            : { riderId: parsed.data.riderId },
+                    parcelOldValues:
+                        context.riderId === parsed.data.riderId
+                            ? null
+                            : { riderId: context.riderId },
+                };
+            })
+            .filter((assignment) => Object.keys(assignment.parcelPatch).length > 0);
+
+        if (assignments.length === 0) {
+            return { ok: true, message: "No changes detected." };
+        }
+
+        await bulkUpdateParcelRidersWithAudit({
+            actorAppUserId: currentUser.appUserId,
+            assignments: assignments.map((assignment) => ({
+                parcelId: assignment.parcelId,
+                parcelPatch: assignment.parcelPatch,
+                parcelOldValues: assignment.parcelOldValues,
+            })),
+            parcelEvent: "parcel.bulk_assign_rider",
+            auditMetadata: {
+                bulkSelectionCount: parsed.data.parcelIds.length,
+            },
+        });
+
+        revalidateParcelPaths({
+            parcelIds: assignments.map((assignment) => assignment.parcelId),
+            merchantIds: contexts.map((context) => context.merchantId),
+            riderIds: [...contexts.map((context) => context.riderId), parsed.data.riderId],
+        });
+
+        return {
+            ok: true,
+            message:
+                parsed.data.riderId === null
+                    ? `Cleared rider assignment for ${assignments.length} parcel${assignments.length === 1 ? "" : "s"}.`
+                    : `Assigned rider to ${assignments.length} parcel${assignments.length === 1 ? "" : "s"}.`,
+        };
+    } catch (error) {
+        const message =
+            error instanceof Error ? error.message : "Unable to bulk update parcel riders.";
+
+        return { ok: false, message };
+    }
 }
 
 function getParcelOperationInput(current: ParcelUpdateContextDto) {

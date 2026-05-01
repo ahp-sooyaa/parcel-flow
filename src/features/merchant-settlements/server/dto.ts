@@ -90,7 +90,7 @@ export type MerchantSettlementDetailDto = MerchantSettlementHistoryDto & {
 
 export type MerchantSettlementListQuery = {
     query: string;
-    status: MerchantSettlementStatus | null;
+    status: MerchantSettlementStatus[];
     page: number;
     pageSize: number;
 };

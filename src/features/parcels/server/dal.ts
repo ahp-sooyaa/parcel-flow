@@ -1,7 +1,8 @@
 import "server-only";
-import { and, asc, count, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import {
     type AuditLogInsertInput,
+    type BulkParcelRiderAssignmentContextDto,
     type CreateParcelInsertInput,
     type MerchantParcelStatsDto,
     type PaginatedParcelListDto,
@@ -79,12 +80,21 @@ async function listParcels(
                   ilike(merchants.shopName, searchPattern),
               )
             : undefined,
-        input.parcelStatus ? eq(parcels.status, input.parcelStatus) : undefined,
-        input.codStatus ? eq(codStatusValue, input.codStatus) : undefined,
-        input.collectionStatus ? eq(collectionStatusValue, input.collectionStatus) : undefined,
-        input.deliveryFeeStatus ? eq(deliveryFeeStatusValue, input.deliveryFeeStatus) : undefined,
-        input.merchantSettlementStatus
-            ? eq(merchantSettlementStatusValue, input.merchantSettlementStatus)
+        input.riderAssignment === "unassigned"
+            ? isNull(parcels.riderId)
+            : input.riderAssignment === "assigned"
+              ? sql`${parcels.riderId} is not null`
+              : undefined,
+        input.parcelStatus.length > 0 ? inArray(parcels.status, input.parcelStatus) : undefined,
+        input.codStatus.length > 0 ? inArray(codStatusValue, input.codStatus) : undefined,
+        input.collectionStatus.length > 0
+            ? inArray(collectionStatusValue, input.collectionStatus)
+            : undefined,
+        input.deliveryFeeStatus.length > 0
+            ? inArray(deliveryFeeStatusValue, input.deliveryFeeStatus)
+            : undefined,
+        input.merchantSettlementStatus.length > 0
+            ? inArray(merchantSettlementStatusValue, input.merchantSettlementStatus)
             : undefined,
     );
     const [totalRow] = await db
@@ -107,6 +117,7 @@ async function listParcels(
                       parcelCode: parcels.parcelCode,
                       merchantId: parcels.merchantId,
                       riderId: parcels.riderId,
+                      riderLabel: appUsers.fullName,
                       merchantLabel: merchants.shopName,
                       recipientName: parcels.recipientName,
                       recipientPhone: parcels.recipientPhone,
@@ -128,6 +139,8 @@ async function listParcels(
                   })
                   .from(parcels)
                   .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
+                  .leftJoin(riders, eq(parcels.riderId, riders.appUserId))
+                  .leftJoin(appUsers, eq(riders.appUserId, appUsers.id))
                   .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
                   .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
                   .where(filters)
@@ -178,12 +191,21 @@ async function listMerchantParcels(
                   ilike(townships.name, searchPattern),
               )
             : undefined,
-        input.parcelStatus ? eq(parcels.status, input.parcelStatus) : undefined,
-        input.codStatus ? eq(codStatusValue, input.codStatus) : undefined,
-        input.collectionStatus ? eq(collectionStatusValue, input.collectionStatus) : undefined,
-        input.deliveryFeeStatus ? eq(deliveryFeeStatusValue, input.deliveryFeeStatus) : undefined,
-        input.merchantSettlementStatus
-            ? eq(merchantSettlementStatusValue, input.merchantSettlementStatus)
+        input.riderAssignment === "unassigned"
+            ? isNull(parcels.riderId)
+            : input.riderAssignment === "assigned"
+              ? sql`${parcels.riderId} is not null`
+              : undefined,
+        input.parcelStatus.length > 0 ? inArray(parcels.status, input.parcelStatus) : undefined,
+        input.codStatus.length > 0 ? inArray(codStatusValue, input.codStatus) : undefined,
+        input.collectionStatus.length > 0
+            ? inArray(collectionStatusValue, input.collectionStatus)
+            : undefined,
+        input.deliveryFeeStatus.length > 0
+            ? inArray(deliveryFeeStatusValue, input.deliveryFeeStatus)
+            : undefined,
+        input.merchantSettlementStatus.length > 0
+            ? inArray(merchantSettlementStatusValue, input.merchantSettlementStatus)
             : undefined,
     );
     const [totalRow] = await db
@@ -206,6 +228,7 @@ async function listMerchantParcels(
                       parcelCode: parcels.parcelCode,
                       merchantId: parcels.merchantId,
                       riderId: parcels.riderId,
+                      riderLabel: appUsers.fullName,
                       merchantLabel: merchants.shopName,
                       recipientName: parcels.recipientName,
                       recipientPhone: parcels.recipientPhone,
@@ -227,6 +250,8 @@ async function listMerchantParcels(
                   })
                   .from(parcels)
                   .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
+                  .leftJoin(riders, eq(parcels.riderId, riders.appUserId))
+                  .leftJoin(appUsers, eq(riders.appUserId, appUsers.id))
                   .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
                   .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
                   .where(filters)
@@ -374,8 +399,8 @@ export async function getMerchantParcelsListForViewer(
         ? input
         : {
               ...input,
-              collectionStatus: null,
-              deliveryFeeStatus: null,
+              collectionStatus: [],
+              deliveryFeeStatus: [],
           };
 
     return listMerchantParcels(merchantId, safeInput);
@@ -414,6 +439,7 @@ async function listAssignedRiderParcels(riderId: string): Promise<ParcelListItem
             parcelCode: parcels.parcelCode,
             merchantId: parcels.merchantId,
             riderId: parcels.riderId,
+            riderLabel: appUsers.fullName,
             merchantLabel: merchants.shopName,
             recipientName: parcels.recipientName,
             recipientPhone: parcels.recipientPhone,
@@ -435,6 +461,8 @@ async function listAssignedRiderParcels(riderId: string): Promise<ParcelListItem
         })
         .from(parcels)
         .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
+        .leftJoin(riders, eq(parcels.riderId, riders.appUserId))
+        .leftJoin(appUsers, eq(riders.appUserId, appUsers.id))
         .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
         .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
         .where(eq(parcels.riderId, riderId))
@@ -827,6 +855,50 @@ export async function getParcelUpdateContextForViewer(
     return current;
 }
 
+async function findBulkParcelRiderAssignmentContexts(
+    parcelIds: string[],
+): Promise<BulkParcelRiderAssignmentContextDto[]> {
+    if (parcelIds.length === 0) {
+        return [];
+    }
+
+    const rows = await db
+        .select({
+            parcelId: parcels.id,
+            parcelCode: parcels.parcelCode,
+            merchantId: parcels.merchantId,
+            riderId: parcels.riderId,
+        })
+        .from(parcels)
+        .innerJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
+        .where(inArray(parcels.id, parcelIds));
+
+    const rowById = new Map(rows.map((row) => [row.parcelId, row]));
+
+    return parcelIds
+        .map((parcelId) => rowById.get(parcelId))
+        .filter((row): row is BulkParcelRiderAssignmentContextDto => Boolean(row));
+}
+
+export async function getBulkParcelRiderAssignmentContextsForViewer(
+    viewer: AppAccessViewer,
+    parcelIds: string[],
+): Promise<BulkParcelRiderAssignmentContextDto[]> {
+    const parcelAccess = getParcelAccess({ viewer });
+
+    if (!parcelAccess.canViewList && !parcelAccess.canUpdate) {
+        return [];
+    }
+
+    const contexts = await findBulkParcelRiderAssignmentContexts(parcelIds);
+
+    if (contexts.length !== parcelIds.length) {
+        return [];
+    }
+
+    return contexts;
+}
+
 export async function updateParcelAndPaymentWithAudit(input: {
     actorAppUserId: string;
     parcelId: string;
@@ -887,6 +959,50 @@ export async function updateParcelAndPaymentWithAudit(input: {
         }
 
         await reconcileMerchantFinancialItemsForParcelWithClient(tx, input.parcelId);
+    });
+}
+
+export async function bulkUpdateParcelRidersWithAudit(input: {
+    actorAppUserId: string;
+    assignments: Array<{
+        parcelId: string;
+        parcelPatch: ParcelUpdatePatch;
+        parcelOldValues: Record<string, unknown> | null;
+    }>;
+    parcelEvent: string;
+    auditMetadata?: Record<string, unknown>;
+}) {
+    if (input.assignments.length === 0) {
+        return;
+    }
+
+    await db.transaction(async (tx) => {
+        for (const assignment of input.assignments) {
+            if (Object.keys(assignment.parcelPatch).length === 0) {
+                continue;
+            }
+
+            await tx
+                .update(parcels)
+                .set({
+                    ...assignment.parcelPatch,
+                    updatedAt: new Date(),
+                })
+                .where(eq(parcels.id, assignment.parcelId));
+
+            await tx.insert(parcelAuditLogs).values({
+                parcelId: assignment.parcelId,
+                updatedBy: input.actorAppUserId,
+                sourceTable: "parcels",
+                event: input.parcelEvent,
+                oldValues: assignment.parcelOldValues,
+                newValues: input.auditMetadata
+                    ? { ...assignment.parcelPatch, ...input.auditMetadata }
+                    : assignment.parcelPatch,
+            });
+
+            await reconcileMerchantFinancialItemsForParcelWithClient(tx, assignment.parcelId);
+        }
     });
 }
 

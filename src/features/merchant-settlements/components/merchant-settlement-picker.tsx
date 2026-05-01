@@ -216,7 +216,7 @@ export function MerchantSettlementPicker({
     }
 
     return (
-        <form action={action} className="space-y-4 pb-24">
+        <form action={action} className="space-y-4 pb-[200px] md:pb-24">
             <input type="hidden" name="merchantId" value={merchantId} />
             {!requiresBankAccount && <input type="hidden" name="bankAccountId" value="" />}
 

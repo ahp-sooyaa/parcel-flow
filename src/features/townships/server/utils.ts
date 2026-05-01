@@ -8,6 +8,10 @@ export const createTownshipSchema = z.object({
     isActive: checkboxBoolean,
 });
 
+export const updateTownshipSchema = createTownshipSchema.extend({
+    townshipId: z.string().trim().uuid(),
+});
+
 export function normalizeTownshipSearchQuery(raw: string | undefined) {
     return raw?.trim() ?? "";
 }

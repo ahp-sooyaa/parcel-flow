@@ -4,15 +4,15 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { FormFieldError } from "@/components/shared/form-field-error";
 import { Button } from "@/components/ui/button";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+} from "@/components/ui/sheet";
 import {
     bulkDeletePickupLocationsAction,
     createPickupLocationAction,
@@ -256,42 +256,49 @@ export function PickupLocationsPanel({
 
     return (
         <div className="space-y-5">
-            <section className="space-y-4 rounded-xl border bg-card p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <h2 className="text-lg font-semibold">Pickup Locations</h2>
-                        <p className="text-sm text-muted-foreground">
-                            Manage merchant pickup points and mark one as the default parcel source.
-                        </p>
-                    </div>
+            <section className="rounded-xl border bg-card">
+                <div className="border-b px-4 py-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h2 className="text-lg font-semibold">Pickup Locations</h2>
+                            <p className="text-sm text-muted-foreground">
+                                Manage merchant pickup points and mark one as the default parcel
+                                source.
+                            </p>
+                        </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Button type="button" size="sm" onClick={() => setCreateDialogOpen(true)}>
-                            Create Pickup Location
-                        </Button>
-
-                        <form action={bulkDeletePickupLocationsAction}>
-                            {Array.from(selectedIds).map((pickupLocationId) => (
-                                <input
-                                    key={pickupLocationId}
-                                    type="hidden"
-                                    name="pickupLocationSelections"
-                                    value={`${pickupLocations.find((pickupLocation) => pickupLocation.id === pickupLocationId)?.merchantId ?? ""}:${pickupLocationId}`}
-                                />
-                            ))}
+                        <div className="flex flex-wrap items-center gap-2">
                             <Button
-                                type="submit"
-                                variant="destructive"
+                                type="button"
                                 size="sm"
-                                disabled={selectedIds.size === 0}
+                                onClick={() => setCreateDialogOpen(true)}
                             >
-                                Bulk Delete
+                                Create Pickup Location
                             </Button>
-                        </form>
+
+                            <form action={bulkDeletePickupLocationsAction}>
+                                {Array.from(selectedIds).map((pickupLocationId) => (
+                                    <input
+                                        key={pickupLocationId}
+                                        type="hidden"
+                                        name="pickupLocationSelections"
+                                        value={`${pickupLocations.find((pickupLocation) => pickupLocation.id === pickupLocationId)?.merchantId ?? ""}:${pickupLocationId}`}
+                                    />
+                                ))}
+                                <Button
+                                    type="submit"
+                                    variant="destructive"
+                                    size="sm"
+                                    disabled={selectedIds.size === 0}
+                                >
+                                    Bulk Delete
+                                </Button>
+                            </form>
+                        </div>
                     </div>
                 </div>
 
-                <div className="overflow-hidden rounded-xl border">
+                <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-muted/40 text-xs uppercase">
                             <tr>
@@ -433,14 +440,17 @@ export function PickupLocationsPanel({
                 </div>
             </section>
 
-            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>New Pickup Location</DialogTitle>
-                        <DialogDescription>
+            <Sheet open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                <SheetContent
+                    side="bottom"
+                    className="max-h-[90vh] rounded-t-2xl border-x-0 border-b-0"
+                >
+                    <SheetHeader className="pr-8">
+                        <SheetTitle>New Pickup Location</SheetTitle>
+                        <SheetDescription>
                             Manage saved pickup locations used by parcel create and edit forms.
-                        </DialogDescription>
-                    </DialogHeader>
+                        </SheetDescription>
+                    </SheetHeader>
 
                     <PickupLocationEditor
                         action={createPickupLocationAction}
@@ -453,10 +463,10 @@ export function PickupLocationsPanel({
                         formClassName="rounded-none border-0 bg-transparent p-0"
                         onSuccess={() => setCreateDialogOpen(false)}
                     />
-                </DialogContent>
-            </Dialog>
+                </SheetContent>
+            </Sheet>
 
-            <Dialog
+            <Sheet
                 open={Boolean(editingPickupLocation)}
                 onOpenChange={(open) => {
                     if (!open) {
@@ -464,17 +474,20 @@ export function PickupLocationsPanel({
                     }
                 }}
             >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>
+                <SheetContent
+                    side="bottom"
+                    className="max-h-[90vh] rounded-t-2xl border-x-0 border-b-0"
+                >
+                    <SheetHeader className="pr-8">
+                        <SheetTitle>
                             {editingPickupLocation
                                 ? `Edit ${editingPickupLocation.label}`
                                 : "Edit Pickup Location"}
-                        </DialogTitle>
-                        <DialogDescription>
+                        </SheetTitle>
+                        <SheetDescription>
                             Manage saved pickup locations used by parcel create and edit forms.
-                        </DialogDescription>
-                    </DialogHeader>
+                        </SheetDescription>
+                    </SheetHeader>
 
                     {editingPickupLocation ? (
                         <PickupLocationEditor
@@ -490,8 +503,8 @@ export function PickupLocationsPanel({
                             onSuccess={() => setEditingPickupLocation(null)}
                         />
                     ) : null}
-                </DialogContent>
-            </Dialog>
+                </SheetContent>
+            </Sheet>
         </div>
     );
 }

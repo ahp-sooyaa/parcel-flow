@@ -35,6 +35,7 @@ import type {
     CreateUserActionResult,
     ResetUserPasswordActionResult,
     SoftDeleteUserActionResult,
+    UserStatusActionResult,
 } from "./dto";
 
 export async function createUserAction(
@@ -161,47 +162,81 @@ export async function resetUserPasswordAction(
     }
 }
 
-export async function updateUserStatusAction(formData: FormData) {
+async function updateUserStatus(input: {
+    userId: string;
+    isActive: boolean;
+}): Promise<UserStatusActionResult> {
     const currentUser = await requirePermission("user.update");
 
-    const userId = String(formData.get("userId") || "");
-    const isActive = parseActiveFlag(formData.get("isActive"));
-
-    if (!userId) {
-        throw new Error("User id is required");
+    if (!input.userId) {
+        return { ok: false, message: "User id is required." };
     }
 
-    const targetUser = await getUserWithRoleById(userId);
+    const targetUser = await getUserWithRoleById(input.userId);
 
     if (!targetUser) {
-        throw new Error("User was not found");
+        return { ok: false, message: "User was not found." };
     }
 
-    if (!isActive && currentUser.appUserId === targetUser.id) {
-        throw new Error("You cannot disable your own account.");
+    if (!input.isActive && currentUser.appUserId === targetUser.id) {
+        return { ok: false, message: "You cannot disable your own account." };
     }
 
-    if (!isActive && targetUser.isActive && targetUser.roleSlug === "super_admin") {
+    if (!input.isActive && targetUser.isActive && targetUser.roleSlug === "super_admin") {
         const activeSuperAdminCount = await countActiveSuperAdminUsers();
 
         if (activeSuperAdminCount <= 1) {
-            throw new Error("Cannot disable the last active super admin account.");
+            return { ok: false, message: "Cannot disable the last active super admin account." };
         }
     }
 
-    await updateUserActiveStatus(userId, isActive);
+    await updateUserActiveStatus(input.userId, input.isActive);
 
     await logAuditEvent({
         event: "user.update",
         actorAppUserId: currentUser.appUserId,
-        targetAppUserId: userId,
+        targetAppUserId: input.userId,
         metadata: {
-            isActive,
+            isActive: input.isActive,
         },
     });
 
-    revalidatePath(`/dashboard/users/${userId}`);
+    revalidatePath(`/dashboard/users/${input.userId}`);
+    revalidatePath(`/dashboard/users/${input.userId}/edit`);
     revalidatePath("/dashboard/users");
+
+    return {
+        ok: true,
+        message: input.isActive ? "User activated." : "User deactivated.",
+        isActive: input.isActive,
+    };
+}
+
+export async function updateUserStatusAction(formData: FormData) {
+    const result = await updateUserStatus({
+        userId: String(formData.get("userId") || ""),
+        isActive: parseActiveFlag(formData.get("isActive")),
+    });
+
+    if (!result.ok) {
+        throw new Error(result.message);
+    }
+}
+
+export async function updateUserStatusFormAction(
+    _prevState: UserStatusActionResult,
+    formData: FormData,
+): Promise<UserStatusActionResult> {
+    try {
+        return await updateUserStatus({
+            userId: String(formData.get("userId") || ""),
+            isActive: parseActiveFlag(formData.get("isActive")),
+        });
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to update user status.";
+
+        return { ok: false, message };
+    }
 }
 
 export async function updateAccountProfileAction(

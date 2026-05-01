@@ -465,6 +465,11 @@ export const advanceRiderParcelSchema = z.object({
     parcelId: z.string().trim().uuid(),
     nextStatus: z.enum(PARCEL_STATUSES),
 });
+
+export const bulkAssignParcelRiderSchema = z.object({
+    parcelIds: z.array(z.string().trim().uuid()).min(1, "Select at least one parcel."),
+    riderId: optionalNullableUuid(),
+});
 export const riderParcelImageUploadSchema = z.object({
     parcelId: z.string().trim().uuid(),
 });
@@ -493,6 +498,7 @@ export type ParcelCreateBatchInput = z.infer<typeof createParcelBatchSchema>;
 export type ParcelCreateRowInput = z.infer<typeof createParcelRowSchema>;
 export type ParcelUpdateInput = z.infer<typeof updateParcelSchema>;
 export type ParcelDetailUpdateInput = z.infer<typeof updateParcelDetailSchema>;
+export type BulkAssignParcelRiderInput = z.infer<typeof bulkAssignParcelRiderSchema>;
 export type ParcelFormFields = Record<(typeof UPDATE_PARCEL_FORM_FIELDS)[number], string>;
 export type ParcelImageFieldName = (typeof PARCEL_IMAGE_FIELD_NAMES)[number];
 export type ParcelMediaFiles = Record<ParcelImageFieldName, File[]>;
@@ -505,11 +511,12 @@ export type ParcelListQuery = {
     query: string;
     page: number;
     pageSize: number;
-    parcelStatus: (typeof PARCEL_STATUSES)[number] | null;
-    codStatus: (typeof COD_STATUSES)[number] | null;
-    collectionStatus: (typeof COLLECTION_STATUSES)[number] | null;
-    deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number] | null;
-    merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number] | null;
+    riderAssignment: "all" | "unassigned" | "assigned";
+    parcelStatus: (typeof PARCEL_STATUSES)[number][];
+    codStatus: (typeof COD_STATUSES)[number][];
+    collectionStatus: (typeof COLLECTION_STATUSES)[number][];
+    deliveryFeeStatus: (typeof DELIVERY_FEE_STATUSES)[number][];
+    merchantSettlementStatus: (typeof MERCHANT_SETTLEMENT_STATUSES)[number][];
 };
 export type ParcelWriteValues = {
     merchantId: string;
@@ -555,7 +562,7 @@ export type ParcelPaymentWriteValues = {
     paymentSlipImageKeys: string[];
 };
 
-export const PARCEL_LIST_PAGE_SIZE = 25;
+export const PARCEL_LIST_PAGE_SIZE = 10;
 
 type ParcelListSearchParams = Record<string, string | string[] | undefined>;
 
@@ -627,6 +634,20 @@ function getSearchParamValue(searchParams: ParcelListSearchParams, key: string) 
     return value ?? "";
 }
 
+function getSearchParamValues(searchParams: ParcelListSearchParams, key: string) {
+    const value = searchParams[key];
+
+    if (Array.isArray(value)) {
+        return value;
+    }
+
+    if (typeof value === "string") {
+        return [value];
+    }
+
+    return [];
+}
+
 function normalizeParcelSearchQuery(raw: string | undefined) {
     return raw?.trim().replaceAll("%", "").replaceAll("_", "").trim() ?? "";
 }
@@ -648,17 +669,24 @@ function isAllowedValue<TValues extends readonly string[]>(
     return values.includes(value);
 }
 
-function parseNullableEnumValue<TValues extends readonly string[]>(
-    raw: string | undefined,
+function parseEnumValues<TValues extends readonly string[]>(
+    rawValues: readonly string[],
     values: TValues,
 ) {
-    const value = raw?.trim() ?? "";
+    return rawValues
+        .map((value) => value.trim())
+        .filter(
+            (value): value is TValues[number] => Boolean(value) && isAllowedValue(values, value),
+        )
+        .filter((value, index, allValues) => allValues.indexOf(value) === index);
+}
 
-    if (!value || !isAllowedValue(values, value)) {
-        return null;
+function parseRiderAssignmentFilter(raw: string | undefined): ParcelListQuery["riderAssignment"] {
+    if (raw === "assigned" || raw === "unassigned") {
+        return raw;
     }
 
-    return value;
+    return "all";
 }
 
 export function getDefaultParcelListQuery(): ParcelListQuery {
@@ -666,11 +694,12 @@ export function getDefaultParcelListQuery(): ParcelListQuery {
         query: "",
         page: 1,
         pageSize: PARCEL_LIST_PAGE_SIZE,
-        parcelStatus: null,
-        codStatus: null,
-        collectionStatus: null,
-        deliveryFeeStatus: null,
-        merchantSettlementStatus: null,
+        riderAssignment: "all",
+        parcelStatus: [],
+        codStatus: [],
+        collectionStatus: [],
+        deliveryFeeStatus: [],
+        merchantSettlementStatus: [],
     };
 }
 
@@ -686,28 +715,28 @@ export function normalizeParcelListQueryParams(
         query: normalizeParcelSearchQuery(getSearchParamValue(searchParams, "q")),
         page: parseParcelListPage(getSearchParamValue(searchParams, "page")),
         pageSize: PARCEL_LIST_PAGE_SIZE,
-        parcelStatus: parseNullableEnumValue(
-            getSearchParamValue(searchParams, "parcelStatus"),
+        riderAssignment: parseRiderAssignmentFilter(
+            getSearchParamValue(searchParams, "riderAssignment"),
+        ),
+        parcelStatus: parseEnumValues(
+            getSearchParamValues(searchParams, "parcelStatus"),
             PARCEL_STATUSES,
         ),
-        codStatus: parseNullableEnumValue(
-            getSearchParamValue(searchParams, "codStatus"),
-            COD_STATUSES,
-        ),
+        codStatus: parseEnumValues(getSearchParamValues(searchParams, "codStatus"), COD_STATUSES),
         collectionStatus: includeInternalPaymentFilters
-            ? parseNullableEnumValue(
-                  getSearchParamValue(searchParams, "collectionStatus"),
+            ? parseEnumValues(
+                  getSearchParamValues(searchParams, "collectionStatus"),
                   COLLECTION_STATUSES,
               )
-            : null,
+            : [],
         deliveryFeeStatus: includeInternalPaymentFilters
-            ? parseNullableEnumValue(
-                  getSearchParamValue(searchParams, "deliveryFeeStatus"),
+            ? parseEnumValues(
+                  getSearchParamValues(searchParams, "deliveryFeeStatus"),
                   DELIVERY_FEE_STATUSES,
               )
-            : null,
-        merchantSettlementStatus: parseNullableEnumValue(
-            getSearchParamValue(searchParams, "merchantSettlementStatus"),
+            : [],
+        merchantSettlementStatus: parseEnumValues(
+            getSearchParamValues(searchParams, "merchantSettlementStatus"),
             MERCHANT_SETTLEMENT_STATUSES,
         ),
     };
@@ -716,11 +745,12 @@ export function normalizeParcelListQueryParams(
 export function hasActiveParcelListFilters(input: ParcelListQuery) {
     return Boolean(
         input.query ||
-        input.parcelStatus ||
-        input.codStatus ||
-        input.collectionStatus ||
-        input.deliveryFeeStatus ||
-        input.merchantSettlementStatus,
+        input.riderAssignment !== "all" ||
+        input.parcelStatus.length > 0 ||
+        input.codStatus.length > 0 ||
+        input.collectionStatus.length > 0 ||
+        input.deliveryFeeStatus.length > 0 ||
+        input.merchantSettlementStatus.length > 0,
     );
 }
 
@@ -1462,6 +1492,31 @@ export function parseRiderParcelImageUploadFormData(formData: FormData) {
         riderParcelImageUploadSchema,
         RIDER_PARCEL_IMAGE_UPLOAD_FIELDS,
     );
+}
+
+export function parseBulkAssignParcelRiderFormData(formData: FormData) {
+    const parcelIds = formData
+        .getAll("parcelIds")
+        .map((value) => String(value).trim())
+        .filter(Boolean);
+    const riderId = String(formData.get("riderId") ?? "").trim();
+    const parsed = bulkAssignParcelRiderSchema.safeParse({
+        parcelIds: Array.from(new Set(parcelIds)),
+        riderId,
+    });
+
+    if (!parsed.success) {
+        return {
+            ok: false as const,
+            message: "Please correct the highlighted fields.",
+            fieldErrors: toFieldErrors(parsed.error.flatten().fieldErrors),
+        };
+    }
+
+    return {
+        ok: true as const,
+        data: parsed.data,
+    };
 }
 
 export function validateParcelImageAppendLimits(input: {

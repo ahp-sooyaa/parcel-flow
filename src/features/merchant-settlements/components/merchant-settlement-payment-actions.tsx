@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { FormFieldError } from "@/components/shared/form-field-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,7 +39,10 @@ function isEditableSettlement(status: MerchantSettlementStatus) {
 }
 
 function SettlementActionMessage({ state }: { state: MerchantSettlementActionResult }) {
-    if (!state.message) {
+    if (
+        !state.message ||
+        (!state.ok && state.fieldErrors && Object.keys(state.fieldErrors).length > 0)
+    ) {
         return null;
     }
 
@@ -101,6 +105,7 @@ export function MerchantSettlementPaymentActions({
                             name="referenceNo"
                             required
                         />
+                        <FormFieldError message={confirmState.fieldErrors?.referenceNo?.[0]} />
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor={`detail-payment-slip-${settlement.id}`}>Payment Slip</Label>
@@ -111,6 +116,7 @@ export function MerchantSettlementPaymentActions({
                             accept="image/jpeg,image/png,image/webp"
                             required
                         />
+                        <FormFieldError message={confirmState.fieldErrors?.paymentSlipImage?.[0]} />
                     </div>
                     <div className="flex items-end">
                         <Button type="submit" disabled={isConfirmPending}>

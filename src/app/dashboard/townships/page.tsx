@@ -1,11 +1,23 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { getTownshipAccess } from "@/features/auth/server/policies/townships";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
+import { CreateTownshipSheet } from "@/features/townships/components/create-township-sheet";
+import { EditTownshipSheet } from "@/features/townships/components/edit-township-sheet";
+import { TownshipListSearchAndFiltersForm } from "@/features/townships/components/township-list-search-and-filters-form";
 import { getTownshipsListForViewer } from "@/features/townships/server/dal";
+import { normalizeTownshipSearchQuery } from "@/features/townships/server/utils";
 
-export default async function TownshipsPage() {
+type TownshipsPageProps = {
+    searchParams: Promise<{
+        q?: string | string[];
+    }>;
+};
+
+function getSearchParamValue(raw: string | string[] | undefined) {
+    return Array.isArray(raw) ? raw[0] : raw;
+}
+
+export default async function TownshipsPage({ searchParams }: Readonly<TownshipsPageProps>) {
     const currentUser = await requireAppAccessContext();
     const townshipAccess = getTownshipAccess(currentUser);
 
@@ -13,7 +25,9 @@ export default async function TownshipsPage() {
         notFound();
     }
 
-    const townships = await getTownshipsListForViewer(currentUser);
+    const rawSearchParams = await searchParams;
+    const query = normalizeTownshipSearchQuery(getSearchParamValue(rawSearchParams.q));
+    const townships = await getTownshipsListForViewer(currentUser, { query });
 
     return (
         <section className="space-y-5">
@@ -24,12 +38,10 @@ export default async function TownshipsPage() {
                         Manage township master data used by merchant and rider workflows.
                     </p>
                 </div>
-                {townshipAccess.canCreate && (
-                    <Button asChild>
-                        <Link href="/dashboard/townships/create">Create Township</Link>
-                    </Button>
-                )}
+                {townshipAccess.canCreate ? <CreateTownshipSheet /> : null}
             </header>
+
+            <TownshipListSearchAndFiltersForm query={query} clearHref="/dashboard/townships" />
 
             <div className="overflow-hidden rounded-xl border bg-card">
                 <table className="w-full text-left text-sm">
@@ -38,6 +50,9 @@ export default async function TownshipsPage() {
                             <th className="px-4 py-3">Township</th>
                             <th className="px-4 py-3">Status</th>
                             <th className="px-4 py-3">Created</th>
+                            {townshipAccess.canUpdate ? (
+                                <th className="px-4 py-3">Actions</th>
+                            ) : null}
                         </tr>
                     </thead>
                     <tbody>
@@ -50,11 +65,19 @@ export default async function TownshipsPage() {
                                 <td className="px-4 py-3">
                                     {township.createdAt.toLocaleDateString()}
                                 </td>
+                                {townshipAccess.canUpdate ? (
+                                    <td className="px-4 py-3">
+                                        <EditTownshipSheet township={township} />
+                                    </td>
+                                ) : null}
                             </tr>
                         ))}
                         {townships.length === 0 && (
                             <tr>
-                                <td className="px-4 py-6 text-sm text-muted-foreground" colSpan={3}>
+                                <td
+                                    className="px-4 py-6 text-sm text-muted-foreground"
+                                    colSpan={townshipAccess.canUpdate ? 4 : 3}
+                                >
                                     No townships found.
                                 </td>
                             </tr>

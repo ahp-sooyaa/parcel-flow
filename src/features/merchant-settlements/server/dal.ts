@@ -63,7 +63,7 @@ function settlementListWhere(input: MerchantSettlementListQuery) {
     const searchPattern = toSettlementSearchPattern(input.query);
 
     return and(
-        input.status ? eq(merchantSettlements.status, input.status) : undefined,
+        input.status.length > 0 ? inArray(merchantSettlements.status, input.status) : undefined,
         searchPattern
             ? or(
                   sql`cast(${merchantSettlements.id} as text) ilike ${searchPattern}`,
@@ -540,6 +540,26 @@ export async function findConfirmableMerchantSettlement(settlementId: string) {
         .limit(1);
 
     return settlement ?? null;
+}
+
+export async function isMerchantSettlementReferenceNoInUse(input: {
+    referenceNo: string;
+    excludeSettlementId?: string;
+}) {
+    const [existing] = await db
+        .select({ id: merchantSettlements.id })
+        .from(merchantSettlements)
+        .where(
+            and(
+                eq(merchantSettlements.referenceNo, input.referenceNo),
+                input.excludeSettlementId
+                    ? sql`${merchantSettlements.id} <> ${input.excludeSettlementId}`
+                    : undefined,
+            ),
+        )
+        .limit(1);
+
+    return Boolean(existing);
 }
 
 export async function generateMerchantSettlement(input: {

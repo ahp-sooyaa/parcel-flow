@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
     reactCompiler: true,
     allowedDevOrigins: ["127.0.0.1", "http://localhost:3000"],
     poweredByHeader: false,
+    serverExternalPackages: ["@aws-sdk/client-s3", "@aws-sdk/s3-request-presigner"],
     async headers() {
         return [
             {

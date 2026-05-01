@@ -24,6 +24,7 @@ export type ParcelListItemDto = {
     parcelCode: string;
     merchantId: string;
     riderId: string | null;
+    riderLabel: string | null;
     merchantLabel: string;
     recipientName: string;
     recipientPhone: string;
@@ -193,6 +194,12 @@ export type UpdateParcelActionResult = {
     fieldErrors?: ParcelFormFieldErrors;
 };
 
+export type BulkAssignParcelRiderActionResult = {
+    ok: boolean;
+    message: string;
+    fieldErrors?: ParcelFormFieldErrors;
+};
+
 function normalizeCodStatusValue(input: {
     parcelType: (typeof PARCEL_TYPES)[number];
     codStatus: (typeof COD_STATUSES)[number] | null;
@@ -229,11 +236,19 @@ export type RiderParcelImageUploadActionResult = {
     fieldErrors?: ParcelFormFieldErrors;
 };
 
+export type BulkParcelRiderAssignmentContextDto = {
+    parcelId: string;
+    parcelCode: string;
+    merchantId: string;
+    riderId: string | null;
+};
+
 export function toParcelListItemDto(input: {
     id: string;
     parcelCode: string;
     merchantId: string;
     riderId: string | null;
+    riderLabel: string | null;
     merchantLabel: string;
     recipientName: string;
     recipientPhone: string;
@@ -258,6 +273,7 @@ export function toParcelListItemDto(input: {
         parcelCode: input.parcelCode,
         merchantId: input.merchantId,
         riderId: input.riderId,
+        riderLabel: input.riderLabel,
         merchantLabel: input.merchantLabel,
         recipientName: input.recipientName,
         recipientPhone: input.recipientPhone,

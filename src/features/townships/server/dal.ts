@@ -1,18 +1,27 @@
 import "server-only";
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, ilike } from "drizzle-orm";
 import {
     toTownshipListItemDto,
     toTownshipOptionDto,
     type TownshipListItemDto,
     type TownshipOptionDto,
 } from "./dto";
+import { normalizeTownshipSearchQuery } from "./utils";
 import { db } from "@/db";
 import { townships } from "@/db/schema";
 import { getTownshipAccess } from "@/features/auth/server/policies/townships";
 
 import type { AppAccessViewer } from "@/features/auth/server/dto";
 
-async function listTownships(): Promise<TownshipListItemDto[]> {
+async function listTownships(
+    input: {
+        query?: string;
+    } = {},
+): Promise<TownshipListItemDto[]> {
+    const normalizedQuery = normalizeTownshipSearchQuery(input.query);
+    const searchPattern = normalizedQuery
+        ? `%${normalizedQuery.replaceAll("%", "").replaceAll("_", "")}%`
+        : null;
     const rows = await db
         .select({
             id: townships.id,
@@ -21,6 +30,7 @@ async function listTownships(): Promise<TownshipListItemDto[]> {
             createdAt: townships.createdAt,
         })
         .from(townships)
+        .where(searchPattern ? ilike(townships.name, searchPattern) : undefined)
         .orderBy(asc(townships.name), desc(townships.createdAt));
 
     return rows.map((row) => toTownshipListItemDto(row));
@@ -28,6 +38,9 @@ async function listTownships(): Promise<TownshipListItemDto[]> {
 
 export async function getTownshipsListForViewer(
     viewer: AppAccessViewer,
+    input: {
+        query?: string;
+    } = {},
 ): Promise<TownshipListItemDto[]> {
     const townshipAccess = getTownshipAccess(viewer);
 
@@ -35,7 +48,7 @@ export async function getTownshipsListForViewer(
         return [];
     }
 
-    return listTownships();
+    return listTownships(input);
 }
 
 export async function getTownshipOptions(
@@ -63,6 +76,24 @@ export async function createTownship(input: { name: string; isActive: boolean })
         .returning({ id: townships.id });
 
     return created;
+}
+
+export async function updateTownship(input: {
+    townshipId: string;
+    name: string;
+    isActive: boolean;
+}) {
+    const [updated] = await db
+        .update(townships)
+        .set({
+            name: input.name,
+            isActive: input.isActive,
+            updatedAt: new Date(),
+        })
+        .where(eq(townships.id, input.townshipId))
+        .returning({ id: townships.id });
+
+    return updated ?? null;
 }
 
 export async function findTownshipById(id: string) {

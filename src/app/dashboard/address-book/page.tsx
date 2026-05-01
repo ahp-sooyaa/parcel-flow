@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { AddressBookSearchAndFiltersForm } from "@/features/address-book/components/address-book-search-and-filters-form";
 import { PickupLocationsPanel } from "@/features/address-book/components/pickup-locations-panel";
 import { RecipientContactsPanel } from "@/features/address-book/components/recipient-contacts-panel";
 import { getAddressBookPageData } from "@/features/address-book/server/dal";
@@ -65,52 +65,13 @@ export default async function AddressBookPage({ searchParams }: Readonly<Address
                 </p>
             </header>
 
-            {access.canSelectMerchant ? (
-                <form method="get" className="rounded-xl border bg-card p-4">
-                    <div className="flex flex-wrap items-end gap-3">
-                        <div className="grid min-w-[260px] gap-2">
-                            <label htmlFor="merchantId" className="text-sm font-medium">
-                                Merchant
-                            </label>
-                            <select
-                                id="merchantId"
-                                name="merchantId"
-                                defaultValue={pageData.selectedMerchantId ?? ""}
-                                className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                            >
-                                <option value="">All merchants</option>
-                                {pageData.merchants.map((merchant) => (
-                                    <option key={merchant.id} value={merchant.id}>
-                                        {merchant.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="grid min-w-[260px] gap-2">
-                            <label htmlFor="q" className="text-sm font-medium">
-                                Search
-                            </label>
-                            <input
-                                id="q"
-                                name="q"
-                                defaultValue={query}
-                                placeholder={
-                                    activeTab === "recipient-contacts"
-                                        ? "Filter by merchant, label, recipient, phone, township, or address"
-                                        : "Filter by merchant, label, township, or address"
-                                }
-                                className="h-9 rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                            />
-                        </div>
-
-                        <input type="hidden" name="tab" value={activeTab} />
-                        <Button type="submit" variant="outline">
-                            Apply
-                        </Button>
-                    </div>
-                </form>
-            ) : null}
+            <AddressBookSearchAndFiltersForm
+                query={query}
+                activeTab={activeTab}
+                clearHref={buildDashboardHref("/dashboard/address-book", {
+                    tab: activeTab,
+                })}
+            />
 
             <nav
                 className="flex items-center gap-1 overflow-x-auto border-b"

@@ -3,11 +3,23 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { getUserManagementAccess } from "@/features/auth/server/policies/user-management";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
+import { UserListSearchAndFiltersForm } from "@/features/users/components/user-list-search-and-filters-form";
 import { getUsersListForViewer } from "@/features/users/server/dal";
-import { appendDashboardReturnTo } from "@/lib/dashboard-navigation";
+import { normalizeUserSearchQuery } from "@/features/users/server/utils";
+import { appendDashboardReturnTo, buildDashboardHref } from "@/lib/dashboard-navigation";
 import { formatRoleSlug } from "@/lib/roles";
 
-export default async function UsersPage() {
+type UsersPageProps = {
+    searchParams: Promise<{
+        q?: string | string[];
+    }>;
+};
+
+function getSearchParamValue(raw: string | string[] | undefined) {
+    return Array.isArray(raw) ? raw[0] : raw;
+}
+
+export default async function UsersPage({ searchParams }: Readonly<UsersPageProps>) {
     const currentUser = await requireAppAccessContext();
     const userManagementAccess = getUserManagementAccess(currentUser);
 
@@ -15,8 +27,12 @@ export default async function UsersPage() {
         notFound();
     }
 
-    const users = await getUsersListForViewer(currentUser);
-    const usersListHref = "/dashboard/users";
+    const rawSearchParams = await searchParams;
+    const query = normalizeUserSearchQuery(getSearchParamValue(rawSearchParams.q));
+    const users = await getUsersListForViewer(currentUser, { query });
+    const usersListHref = buildDashboardHref("/dashboard/users", {
+        q: query || undefined,
+    });
 
     return (
         <section className="space-y-5">
@@ -33,6 +49,8 @@ export default async function UsersPage() {
                     </Button>
                 )}
             </header>
+
+            <UserListSearchAndFiltersForm query={query} clearHref="/dashboard/users" />
 
             <div className="overflow-hidden rounded-xl border bg-card">
                 <table className="w-full text-left text-sm">

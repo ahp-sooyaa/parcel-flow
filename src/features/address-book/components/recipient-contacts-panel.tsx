@@ -4,15 +4,15 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { FormFieldError } from "@/components/shared/form-field-error";
 import { Button } from "@/components/ui/button";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+} from "@/components/ui/sheet";
 import {
     bulkDeleteRecipientContactsAction,
     createRecipientContactAction,
@@ -243,42 +243,48 @@ export function RecipientContactsPanel({
 
     return (
         <div className="space-y-5">
-            <section className="space-y-4 rounded-xl border bg-card p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <h2 className="text-lg font-semibold">Recipient Contacts</h2>
-                        <p className="text-sm text-muted-foreground">
-                            Searchable merchant contacts used for parcel recipient autofill.
-                        </p>
-                    </div>
+            <section className="rounded-xl border bg-card">
+                <div className="border-b px-4 py-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h2 className="text-lg font-semibold">Recipient Contacts</h2>
+                            <p className="text-sm text-muted-foreground">
+                                Searchable merchant contacts used for parcel recipient autofill.
+                            </p>
+                        </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Button type="button" size="sm" onClick={() => setCreateDialogOpen(true)}>
-                            Create Contact
-                        </Button>
-
-                        <form action={bulkDeleteRecipientContactsAction}>
-                            {Array.from(selectedIds).map((contactId) => (
-                                <input
-                                    key={contactId}
-                                    type="hidden"
-                                    name="contactSelections"
-                                    value={`${contacts.find((contact) => contact.id === contactId)?.merchantId ?? ""}:${contactId}`}
-                                />
-                            ))}
+                        <div className="flex flex-wrap items-center gap-2">
                             <Button
-                                type="submit"
-                                variant="destructive"
+                                type="button"
                                 size="sm"
-                                disabled={selectedIds.size === 0}
+                                onClick={() => setCreateDialogOpen(true)}
                             >
-                                Bulk Delete
+                                Create Contact
                             </Button>
-                        </form>
+
+                            <form action={bulkDeleteRecipientContactsAction}>
+                                {Array.from(selectedIds).map((contactId) => (
+                                    <input
+                                        key={contactId}
+                                        type="hidden"
+                                        name="contactSelections"
+                                        value={`${contacts.find((contact) => contact.id === contactId)?.merchantId ?? ""}:${contactId}`}
+                                    />
+                                ))}
+                                <Button
+                                    type="submit"
+                                    variant="destructive"
+                                    size="sm"
+                                    disabled={selectedIds.size === 0}
+                                >
+                                    Bulk Delete
+                                </Button>
+                            </form>
+                        </div>
                     </div>
                 </div>
 
-                <div className="overflow-hidden rounded-xl border">
+                <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-muted/40 text-xs uppercase">
                             <tr>
@@ -381,14 +387,17 @@ export function RecipientContactsPanel({
                 </div>
             </section>
 
-            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>New Recipient Contact</DialogTitle>
-                        <DialogDescription>
+            <Sheet open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                <SheetContent
+                    side="bottom"
+                    className="max-h-[90vh] rounded-t-2xl border-x-0 border-b-0"
+                >
+                    <SheetHeader className="pr-8">
+                        <SheetTitle>New Recipient Contact</SheetTitle>
+                        <SheetDescription>
                             Save merchant-scoped recipient details for faster parcel entry.
-                        </DialogDescription>
-                    </DialogHeader>
+                        </SheetDescription>
+                    </SheetHeader>
 
                     <ContactEditor
                         action={createRecipientContactAction}
@@ -401,10 +410,10 @@ export function RecipientContactsPanel({
                         formClassName="rounded-none border-0 bg-transparent p-0"
                         onSuccess={() => setCreateDialogOpen(false)}
                     />
-                </DialogContent>
-            </Dialog>
+                </SheetContent>
+            </Sheet>
 
-            <Dialog
+            <Sheet
                 open={Boolean(editingContact)}
                 onOpenChange={(open) => {
                     if (!open) {
@@ -412,17 +421,20 @@ export function RecipientContactsPanel({
                     }
                 }}
             >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>
+                <SheetContent
+                    side="bottom"
+                    className="max-h-[90vh] rounded-t-2xl border-x-0 border-b-0"
+                >
+                    <SheetHeader className="pr-8">
+                        <SheetTitle>
                             {editingContact
                                 ? `Edit ${editingContact.contactLabel}`
                                 : "Edit Recipient Contact"}
-                        </DialogTitle>
-                        <DialogDescription>
+                        </SheetTitle>
+                        <SheetDescription>
                             Save merchant-scoped recipient details for faster parcel entry.
-                        </DialogDescription>
-                    </DialogHeader>
+                        </SheetDescription>
+                    </SheetHeader>
 
                     {editingContact ? (
                         <ContactEditor
@@ -446,8 +458,8 @@ export function RecipientContactsPanel({
                             onSuccess={() => setEditingContact(null)}
                         />
                     ) : null}
-                </DialogContent>
-            </Dialog>
+                </SheetContent>
+            </Sheet>
         </div>
     );
 }

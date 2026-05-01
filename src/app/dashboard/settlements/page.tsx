@@ -70,11 +70,14 @@ export default async function SettlementsPage({ searchParams }: Readonly<Settlem
 
     return (
         <section className="space-y-5">
-            <header className="space-y-1">
-                <h1 className="text-2xl font-semibold tracking-tight">Settlements</h1>
-                <p className="text-sm text-muted-foreground">
-                    Review merchant settlement documents across all merchants.
-                </p>
+            <header className="flex items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-semibold tracking-tight">Settlements</h1>
+                    <p className="text-sm text-muted-foreground">
+                        Review merchant settlement documents across all merchants.
+                    </p>
+                </div>
+                {settlementAccess.canCreate && <NewSettlementEntry merchants={merchants} />}
             </header>
 
             <MerchantSettlementListSearchAndFiltersForm
@@ -83,19 +86,6 @@ export default async function SettlementsPage({ searchParams }: Readonly<Settlem
             />
 
             <div className="rounded-xl border bg-card">
-                <div className="border-b px-4 py-3">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                            <h2 className="text-base font-semibold">Settlement Records</h2>
-                            <p className="text-xs text-muted-foreground">
-                                Review previous settlements or start a new merchant settlement.
-                            </p>
-                        </div>
-
-                        {settlementAccess.canCreate && <NewSettlementEntry merchants={merchants} />}
-                    </div>
-                </div>
-
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-muted/40 text-xs uppercase">
