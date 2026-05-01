@@ -78,6 +78,24 @@ export async function createTownship(input: { name: string; isActive: boolean })
     return created;
 }
 
+export async function updateTownship(input: {
+    townshipId: string;
+    name: string;
+    isActive: boolean;
+}) {
+    const [updated] = await db
+        .update(townships)
+        .set({
+            name: input.name,
+            isActive: input.isActive,
+            updatedAt: new Date(),
+        })
+        .where(eq(townships.id, input.townshipId))
+        .returning({ id: townships.id });
+
+    return updated ?? null;
+}
+
 export async function findTownshipById(id: string) {
     const [row] = await db
         .select({

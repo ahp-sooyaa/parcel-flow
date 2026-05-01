@@ -16,6 +16,7 @@ export type CreateTownshipActionResult = {
     ok: boolean;
     message: string;
     townshipId?: string;
+    fieldErrors?: Partial<Record<string, string[]>>;
 };
 
 export function toTownshipListItemDto(input: TownshipListItemDto): TownshipListItemDto {
