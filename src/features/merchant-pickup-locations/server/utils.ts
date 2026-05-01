@@ -14,6 +14,8 @@ export const pickupLocationReferenceSchema = z.object({
     pickupLocationLabel: z.string().trim().min(1).max(120),
     pickupTownshipId: z.string().trim().uuid(),
     pickupAddress: z.string().trim().min(3).max(255),
+    pickupContactName: z.string().trim().min(2).max(120),
+    pickupContactPhone: z.string().trim().min(6).max(30),
     savePickupLocation: checkboxBoolean,
 });
 

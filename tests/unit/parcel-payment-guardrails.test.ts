@@ -428,6 +428,11 @@ describe("delivery fee payment plan guardrails", () => {
             merchantId: "00000000-0000-0000-0000-000000000002",
             riderId: "",
             pickupLocationId: "00000000-0000-0000-0000-000000000004",
+            pickupLocationLabel: "Main Warehouse",
+            pickupTownshipId: "00000000-0000-0000-0000-000000000005",
+            pickupAddress: "No. 1 Warehouse Road",
+            pickupContactName: "Warehouse Lead",
+            pickupContactPhone: "09987654321",
             recipientName: "Receiver",
             recipientPhone: "09123456",
             recipientTownshipId: "00000000-0000-0000-0000-000000000003",
@@ -463,6 +468,8 @@ describe("delivery fee payment plan guardrails", () => {
         formData.set("pickupLocationLabel", "Main Warehouse");
         formData.set("pickupTownshipId", "00000000-0000-0000-0000-000000000005");
         formData.set("pickupAddress", "No. 1 Warehouse Road");
+        formData.set("pickupContactName", "Warehouse Lead");
+        formData.set("pickupContactPhone", "09987654321");
         formData.set("savePickupLocation", "false");
         formData.set("recipientName", "Receiver");
         formData.set("recipientPhone", "09123456");
@@ -532,6 +539,8 @@ describe("delivery fee payment plan guardrails", () => {
         formData.set("pickupLocationLabel", "Main Warehouse");
         formData.set("pickupTownshipId", "00000000-0000-0000-0000-000000000005");
         formData.set("pickupAddress", "No. 1 Warehouse Road");
+        formData.set("pickupContactName", "Warehouse Lead");
+        formData.set("pickupContactPhone", "09987654321");
         formData.set("savePickupLocation", "false");
         formData.set("recipientName", "Receiver");
         formData.set("recipientPhone", "09123456");
@@ -560,6 +569,8 @@ describe("delivery fee payment plan guardrails", () => {
             pickupLocationLabel: "Main Warehouse",
             pickupTownshipId: "00000000-0000-0000-0000-000000000005",
             pickupAddress: "No. 1 Warehouse Road",
+            pickupContactName: "Warehouse Lead",
+            pickupContactPhone: "09987654321",
             savePickupLocation: false,
             recipientName: "Receiver",
             recipientPhone: "09123456",
@@ -609,6 +620,8 @@ describe("delivery fee payment plan guardrails", () => {
             pickupLocationLabel: "Main Warehouse",
             pickupTownshipId: "00000000-0000-0000-0000-000000000005",
             pickupAddress: "No. 1 Warehouse Road",
+            pickupContactName: "Warehouse Lead",
+            pickupContactPhone: "09987654321",
             savePickupLocation: false,
             recipientName: "Receiver",
             recipientPhone: "09123456",
@@ -670,6 +683,8 @@ describe("delivery fee payment plan guardrails", () => {
             pickupLocationLabel: "Main Warehouse",
             pickupTownshipId: "00000000-0000-0000-0000-000000000005",
             pickupAddress: "No. 1 Warehouse Road",
+            pickupContactName: "Warehouse Lead",
+            pickupContactPhone: "09987654321",
             savePickupLocation: false,
             recipientName: "Receiver",
             recipientPhone: "09123456",
@@ -727,6 +742,11 @@ describe("delivery fee payment plan guardrails", () => {
             merchantId: "00000000-0000-0000-0000-000000000002",
             riderId: "",
             pickupLocationId: "00000000-0000-0000-0000-000000000004",
+            pickupLocationLabel: "Main Warehouse",
+            pickupTownshipId: "00000000-0000-0000-0000-000000000005",
+            pickupAddress: "No. 1 Warehouse Road",
+            pickupContactName: "Warehouse Lead",
+            pickupContactPhone: "09987654321",
             recipientName: "Receiver",
             recipientPhone: "09123456",
             recipientTownshipId: "00000000-0000-0000-0000-000000000003",
@@ -748,7 +768,11 @@ describe("delivery fee payment plan guardrails", () => {
         });
 
         const values = buildParcelWriteValues({
-            data: parsed,
+            data: {
+                ...parsed,
+                selectedMerchantContactId: null,
+                contactLabel: null,
+            },
             merchantId: parsed.merchantId,
             riderId: parsed.riderId,
             pickupDetails: {
@@ -756,6 +780,8 @@ describe("delivery fee payment plan guardrails", () => {
                 label: "Main Warehouse",
                 townshipId: "00000000-0000-0000-0000-000000000005",
                 pickupAddress: "No. 1 Warehouse Road",
+                contactName: "Warehouse Lead",
+                contactPhone: "09987654321",
             },
             totalAmountToCollect: 1500,
             deliveryFeePaymentPlan: parsed.deliveryFeePaymentPlan,
@@ -1391,6 +1417,11 @@ describe("parcel operation helpers", () => {
             merchantId: "00000000-0000-0000-0000-000000000002",
             riderId: "",
             pickupLocationId: "00000000-0000-0000-0000-000000000004",
+            pickupLocationLabel: "Main Warehouse",
+            pickupTownshipId: "00000000-0000-0000-0000-000000000005",
+            pickupAddress: "No. 1 Warehouse Road",
+            pickupContactName: "Warehouse Lead",
+            pickupContactPhone: "09987654321",
             recipientName: "Receiver",
             recipientPhone: "09123456",
             recipientTownshipId: "00000000-0000-0000-0000-000000000003",

@@ -20,6 +20,8 @@ export const addressBookPickupLocationSchema = z.object({
     label: z.string().trim().min(1).max(120),
     townshipId: z.string().trim().uuid(),
     pickupAddress: z.string().trim().min(3).max(255),
+    contactName: z.string().trim().min(2).max(120),
+    contactPhone: z.string().trim().min(6).max(30),
     isDefault: checkboxBoolean,
 });
 

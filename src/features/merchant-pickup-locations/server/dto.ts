@@ -8,6 +8,8 @@ export type MerchantPickupLocationDto = {
     townshipId: string;
     townshipName: string | null;
     pickupAddress: string;
+    contactName: string | null;
+    contactPhone: string | null;
     isDefault: boolean;
     createdAt: Date;
     updatedAt: Date;
@@ -24,6 +26,8 @@ export function toMerchantPickupLocationDto(
         townshipId: input.townshipId,
         townshipName: input.townshipName,
         pickupAddress: input.pickupAddress,
+        contactName: input.contactName,
+        contactPhone: input.contactPhone,
         isDefault: input.isDefault,
         createdAt: input.createdAt,
         updatedAt: input.updatedAt,

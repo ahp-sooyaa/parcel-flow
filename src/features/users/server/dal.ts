@@ -108,7 +108,9 @@ export async function createAppUserWithProfiles(params: {
                 if (
                     !input.primaryPickupLabel ||
                     !input.primaryPickupTownshipId ||
-                    !input.primaryPickupAddress
+                    !input.primaryPickupAddress ||
+                    !input.primaryPickupContactName ||
+                    !input.primaryPickupContactPhone
                 ) {
                     throw new Error("Primary pickup location is required for merchant users.");
                 }
@@ -125,6 +127,8 @@ export async function createAppUserWithProfiles(params: {
                     label: input.primaryPickupLabel,
                     townshipId: input.primaryPickupTownshipId,
                     pickupAddress: input.primaryPickupAddress,
+                    contactName: input.primaryPickupContactName,
+                    contactPhone: input.primaryPickupContactPhone,
                     isDefault: true,
                     dbClient: tx,
                 });

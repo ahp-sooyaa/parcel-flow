@@ -21,6 +21,8 @@ export const createUserSchema = z.object({
     primaryPickupLabel: optionalNullableTrimmedString(120),
     primaryPickupTownshipId: optionalNullableUuid(),
     primaryPickupAddress: optionalNullableTrimmedString(255),
+    primaryPickupContactName: optionalNullableTrimmedString(120),
+    primaryPickupContactPhone: optionalNullableTrimmedString(30),
     riderTownshipId: optionalNullableUuid(),
     riderVehicleType: optionalNullableTrimmedString(50),
     riderLicensePlate: optionalNullableTrimmedString(50),
@@ -103,6 +105,30 @@ export async function validateCreateUserInput(
                 fieldErrors: {
                     primaryPickupAddress: [
                         "Primary pickup address is required for merchant users.",
+                    ],
+                },
+            };
+        }
+
+        if (!input.primaryPickupContactName) {
+            return {
+                ok: false as const,
+                message: "Primary pickup contact name is required for merchant users.",
+                fieldErrors: {
+                    primaryPickupContactName: [
+                        "Primary pickup contact name is required for merchant users.",
+                    ],
+                },
+            };
+        }
+
+        if (!input.primaryPickupContactPhone) {
+            return {
+                ok: false as const,
+                message: "Primary pickup contact phone is required for merchant users.",
+                fieldErrors: {
+                    primaryPickupContactPhone: [
+                        "Primary pickup contact phone is required for merchant users.",
                     ],
                 },
             };

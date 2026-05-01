@@ -277,6 +277,8 @@ function getPickupLocationDefaults(
         pickupLocationLabel: fields?.pickupLocationLabel ?? "",
         pickupTownshipId: fields?.pickupTownshipId ?? "",
         pickupAddress: fields?.pickupAddress ?? "",
+        pickupContactName: fields?.pickupContactName ?? "",
+        pickupContactPhone: fields?.pickupContactPhone ?? "",
         savePickupLocation:
             fields?.savePickupLocation === "true" || fields?.savePickupLocation === "on",
     };

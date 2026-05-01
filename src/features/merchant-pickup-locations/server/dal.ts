@@ -26,6 +26,8 @@ export async function searchMerchantPickupLocations(
             townshipId: merchantPickupLocations.townshipId,
             townshipName: townships.name,
             pickupAddress: merchantPickupLocations.pickupAddress,
+            contactName: merchantPickupLocations.contactName,
+            contactPhone: merchantPickupLocations.contactPhone,
             isDefault: merchantPickupLocations.isDefault,
             createdAt: merchantPickupLocations.createdAt,
             updatedAt: merchantPickupLocations.updatedAt,
@@ -39,6 +41,8 @@ export async function searchMerchantPickupLocations(
                     ? or(
                           ilike(merchantPickupLocations.label, searchPattern),
                           ilike(merchantPickupLocations.pickupAddress, searchPattern),
+                          ilike(merchantPickupLocations.contactName, searchPattern),
+                          ilike(merchantPickupLocations.contactPhone, searchPattern),
                           ilike(townships.name, searchPattern),
                       )
                     : undefined,
@@ -68,6 +72,8 @@ export async function listMerchantPickupLocations(input: {
             townshipId: merchantPickupLocations.townshipId,
             townshipName: townships.name,
             pickupAddress: merchantPickupLocations.pickupAddress,
+            contactName: merchantPickupLocations.contactName,
+            contactPhone: merchantPickupLocations.contactPhone,
             isDefault: merchantPickupLocations.isDefault,
             createdAt: merchantPickupLocations.createdAt,
             updatedAt: merchantPickupLocations.updatedAt,
@@ -85,6 +91,8 @@ export async function listMerchantPickupLocations(input: {
                           ilike(merchants.shopName, searchPattern),
                           ilike(merchantPickupLocations.label, searchPattern),
                           ilike(merchantPickupLocations.pickupAddress, searchPattern),
+                          ilike(merchantPickupLocations.contactName, searchPattern),
+                          ilike(merchantPickupLocations.contactPhone, searchPattern),
                           ilike(townships.name, searchPattern),
                       )
                     : undefined,
@@ -114,6 +122,8 @@ export async function findMerchantPickupLocationById(input: {
             townshipId: merchantPickupLocations.townshipId,
             townshipName: townships.name,
             pickupAddress: merchantPickupLocations.pickupAddress,
+            contactName: merchantPickupLocations.contactName,
+            contactPhone: merchantPickupLocations.contactPhone,
             isDefault: merchantPickupLocations.isDefault,
             createdAt: merchantPickupLocations.createdAt,
             updatedAt: merchantPickupLocations.updatedAt,
@@ -164,6 +174,8 @@ export async function createMerchantPickupLocation(input: {
     label: string;
     townshipId: string;
     pickupAddress: string;
+    contactName: string;
+    contactPhone: string;
     isDefault: boolean;
     dbClient?: MerchantPickupLocationWriteClient;
 }) {
@@ -188,6 +200,8 @@ export async function createMerchantPickupLocation(input: {
             normalizedLabel,
             townshipId: input.townshipId,
             pickupAddress: input.pickupAddress,
+            contactName: input.contactName.trim(),
+            contactPhone: input.contactPhone.trim(),
             isDefault: input.isDefault,
         })
         .returning({ id: merchantPickupLocations.id });
@@ -201,6 +215,8 @@ export async function updateMerchantPickupLocation(input: {
     label: string;
     townshipId: string;
     pickupAddress: string;
+    contactName: string;
+    contactPhone: string;
     isDefault: boolean;
     dbClient?: MerchantPickupLocationWriteClient;
 }) {
@@ -224,6 +240,8 @@ export async function updateMerchantPickupLocation(input: {
             normalizedLabel,
             townshipId: input.townshipId,
             pickupAddress: input.pickupAddress,
+            contactName: input.contactName.trim(),
+            contactPhone: input.contactPhone.trim(),
             isDefault: input.isDefault,
             updatedAt: new Date(),
         })
@@ -308,11 +326,15 @@ export async function saveMerchantPickupLocationDraft(input: {
     label: string;
     townshipId: string;
     pickupAddress: string;
+    contactName: string;
+    contactPhone: string;
     savePickupLocation: boolean;
     dbClient?: MerchantPickupLocationWriteClient;
 }) {
     const client = input.dbClient ?? db;
     const trimmedLabel = input.label.trim();
+    const trimmedContactName = input.contactName.trim();
+    const trimmedContactPhone = input.contactPhone.trim();
 
     if (input.pickupLocationId) {
         const existing = await findMerchantPickupLocationById({
@@ -331,6 +353,8 @@ export async function saveMerchantPickupLocationDraft(input: {
                 label: trimmedLabel,
                 townshipId: input.townshipId,
                 pickupAddress: input.pickupAddress,
+                contactName: trimmedContactName,
+                contactPhone: trimmedContactPhone,
             };
         }
 
@@ -351,6 +375,8 @@ export async function saveMerchantPickupLocationDraft(input: {
             label: trimmedLabel,
             townshipId: input.townshipId,
             pickupAddress: input.pickupAddress,
+            contactName: trimmedContactName,
+            contactPhone: trimmedContactPhone,
             isDefault: existing.isDefault,
             dbClient: client,
         });
@@ -360,6 +386,8 @@ export async function saveMerchantPickupLocationDraft(input: {
             label: trimmedLabel,
             townshipId: input.townshipId,
             pickupAddress: input.pickupAddress,
+            contactName: trimmedContactName,
+            contactPhone: trimmedContactPhone,
         };
     }
 
@@ -369,6 +397,8 @@ export async function saveMerchantPickupLocationDraft(input: {
             label: trimmedLabel,
             townshipId: input.townshipId,
             pickupAddress: input.pickupAddress,
+            contactName: trimmedContactName,
+            contactPhone: trimmedContactPhone,
         };
     }
 
@@ -387,6 +417,8 @@ export async function saveMerchantPickupLocationDraft(input: {
         label: trimmedLabel,
         townshipId: input.townshipId,
         pickupAddress: input.pickupAddress,
+        contactName: trimmedContactName,
+        contactPhone: trimmedContactPhone,
         isDefault: false,
         dbClient: client,
     });
@@ -396,5 +428,7 @@ export async function saveMerchantPickupLocationDraft(input: {
         label: trimmedLabel,
         townshipId: input.townshipId,
         pickupAddress: input.pickupAddress,
+        contactName: trimmedContactName,
+        contactPhone: trimmedContactPhone,
     };
 }

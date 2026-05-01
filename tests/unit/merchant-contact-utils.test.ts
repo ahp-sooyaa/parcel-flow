@@ -33,6 +33,8 @@ describe("merchant contact helpers", () => {
         formData.set("pickupLocationLabel", "Main Shop");
         formData.set("pickupTownshipId", "00000000-0000-0000-0000-000000000041");
         formData.set("pickupAddress", "No. 3, Merchant Lane");
+        formData.set("pickupContactName", "Pickup Team");
+        formData.set("pickupContactPhone", "0911223344");
         formData.set("savePickupLocation", "false");
         formData.set("selectedMerchantContactId", "00000000-0000-0000-0000-000000000020");
         formData.set("contactLabel", "Office");
@@ -74,6 +76,11 @@ describe("merchant contact helpers", () => {
             merchantId: "00000000-0000-0000-0000-000000000010",
             riderId: "",
             pickupLocationId: "00000000-0000-0000-0000-000000000040",
+            pickupLocationLabel: "Main Shop",
+            pickupTownshipId: "00000000-0000-0000-0000-000000000041",
+            pickupAddress: "No. 3, Merchant Lane",
+            pickupContactName: "Pickup Team",
+            pickupContactPhone: "0911223344",
             selectedMerchantContactId: "",
             contactLabel: "Warehouse",
             saveRecipientContact: "true",

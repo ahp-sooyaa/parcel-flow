@@ -19,6 +19,8 @@ describe("merchant pickup location helpers", () => {
             pickupLocationLabel: "Main Shop",
             pickupTownshipId: "00000000-0000-0000-0000-000000000010",
             pickupAddress: "No. 5, Merchant Street",
+            pickupContactName: "Shop Manager",
+            pickupContactPhone: "0911223344",
             savePickupLocation: "false",
         });
 
@@ -28,6 +30,8 @@ describe("merchant pickup location helpers", () => {
             pickupLocationLabel: "Main Shop",
             pickupTownshipId: "00000000-0000-0000-0000-000000000010",
             pickupAddress: "No. 5, Merchant Street",
+            pickupContactName: "Shop Manager",
+            pickupContactPhone: "0911223344",
             savePickupLocation: false,
         });
     });
@@ -41,6 +45,8 @@ describe("merchant pickup location helpers", () => {
         formData.set("pickupLocationLabel", "Temporary Pickup");
         formData.set("pickupTownshipId", "00000000-0000-0000-0000-000000000002");
         formData.set("pickupAddress", "No. 7, Example Road");
+        formData.set("pickupContactName", "Pickup Manager");
+        formData.set("pickupContactPhone", "09123456789");
         formData.set("savePickupLocation", "on");
         formData.set("selectedMerchantContactId", "");
         formData.set("contactLabel", "");
@@ -75,6 +81,8 @@ describe("merchant pickup location helpers", () => {
         expect(parsed.data.pickupLocationLabel).toBe("Temporary Pickup");
         expect(parsed.data.pickupTownshipId).toBe("00000000-0000-0000-0000-000000000002");
         expect(parsed.data.pickupAddress).toBe("No. 7, Example Road");
+        expect(parsed.data.pickupContactName).toBe("Pickup Manager");
+        expect(parsed.data.pickupContactPhone).toBe("09123456789");
         expect(parsed.data.savePickupLocation).toBe(true);
     });
 
@@ -101,6 +109,8 @@ describe("merchant pickup location helpers", () => {
                 deliveryFeePayer: "receiver",
                 deliveryFeePaymentPlan: "receiver_collect_on_delivery",
                 paymentNote: null,
+                selectedMerchantContactId: null,
+                contactLabel: null,
             },
             merchantId: "00000000-0000-0000-0000-000000000001",
             riderId: null,
@@ -109,6 +119,8 @@ describe("merchant pickup location helpers", () => {
                 label: "Temporary Pickup",
                 townshipId: "00000000-0000-0000-0000-000000000002",
                 pickupAddress: "No. 7, Example Road",
+                contactName: "Pickup Manager",
+                contactPhone: "09123456789",
             },
             totalAmountToCollect: 5800,
             deliveryFeePaymentPlan: "receiver_collect_on_delivery",
@@ -121,5 +133,7 @@ describe("merchant pickup location helpers", () => {
         expect(parcelWriteValues.pickupLocationLabel).toBe("Temporary Pickup");
         expect(parcelWriteValues.pickupTownshipId).toBe("00000000-0000-0000-0000-000000000002");
         expect(parcelWriteValues.pickupAddress).toBe("No. 7, Example Road");
+        expect(parcelWriteValues.pickupContactName).toBe("Pickup Manager");
+        expect(parcelWriteValues.pickupContactPhone).toBe("09123456789");
     });
 });

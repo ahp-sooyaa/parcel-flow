@@ -17,6 +17,8 @@ export type PickupAddressBookFieldsValue = {
     pickupLocationLabel: string;
     pickupTownshipId: string;
     pickupAddress: string;
+    pickupContactName: string;
+    pickupContactPhone: string;
     savePickupLocation: boolean;
 };
 
@@ -68,6 +70,8 @@ export function PickupAddressBookFields({
             pickupLocationLabel: "",
             pickupTownshipId: "",
             pickupAddress: "",
+            pickupContactName: "",
+            pickupContactPhone: "",
             savePickupLocation: false,
         });
     }, [merchantId, onChange]);
@@ -135,6 +139,8 @@ export function PickupAddressBookFields({
                             pickupLocationLabel: nextPickupLocation.label,
                             pickupTownshipId: nextPickupLocation.townshipId,
                             pickupAddress: nextPickupLocation.pickupAddress,
+                            pickupContactName: nextPickupLocation.contactName ?? "",
+                            pickupContactPhone: nextPickupLocation.contactPhone ?? "",
                             savePickupLocation: false,
                         });
                         setSearchQuery(nextPickupLocation.label);
@@ -184,6 +190,8 @@ export function PickupAddressBookFields({
                                     </span>
                                 ) : null}
                             </div>
+                            <p>{values.pickupContactName}</p>
+                            <p>{values.pickupContactPhone}</p>
                             <p>{selectedTownship ?? "No township selected"}</p>
                             <p className="text-muted-foreground">{values.pickupAddress}</p>
                         </div>
@@ -250,6 +258,38 @@ export function PickupAddressBookFields({
                             className={textareaClassName}
                         />
                         <FormFieldError message={getFieldError("pickupAddress")} />
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <div className="grid gap-2">
+                            <Label htmlFor="pickupContactName">Pickup Contact Name *</Label>
+                            <Input
+                                id="pickupContactName"
+                                name="pickupContactName"
+                                value={values.pickupContactName}
+                                onChange={(event) =>
+                                    onChange({ pickupContactName: event.target.value })
+                                }
+                                placeholder="Main pickup contact"
+                                required
+                            />
+                            <FormFieldError message={getFieldError("pickupContactName")} />
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="pickupContactPhone">Pickup Contact Phone *</Label>
+                            <Input
+                                id="pickupContactPhone"
+                                name="pickupContactPhone"
+                                value={values.pickupContactPhone}
+                                onChange={(event) =>
+                                    onChange({ pickupContactPhone: event.target.value })
+                                }
+                                placeholder="09xxxxxxxxx"
+                                required
+                            />
+                            <FormFieldError message={getFieldError("pickupContactPhone")} />
+                        </div>
                     </div>
 
                     <label

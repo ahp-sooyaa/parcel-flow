@@ -36,6 +36,25 @@ type RecipientAddressBookFieldsProps = {
 const textareaClassName =
     "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
+function normalizeComparableText(value: string) {
+    return value.trim().toLocaleLowerCase();
+}
+
+function matchesRecipientDetails(
+    contact: MerchantContactSearchResultDto,
+    values: RecipientAddressBookFieldsValue,
+) {
+    return (
+        normalizeComparableText(contact.recipientName) ===
+            normalizeComparableText(values.recipientName) &&
+        normalizeComparableText(contact.recipientPhone) ===
+            normalizeComparableText(values.recipientPhone) &&
+        contact.recipientTownshipId === values.recipientTownshipId &&
+        normalizeComparableText(contact.recipientAddress) ===
+            normalizeComparableText(values.recipientAddress)
+    );
+}
+
 export function RecipientAddressBookFields({
     merchantId,
     townships,
@@ -92,6 +111,32 @@ export function RecipientAddressBookFields({
             })
                 .then((results) => {
                     setSearchResults(results);
+
+                    if (
+                        values.selectedMerchantContactId ||
+                        values.contactLabel ||
+                        searchQuery.trim() ||
+                        !values.recipientName ||
+                        !values.recipientPhone ||
+                        !values.recipientTownshipId ||
+                        !values.recipientAddress
+                    ) {
+                        return;
+                    }
+
+                    const matchedContact =
+                        results.find((contact) => matchesRecipientDetails(contact, values)) ?? null;
+
+                    if (!matchedContact) {
+                        return;
+                    }
+
+                    onChange({
+                        selectedMerchantContactId: matchedContact.id,
+                        contactLabel: matchedContact.contactLabel,
+                    });
+                    setSearchQuery(matchedContact.contactLabel);
+                    setDetailsExpanded(false);
                 })
                 .finally(() => {
                     setIsSearching(false);
@@ -99,7 +144,7 @@ export function RecipientAddressBookFields({
         }, 250);
 
         return () => clearTimeout(timeoutId);
-    }, [merchantId, searchQuery]);
+    }, [merchantId, onChange, searchQuery, values]);
 
     return (
         <div className="space-y-4">

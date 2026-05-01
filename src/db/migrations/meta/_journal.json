@@ -127,6 +127,13 @@
             "when": 1777550469975,
             "tag": "0018_elite_union_jack",
             "breakpoints": true
+        },
+        {
+            "idx": 19,
+            "version": "7",
+            "when": 1777609736466,
+            "tag": "0019_neat_blindfold",
+            "breakpoints": true
         }
     ]
 }

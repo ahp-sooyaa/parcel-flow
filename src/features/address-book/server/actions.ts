@@ -355,6 +355,8 @@ export async function createPickupLocationAction(
             label: parsed.data.label,
             townshipId: parsed.data.townshipId,
             pickupAddress: parsed.data.pickupAddress,
+            contactName: parsed.data.contactName,
+            contactPhone: parsed.data.contactPhone,
             isDefault: parsed.data.isDefault,
         });
 
@@ -430,6 +432,8 @@ export async function updatePickupLocationAction(
             label: parsed.data.label,
             townshipId: parsed.data.townshipId,
             pickupAddress: parsed.data.pickupAddress,
+            contactName: parsed.data.contactName,
+            contactPhone: parsed.data.contactPhone,
             isDefault: parsed.data.isDefault,
         });
 

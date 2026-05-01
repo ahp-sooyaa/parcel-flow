@@ -186,6 +186,34 @@ function PickupLocationEditor({
                 <FormFieldError message={state.fieldErrors?.pickupAddress?.[0]} />
             </div>
 
+            <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                    <Label htmlFor={`${submitLabel}-pickup-contact-name`}>
+                        Pickup Contact Name *
+                    </Label>
+                    <Input
+                        id={`${submitLabel}-pickup-contact-name`}
+                        name="contactName"
+                        defaultValue={defaults?.contactName ?? ""}
+                        required
+                    />
+                    <FormFieldError message={state.fieldErrors?.contactName?.[0]} />
+                </div>
+
+                <div className="grid gap-2">
+                    <Label htmlFor={`${submitLabel}-pickup-contact-phone`}>
+                        Pickup Contact Phone *
+                    </Label>
+                    <Input
+                        id={`${submitLabel}-pickup-contact-phone`}
+                        name="contactPhone"
+                        defaultValue={defaults?.contactPhone ?? ""}
+                        required
+                    />
+                    <FormFieldError message={state.fieldErrors?.contactPhone?.[0]} />
+                </div>
+            </div>
+
             <label className="flex items-center gap-2 text-sm">
                 <input
                     type="checkbox"
@@ -273,6 +301,7 @@ export function PickupLocationsPanel({
                                 ) : null}
                                 <th className="px-4 py-3">Label</th>
                                 <th className="px-4 py-3">Township</th>
+                                <th className="px-4 py-3">Pickup Contact</th>
                                 <th className="px-4 py-3">Address</th>
                                 <th className="px-4 py-3">Default</th>
                                 <th className="px-4 py-3">Actions</th>
@@ -283,7 +312,7 @@ export function PickupLocationsPanel({
                                 <tr>
                                     <td
                                         className="px-4 py-6 text-muted-foreground"
-                                        colSpan={showMerchantColumn ? 7 : 6}
+                                        colSpan={showMerchantColumn ? 8 : 7}
                                     >
                                         No pickup locations found.
                                     </td>
@@ -321,6 +350,12 @@ export function PickupLocationsPanel({
                                         </td>
                                         <td className="px-4 py-3">
                                             {pickupLocation.townshipName ?? "-"}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div>{pickupLocation.contactName ?? "-"}</div>
+                                            <div className="text-muted-foreground">
+                                                {pickupLocation.contactPhone ?? "-"}
+                                            </div>
                                         </td>
                                         <td className="px-4 py-3">
                                             {pickupLocation.pickupAddress}

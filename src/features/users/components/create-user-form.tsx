@@ -165,6 +165,38 @@ export function CreateUserForm({
                             />
                             <FormFieldError message={getFieldError("primaryPickupAddress")} />
                         </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <div className="grid gap-2">
+                                <Label htmlFor="primary-pickup-contact-name">
+                                    Pickup Contact Name *
+                                </Label>
+                                <Input
+                                    id="primary-pickup-contact-name"
+                                    name="primaryPickupContactName"
+                                    placeholder="Main pickup contact"
+                                    required={showMerchantFields}
+                                />
+                                <FormFieldError
+                                    message={getFieldError("primaryPickupContactName")}
+                                />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="primary-pickup-contact-phone">
+                                    Pickup Contact Phone *
+                                </Label>
+                                <Input
+                                    id="primary-pickup-contact-phone"
+                                    name="primaryPickupContactPhone"
+                                    placeholder="09xxxxxxxxx"
+                                    required={showMerchantFields}
+                                />
+                                <FormFieldError
+                                    message={getFieldError("primaryPickupContactPhone")}
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     <div className="grid gap-2">

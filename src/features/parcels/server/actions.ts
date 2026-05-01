@@ -158,42 +158,14 @@ function buildRecipientContactUpsertInput(input: {
     };
 }
 
-async function resolvePickupLocationSelection(input: {
-    merchantId: string;
-    pickupLocationId: string;
-}) {
-    const pickupLocation = await findMerchantPickupLocationById({
-        merchantId: input.merchantId,
-        pickupLocationId: input.pickupLocationId,
-    });
-
-    if (!pickupLocation) {
-        return {
-            ok: false as const,
-            message: "Selected pickup location was not found for this merchant.",
-            fieldErrors: {
-                pickupLocationId: ["Selected pickup location was not found for this merchant."],
-            },
-        };
-    }
-
-    return {
-        ok: true as const,
-        pickupLocation: {
-            id: pickupLocation.id,
-            label: pickupLocation.label,
-            townshipId: pickupLocation.townshipId,
-            pickupAddress: pickupLocation.pickupAddress,
-        },
-    };
-}
-
 async function validateCreatePickupLocationReference(input: {
     merchantId: string;
     pickupLocationId: string | null;
     pickupLocationLabel: string;
     pickupTownshipId: string;
     pickupAddress: string;
+    pickupContactName: string;
+    pickupContactPhone: string;
     savePickupLocation: boolean;
 }) {
     if (input.pickupLocationId) {
@@ -558,6 +530,8 @@ export async function createParcelAction(
             pickupLocationLabel: parsed.data.pickupLocationLabel,
             pickupTownshipId: parsed.data.pickupTownshipId,
             pickupAddress: parsed.data.pickupAddress,
+            pickupContactName: parsed.data.pickupContactName,
+            pickupContactPhone: parsed.data.pickupContactPhone,
             savePickupLocation: parsed.data.savePickupLocation,
         });
 
@@ -614,6 +588,8 @@ export async function createParcelAction(
                     label: parsed.data.pickupLocationLabel,
                     townshipId: parsed.data.pickupTownshipId,
                     pickupAddress: parsed.data.pickupAddress,
+                    contactName: parsed.data.pickupContactName,
+                    contactPhone: parsed.data.pickupContactPhone,
                     savePickupLocation: parsed.data.savePickupLocation,
                     dbClient: tx,
                 });
@@ -838,7 +814,7 @@ export async function updateParcelAction(
         const submissionGuard = await validateParcelSubmission({
             merchantId: actorScopedUpdate.merchantId,
             riderId: actorScopedUpdate.riderId,
-            pickupLocationId: parsed.data.pickupLocationId,
+            pickupTownshipId: parsed.data.pickupTownshipId,
             recipientTownshipId: parsed.data.recipientTownshipId,
             parcelType: parsed.data.parcelType,
             codAmount: parsed.data.codAmount,
@@ -883,9 +859,15 @@ export async function updateParcelAction(
             };
         }
 
-        const pickupLocationGuard = await resolvePickupLocationSelection({
+        const pickupLocationGuard = await validateCreatePickupLocationReference({
             merchantId: actorScopedUpdate.merchantId,
             pickupLocationId: parsed.data.pickupLocationId,
+            pickupLocationLabel: parsed.data.pickupLocationLabel,
+            pickupTownshipId: parsed.data.pickupTownshipId,
+            pickupAddress: parsed.data.pickupAddress,
+            pickupContactName: parsed.data.pickupContactName,
+            pickupContactPhone: parsed.data.pickupContactPhone,
+            savePickupLocation: parsed.data.savePickupLocation,
         });
 
         if (!pickupLocationGuard.ok) {
@@ -894,6 +876,28 @@ export async function updateParcelAction(
                 message: pickupLocationGuard.message,
                 fields: submittedFields,
                 fieldErrors: pickupLocationGuard.fieldErrors,
+            };
+        }
+
+        const pickupDetails = await saveMerchantPickupLocationDraft({
+            merchantId: actorScopedUpdate.merchantId,
+            pickupLocationId: parsed.data.pickupLocationId,
+            label: parsed.data.pickupLocationLabel,
+            townshipId: parsed.data.pickupTownshipId,
+            pickupAddress: parsed.data.pickupAddress,
+            contactName: parsed.data.pickupContactName,
+            contactPhone: parsed.data.pickupContactPhone,
+            savePickupLocation: parsed.data.savePickupLocation,
+        });
+
+        if (!pickupDetails) {
+            return {
+                ok: false,
+                message: "Selected pickup location was not found for this merchant.",
+                fields: submittedFields,
+                fieldErrors: {
+                    pickupLocationId: ["Selected pickup location was not found for this merchant."],
+                },
             };
         }
 
@@ -933,7 +937,7 @@ export async function updateParcelAction(
                 data: parsed.data,
                 merchantId: actorScopedUpdate.merchantId,
                 riderId: actorScopedUpdate.riderId,
-                pickupDetails: pickupLocationGuard.pickupLocation,
+                pickupDetails,
                 totalAmountToCollect,
                 deliveryFeePaymentPlan: parsed.data.deliveryFeePaymentPlan,
                 parcelStatus: current.parcel.status,

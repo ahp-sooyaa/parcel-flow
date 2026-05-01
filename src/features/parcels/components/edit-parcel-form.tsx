@@ -19,9 +19,9 @@ import {
     type RecipientAddressBookFieldsValue,
 } from "@/features/merchant-contacts/components/recipient-address-book-fields";
 import {
-    PickupLocationSelector,
-    type PickupLocationSelectorValue,
-} from "@/features/merchant-pickup-locations/components/pickup-location-selector";
+    PickupAddressBookFields,
+    type PickupAddressBookFieldsValue,
+} from "@/features/merchant-pickup-locations/components/pickup-address-book-fields";
 import { ParcelImageList } from "@/features/parcels/components/parcel-image-list";
 import { ParcelStatusPill } from "@/features/parcels/components/parcel-status-pill";
 import { PaymentSlipUpload } from "@/features/parcels/components/payment-slip-upload";
@@ -46,9 +46,13 @@ type EditParcelFormProps = {
         merchantId: string;
         riderId: string | null;
         pickupLocationId: string | null;
+        merchantContactId: string | null;
         pickupLocationLabel: string | null;
         pickupTownshipId: string | null;
         pickupAddress: string | null;
+        pickupContactName: string | null;
+        pickupContactPhone: string | null;
+        recipientContactLabel: string | null;
         recipientName: string;
         recipientPhone: string;
         recipientTownshipId: string;
@@ -174,9 +178,12 @@ function buildFormValues(parcel: EditParcelFormProps["parcel"]) {
         pickupLocationLabel: parcel.pickupLocationLabel ?? "",
         pickupTownshipId: parcel.pickupTownshipId ?? "",
         pickupAddress: parcel.pickupAddress ?? "",
-        selectedMerchantContactId: "",
-        contactLabel: "",
+        pickupContactName: parcel.pickupContactName ?? "",
+        pickupContactPhone: parcel.pickupContactPhone ?? "",
+        selectedMerchantContactId: parcel.merchantContactId ?? "",
+        contactLabel: parcel.recipientContactLabel ?? "",
         saveRecipientContact: "false",
+        savePickupLocation: "false",
         recipientName: parcel.recipientName,
         recipientPhone: parcel.recipientPhone,
         recipientTownshipId: parcel.recipientTownshipId,
@@ -216,7 +223,11 @@ function getPickupLocationDefaults(fields: ReturnType<typeof buildFormValues>) {
         pickupLocationLabel: fields.pickupLocationLabel,
         pickupTownshipId: fields.pickupTownshipId,
         pickupAddress: fields.pickupAddress,
-    } satisfies PickupLocationSelectorValue;
+        pickupContactName: fields.pickupContactName,
+        pickupContactPhone: fields.pickupContactPhone,
+        savePickupLocation:
+            fields.savePickupLocation === "true" || fields.savePickupLocation === "on",
+    } satisfies PickupAddressBookFieldsValue;
 }
 
 function SectionHeader({
@@ -319,7 +330,7 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
     const fields: ReturnType<typeof buildFormValues> = { ...defaultFields, ...state.fields };
     const [selectedMerchantId, setSelectedMerchantId] = useState(fields.merchantId);
     const [selectedRiderId, setSelectedRiderId] = useState(fields.riderId);
-    const [pickupLocationValues, setPickupLocationValues] = useState<PickupLocationSelectorValue>(
+    const [pickupLocationValues, setPickupLocationValues] = useState<PickupAddressBookFieldsValue>(
         () => getPickupLocationDefaults(fields),
     );
     const [recipientAddressBookValues, setRecipientAddressBookValues] =
@@ -368,9 +379,13 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
         fields.isLargeItem,
         fields.merchantId,
         fields.pickupAddress,
+        fields.pickupContactName,
+        fields.pickupContactPhone,
         fields.pickupLocationId,
         fields.pickupLocationLabel,
         fields.pickupTownshipId,
+        fields.selectedMerchantContactId,
+        fields.contactLabel,
         fields.parcelType,
         fields.riderId,
     ]);
@@ -475,11 +490,16 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                     </div>
                 </div>
 
-                <PickupLocationSelector
+                <PickupAddressBookFields
                     merchantId={selectedMerchantId}
                     townships={townships}
-                    value={pickupLocationValues}
-                    onChange={setPickupLocationValues}
+                    values={pickupLocationValues}
+                    onChange={(next) =>
+                        setPickupLocationValues((current) => ({
+                            ...current,
+                            ...next,
+                        }))
+                    }
                     fieldErrors={state.fieldErrors}
                 />
 
