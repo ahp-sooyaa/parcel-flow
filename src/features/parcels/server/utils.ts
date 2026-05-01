@@ -465,6 +465,11 @@ export const advanceRiderParcelSchema = z.object({
     parcelId: z.string().trim().uuid(),
     nextStatus: z.enum(PARCEL_STATUSES),
 });
+
+export const bulkAssignParcelRiderSchema = z.object({
+    parcelIds: z.array(z.string().trim().uuid()).min(1, "Select at least one parcel."),
+    riderId: optionalNullableUuid(),
+});
 export const riderParcelImageUploadSchema = z.object({
     parcelId: z.string().trim().uuid(),
 });
@@ -493,6 +498,7 @@ export type ParcelCreateBatchInput = z.infer<typeof createParcelBatchSchema>;
 export type ParcelCreateRowInput = z.infer<typeof createParcelRowSchema>;
 export type ParcelUpdateInput = z.infer<typeof updateParcelSchema>;
 export type ParcelDetailUpdateInput = z.infer<typeof updateParcelDetailSchema>;
+export type BulkAssignParcelRiderInput = z.infer<typeof bulkAssignParcelRiderSchema>;
 export type ParcelFormFields = Record<(typeof UPDATE_PARCEL_FORM_FIELDS)[number], string>;
 export type ParcelImageFieldName = (typeof PARCEL_IMAGE_FIELD_NAMES)[number];
 export type ParcelMediaFiles = Record<ParcelImageFieldName, File[]>;
@@ -1472,6 +1478,31 @@ export function parseRiderParcelImageUploadFormData(formData: FormData) {
         riderParcelImageUploadSchema,
         RIDER_PARCEL_IMAGE_UPLOAD_FIELDS,
     );
+}
+
+export function parseBulkAssignParcelRiderFormData(formData: FormData) {
+    const parcelIds = formData
+        .getAll("parcelIds")
+        .map((value) => String(value).trim())
+        .filter(Boolean);
+    const riderId = String(formData.get("riderId") ?? "").trim();
+    const parsed = bulkAssignParcelRiderSchema.safeParse({
+        parcelIds: Array.from(new Set(parcelIds)),
+        riderId,
+    });
+
+    if (!parsed.success) {
+        return {
+            ok: false as const,
+            message: "Please correct the highlighted fields.",
+            fieldErrors: toFieldErrors(parsed.error.flatten().fieldErrors),
+        };
+    }
+
+    return {
+        ok: true as const,
+        data: parsed.data,
+    };
 }
 
 export function validateParcelImageAppendLimits(input: {

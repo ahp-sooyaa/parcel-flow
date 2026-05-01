@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import {
     type AuditLogInsertInput,
+    type BulkParcelRiderAssignmentContextDto,
     type CreateParcelInsertInput,
     type MerchantParcelStatsDto,
     type PaginatedParcelListDto,
@@ -835,6 +836,50 @@ export async function getParcelUpdateContextForViewer(
     return current;
 }
 
+async function findBulkParcelRiderAssignmentContexts(
+    parcelIds: string[],
+): Promise<BulkParcelRiderAssignmentContextDto[]> {
+    if (parcelIds.length === 0) {
+        return [];
+    }
+
+    const rows = await db
+        .select({
+            parcelId: parcels.id,
+            parcelCode: parcels.parcelCode,
+            merchantId: parcels.merchantId,
+            riderId: parcels.riderId,
+        })
+        .from(parcels)
+        .innerJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
+        .where(inArray(parcels.id, parcelIds));
+
+    const rowById = new Map(rows.map((row) => [row.parcelId, row]));
+
+    return parcelIds
+        .map((parcelId) => rowById.get(parcelId))
+        .filter((row): row is BulkParcelRiderAssignmentContextDto => Boolean(row));
+}
+
+export async function getBulkParcelRiderAssignmentContextsForViewer(
+    viewer: AppAccessViewer,
+    parcelIds: string[],
+): Promise<BulkParcelRiderAssignmentContextDto[]> {
+    const parcelAccess = getParcelAccess({ viewer });
+
+    if (!parcelAccess.canViewList && !parcelAccess.canUpdate) {
+        return [];
+    }
+
+    const contexts = await findBulkParcelRiderAssignmentContexts(parcelIds);
+
+    if (contexts.length !== parcelIds.length) {
+        return [];
+    }
+
+    return contexts;
+}
+
 export async function updateParcelAndPaymentWithAudit(input: {
     actorAppUserId: string;
     parcelId: string;
@@ -895,6 +940,50 @@ export async function updateParcelAndPaymentWithAudit(input: {
         }
 
         await reconcileMerchantFinancialItemsForParcelWithClient(tx, input.parcelId);
+    });
+}
+
+export async function bulkUpdateParcelRidersWithAudit(input: {
+    actorAppUserId: string;
+    assignments: Array<{
+        parcelId: string;
+        parcelPatch: ParcelUpdatePatch;
+        parcelOldValues: Record<string, unknown> | null;
+    }>;
+    parcelEvent: string;
+    auditMetadata?: Record<string, unknown>;
+}) {
+    if (input.assignments.length === 0) {
+        return;
+    }
+
+    await db.transaction(async (tx) => {
+        for (const assignment of input.assignments) {
+            if (Object.keys(assignment.parcelPatch).length === 0) {
+                continue;
+            }
+
+            await tx
+                .update(parcels)
+                .set({
+                    ...assignment.parcelPatch,
+                    updatedAt: new Date(),
+                })
+                .where(eq(parcels.id, assignment.parcelId));
+
+            await tx.insert(parcelAuditLogs).values({
+                parcelId: assignment.parcelId,
+                updatedBy: input.actorAppUserId,
+                sourceTable: "parcels",
+                event: input.parcelEvent,
+                oldValues: assignment.parcelOldValues,
+                newValues: input.auditMetadata
+                    ? { ...assignment.parcelPatch, ...input.auditMetadata }
+                    : assignment.parcelPatch,
+            });
+
+            await reconcileMerchantFinancialItemsForParcelWithClient(tx, assignment.parcelId);
+        }
     });
 }
 

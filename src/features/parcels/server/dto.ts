@@ -193,6 +193,12 @@ export type UpdateParcelActionResult = {
     fieldErrors?: ParcelFormFieldErrors;
 };
 
+export type BulkAssignParcelRiderActionResult = {
+    ok: boolean;
+    message: string;
+    fieldErrors?: ParcelFormFieldErrors;
+};
+
 function normalizeCodStatusValue(input: {
     parcelType: (typeof PARCEL_TYPES)[number];
     codStatus: (typeof COD_STATUSES)[number] | null;
@@ -227,6 +233,13 @@ export type RiderParcelImageUploadActionResult = {
     message: string;
     fields?: Record<string, string>;
     fieldErrors?: ParcelFormFieldErrors;
+};
+
+export type BulkParcelRiderAssignmentContextDto = {
+    parcelId: string;
+    parcelCode: string;
+    merchantId: string;
+    riderId: string | null;
 };
 
 export function toParcelListItemDto(input: {
