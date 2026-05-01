@@ -323,6 +323,16 @@ export function PickupAddressBookFields({
                     <input type="hidden" name="pickupAddress" value={values.pickupAddress} />
                     <input
                         type="hidden"
+                        name="pickupContactName"
+                        value={values.pickupContactName}
+                    />
+                    <input
+                        type="hidden"
+                        name="pickupContactPhone"
+                        value={values.pickupContactPhone}
+                    />
+                    <input
+                        type="hidden"
                         name="savePickupLocation"
                         value={values.savePickupLocation ? "true" : "false"}
                     />
