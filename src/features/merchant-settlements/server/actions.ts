@@ -7,6 +7,7 @@ import {
     confirmMerchantSettlementPayment,
     findConfirmableMerchantSettlement,
     generateMerchantSettlement,
+    isMerchantSettlementReferenceNoInUse,
 } from "./dal";
 import {
     parseConfirmSettlementFormData,
@@ -90,6 +91,21 @@ export async function confirmMerchantSettlementPaymentAction(
             return { ok: false, message: "Settlement cannot be confirmed." };
         }
 
+        const referenceNoAlreadyInUse = await isMerchantSettlementReferenceNoInUse({
+            referenceNo: parsed.data.referenceNo,
+            excludeSettlementId: parsed.data.settlementId,
+        });
+
+        if (referenceNoAlreadyInUse) {
+            return {
+                ok: false,
+                message: "Reference number is already in use.",
+                fieldErrors: {
+                    referenceNo: ["This reference number is already used by another settlement."],
+                },
+            };
+        }
+
         const paymentSlipImageKey = await uploadSettlementPaymentSlip({
             settlementId: parsed.data.settlementId,
             file: parsed.file,
@@ -109,6 +125,20 @@ export async function confirmMerchantSettlementPaymentAction(
             settlementId: confirmed.settlementId,
         };
     } catch (error) {
+        if (
+            error instanceof Error &&
+            (error.message.includes("merchant_settlements_reference_no_uidx") ||
+                error.message.includes("duplicate key value"))
+        ) {
+            return {
+                ok: false,
+                message: "Reference number is already in use.",
+                fieldErrors: {
+                    referenceNo: ["This reference number is already used by another settlement."],
+                },
+            };
+        }
+
         return {
             ...initialError,
             message: error instanceof Error ? error.message : initialError.message,

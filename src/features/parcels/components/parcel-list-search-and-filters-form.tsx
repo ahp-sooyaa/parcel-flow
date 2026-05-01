@@ -108,8 +108,13 @@ function getActiveFilterSummary(
         activeFilters.unshift("Search");
     }
 
+    if (query.riderAssignment !== "all") {
+        activeFilters.push("Rider Assignment");
+    }
+
     const hasActiveFilters =
         query.query.length > 0 ||
+        query.riderAssignment !== "all" ||
         query.parcelStatus.length > 0 ||
         query.codStatus.length > 0 ||
         (includeInternalPaymentFilters &&
@@ -183,6 +188,11 @@ export function ParcelListSearchAndFiltersForm({
                             </SheetHeader>
 
                             <div className="flex-1 space-y-6 overflow-y-auto py-6">
+                                <input
+                                    type="hidden"
+                                    name="riderAssignment"
+                                    value={query.riderAssignment}
+                                />
                                 <div className="space-y-2">
                                     <Label htmlFor="parcel-list-search">Search</Label>
                                     <Input

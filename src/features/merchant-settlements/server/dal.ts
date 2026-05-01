@@ -542,6 +542,26 @@ export async function findConfirmableMerchantSettlement(settlementId: string) {
     return settlement ?? null;
 }
 
+export async function isMerchantSettlementReferenceNoInUse(input: {
+    referenceNo: string;
+    excludeSettlementId?: string;
+}) {
+    const [existing] = await db
+        .select({ id: merchantSettlements.id })
+        .from(merchantSettlements)
+        .where(
+            and(
+                eq(merchantSettlements.referenceNo, input.referenceNo),
+                input.excludeSettlementId
+                    ? sql`${merchantSettlements.id} <> ${input.excludeSettlementId}`
+                    : undefined,
+            ),
+        )
+        .limit(1);
+
+    return Boolean(existing);
+}
+
 export async function generateMerchantSettlement(input: {
     merchantId: string;
     bankAccountId: string | null;

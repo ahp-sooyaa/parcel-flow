@@ -51,12 +51,31 @@ export default async function ParcelsPage({ searchParams }: Readonly<ParcelsPage
     const parcelsReturnTo = buildDashboardHref("/dashboard/parcels", returnSearchParams);
     const parcelPaginationQuery = {
         q: parcelListQuery.query || undefined,
+        riderAssignment:
+            parcelListQuery.riderAssignment === "all" ? undefined : parcelListQuery.riderAssignment,
         parcelStatus: parcelListQuery.parcelStatus,
         codStatus: parcelListQuery.codStatus,
         collectionStatus: parcelListQuery.collectionStatus,
         deliveryFeeStatus: parcelListQuery.deliveryFeeStatus,
         merchantSettlementStatus: parcelListQuery.merchantSettlementStatus,
     };
+    const riderAssignmentFilterHrefs = {
+        all: buildDashboardHref("/dashboard/parcels", {
+            ...parcelPaginationQuery,
+            riderAssignment: undefined,
+            page: undefined,
+        }),
+        unassigned: buildDashboardHref("/dashboard/parcels", {
+            ...parcelPaginationQuery,
+            riderAssignment: "unassigned",
+            page: undefined,
+        }),
+        assigned: buildDashboardHref("/dashboard/parcels", {
+            ...parcelPaginationQuery,
+            riderAssignment: "assigned",
+            page: undefined,
+        }),
+    } as const;
     const parcelRows = parcels.items.map((parcel) => {
         const operations = getParcelOperationSummary(parcel);
 
@@ -64,6 +83,7 @@ export default async function ParcelsPage({ searchParams }: Readonly<ParcelsPage
             id: parcel.id,
             parcelCode: parcel.parcelCode,
             merchantLabel: parcel.merchantLabel,
+            riderLabel: parcel.riderLabel,
             recipientName: parcel.recipientName,
             recipientPhone: parcel.recipientPhone,
             recipientTownshipName: parcel.recipientTownshipName,
@@ -130,6 +150,8 @@ export default async function ParcelsPage({ searchParams }: Readonly<ParcelsPage
                 riderOptions={riderOptions}
                 canUpdate={parcelAccess.canUpdate}
                 emptyMessage={emptyMessage}
+                riderAssignmentFilter={parcelListQuery.riderAssignment}
+                riderAssignmentFilterHrefs={riderAssignmentFilterHrefs}
             />
 
             <ListPagination

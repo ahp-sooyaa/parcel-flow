@@ -80,6 +80,11 @@ async function listParcels(
                   ilike(merchants.shopName, searchPattern),
               )
             : undefined,
+        input.riderAssignment === "unassigned"
+            ? isNull(parcels.riderId)
+            : input.riderAssignment === "assigned"
+              ? sql`${parcels.riderId} is not null`
+              : undefined,
         input.parcelStatus.length > 0 ? inArray(parcels.status, input.parcelStatus) : undefined,
         input.codStatus.length > 0 ? inArray(codStatusValue, input.codStatus) : undefined,
         input.collectionStatus.length > 0
@@ -112,6 +117,7 @@ async function listParcels(
                       parcelCode: parcels.parcelCode,
                       merchantId: parcels.merchantId,
                       riderId: parcels.riderId,
+                      riderLabel: appUsers.fullName,
                       merchantLabel: merchants.shopName,
                       recipientName: parcels.recipientName,
                       recipientPhone: parcels.recipientPhone,
@@ -133,6 +139,8 @@ async function listParcels(
                   })
                   .from(parcels)
                   .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
+                  .leftJoin(riders, eq(parcels.riderId, riders.appUserId))
+                  .leftJoin(appUsers, eq(riders.appUserId, appUsers.id))
                   .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
                   .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
                   .where(filters)
@@ -183,6 +191,11 @@ async function listMerchantParcels(
                   ilike(townships.name, searchPattern),
               )
             : undefined,
+        input.riderAssignment === "unassigned"
+            ? isNull(parcels.riderId)
+            : input.riderAssignment === "assigned"
+              ? sql`${parcels.riderId} is not null`
+              : undefined,
         input.parcelStatus.length > 0 ? inArray(parcels.status, input.parcelStatus) : undefined,
         input.codStatus.length > 0 ? inArray(codStatusValue, input.codStatus) : undefined,
         input.collectionStatus.length > 0
@@ -215,6 +228,7 @@ async function listMerchantParcels(
                       parcelCode: parcels.parcelCode,
                       merchantId: parcels.merchantId,
                       riderId: parcels.riderId,
+                      riderLabel: appUsers.fullName,
                       merchantLabel: merchants.shopName,
                       recipientName: parcels.recipientName,
                       recipientPhone: parcels.recipientPhone,
@@ -236,6 +250,8 @@ async function listMerchantParcels(
                   })
                   .from(parcels)
                   .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
+                  .leftJoin(riders, eq(parcels.riderId, riders.appUserId))
+                  .leftJoin(appUsers, eq(riders.appUserId, appUsers.id))
                   .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
                   .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
                   .where(filters)
@@ -423,6 +439,7 @@ async function listAssignedRiderParcels(riderId: string): Promise<ParcelListItem
             parcelCode: parcels.parcelCode,
             merchantId: parcels.merchantId,
             riderId: parcels.riderId,
+            riderLabel: appUsers.fullName,
             merchantLabel: merchants.shopName,
             recipientName: parcels.recipientName,
             recipientPhone: parcels.recipientPhone,
@@ -444,6 +461,8 @@ async function listAssignedRiderParcels(riderId: string): Promise<ParcelListItem
         })
         .from(parcels)
         .innerJoin(merchants, eq(parcels.merchantId, merchants.appUserId))
+        .leftJoin(riders, eq(parcels.riderId, riders.appUserId))
+        .leftJoin(appUsers, eq(riders.appUserId, appUsers.id))
         .leftJoin(townships, eq(parcels.recipientTownshipId, townships.id))
         .leftJoin(parcelPaymentRecords, eq(parcelPaymentRecords.parcelId, parcels.id))
         .where(eq(parcels.riderId, riderId))

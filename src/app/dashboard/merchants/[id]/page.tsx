@@ -243,7 +243,9 @@ export default async function MerchantDetailPage({
                         )}
                         {parcelAccess.canCreate && (
                             <Button asChild>
-                                <Link href="/dashboard/parcels/create">Create Parcel</Link>
+                                <Link href={`/dashboard/parcels/create?merchantId=${merchant.id}`}>
+                                    Create Parcel
+                                </Link>
                             </Button>
                         )}
                     </div>

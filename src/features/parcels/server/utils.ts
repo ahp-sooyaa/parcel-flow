@@ -511,6 +511,7 @@ export type ParcelListQuery = {
     query: string;
     page: number;
     pageSize: number;
+    riderAssignment: "all" | "unassigned" | "assigned";
     parcelStatus: (typeof PARCEL_STATUSES)[number][];
     codStatus: (typeof COD_STATUSES)[number][];
     collectionStatus: (typeof COLLECTION_STATUSES)[number][];
@@ -680,11 +681,20 @@ function parseEnumValues<TValues extends readonly string[]>(
         .filter((value, index, allValues) => allValues.indexOf(value) === index);
 }
 
+function parseRiderAssignmentFilter(raw: string | undefined): ParcelListQuery["riderAssignment"] {
+    if (raw === "assigned" || raw === "unassigned") {
+        return raw;
+    }
+
+    return "all";
+}
+
 export function getDefaultParcelListQuery(): ParcelListQuery {
     return {
         query: "",
         page: 1,
         pageSize: PARCEL_LIST_PAGE_SIZE,
+        riderAssignment: "all",
         parcelStatus: [],
         codStatus: [],
         collectionStatus: [],
@@ -705,6 +715,9 @@ export function normalizeParcelListQueryParams(
         query: normalizeParcelSearchQuery(getSearchParamValue(searchParams, "q")),
         page: parseParcelListPage(getSearchParamValue(searchParams, "page")),
         pageSize: PARCEL_LIST_PAGE_SIZE,
+        riderAssignment: parseRiderAssignmentFilter(
+            getSearchParamValue(searchParams, "riderAssignment"),
+        ),
         parcelStatus: parseEnumValues(
             getSearchParamValues(searchParams, "parcelStatus"),
             PARCEL_STATUSES,
@@ -732,6 +745,7 @@ export function normalizeParcelListQueryParams(
 export function hasActiveParcelListFilters(input: ParcelListQuery) {
     return Boolean(
         input.query ||
+        input.riderAssignment !== "all" ||
         input.parcelStatus.length > 0 ||
         input.codStatus.length > 0 ||
         input.collectionStatus.length > 0 ||

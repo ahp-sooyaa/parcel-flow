@@ -1489,6 +1489,7 @@ describe("parcel operation helpers", () => {
                 parcelCode: "PF-240101-000001",
                 merchantId: "00000000-0000-0000-0000-000000000002",
                 riderId: null,
+                riderLabel: null,
                 merchantLabel: "Merchant",
                 recipientName: "Receiver",
                 recipientPhone: "09123456",

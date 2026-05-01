@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { SearchableCombobox } from "@/components/shared/searchable-combobox";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -14,7 +15,6 @@ import {
     SheetTitle,
     SheetTrigger,
 } from "@/components/ui/sheet";
-import { cn } from "@/lib/utils";
 
 import type { MerchantListItemDto } from "@/features/merchant/server/dto";
 
@@ -92,24 +92,18 @@ export function NewSettlementEntry({ merchants }: Readonly<NewSettlementEntryPro
                                     <Label htmlFor="merchant-settlement-entry-merchant">
                                         Select Merchant
                                     </Label>
-                                    <select
+                                    <SearchableCombobox
                                         id="merchant-settlement-entry-merchant"
+                                        name="merchantSettlementEntryMerchant"
                                         value={selectedMerchantId}
-                                        onChange={(event) =>
-                                            setSelectedMerchantId(event.target.value)
-                                        }
-                                        className={cn(
-                                            "h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none",
-                                            "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
-                                        )}
-                                    >
-                                        <option value="">Choose a merchant</option>
-                                        {merchants.map((merchant) => (
-                                            <option key={merchant.id} value={merchant.id}>
-                                                {merchant.shopName} · {merchant.contactName}
-                                            </option>
-                                        ))}
-                                    </select>
+                                        onValueChange={setSelectedMerchantId}
+                                        options={merchants.map((merchant) => ({
+                                            value: merchant.id,
+                                            label: `${merchant.shopName} · ${merchant.contactName}`,
+                                        }))}
+                                        placeholder="Choose a merchant"
+                                        emptyLabel="No merchants found."
+                                    />
                                 </div>
                             </div>
 

@@ -24,6 +24,7 @@ export type ParcelListItemDto = {
     parcelCode: string;
     merchantId: string;
     riderId: string | null;
+    riderLabel: string | null;
     merchantLabel: string;
     recipientName: string;
     recipientPhone: string;
@@ -247,6 +248,7 @@ export function toParcelListItemDto(input: {
     parcelCode: string;
     merchantId: string;
     riderId: string | null;
+    riderLabel: string | null;
     merchantLabel: string;
     recipientName: string;
     recipientPhone: string;
@@ -271,6 +273,7 @@ export function toParcelListItemDto(input: {
         parcelCode: input.parcelCode,
         merchantId: input.merchantId,
         riderId: input.riderId,
+        riderLabel: input.riderLabel,
         merchantLabel: input.merchantLabel,
         recipientName: input.recipientName,
         recipientPhone: input.recipientPhone,

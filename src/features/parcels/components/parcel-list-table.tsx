@@ -29,6 +29,7 @@ type ParcelListTableRow = {
     id: string;
     parcelCode: string;
     merchantLabel: string;
+    riderLabel: string | null;
     recipientName: string;
     recipientPhone: string;
     recipientTownshipName: string | null;
@@ -58,6 +59,8 @@ type ParcelListTableProps = {
     riderOptions: SearchableComboboxOption[];
     canUpdate: boolean;
     emptyMessage: string;
+    riderAssignmentFilter: "all" | "unassigned" | "assigned";
+    riderAssignmentFilterHrefs: Record<"all" | "unassigned" | "assigned", string>;
 };
 
 type BulkAssignParcelRiderFormState = {
@@ -106,6 +109,8 @@ export function ParcelListTable({
     riderOptions,
     canUpdate,
     emptyMessage,
+    riderAssignmentFilter,
+    riderAssignmentFilterHrefs,
 }: Readonly<ParcelListTableProps>) {
     const [assignState, assignAction, isAssignPending] = useActionState(
         async (_prevState: typeof initialState, formData: FormData) =>
@@ -133,7 +138,16 @@ export function ParcelListTable({
                 : assignState.message
                   ? assignState
                   : successState;
-    const allRowsSelected = rows.length > 0 && rows.every((row) => selectedIds.has(row.id));
+    const selectableRows = rows.filter((row) => row.parcelStatus === "pending");
+    const selectedRows = rows.filter((row) => selectedIds.has(row.id));
+    const assignedSelectionCount = selectedRows.filter((row) => Boolean(row.riderLabel)).length;
+    const allRowsSelected =
+        selectableRows.length > 0 && selectableRows.every((row) => selectedIds.has(row.id));
+    const riderAssignmentFilters = [
+        { value: "all" as const, label: "All" },
+        { value: "unassigned" as const, label: "Unassigned" },
+        { value: "assigned" as const, label: "Assigned" },
+    ];
 
     useEffect(() => {
         if ((assignState.ok && assignState.message) || (clearState.ok && clearState.message)) {
@@ -143,7 +157,25 @@ export function ParcelListTable({
         }
     }, [assignState.message, assignState.ok, clearState.message, clearState.ok]);
 
+    useEffect(() => {
+        setSelectedIds((current) => {
+            const next = new Set(
+                Array.from(current).filter((parcelId) =>
+                    rows.some((row) => row.id === parcelId && row.parcelStatus === "pending"),
+                ),
+            );
+
+            return next.size === current.size ? current : next;
+        });
+    }, [rows]);
+
     function setSelected(parcelId: string, checked: boolean) {
+        const row = rows.find((item) => item.id === parcelId);
+
+        if (!row || row.parcelStatus !== "pending") {
+            return;
+        }
+
         setSelectedIds((current) => {
             const next = new Set(current);
 
@@ -158,7 +190,7 @@ export function ParcelListTable({
     }
 
     function setAllSelected(checked: boolean) {
-        setSelectedIds(checked ? new Set(rows.map((row) => row.id)) : new Set());
+        setSelectedIds(checked ? new Set(selectableRows.map((row) => row.id)) : new Set());
     }
 
     return (
@@ -178,6 +210,28 @@ export function ParcelListTable({
 
                             <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
                                 <div className="flex flex-wrap items-center gap-2">
+                                    <div className="inline-flex items-center rounded-lg bg-background">
+                                        {riderAssignmentFilters.map((filter) => (
+                                            <Button
+                                                key={filter.value}
+                                                asChild
+                                                size="sm"
+                                                variant={
+                                                    riderAssignmentFilter === filter.value
+                                                        ? "default"
+                                                        : "ghost"
+                                                }
+                                                className="h-7"
+                                            >
+                                                <Link
+                                                    href={riderAssignmentFilterHrefs[filter.value]}
+                                                >
+                                                    {filter.label}
+                                                </Link>
+                                            </Button>
+                                        ))}
+                                    </div>
+
                                     <form action={clearAction}>
                                         {selectedIdsList.map((parcelId) => (
                                             <input
@@ -229,6 +283,15 @@ export function ParcelListTable({
                                                 className="flex h-full flex-col gap-0"
                                             >
                                                 <div className="flex-1 space-y-6 overflow-y-auto">
+                                                    {assignedSelectionCount > 0 ? (
+                                                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-300">
+                                                            Warning: {assignedSelectionCount} of
+                                                            your selected parcels already have
+                                                            riders assigned. Proceeding will replace
+                                                            them with the new rider.
+                                                        </div>
+                                                    ) : null}
+
                                                     <div className="space-y-2">
                                                         <Label htmlFor="bulk-rider-id">
                                                             Assign Rider
@@ -322,10 +385,12 @@ export function ParcelListTable({
                                             }
                                             aria-label="Select all parcels on this page"
                                             className="h-4 w-4"
+                                            disabled={selectableRows.length === 0}
                                         />
                                     </th>
                                 ) : null}
                                 <th className="px-4 py-3">Code / Merchant</th>
+                                <th className="px-4 py-3">Rider</th>
                                 <th className="px-4 py-3">Recipient</th>
                                 <th className="px-4 py-3">Township</th>
                                 <th className="px-4 py-3">Parcel Status</th>
@@ -348,6 +413,7 @@ export function ParcelListTable({
                                                 }
                                                 aria-label={`Select parcel ${row.parcelCode}`}
                                                 className="h-4 w-4"
+                                                disabled={row.parcelStatus !== "pending"}
                                             />
                                         </td>
                                     ) : null}
@@ -358,6 +424,15 @@ export function ParcelListTable({
                                                 {row.merchantLabel}
                                             </span>
                                         </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span
+                                            className={cn("text-sm", {
+                                                "text-muted-foreground": !row.riderLabel,
+                                            })}
+                                        >
+                                            {row.riderLabel ?? "Not assigned"}
+                                        </span>
                                     </td>
                                     <td className="px-4 py-3">
                                         <div className="grid gap-1">
@@ -415,7 +490,7 @@ export function ParcelListTable({
                             {rows.length === 0 ? (
                                 <tr>
                                     <td
-                                        colSpan={canUpdate ? 10 : 9}
+                                        colSpan={canUpdate ? 11 : 10}
                                         className="px-4 py-10 text-center text-xs text-muted-foreground"
                                     >
                                         {emptyMessage}
