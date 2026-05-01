@@ -4,15 +4,15 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { FormFieldError } from "@/components/shared/form-field-error";
 import { Button } from "@/components/ui/button";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+} from "@/components/ui/sheet";
 import {
     bulkDeletePickupLocationsAction,
     createPickupLocationAction,
@@ -440,14 +440,17 @@ export function PickupLocationsPanel({
                 </div>
             </section>
 
-            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>New Pickup Location</DialogTitle>
-                        <DialogDescription>
+            <Sheet open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                <SheetContent
+                    side="bottom"
+                    className="max-h-[90vh] rounded-t-2xl border-x-0 border-b-0"
+                >
+                    <SheetHeader className="pr-8">
+                        <SheetTitle>New Pickup Location</SheetTitle>
+                        <SheetDescription>
                             Manage saved pickup locations used by parcel create and edit forms.
-                        </DialogDescription>
-                    </DialogHeader>
+                        </SheetDescription>
+                    </SheetHeader>
 
                     <PickupLocationEditor
                         action={createPickupLocationAction}
@@ -460,10 +463,10 @@ export function PickupLocationsPanel({
                         formClassName="rounded-none border-0 bg-transparent p-0"
                         onSuccess={() => setCreateDialogOpen(false)}
                     />
-                </DialogContent>
-            </Dialog>
+                </SheetContent>
+            </Sheet>
 
-            <Dialog
+            <Sheet
                 open={Boolean(editingPickupLocation)}
                 onOpenChange={(open) => {
                     if (!open) {
@@ -471,17 +474,20 @@ export function PickupLocationsPanel({
                     }
                 }}
             >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>
+                <SheetContent
+                    side="bottom"
+                    className="max-h-[90vh] rounded-t-2xl border-x-0 border-b-0"
+                >
+                    <SheetHeader className="pr-8">
+                        <SheetTitle>
                             {editingPickupLocation
                                 ? `Edit ${editingPickupLocation.label}`
                                 : "Edit Pickup Location"}
-                        </DialogTitle>
-                        <DialogDescription>
+                        </SheetTitle>
+                        <SheetDescription>
                             Manage saved pickup locations used by parcel create and edit forms.
-                        </DialogDescription>
-                    </DialogHeader>
+                        </SheetDescription>
+                    </SheetHeader>
 
                     {editingPickupLocation ? (
                         <PickupLocationEditor
@@ -497,8 +503,8 @@ export function PickupLocationsPanel({
                             onSuccess={() => setEditingPickupLocation(null)}
                         />
                     ) : null}
-                </DialogContent>
-            </Dialog>
+                </SheetContent>
+            </Sheet>
         </div>
     );
 }

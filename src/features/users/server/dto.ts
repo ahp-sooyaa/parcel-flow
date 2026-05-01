@@ -43,6 +43,12 @@ export type ResetUserPasswordActionResult = {
     temporaryPassword?: string;
 };
 
+export type UserStatusActionResult = {
+    ok: boolean;
+    message: string;
+    isActive?: boolean;
+};
+
 export function toAppUserListItemDto(input: AppUserListItemDto): AppUserListItemDto {
     return {
         id: input.id,

@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { resetUserPasswordAction } from "@/features/users/server/actions";
 import { cn } from "@/lib/utils";
 
 type ResetUserPasswordFormProps = {
     userId: string;
+    initialMustResetPassword: boolean;
 };
 
 const initialState = {
@@ -15,37 +16,67 @@ const initialState = {
     temporaryPassword: undefined,
 };
 
-export function ResetUserPasswordForm({ userId }: Readonly<ResetUserPasswordFormProps>) {
+export function ResetUserPasswordForm({
+    userId,
+    initialMustResetPassword,
+}: Readonly<ResetUserPasswordFormProps>) {
     const [state, action, isPending] = useActionState(resetUserPasswordAction, initialState);
+    const [mustResetPassword, setMustResetPassword] = useState(initialMustResetPassword);
+    const [copied, setCopied] = useState(false);
+
+    useEffect(() => {
+        if (state.ok && state.temporaryPassword) {
+            setMustResetPassword(true);
+            setCopied(false);
+        }
+    }, [state.ok, state.temporaryPassword]);
 
     return (
-        <form action={action} className="space-y-3">
+        <form action={action} className="space-y-4">
             <input type="hidden" name="userId" value={userId} />
+
+            <div className="grid gap-1 text-sm">
+                <p className="text-xs text-muted-foreground">User Login State</p>
+                <p>{mustResetPassword ? "Must Change Password on Login" : "Normal Sign-In"}</p>
+            </div>
+
             <Button type="submit" variant="outline" disabled={isPending}>
-                {isPending ? "Resetting..." : "Reset Password"}
+                {isPending ? "Generating..." : "Generate Temporary Password"}
             </Button>
 
-            {state.message && (
+            {state.message && state.temporaryPassword && (
                 <div
-                    className={cn("rounded-lg border p-3", {
+                    className={cn("mt-3 space-y-3 rounded-lg border p-3", {
                         "border-emerald-300 bg-emerald-50": state.ok,
                         "border-red-300 bg-red-50": !state.ok,
                     })}
                 >
-                    <p
-                        className={cn("text-xs", {
-                            "text-emerald-800": state.ok,
-                            "text-destructive": !state.ok,
-                        })}
-                    >
-                        {state.message}
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="space-y-1">
+                            <p className="text-xs font-medium tracking-wide text-amber-900 uppercase">
+                                {state.message}
+                            </p>
+                            <p className="font-mono text-sm font-semibold text-amber-950">
+                                {state.temporaryPassword}
+                            </p>
+                        </div>
+
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                                await navigator.clipboard.writeText(state.temporaryPassword ?? "");
+                                setCopied(true);
+                            }}
+                        >
+                            {copied ? "Copied" : "Copy to Clipboard"}
+                        </Button>
+                    </div>
+
+                    <p className="text-xs text-amber-950">
+                        This temporary password will expire once the user sets their own.
                     </p>
-                    {state.temporaryPassword && (
-                        <p className="mt-2 text-xs font-semibold text-amber-900">
-                            Temporary password (show once):{" "}
-                            <span className="font-mono">{state.temporaryPassword}</span>
-                        </p>
-                    )}
                 </div>
             )}
         </form>

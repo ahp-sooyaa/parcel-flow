@@ -4,9 +4,6 @@ import { Button } from "@/components/ui/button";
 import { getUserByAppUserIdForViewer } from "@/features/auth/server/dal";
 import { getUserManagementAccess } from "@/features/auth/server/policies/user-management";
 import { requireAppAccessContext } from "@/features/auth/server/utils";
-import { ResetUserPasswordForm } from "@/features/users/components/reset-user-password-form";
-import { SoftDeleteUserForm } from "@/features/users/components/soft-delete-user-form";
-import { updateUserStatusAction } from "@/features/users/server/actions";
 import { appendDashboardReturnTo } from "@/lib/dashboard-navigation";
 import { formatRoleSlug } from "@/lib/roles";
 
@@ -67,49 +64,14 @@ export default async function UserDetailPage({ params }: Readonly<UserDetailPage
                     <p>{user.isActive ? "Active" : "Inactive"}</p>
                 </div>
                 <div className="grid gap-1">
-                    <p className="text-xs text-muted-foreground">Password Reset Requirement</p>
-                    <p>{user.mustResetPassword ? "Required" : "Not Required"}</p>
+                    <p className="text-xs text-muted-foreground">User Login State</p>
+                    <p>
+                        {user.mustResetPassword
+                            ? "Must Change Password on Login"
+                            : "Normal Sign-In"}
+                    </p>
                 </div>
             </div>
-
-            {userManagementAccess.canUpdateTarget && (
-                <section className="space-y-3 rounded-xl border bg-card p-5">
-                    <h2 className="text-lg font-semibold">User Status</h2>
-                    <form action={updateUserStatusAction} className="flex items-center gap-3">
-                        <input type="hidden" name="userId" value={user.appUserId} />
-                        <input
-                            type="hidden"
-                            name="isActive"
-                            value={user.isActive ? "false" : "true"}
-                        />
-                        <Button type="submit" variant="outline">
-                            {user.isActive ? "Set Inactive" : "Set Active"}
-                        </Button>
-                    </form>
-                </section>
-            )}
-
-            {userManagementAccess.canResetPasswordTarget && (
-                <section className="space-y-3 rounded-xl border bg-card p-5">
-                    <h2 className="text-lg font-semibold">Admin Password Reset</h2>
-                    <p className="text-xs text-muted-foreground">
-                        This action generates a one-time temporary password and marks the account as
-                        reset-required.
-                    </p>
-                    <ResetUserPasswordForm userId={user.appUserId} />
-                </section>
-            )}
-
-            {userManagementAccess.canDeleteTarget && (
-                <section className="space-y-3 rounded-xl border border-destructive/30 bg-card p-5">
-                    <h2 className="text-lg font-semibold text-destructive">Delete User</h2>
-                    <p className="text-xs text-muted-foreground">
-                        This removes the user from normal screens and day-to-day operations. The
-                        record is still kept for history and audit purposes.
-                    </p>
-                    <SoftDeleteUserForm userId={user.appUserId} />
-                </section>
-            )}
         </section>
     );
 }

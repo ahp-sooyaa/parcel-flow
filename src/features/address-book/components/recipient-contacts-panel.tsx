@@ -4,15 +4,15 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { FormFieldError } from "@/components/shared/form-field-error";
 import { Button } from "@/components/ui/button";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+} from "@/components/ui/sheet";
 import {
     bulkDeleteRecipientContactsAction,
     createRecipientContactAction,
@@ -387,14 +387,17 @@ export function RecipientContactsPanel({
                 </div>
             </section>
 
-            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>New Recipient Contact</DialogTitle>
-                        <DialogDescription>
+            <Sheet open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                <SheetContent
+                    side="bottom"
+                    className="max-h-[90vh] rounded-t-2xl border-x-0 border-b-0"
+                >
+                    <SheetHeader className="pr-8">
+                        <SheetTitle>New Recipient Contact</SheetTitle>
+                        <SheetDescription>
                             Save merchant-scoped recipient details for faster parcel entry.
-                        </DialogDescription>
-                    </DialogHeader>
+                        </SheetDescription>
+                    </SheetHeader>
 
                     <ContactEditor
                         action={createRecipientContactAction}
@@ -407,10 +410,10 @@ export function RecipientContactsPanel({
                         formClassName="rounded-none border-0 bg-transparent p-0"
                         onSuccess={() => setCreateDialogOpen(false)}
                     />
-                </DialogContent>
-            </Dialog>
+                </SheetContent>
+            </Sheet>
 
-            <Dialog
+            <Sheet
                 open={Boolean(editingContact)}
                 onOpenChange={(open) => {
                     if (!open) {
@@ -418,17 +421,20 @@ export function RecipientContactsPanel({
                     }
                 }}
             >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>
+                <SheetContent
+                    side="bottom"
+                    className="max-h-[90vh] rounded-t-2xl border-x-0 border-b-0"
+                >
+                    <SheetHeader className="pr-8">
+                        <SheetTitle>
                             {editingContact
                                 ? `Edit ${editingContact.contactLabel}`
                                 : "Edit Recipient Contact"}
-                        </DialogTitle>
-                        <DialogDescription>
+                        </SheetTitle>
+                        <SheetDescription>
                             Save merchant-scoped recipient details for faster parcel entry.
-                        </DialogDescription>
-                    </DialogHeader>
+                        </SheetDescription>
+                    </SheetHeader>
 
                     {editingContact ? (
                         <ContactEditor
@@ -452,8 +458,8 @@ export function RecipientContactsPanel({
                             onSuccess={() => setEditingContact(null)}
                         />
                     ) : null}
-                </DialogContent>
-            </Dialog>
+                </SheetContent>
+            </Sheet>
         </div>
     );
 }

@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { ChangePasswordForm } from "./change-password-form";
 import { AccountEditForm } from "./edit-user-form";
+import { ResetUserPasswordForm } from "./reset-user-password-form";
+import { UserStatusForm } from "./user-status-form";
 import { getBankAccountAccess } from "@/features/auth/server/policies/bank-accounts";
 import { getMerchantAccess } from "@/features/auth/server/policies/merchant";
 import { getRiderAccess } from "@/features/auth/server/policies/rider";
+import { getUserManagementAccess } from "@/features/auth/server/policies/user-management";
 import { BankAccountsPanel } from "@/features/bank-accounts/components/bank-accounts-panel";
 import {
     getOwnerDisplayLabel,
@@ -22,7 +25,13 @@ import type { BankAccountOwnerDto } from "@/features/bank-accounts/server/dto";
 type EditorMode = "self" | "admin";
 type SettingsEditorUser = Pick<
     AppAccessContext,
-    "appUserId" | "fullName" | "email" | "phoneNumber" | "roleSlug"
+    | "appUserId"
+    | "fullName"
+    | "email"
+    | "phoneNumber"
+    | "roleSlug"
+    | "isActive"
+    | "mustResetPassword"
 >;
 
 type UserSettingsEditorProps = {
@@ -84,6 +93,8 @@ export async function UserSettingsEditor({
                   email: viewer.email,
                   phoneNumber: viewer.phoneNumber,
                   roleSlug: viewer.roleSlug,
+                  isActive: viewer.isActive,
+                  mustResetPassword: viewer.mustResetPassword,
               }
             : targetUser;
 
@@ -92,6 +103,7 @@ export async function UserSettingsEditor({
     }
 
     const targetUserId = accountUser.appUserId;
+    const userManagementAccess = getUserManagementAccess(viewer);
     let canEditMerchantDetails = false;
     let canEditRiderDetails = false;
     let merchantProfile: Awaited<ReturnType<typeof getMerchantProfileByAppUserIdForViewer>> = null;
@@ -234,6 +246,32 @@ export async function UserSettingsEditor({
                                     </p>
                                 </header>
                                 <ChangePasswordForm />
+                            </section>
+                        )}
+
+                        {mode === "admin" && userManagementAccess.canUpdateTarget && (
+                            <section className="space-y-4 border-t pt-5">
+                                <UserStatusForm
+                                    userId={accountUser.appUserId}
+                                    initialIsActive={accountUser.isActive}
+                                />
+                            </section>
+                        )}
+
+                        {mode === "admin" && userManagementAccess.canResetPasswordTarget && (
+                            <section className="space-y-4 border-t pt-5">
+                                <header className="space-y-1">
+                                    <h2 className="text-lg font-semibold">Account Recovery</h2>
+                                    <p className="text-xs text-muted-foreground">
+                                        Generate a one-time temporary password for account access
+                                        recovery.
+                                    </p>
+                                </header>
+
+                                <ResetUserPasswordForm
+                                    userId={accountUser.appUserId}
+                                    initialMustResetPassword={accountUser.mustResetPassword}
+                                />
                             </section>
                         )}
                     </div>
