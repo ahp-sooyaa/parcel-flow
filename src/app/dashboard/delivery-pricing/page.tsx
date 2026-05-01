@@ -24,81 +24,109 @@ export default async function DeliveryPricingPage() {
 
     return (
         <section className="space-y-6">
-            <header className="space-y-1">
-                <h1 className="text-2xl font-semibold tracking-tight">Delivery Pricing</h1>
-                <p className="text-sm text-muted-foreground">
-                    Configure township delivery fees and merchant-specific pricing overrides used by
-                    parcel creation.
-                </p>
+            <header className="flex items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-semibold tracking-tight">Delivery Pricing</h1>
+                    <p className="text-sm text-muted-foreground">
+                        Configure township delivery fees and merchant-specific pricing overrides
+                        used by parcel creation.
+                    </p>
+                </div>
+
+                {access.canCreate ? (
+                    <CreateDeliveryPricingRateForm
+                        merchants={options.merchants}
+                        townships={options.townships}
+                    />
+                ) : null}
             </header>
 
-            {access.canCreate ? (
-                <CreateDeliveryPricingRateForm
-                    merchants={options.merchants}
-                    townships={options.townships}
-                />
-            ) : null}
-
-            <div className="space-y-4">
-                {rates.map((rate) => (
-                    <article key={rate.id} className="rounded-xl border bg-card p-4">
-                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="space-y-2">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <h2 className="text-lg font-semibold">{rate.townshipName}</h2>
-                                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                                        {rate.scope === "global" ? "Global" : "Merchant Contract"}
-                                    </span>
-                                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                                        {rate.isActive ? "Active" : "Inactive"}
-                                    </span>
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                    {rate.merchantLabel ??
-                                        "Applies to all merchants in this township."}
-                                </p>
-                                <div className="grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4">
-                                    <p>
-                                        Base: {rate.baseWeightKg} kg / {rate.baseFee} Ks
-                                    </p>
-                                    <p>
-                                        Extra: {rate.extraWeightUnitKg} kg / {rate.extraWeightFee}{" "}
-                                        Ks
-                                    </p>
-                                    <p>Volumetric Divisor: {rate.volumetricDivisor}</p>
-                                    <p>
-                                        COD {rate.codFeePercent} · Return {rate.returnFeePercent}
-                                    </p>
-                                </div>
-                            </div>
-
-                            {access.canUpdate ? (
-                                <div className="min-w-40">
-                                    <DeactivateDeliveryPricingRateForm
-                                        rateId={rate.id}
-                                        disabled={!rate.isActive}
-                                    />
-                                </div>
+            <div className="rounded-xl border bg-card">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-muted/40 text-xs uppercase">
+                            <tr>
+                                <th className="px-4 py-3">Township</th>
+                                <th className="px-4 py-3">Scope</th>
+                                <th className="px-4 py-3">Merchant</th>
+                                <th className="px-4 py-3">Base</th>
+                                <th className="px-4 py-3">Extra</th>
+                                <th className="px-4 py-3">Volumetric</th>
+                                <th className="px-4 py-3">Fees</th>
+                                <th className="px-4 py-3">Status</th>
+                                <th className="px-4 py-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rates.map((rate) => (
+                                <tr key={rate.id} className="border-t align-top">
+                                    <td className="px-4 py-3 font-medium">{rate.townshipName}</td>
+                                    <td className="px-4 py-3">
+                                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                                            {rate.scope === "global"
+                                                ? "Global"
+                                                : "Merchant Contract"}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        {rate.merchantLabel ?? "All merchants"}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div>{rate.baseWeightKg} kg</div>
+                                        <div className="text-muted-foreground">
+                                            {rate.baseFee} Ks
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div>{rate.extraWeightUnitKg} kg</div>
+                                        <div className="text-muted-foreground">
+                                            {rate.extraWeightFee} Ks
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">{rate.volumetricDivisor}</td>
+                                    <td className="px-4 py-3">
+                                        <div>COD {rate.codFeePercent}</div>
+                                        <div className="text-muted-foreground">
+                                            Return {rate.returnFeePercent}
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                                            {rate.isActive ? "Active" : "Inactive"}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        {access.canUpdate ? (
+                                            <div className="flex flex-wrap gap-2">
+                                                <EditDeliveryPricingRateForm
+                                                    rate={rate}
+                                                    merchants={options.merchants}
+                                                    townships={options.townships}
+                                                />
+                                                <DeactivateDeliveryPricingRateForm
+                                                    rateId={rate.id}
+                                                    disabled={!rate.isActive}
+                                                />
+                                            </div>
+                                        ) : (
+                                            "-"
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                            {rates.length === 0 ? (
+                                <tr>
+                                    <td
+                                        colSpan={9}
+                                        className="px-4 py-10 text-center text-xs text-muted-foreground"
+                                    >
+                                        No delivery pricing rates found.
+                                    </td>
+                                </tr>
                             ) : null}
-                        </div>
-
-                        {access.canUpdate ? (
-                            <div className="mt-4">
-                                <EditDeliveryPricingRateForm
-                                    rate={rate}
-                                    merchants={options.merchants}
-                                    townships={options.townships}
-                                />
-                            </div>
-                        ) : null}
-                    </article>
-                ))}
-
-                {rates.length === 0 ? (
-                    <div className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
-                        No delivery pricing rates found.
-                    </div>
-                ) : null}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </section>
     );
