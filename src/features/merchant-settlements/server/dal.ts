@@ -63,7 +63,7 @@ function settlementListWhere(input: MerchantSettlementListQuery) {
     const searchPattern = toSettlementSearchPattern(input.query);
 
     return and(
-        input.status ? eq(merchantSettlements.status, input.status) : undefined,
+        input.status.length > 0 ? inArray(merchantSettlements.status, input.status) : undefined,
         searchPattern
             ? or(
                   sql`cast(${merchantSettlements.id} as text) ilike ${searchPattern}`,

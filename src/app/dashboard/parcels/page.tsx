@@ -79,7 +79,7 @@ export default async function ParcelsPage({ searchParams }: Readonly<ParcelsPage
     const createdCount = parseCreatedCount(rawSearchParams.created);
     const parcelsReturnTo = buildDashboardHref("/dashboard/parcels", returnSearchParams);
     const parcelPaginationQuery = {
-        q: parcelListQuery.query,
+        q: parcelListQuery.query || undefined,
         parcelStatus: parcelListQuery.parcelStatus,
         codStatus: parcelListQuery.codStatus,
         collectionStatus: parcelListQuery.collectionStatus,

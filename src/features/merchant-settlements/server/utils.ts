@@ -73,20 +73,45 @@ function getSearchParamValue(
     return value ?? "";
 }
 
+function getSearchParamValues(
+    searchParams: Record<string, string | string[] | undefined>,
+    key: string,
+) {
+    const value = searchParams[key];
+
+    if (Array.isArray(value)) {
+        return value;
+    }
+
+    if (typeof value === "string") {
+        return [value];
+    }
+
+    return [];
+}
+
 function normalizePositiveInteger(value: string, fallback: number) {
     const parsed = Number.parseInt(value, 10);
 
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function parseSettlementStatuses(rawValues: readonly string[]): MerchantSettlementStatus[] {
+    return rawValues
+        .map((value) => value.trim())
+        .filter(
+            (value): value is MerchantSettlementStatus =>
+                Boolean(value) && settlementStatusValues.has(value),
+        )
+        .filter((value, index, allValues) => allValues.indexOf(value) === index);
+}
+
 export function normalizeMerchantSettlementListQueryParams(
     searchParams: Record<string, string | string[] | undefined>,
 ): MerchantSettlementListQuery {
-    const status = getSearchParamValue(searchParams, "status");
-
     return {
         query: getSearchParamValue(searchParams, "q").trim().slice(0, 120),
-        status: settlementStatusValues.has(status) ? (status as MerchantSettlementStatus) : null,
+        status: parseSettlementStatuses(getSearchParamValues(searchParams, "status")),
         page: normalizePositiveInteger(getSearchParamValue(searchParams, "page"), 1),
         pageSize: MERCHANT_SETTLEMENT_LIST_PAGE_SIZE,
     };
@@ -99,8 +124,8 @@ export function buildMerchantSettlementListHref(query: MerchantSettlementListQue
         params.set("q", query.query);
     }
 
-    if (query.status) {
-        params.set("status", query.status);
+    for (const status of query.status) {
+        params.append("status", status);
     }
 
     if (query.page > 1) {

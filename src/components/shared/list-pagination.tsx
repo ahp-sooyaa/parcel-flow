@@ -11,7 +11,7 @@ type ListPaginationState = {
 
 type ListPaginationProps = {
     basePath: string;
-    query?: Record<string, string | null | undefined>;
+    query?: Record<string, string | string[] | null | undefined>;
     pagination: ListPaginationState;
     itemLabel?: string;
     className?: string;
@@ -61,13 +61,27 @@ function buildPageTokens(page: number, totalPages: number): PageToken[] {
 
 function buildPageHref(
     basePath: string,
-    query: Record<string, string | null | undefined>,
+    query: Record<string, string | string[] | null | undefined>,
     page: number,
 ) {
     const params = new URLSearchParams();
 
     for (const [key, value] of Object.entries(query)) {
-        if (key !== "page" && value) {
+        if (key === "page" || value == null) {
+            continue;
+        }
+
+        if (Array.isArray(value)) {
+            for (const item of value) {
+                if (item) {
+                    params.append(key, item);
+                }
+            }
+
+            continue;
+        }
+
+        if (value) {
             params.set(key, value);
         }
     }

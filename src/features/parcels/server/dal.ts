@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, count, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import {
     type AuditLogInsertInput,
     type CreateParcelInsertInput,
@@ -79,12 +79,16 @@ async function listParcels(
                   ilike(merchants.shopName, searchPattern),
               )
             : undefined,
-        input.parcelStatus ? eq(parcels.status, input.parcelStatus) : undefined,
-        input.codStatus ? eq(codStatusValue, input.codStatus) : undefined,
-        input.collectionStatus ? eq(collectionStatusValue, input.collectionStatus) : undefined,
-        input.deliveryFeeStatus ? eq(deliveryFeeStatusValue, input.deliveryFeeStatus) : undefined,
-        input.merchantSettlementStatus
-            ? eq(merchantSettlementStatusValue, input.merchantSettlementStatus)
+        input.parcelStatus.length > 0 ? inArray(parcels.status, input.parcelStatus) : undefined,
+        input.codStatus.length > 0 ? inArray(codStatusValue, input.codStatus) : undefined,
+        input.collectionStatus.length > 0
+            ? inArray(collectionStatusValue, input.collectionStatus)
+            : undefined,
+        input.deliveryFeeStatus.length > 0
+            ? inArray(deliveryFeeStatusValue, input.deliveryFeeStatus)
+            : undefined,
+        input.merchantSettlementStatus.length > 0
+            ? inArray(merchantSettlementStatusValue, input.merchantSettlementStatus)
             : undefined,
     );
     const [totalRow] = await db
@@ -178,12 +182,16 @@ async function listMerchantParcels(
                   ilike(townships.name, searchPattern),
               )
             : undefined,
-        input.parcelStatus ? eq(parcels.status, input.parcelStatus) : undefined,
-        input.codStatus ? eq(codStatusValue, input.codStatus) : undefined,
-        input.collectionStatus ? eq(collectionStatusValue, input.collectionStatus) : undefined,
-        input.deliveryFeeStatus ? eq(deliveryFeeStatusValue, input.deliveryFeeStatus) : undefined,
-        input.merchantSettlementStatus
-            ? eq(merchantSettlementStatusValue, input.merchantSettlementStatus)
+        input.parcelStatus.length > 0 ? inArray(parcels.status, input.parcelStatus) : undefined,
+        input.codStatus.length > 0 ? inArray(codStatusValue, input.codStatus) : undefined,
+        input.collectionStatus.length > 0
+            ? inArray(collectionStatusValue, input.collectionStatus)
+            : undefined,
+        input.deliveryFeeStatus.length > 0
+            ? inArray(deliveryFeeStatusValue, input.deliveryFeeStatus)
+            : undefined,
+        input.merchantSettlementStatus.length > 0
+            ? inArray(merchantSettlementStatusValue, input.merchantSettlementStatus)
             : undefined,
     );
     const [totalRow] = await db
@@ -374,8 +382,8 @@ export async function getMerchantParcelsListForViewer(
         ? input
         : {
               ...input,
-              collectionStatus: null,
-              deliveryFeeStatus: null,
+              collectionStatus: [],
+              deliveryFeeStatus: [],
           };
 
     return listMerchantParcels(merchantId, safeInput);
