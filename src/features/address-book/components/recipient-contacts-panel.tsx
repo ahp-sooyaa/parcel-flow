@@ -243,42 +243,48 @@ export function RecipientContactsPanel({
 
     return (
         <div className="space-y-5">
-            <section className="space-y-4 rounded-xl border bg-card p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <h2 className="text-lg font-semibold">Recipient Contacts</h2>
-                        <p className="text-sm text-muted-foreground">
-                            Searchable merchant contacts used for parcel recipient autofill.
-                        </p>
-                    </div>
+            <section className="rounded-xl border bg-card">
+                <div className="border-b px-4 py-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h2 className="text-lg font-semibold">Recipient Contacts</h2>
+                            <p className="text-sm text-muted-foreground">
+                                Searchable merchant contacts used for parcel recipient autofill.
+                            </p>
+                        </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Button type="button" size="sm" onClick={() => setCreateDialogOpen(true)}>
-                            Create Contact
-                        </Button>
-
-                        <form action={bulkDeleteRecipientContactsAction}>
-                            {Array.from(selectedIds).map((contactId) => (
-                                <input
-                                    key={contactId}
-                                    type="hidden"
-                                    name="contactSelections"
-                                    value={`${contacts.find((contact) => contact.id === contactId)?.merchantId ?? ""}:${contactId}`}
-                                />
-                            ))}
+                        <div className="flex flex-wrap items-center gap-2">
                             <Button
-                                type="submit"
-                                variant="destructive"
+                                type="button"
                                 size="sm"
-                                disabled={selectedIds.size === 0}
+                                onClick={() => setCreateDialogOpen(true)}
                             >
-                                Bulk Delete
+                                Create Contact
                             </Button>
-                        </form>
+
+                            <form action={bulkDeleteRecipientContactsAction}>
+                                {Array.from(selectedIds).map((contactId) => (
+                                    <input
+                                        key={contactId}
+                                        type="hidden"
+                                        name="contactSelections"
+                                        value={`${contacts.find((contact) => contact.id === contactId)?.merchantId ?? ""}:${contactId}`}
+                                    />
+                                ))}
+                                <Button
+                                    type="submit"
+                                    variant="destructive"
+                                    size="sm"
+                                    disabled={selectedIds.size === 0}
+                                >
+                                    Bulk Delete
+                                </Button>
+                            </form>
+                        </div>
                     </div>
                 </div>
 
-                <div className="overflow-hidden rounded-xl border">
+                <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-muted/40 text-xs uppercase">
                             <tr>
