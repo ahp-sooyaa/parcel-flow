@@ -3,6 +3,7 @@ import "server-only";
 export type MerchantPickupLocationDto = {
     id: string;
     merchantId: string;
+    merchantLabel?: string | null;
     label: string;
     townshipId: string;
     townshipName: string | null;
@@ -18,6 +19,7 @@ export function toMerchantPickupLocationDto(
     return {
         id: input.id,
         merchantId: input.merchantId,
+        merchantLabel: input.merchantLabel,
         label: input.label,
         townshipId: input.townshipId,
         townshipName: input.townshipName,

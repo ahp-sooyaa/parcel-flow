@@ -18,6 +18,7 @@ export type MerchantContactOptionDto = {
 export type MerchantContactManagementDto = {
     id: string;
     merchantId: string;
+    merchantLabel?: string | null;
     contactLabel: string;
     recipientName: string;
     recipientPhone: string;
@@ -57,6 +58,7 @@ export function toMerchantContactManagementDto(
     return {
         id: input.id,
         merchantId: input.merchantId,
+        merchantLabel: input.merchantLabel,
         contactLabel: input.contactLabel,
         recipientName: input.recipientName,
         recipientPhone: input.recipientPhone,

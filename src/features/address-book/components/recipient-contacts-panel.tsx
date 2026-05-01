@@ -4,6 +4,13 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { FormFieldError } from "@/components/shared/form-field-error";
 import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -24,32 +31,46 @@ const initialState: AddressBookActionResult = {
 };
 
 type RecipientContactsPanelProps = {
-    merchantId: string;
+    merchantId: string | null;
     contacts: MerchantContactManagementDto[];
     townships: {
         id: string;
         label: string;
     }[];
+    merchants: {
+        id: string;
+        label: string;
+    }[];
+    showMerchantColumn?: boolean;
 };
 
 function ContactEditor({
     action,
     merchantId,
     townships,
+    merchants,
     defaults,
     submitLabel,
     title,
+    onSuccess,
+    showHeader,
+    formClassName,
 }: Readonly<{
     action: (
         prevState: AddressBookActionResult,
         formData: FormData,
     ) => Promise<AddressBookActionResult>;
-    merchantId: string;
+    merchantId: string | null;
     townships: {
         id: string;
         label: string;
     }[];
+    merchants: {
+        id: string;
+        label: string;
+    }[];
     defaults?: {
+        merchantId?: string;
         contactId?: string;
         contactLabel?: string;
         recipientName?: string;
@@ -59,6 +80,9 @@ function ContactEditor({
     };
     submitLabel: string;
     title: string;
+    showHeader?: boolean;
+    formClassName?: string;
+    onSuccess?: () => void;
 }>) {
     const router = useRouter();
     const formRef = useRef<HTMLFormElement>(null);
@@ -74,20 +98,50 @@ function ContactEditor({
         }
 
         if (state.ok) {
+            onSuccess?.();
             router.refresh();
         }
-    }, [defaults?.contactId, router, state.message, state.ok]);
+    }, [defaults?.contactId, onSuccess, router, state.message, state.ok]);
 
     return (
-        <form ref={formRef} action={formAction} className="space-y-4 rounded-xl border bg-card p-4">
-            <div className="space-y-1">
-                <h3 className="text-sm font-semibold">{title}</h3>
-                <p className="text-xs text-muted-foreground">
-                    Save merchant-scoped recipient details for faster parcel entry.
-                </p>
-            </div>
+        <form
+            ref={formRef}
+            action={formAction}
+            className={cn("space-y-4 rounded-xl border bg-card p-4", formClassName)}
+        >
+            {showHeader === false ? null : (
+                <div className="space-y-1">
+                    <h3 className="text-sm font-semibold">{title}</h3>
+                    <p className="text-xs text-muted-foreground">
+                        Save merchant-scoped recipient details for faster parcel entry.
+                    </p>
+                </div>
+            )}
 
-            <input type="hidden" name="merchantId" value={merchantId} />
+            {merchantId ? (
+                <input type="hidden" name="merchantId" value={merchantId} />
+            ) : (
+                <div className="grid gap-2">
+                    <Label htmlFor={`${submitLabel}-merchant-id`}>Merchant *</Label>
+                    <select
+                        id={`${submitLabel}-merchant-id`}
+                        name="merchantId"
+                        defaultValue={defaults?.merchantId ?? ""}
+                        className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                        required
+                    >
+                        <option value="" disabled>
+                            Select merchant
+                        </option>
+                        {merchants.map((merchant) => (
+                            <option key={merchant.id} value={merchant.id}>
+                                {merchant.label}
+                            </option>
+                        ))}
+                    </select>
+                    <FormFieldError message={state.fieldErrors?.merchantId?.[0]} />
+                </div>
+            )}
             {defaults?.contactId ? (
                 <input type="hidden" name="contactId" value={defaults.contactId} />
             ) : null}
@@ -180,19 +234,15 @@ export function RecipientContactsPanel({
     merchantId,
     contacts,
     townships,
+    merchants,
+    showMerchantColumn = false,
 }: Readonly<RecipientContactsPanelProps>) {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [createDialogOpen, setCreateDialogOpen] = useState(false);
+    const [editingContact, setEditingContact] = useState<MerchantContactManagementDto | null>(null);
 
     return (
         <div className="space-y-5">
-            <ContactEditor
-                action={createRecipientContactAction}
-                merchantId={merchantId}
-                townships={townships}
-                submitLabel="Create Contact"
-                title="New Recipient Contact"
-            />
-
             <section className="space-y-4 rounded-xl border bg-card p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -202,25 +252,30 @@ export function RecipientContactsPanel({
                         </p>
                     </div>
 
-                    <form action={bulkDeleteRecipientContactsAction}>
-                        <input type="hidden" name="merchantId" value={merchantId} />
-                        {Array.from(selectedIds).map((contactId) => (
-                            <input
-                                key={contactId}
-                                type="hidden"
-                                name="contactIds"
-                                value={contactId}
-                            />
-                        ))}
-                        <Button
-                            type="submit"
-                            variant="destructive"
-                            size="sm"
-                            disabled={selectedIds.size === 0}
-                        >
-                            Bulk Delete
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button type="button" size="sm" onClick={() => setCreateDialogOpen(true)}>
+                            Create Contact
                         </Button>
-                    </form>
+
+                        <form action={bulkDeleteRecipientContactsAction}>
+                            {Array.from(selectedIds).map((contactId) => (
+                                <input
+                                    key={contactId}
+                                    type="hidden"
+                                    name="contactSelections"
+                                    value={`${contacts.find((contact) => contact.id === contactId)?.merchantId ?? ""}:${contactId}`}
+                                />
+                            ))}
+                            <Button
+                                type="submit"
+                                variant="destructive"
+                                size="sm"
+                                disabled={selectedIds.size === 0}
+                            >
+                                Bulk Delete
+                            </Button>
+                        </form>
+                    </div>
                 </div>
 
                 <div className="overflow-hidden rounded-xl border">
@@ -228,6 +283,9 @@ export function RecipientContactsPanel({
                         <thead className="bg-muted/40 text-xs uppercase">
                             <tr>
                                 <th className="px-4 py-3">Select</th>
+                                {showMerchantColumn ? (
+                                    <th className="px-4 py-3">Merchant</th>
+                                ) : null}
                                 <th className="px-4 py-3">Label</th>
                                 <th className="px-4 py-3">Recipient</th>
                                 <th className="px-4 py-3">Phone</th>
@@ -239,8 +297,11 @@ export function RecipientContactsPanel({
                         <tbody>
                             {contacts.length === 0 ? (
                                 <tr>
-                                    <td className="px-4 py-6 text-muted-foreground" colSpan={7}>
-                                        No recipient contacts found for this merchant.
+                                    <td
+                                        className="px-4 py-6 text-muted-foreground"
+                                        colSpan={showMerchantColumn ? 8 : 7}
+                                    >
+                                        No recipient contacts found.
                                     </td>
                                 </tr>
                             ) : (
@@ -266,6 +327,11 @@ export function RecipientContactsPanel({
                                                 className="h-4 w-4"
                                             />
                                         </td>
+                                        {showMerchantColumn ? (
+                                            <td className="px-4 py-3">
+                                                {contact.merchantLabel ?? "-"}
+                                            </td>
+                                        ) : null}
                                         <td className="px-4 py-3 font-medium">
                                             {contact.contactLabel}
                                         </td>
@@ -276,39 +342,21 @@ export function RecipientContactsPanel({
                                         </td>
                                         <td className="px-4 py-3">{contact.recipientAddress}</td>
                                         <td className="px-4 py-3">
-                                            <div className="space-y-2">
-                                                <details className="rounded-lg border bg-muted/10 p-2">
-                                                    <summary className="cursor-pointer text-sm font-medium">
-                                                        Edit
-                                                    </summary>
-                                                    <div className="mt-3">
-                                                        <ContactEditor
-                                                            action={updateRecipientContactAction}
-                                                            merchantId={merchantId}
-                                                            townships={townships}
-                                                            defaults={{
-                                                                contactId: contact.id,
-                                                                contactLabel: contact.contactLabel,
-                                                                recipientName:
-                                                                    contact.recipientName,
-                                                                recipientPhone:
-                                                                    contact.recipientPhone,
-                                                                recipientTownshipId:
-                                                                    contact.recipientTownshipId,
-                                                                recipientAddress:
-                                                                    contact.recipientAddress,
-                                                            }}
-                                                            submitLabel="Save Changes"
-                                                            title={`Edit ${contact.contactLabel}`}
-                                                        />
-                                                    </div>
-                                                </details>
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => setEditingContact(contact)}
+                                                >
+                                                    Edit
+                                                </Button>
 
                                                 <form action={deleteRecipientContactAction}>
                                                     <input
                                                         type="hidden"
                                                         name="merchantId"
-                                                        value={merchantId}
+                                                        value={contact.merchantId}
                                                     />
                                                     <input
                                                         type="hidden"
@@ -332,6 +380,74 @@ export function RecipientContactsPanel({
                     </table>
                 </div>
             </section>
+
+            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>New Recipient Contact</DialogTitle>
+                        <DialogDescription>
+                            Save merchant-scoped recipient details for faster parcel entry.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <ContactEditor
+                        action={createRecipientContactAction}
+                        merchantId={merchantId}
+                        townships={townships}
+                        merchants={merchants}
+                        submitLabel="Create Contact"
+                        title="New Recipient Contact"
+                        showHeader={false}
+                        formClassName="rounded-none border-0 bg-transparent p-0"
+                        onSuccess={() => setCreateDialogOpen(false)}
+                    />
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={Boolean(editingContact)}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setEditingContact(null);
+                    }
+                }}
+            >
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>
+                            {editingContact
+                                ? `Edit ${editingContact.contactLabel}`
+                                : "Edit Recipient Contact"}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Save merchant-scoped recipient details for faster parcel entry.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {editingContact ? (
+                        <ContactEditor
+                            action={updateRecipientContactAction}
+                            merchantId={editingContact.merchantId}
+                            townships={townships}
+                            merchants={merchants}
+                            defaults={{
+                                merchantId: editingContact.merchantId,
+                                contactId: editingContact.id,
+                                contactLabel: editingContact.contactLabel,
+                                recipientName: editingContact.recipientName,
+                                recipientPhone: editingContact.recipientPhone,
+                                recipientTownshipId: editingContact.recipientTownshipId,
+                                recipientAddress: editingContact.recipientAddress,
+                            }}
+                            submitLabel="Save Changes"
+                            title={`Edit ${editingContact.contactLabel}`}
+                            showHeader={false}
+                            formClassName="rounded-none border-0 bg-transparent p-0"
+                            onSuccess={() => setEditingContact(null)}
+                        />
+                    ) : null}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

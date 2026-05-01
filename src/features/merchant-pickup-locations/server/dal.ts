@@ -1,7 +1,7 @@
 import "server-only";
-import { and, asc, eq, ilike, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import { db, type DbClient } from "@/db";
-import { merchantPickupLocations, townships } from "@/db/schema";
+import { merchantPickupLocations, merchants, townships } from "@/db/schema";
 import {
     toMerchantPickupLocationDto,
     type MerchantPickupLocationDto,
@@ -55,12 +55,49 @@ export async function searchMerchantPickupLocations(
 }
 
 export async function listMerchantPickupLocations(input: {
-    merchantId: string;
+    merchantId?: string;
+    query?: string;
 }): Promise<MerchantPickupLocationDto[]> {
-    return searchMerchantPickupLocations({
-        merchantId: input.merchantId,
-        query: "",
-    });
+    const searchPattern = input.query ? toMerchantPickupLocationSearchPattern(input.query) : null;
+    const rows = await db
+        .select({
+            id: merchantPickupLocations.id,
+            merchantId: merchantPickupLocations.merchantId,
+            merchantLabel: merchants.shopName,
+            label: merchantPickupLocations.label,
+            townshipId: merchantPickupLocations.townshipId,
+            townshipName: townships.name,
+            pickupAddress: merchantPickupLocations.pickupAddress,
+            isDefault: merchantPickupLocations.isDefault,
+            createdAt: merchantPickupLocations.createdAt,
+            updatedAt: merchantPickupLocations.updatedAt,
+        })
+        .from(merchantPickupLocations)
+        .leftJoin(merchants, eq(merchantPickupLocations.merchantId, merchants.appUserId))
+        .leftJoin(townships, eq(merchantPickupLocations.townshipId, townships.id))
+        .where(
+            and(
+                input.merchantId
+                    ? eq(merchantPickupLocations.merchantId, input.merchantId)
+                    : undefined,
+                searchPattern
+                    ? or(
+                          ilike(merchants.shopName, searchPattern),
+                          ilike(merchantPickupLocations.label, searchPattern),
+                          ilike(merchantPickupLocations.pickupAddress, searchPattern),
+                          ilike(townships.name, searchPattern),
+                      )
+                    : undefined,
+            ),
+        )
+        .orderBy(
+            asc(merchants.shopName),
+            sql`${merchantPickupLocations.isDefault} desc`,
+            asc(merchantPickupLocations.label),
+            asc(merchantPickupLocations.createdAt),
+        );
+
+    return rows.map((row) => toMerchantPickupLocationDto(row));
 }
 
 export async function findMerchantPickupLocationById(input: {
@@ -240,6 +277,27 @@ export async function deleteMerchantPickupLocation(input: {
             and(
                 eq(merchantPickupLocations.id, input.pickupLocationId),
                 eq(merchantPickupLocations.merchantId, input.merchantId),
+            ),
+        );
+}
+
+export async function bulkDeleteMerchantPickupLocations(input: {
+    merchantId: string;
+    pickupLocationIds: string[];
+    dbClient?: MerchantPickupLocationWriteClient;
+}) {
+    if (input.pickupLocationIds.length === 0) {
+        return;
+    }
+
+    const client = input.dbClient ?? db;
+
+    await client
+        .delete(merchantPickupLocations)
+        .where(
+            and(
+                eq(merchantPickupLocations.merchantId, input.merchantId),
+                inArray(merchantPickupLocations.id, input.pickupLocationIds),
             ),
         );
 }

@@ -78,7 +78,7 @@ export default async function AddressBookPage({ searchParams }: Readonly<Address
                                 defaultValue={pageData.selectedMerchantId ?? ""}
                                 className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                             >
-                                <option value="">Select merchant</option>
+                                <option value="">All merchants</option>
                                 {pageData.merchants.map((merchant) => (
                                     <option key={merchant.id} value={merchant.id}>
                                         {merchant.label}
@@ -87,20 +87,22 @@ export default async function AddressBookPage({ searchParams }: Readonly<Address
                             </select>
                         </div>
 
-                        {activeTab === "recipient-contacts" ? (
-                            <div className="grid min-w-[260px] gap-2">
-                                <label htmlFor="q" className="text-sm font-medium">
-                                    Search Contacts
-                                </label>
-                                <input
-                                    id="q"
-                                    name="q"
-                                    defaultValue={query}
-                                    placeholder="Search label, recipient, phone, township, or address"
-                                    className="h-9 rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                                />
-                            </div>
-                        ) : null}
+                        <div className="grid min-w-[260px] gap-2">
+                            <label htmlFor="q" className="text-sm font-medium">
+                                Search
+                            </label>
+                            <input
+                                id="q"
+                                name="q"
+                                defaultValue={query}
+                                placeholder={
+                                    activeTab === "recipient-contacts"
+                                        ? "Filter by merchant, label, recipient, phone, township, or address"
+                                        : "Filter by merchant, label, township, or address"
+                                }
+                                className="h-9 rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                            />
+                        </div>
 
                         <input type="hidden" name="tab" value={activeTab} />
                         <Button type="submit" variant="outline">
@@ -110,60 +112,48 @@ export default async function AddressBookPage({ searchParams }: Readonly<Address
                 </form>
             ) : null}
 
-            {!pageData.selectedMerchantId ? (
-                <div className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
-                    Select a merchant to manage recipient contacts and pickup locations.
-                </div>
-            ) : (
-                <>
-                    <nav
-                        className="flex items-center gap-1 overflow-x-auto border-b"
-                        aria-label="Address book tabs"
-                    >
-                        <Link
-                            href={recipientContactsHref}
-                            className={cn(
-                                "border-b-2 px-4 py-2 text-sm font-medium transition-colors",
-                                {
-                                    "border-primary text-foreground":
-                                        activeTab === "recipient-contacts",
-                                    "border-transparent text-muted-foreground hover:text-foreground":
-                                        activeTab !== "recipient-contacts",
-                                },
-                            )}
-                        >
-                            Recipient Contacts
-                        </Link>
-                        <Link
-                            href={pickupLocationsHref}
-                            className={cn(
-                                "border-b-2 px-4 py-2 text-sm font-medium transition-colors",
-                                {
-                                    "border-primary text-foreground":
-                                        activeTab === "pickup-locations",
-                                    "border-transparent text-muted-foreground hover:text-foreground":
-                                        activeTab !== "pickup-locations",
-                                },
-                            )}
-                        >
-                            Pickup Locations
-                        </Link>
-                    </nav>
+            <nav
+                className="flex items-center gap-1 overflow-x-auto border-b"
+                aria-label="Address book tabs"
+            >
+                <Link
+                    href={recipientContactsHref}
+                    className={cn("border-b-2 px-4 py-2 text-sm font-medium transition-colors", {
+                        "border-primary text-foreground": activeTab === "recipient-contacts",
+                        "border-transparent text-muted-foreground hover:text-foreground":
+                            activeTab !== "recipient-contacts",
+                    })}
+                >
+                    Recipient Contacts
+                </Link>
+                <Link
+                    href={pickupLocationsHref}
+                    className={cn("border-b-2 px-4 py-2 text-sm font-medium transition-colors", {
+                        "border-primary text-foreground": activeTab === "pickup-locations",
+                        "border-transparent text-muted-foreground hover:text-foreground":
+                            activeTab !== "pickup-locations",
+                    })}
+                >
+                    Pickup Locations
+                </Link>
+            </nav>
 
-                    {activeTab === "recipient-contacts" ? (
-                        <RecipientContactsPanel
-                            merchantId={pageData.selectedMerchantId}
-                            contacts={pageData.recipientContacts}
-                            townships={pageData.townships}
-                        />
-                    ) : (
-                        <PickupLocationsPanel
-                            merchantId={pageData.selectedMerchantId}
-                            pickupLocations={pageData.pickupLocations}
-                            townships={pageData.townships}
-                        />
-                    )}
-                </>
+            {activeTab === "recipient-contacts" ? (
+                <RecipientContactsPanel
+                    merchantId={pageData.selectedMerchantId}
+                    contacts={pageData.recipientContacts}
+                    townships={pageData.townships}
+                    merchants={pageData.merchants}
+                    showMerchantColumn={access.canSelectMerchant}
+                />
+            ) : (
+                <PickupLocationsPanel
+                    merchantId={pageData.selectedMerchantId}
+                    pickupLocations={pageData.pickupLocations}
+                    townships={pageData.townships}
+                    merchants={pageData.merchants}
+                    showMerchantColumn={access.canSelectMerchant}
+                />
             )}
         </section>
     );

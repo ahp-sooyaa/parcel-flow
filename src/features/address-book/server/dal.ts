@@ -31,16 +31,17 @@ export async function getAddressBookPageData(
               ? input.merchantId
               : null;
 
-    const [townships, recipientContacts, pickupLocations] = selectedMerchantId
-        ? await Promise.all([
-              getTownshipOptions(),
-              listMerchantContactsForManagement({
-                  merchantId: selectedMerchantId,
-                  query: input.query,
-              }),
-              listMerchantPickupLocations({ merchantId: selectedMerchantId }),
-          ])
-        : [[], [], []];
+    const [townships, recipientContacts, pickupLocations] = await Promise.all([
+        getTownshipOptions(),
+        listMerchantContactsForManagement({
+            merchantId: selectedMerchantId ?? undefined,
+            query: input.query,
+        }),
+        listMerchantPickupLocations({
+            merchantId: selectedMerchantId ?? undefined,
+            query: input.query,
+        }),
+    ]);
 
     return {
         selectedMerchantId,

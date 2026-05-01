@@ -398,9 +398,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
         ) satisfies Record<string, ParcelRowQuoteState>;
     const initialParcelRowsRef = useRef<ParcelRowDraft[] | null>(null);
 
-    if (!initialParcelRowsRef.current) {
-        initialParcelRowsRef.current = buildParcelRowsFromFields(state.fields);
-    }
+    initialParcelRowsRef.current ??= buildParcelRowsFromFields(state.fields);
 
     const initialParcelRows = initialParcelRowsRef.current;
     const [selectedMerchantId, setSelectedMerchantId] = useState(
@@ -882,6 +880,7 @@ export function CreateParcelForm({ options, readOnly }: Readonly<CreateParcelFor
                                     options={merchantOptions}
                                     placeholder="Search merchant"
                                     emptyLabel="No merchant found."
+                                    allowClear
                                     required
                                     invalid={Boolean(getFieldError("merchantId"))}
                                 />

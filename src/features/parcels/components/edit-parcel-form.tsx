@@ -438,6 +438,7 @@ export function EditParcelForm({ parcel, options, readOnly }: Readonly<EditParce
                                 options={merchantOptions}
                                 placeholder="Search merchant"
                                 emptyLabel="No merchant found."
+                                allowClear
                                 required
                                 invalid={Boolean(getFieldError("merchantId"))}
                             />

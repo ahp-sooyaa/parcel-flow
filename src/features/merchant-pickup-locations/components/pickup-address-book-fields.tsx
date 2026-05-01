@@ -51,7 +51,7 @@ export function PickupAddressBookFields({
     const selectedTownship =
         townships.find((township) => township.id === values.pickupTownshipId)?.label ?? null;
     const hasSelectedPickupLocation = Boolean(values.pickupLocationId);
-    const shouldShowDetails = detailsExpanded || !hasSelectedPickupLocation;
+    const shouldShowDetails = !hasSelectedPickupLocation || detailsExpanded;
     const getFieldError = (fieldName: string) => fieldErrors?.[fieldName]?.[0];
 
     useEffect(() => {
@@ -71,10 +71,6 @@ export function PickupAddressBookFields({
             savePickupLocation: false,
         });
     }, [merchantId, onChange]);
-
-    useEffect(() => {
-        setDetailsExpanded(!values.pickupLocationId);
-    }, [values.pickupLocationId]);
 
     useEffect(() => {
         if (values.pickupLocationId && values.pickupLocationLabel) {
@@ -107,40 +103,17 @@ export function PickupAddressBookFields({
         return () => clearTimeout(timeoutId);
     }, [merchantId, searchQuery]);
 
-    const clearForNewPickup = () => {
-        setSearchQuery("");
-        setDetailsExpanded(true);
-        onChange({
-            pickupLocationId: "",
-            pickupLocationLabel: "",
-            pickupTownshipId: "",
-            pickupAddress: "",
-            savePickupLocation: false,
-        });
-    };
-
     return (
         <div className="space-y-4">
             <div className="grid gap-2">
                 <div className="flex items-center justify-between gap-3">
                     <Label htmlFor="pickupLocationId">Search Pickup Location</Label>
-                    <div className="flex items-center gap-2">
-                        {isSearching ? (
-                            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                                <LoaderCircleIcon className="size-3 animate-spin" />
-                                Searching...
-                            </span>
-                        ) : null}
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={clearForNewPickup}
-                            disabled={!merchantId}
-                        >
-                            Add New
-                        </Button>
-                    </div>
+                    {isSearching ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                            <LoaderCircleIcon className="size-3 animate-spin" />
+                            Searching...
+                        </span>
+                    ) : null}
                 </div>
                 <SearchableCombobox
                     id="pickupLocationId"
@@ -294,7 +267,7 @@ export function PickupAddressBookFields({
                                 onChange({ savePickupLocation: event.target.checked })
                             }
                             className="h-4 w-4"
-                        />
+                        />{" "}
                         Save/Update this location in the merchant&apos;s address book
                     </label>
                     <FormFieldError message={getFieldError("savePickupLocation")} />

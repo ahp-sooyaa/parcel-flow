@@ -1,12 +1,20 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { FormFieldError } from "@/components/shared/form-field-error";
 import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+    bulkDeletePickupLocationsAction,
     createPickupLocationAction,
     deletePickupLocationAction,
     setDefaultPickupLocationAction,
@@ -24,34 +32,50 @@ const initialState: AddressBookActionResult = {
 };
 
 type PickupLocationsPanelProps = {
-    merchantId: string;
+    merchantId: string | null;
     pickupLocations: MerchantPickupLocationDto[];
     townships: {
         id: string;
         label: string;
     }[];
+    merchants: {
+        id: string;
+        label: string;
+    }[];
+    showMerchantColumn?: boolean;
 };
 
 function PickupLocationEditor({
     action,
     merchantId,
     townships,
+    merchants,
     defaults,
     submitLabel,
     title,
+    onSuccess,
+    showHeader,
+    formClassName,
 }: Readonly<{
     action: (
         prevState: AddressBookActionResult,
         formData: FormData,
     ) => Promise<AddressBookActionResult>;
-    merchantId: string;
+    merchantId: string | null;
     townships: {
+        id: string;
+        label: string;
+    }[];
+    merchants: {
         id: string;
         label: string;
     }[];
     defaults?: MerchantPickupLocationDto;
     submitLabel: string;
     title: string;
+    showHeader?: boolean;
+    formClassName?: string;
+    onSuccess?: () => void;
 }>) {
     const router = useRouter();
     const formRef = useRef<HTMLFormElement>(null);
@@ -67,20 +91,50 @@ function PickupLocationEditor({
         }
 
         if (state.ok) {
+            onSuccess?.();
             router.refresh();
         }
-    }, [defaults?.id, router, state.message, state.ok]);
+    }, [defaults?.id, onSuccess, router, state.message, state.ok]);
 
     return (
-        <form ref={formRef} action={formAction} className="space-y-4 rounded-xl border bg-card p-4">
-            <div className="space-y-1">
-                <h3 className="text-sm font-semibold">{title}</h3>
-                <p className="text-xs text-muted-foreground">
-                    Manage saved pickup locations used by parcel create and edit forms.
-                </p>
-            </div>
+        <form
+            ref={formRef}
+            action={formAction}
+            className={cn("space-y-4 rounded-xl border bg-card p-4", formClassName)}
+        >
+            {showHeader === false ? null : (
+                <div className="space-y-1">
+                    <h3 className="text-sm font-semibold">{title}</h3>
+                    <p className="text-xs text-muted-foreground">
+                        Manage saved pickup locations used by parcel create and edit forms.
+                    </p>
+                </div>
+            )}
 
-            <input type="hidden" name="merchantId" value={merchantId} />
+            {merchantId ? (
+                <input type="hidden" name="merchantId" value={merchantId} />
+            ) : (
+                <div className="grid gap-2">
+                    <Label htmlFor={`${submitLabel}-merchant-id`}>Merchant *</Label>
+                    <select
+                        id={`${submitLabel}-merchant-id`}
+                        name="merchantId"
+                        defaultValue={defaults?.merchantId ?? ""}
+                        className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                        required
+                    >
+                        <option value="" disabled>
+                            Select merchant
+                        </option>
+                        {merchants.map((merchant) => (
+                            <option key={merchant.id} value={merchant.id}>
+                                {merchant.label}
+                            </option>
+                        ))}
+                    </select>
+                    <FormFieldError message={state.fieldErrors?.merchantId?.[0]} />
+                </div>
+            )}
             {defaults?.id ? (
                 <input type="hidden" name="pickupLocationId" value={defaults.id} />
             ) : null}
@@ -138,7 +192,7 @@ function PickupLocationEditor({
                     name="isDefault"
                     defaultChecked={defaults?.isDefault}
                     className="h-4 w-4"
-                />
+                />{" "}
                 Set as default
             </label>
 
@@ -164,108 +218,245 @@ export function PickupLocationsPanel({
     merchantId,
     pickupLocations,
     townships,
+    merchants,
+    showMerchantColumn = false,
 }: Readonly<PickupLocationsPanelProps>) {
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [createDialogOpen, setCreateDialogOpen] = useState(false);
+    const [editingPickupLocation, setEditingPickupLocation] =
+        useState<MerchantPickupLocationDto | null>(null);
+
     return (
         <div className="space-y-5">
-            <PickupLocationEditor
-                action={createPickupLocationAction}
-                merchantId={merchantId}
-                townships={townships}
-                submitLabel="Create Pickup Location"
-                title="New Pickup Location"
-            />
+            <section className="space-y-4 rounded-xl border bg-card p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h2 className="text-lg font-semibold">Pickup Locations</h2>
+                        <p className="text-sm text-muted-foreground">
+                            Manage merchant pickup points and mark one as the default parcel source.
+                        </p>
+                    </div>
 
-            <section className="space-y-4">
-                <div>
-                    <h2 className="text-lg font-semibold">Pickup Locations</h2>
-                    <p className="text-sm text-muted-foreground">
-                        Manage merchant pickup points and mark one as the default parcel source.
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button type="button" size="sm" onClick={() => setCreateDialogOpen(true)}>
+                            Create Pickup Location
+                        </Button>
+
+                        <form action={bulkDeletePickupLocationsAction}>
+                            {Array.from(selectedIds).map((pickupLocationId) => (
+                                <input
+                                    key={pickupLocationId}
+                                    type="hidden"
+                                    name="pickupLocationSelections"
+                                    value={`${pickupLocations.find((pickupLocation) => pickupLocation.id === pickupLocationId)?.merchantId ?? ""}:${pickupLocationId}`}
+                                />
+                            ))}
+                            <Button
+                                type="submit"
+                                variant="destructive"
+                                size="sm"
+                                disabled={selectedIds.size === 0}
+                            >
+                                Bulk Delete
+                            </Button>
+                        </form>
+                    </div>
                 </div>
 
-                {pickupLocations.length === 0 ? (
-                    <div className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
-                        No pickup locations found for this merchant.
-                    </div>
-                ) : (
-                    <div className="grid gap-4 md:grid-cols-2">
-                        {pickupLocations.map((pickupLocation) => (
-                            <article
-                                key={pickupLocation.id}
-                                className="rounded-xl border bg-card p-4"
-                            >
-                                <div className="space-y-3">
-                                    <div className="flex flex-wrap items-start justify-between gap-3">
-                                        <div className="space-y-1">
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <h3 className="text-base font-semibold">
-                                                    {pickupLocation.label}
-                                                </h3>
-                                                {pickupLocation.isDefault ? (
-                                                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                                                        Default
-                                                    </span>
-                                                ) : null}
-                                            </div>
-                                            <p className="text-sm text-muted-foreground">
-                                                {pickupLocation.townshipName ?? "-"}
-                                            </p>
-                                        </div>
+                <div className="overflow-hidden rounded-xl border">
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-muted/40 text-xs uppercase">
+                            <tr>
+                                <th className="px-4 py-3">Select</th>
+                                {showMerchantColumn ? (
+                                    <th className="px-4 py-3">Merchant</th>
+                                ) : null}
+                                <th className="px-4 py-3">Label</th>
+                                <th className="px-4 py-3">Township</th>
+                                <th className="px-4 py-3">Address</th>
+                                <th className="px-4 py-3">Default</th>
+                                <th className="px-4 py-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {pickupLocations.length === 0 ? (
+                                <tr>
+                                    <td
+                                        className="px-4 py-6 text-muted-foreground"
+                                        colSpan={showMerchantColumn ? 7 : 6}
+                                    >
+                                        No pickup locations found.
+                                    </td>
+                                </tr>
+                            ) : (
+                                pickupLocations.map((pickupLocation) => (
+                                    <tr key={pickupLocation.id} className="border-t">
+                                        <td className="px-4 py-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedIds.has(pickupLocation.id)}
+                                                onChange={(event) => {
+                                                    setSelectedIds((current) => {
+                                                        const next = new Set(current);
 
-                                        {!pickupLocation.isDefault ? (
-                                            <form action={setDefaultPickupLocationAction}>
-                                                <input
-                                                    type="hidden"
-                                                    name="merchantId"
-                                                    value={merchantId}
-                                                />
-                                                <input
-                                                    type="hidden"
-                                                    name="pickupLocationId"
-                                                    value={pickupLocation.id}
-                                                />
-                                                <Button type="submit" size="sm" variant="outline">
-                                                    Set as Default
-                                                </Button>
-                                            </form>
-                                        ) : null}
-                                    </div>
+                                                        if (event.target.checked) {
+                                                            next.add(pickupLocation.id);
+                                                        } else {
+                                                            next.delete(pickupLocation.id);
+                                                        }
 
-                                    <p className="text-sm">{pickupLocation.pickupAddress}</p>
-
-                                    <details className="rounded-lg border bg-muted/10 p-2">
-                                        <summary className="cursor-pointer text-sm font-medium">
-                                            Edit
-                                        </summary>
-                                        <div className="mt-3">
-                                            <PickupLocationEditor
-                                                action={updatePickupLocationAction}
-                                                merchantId={merchantId}
-                                                townships={townships}
-                                                defaults={pickupLocation}
-                                                submitLabel="Save Changes"
-                                                title={`Edit ${pickupLocation.label}`}
+                                                        return next;
+                                                    });
+                                                }}
+                                                className="h-4 w-4"
                                             />
-                                        </div>
-                                    </details>
+                                        </td>
+                                        {showMerchantColumn ? (
+                                            <td className="px-4 py-3">
+                                                {pickupLocation.merchantLabel ?? "-"}
+                                            </td>
+                                        ) : null}
+                                        <td className="px-4 py-3 font-medium">
+                                            {pickupLocation.label}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {pickupLocation.townshipName ?? "-"}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {pickupLocation.pickupAddress}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {pickupLocation.isDefault ? (
+                                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                                                    Default
+                                                </span>
+                                            ) : (
+                                                "-"
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex gap-2">
+                                                {!pickupLocation.isDefault ? (
+                                                    <form action={setDefaultPickupLocationAction}>
+                                                        <input
+                                                            type="hidden"
+                                                            name="merchantId"
+                                                            value={pickupLocation.merchantId}
+                                                        />
+                                                        <input
+                                                            type="hidden"
+                                                            name="pickupLocationId"
+                                                            value={pickupLocation.id}
+                                                        />
+                                                        <Button
+                                                            type="submit"
+                                                            size="sm"
+                                                            variant="outline"
+                                                        >
+                                                            Set as Default
+                                                        </Button>
+                                                    </form>
+                                                ) : null}
 
-                                    <form action={deletePickupLocationAction}>
-                                        <input type="hidden" name="merchantId" value={merchantId} />
-                                        <input
-                                            type="hidden"
-                                            name="pickupLocationId"
-                                            value={pickupLocation.id}
-                                        />
-                                        <Button type="submit" size="sm" variant="outline">
-                                            Delete
-                                        </Button>
-                                    </form>
-                                </div>
-                            </article>
-                        ))}
-                    </div>
-                )}
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() =>
+                                                        setEditingPickupLocation(pickupLocation)
+                                                    }
+                                                >
+                                                    Edit
+                                                </Button>
+
+                                                <form action={deletePickupLocationAction}>
+                                                    <input
+                                                        type="hidden"
+                                                        name="merchantId"
+                                                        value={pickupLocation.merchantId}
+                                                    />
+                                                    <input
+                                                        type="hidden"
+                                                        name="pickupLocationId"
+                                                        value={pickupLocation.id}
+                                                    />
+                                                    <Button
+                                                        type="submit"
+                                                        size="sm"
+                                                        variant="outline"
+                                                    >
+                                                        Delete
+                                                    </Button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </section>
+
+            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>New Pickup Location</DialogTitle>
+                        <DialogDescription>
+                            Manage saved pickup locations used by parcel create and edit forms.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <PickupLocationEditor
+                        action={createPickupLocationAction}
+                        merchantId={merchantId}
+                        townships={townships}
+                        merchants={merchants}
+                        submitLabel="Create Pickup Location"
+                        title="New Pickup Location"
+                        showHeader={false}
+                        formClassName="rounded-none border-0 bg-transparent p-0"
+                        onSuccess={() => setCreateDialogOpen(false)}
+                    />
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={Boolean(editingPickupLocation)}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setEditingPickupLocation(null);
+                    }
+                }}
+            >
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>
+                            {editingPickupLocation
+                                ? `Edit ${editingPickupLocation.label}`
+                                : "Edit Pickup Location"}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Manage saved pickup locations used by parcel create and edit forms.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {editingPickupLocation ? (
+                        <PickupLocationEditor
+                            action={updatePickupLocationAction}
+                            merchantId={editingPickupLocation.merchantId}
+                            townships={townships}
+                            merchants={merchants}
+                            defaults={editingPickupLocation}
+                            submitLabel="Save Changes"
+                            title={`Edit ${editingPickupLocation.label}`}
+                            showHeader={false}
+                            formClassName="rounded-none border-0 bg-transparent p-0"
+                            onSuccess={() => setEditingPickupLocation(null)}
+                        />
+                    ) : null}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

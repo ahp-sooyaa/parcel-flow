@@ -53,7 +53,7 @@ export function RecipientAddressBookFields({
     const selectedTownship =
         townships.find((township) => township.id === values.recipientTownshipId)?.label ?? null;
     const hasSelectedContact = Boolean(values.selectedMerchantContactId);
-    const shouldShowDetails = detailsExpanded || !hasSelectedContact;
+    const shouldShowDetails = !hasSelectedContact || detailsExpanded;
     const getFieldError = (fieldName: string) => fieldErrors?.[fieldName]?.[0];
 
     useEffect(() => {
@@ -69,10 +69,6 @@ export function RecipientAddressBookFields({
             selectedMerchantContactId: "",
         });
     }, [merchantId, onChange]);
-
-    useEffect(() => {
-        setDetailsExpanded(!values.selectedMerchantContactId);
-    }, [values.selectedMerchantContactId]);
 
     useEffect(() => {
         if (values.selectedMerchantContactId && values.contactLabel) {

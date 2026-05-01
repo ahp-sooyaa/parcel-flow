@@ -12,7 +12,7 @@ import {
     type MerchantContactSearchInput,
 } from "./utils";
 import { db, type DbClient } from "@/db";
-import { merchantContacts, townships } from "@/db/schema";
+import { merchantContacts, merchants, townships } from "@/db/schema";
 
 type MerchantContactWriteClient = Pick<DbClient, "insert" | "update" | "select" | "delete">;
 
@@ -44,7 +44,7 @@ export async function searchMerchantContacts(
 }
 
 export async function listMerchantContactsForManagement(input: {
-    merchantId: string;
+    merchantId?: string;
     query?: string;
 }): Promise<MerchantContactManagementDto[]> {
     const searchPattern = input.query ? toMerchantContactSearchPattern(input.query) : null;
@@ -52,6 +52,7 @@ export async function listMerchantContactsForManagement(input: {
         .select({
             id: merchantContacts.id,
             merchantId: merchantContacts.merchantId,
+            merchantLabel: merchants.shopName,
             contactLabel: merchantContacts.contactLabel,
             recipientName: merchantContacts.recipientName,
             recipientPhone: merchantContacts.recipientPhone,
@@ -62,12 +63,14 @@ export async function listMerchantContactsForManagement(input: {
             updatedAt: merchantContacts.updatedAt,
         })
         .from(merchantContacts)
+        .leftJoin(merchants, eq(merchantContacts.merchantId, merchants.appUserId))
         .leftJoin(townships, eq(merchantContacts.recipientTownshipId, townships.id))
         .where(
             and(
-                eq(merchantContacts.merchantId, input.merchantId),
+                input.merchantId ? eq(merchantContacts.merchantId, input.merchantId) : undefined,
                 searchPattern
                     ? or(
+                          ilike(merchants.shopName, searchPattern),
                           ilike(merchantContacts.contactLabel, searchPattern),
                           ilike(merchantContacts.recipientName, searchPattern),
                           ilike(merchantContacts.recipientPhone, searchPattern),

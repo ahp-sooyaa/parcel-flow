@@ -17,6 +17,7 @@ import {
     updateMerchantContact,
 } from "@/features/merchant-contacts/server/dal";
 import {
+    bulkDeleteMerchantPickupLocations,
     createMerchantPickupLocation,
     deleteMerchantPickupLocation,
     findMerchantPickupLocationById,
@@ -241,6 +242,49 @@ export async function deleteRecipientContactAction(formData: FormData) {
 
 export async function bulkDeleteRecipientContactsAction(formData: FormData) {
     const currentUser = await requirePermission("address-book.delete");
+    const selections = formData
+        .getAll("contactSelections")
+        .map((value) => String(value).trim())
+        .filter(Boolean);
+
+    if (selections.length > 0) {
+        const groupedSelections = new Map<string, string[]>();
+
+        for (const selection of selections) {
+            const [merchantIdRaw, contactId] = selection.split(":");
+
+            if (!merchantIdRaw || !contactId) {
+                continue;
+            }
+
+            const merchantId = await resolveAddressBookMerchantId(currentUser, merchantIdRaw);
+
+            if (!merchantId) {
+                continue;
+            }
+
+            const currentSelections = groupedSelections.get(merchantId) ?? [];
+            currentSelections.push(contactId);
+            groupedSelections.set(merchantId, currentSelections);
+        }
+
+        for (const [merchantId, contactIds] of groupedSelections) {
+            await bulkDeleteMerchantContacts({ merchantId, contactIds });
+        }
+
+        await logAuditEvent({
+            event: "address-book.recipient-contact.bulk-delete",
+            actorAppUserId: currentUser.appUserId,
+            metadata: {
+                merchantIdsCsv: Array.from(groupedSelections.keys()).join(","),
+                deletedCount: selections.length,
+            },
+        });
+
+        revalidateAddressBookPaths();
+        return;
+    }
+
     const merchantIdRaw = String(formData.get("merchantId") ?? "");
     const merchantId = await resolveAddressBookMerchantId(currentUser, merchantIdRaw);
 
@@ -429,6 +473,77 @@ export async function deletePickupLocationAction(formData: FormData) {
         event: "address-book.pickup-location.delete",
         actorAppUserId: currentUser.appUserId,
         metadata: { merchantId, pickupLocationId: parsed.data.pickupLocationId },
+    });
+
+    revalidateAddressBookPaths();
+}
+
+export async function bulkDeletePickupLocationsAction(formData: FormData) {
+    const currentUser = await requirePermission("address-book.delete");
+    const selections = formData
+        .getAll("pickupLocationSelections")
+        .map((value) => String(value).trim())
+        .filter(Boolean);
+
+    if (selections.length > 0) {
+        const groupedSelections = new Map<string, string[]>();
+
+        for (const selection of selections) {
+            const [merchantIdRaw, pickupLocationId] = selection.split(":");
+
+            if (!merchantIdRaw || !pickupLocationId) {
+                continue;
+            }
+
+            const merchantId = await resolveAddressBookMerchantId(currentUser, merchantIdRaw);
+
+            if (!merchantId) {
+                continue;
+            }
+
+            const currentSelections = groupedSelections.get(merchantId) ?? [];
+            currentSelections.push(pickupLocationId);
+            groupedSelections.set(merchantId, currentSelections);
+        }
+
+        for (const [merchantId, pickupLocationIds] of groupedSelections) {
+            await bulkDeleteMerchantPickupLocations({ merchantId, pickupLocationIds });
+        }
+
+        await logAuditEvent({
+            event: "address-book.pickup-location.bulk-delete",
+            actorAppUserId: currentUser.appUserId,
+            metadata: {
+                merchantIdsCsv: Array.from(groupedSelections.keys()).join(","),
+                deletedCount: selections.length,
+            },
+        });
+
+        revalidateAddressBookPaths();
+        return;
+    }
+
+    const merchantIdRaw = String(formData.get("merchantId") ?? "");
+    const merchantId = await resolveAddressBookMerchantId(currentUser, merchantIdRaw);
+
+    if (!merchantId) {
+        throw new Error("Selected merchant was not found.");
+    }
+
+    const pickupLocationIds = formData
+        .getAll("pickupLocationIds")
+        .map((value) => String(value).trim())
+        .filter(Boolean);
+
+    await bulkDeleteMerchantPickupLocations({ merchantId, pickupLocationIds });
+
+    await logAuditEvent({
+        event: "address-book.pickup-location.bulk-delete",
+        actorAppUserId: currentUser.appUserId,
+        metadata: {
+            merchantId,
+            deletedCount: pickupLocationIds.length,
+        },
     });
 
     revalidateAddressBookPaths();
