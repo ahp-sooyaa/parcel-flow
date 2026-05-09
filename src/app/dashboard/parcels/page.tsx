@@ -2,9 +2,8 @@ import { Plus, Route } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { ParcelTable } from "@/features/parcels/components/parcel-table";
+import { ParcelListView } from "@/features/parcels/components/parcel-list-view";
 import { listParcels } from "@/features/parcels/server/dal";
 
 export default async function ParcelsPage() {
@@ -40,13 +39,7 @@ export default async function ParcelsPage() {
           </>
         }
       />
-      <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_220px_220px_220px]">
-        <Input placeholder="Search parcel code, receiver phone, receiver name, merchant" />
-        <Input placeholder="Township" />
-        <Input placeholder="Rider" />
-        <Input placeholder="Status" />
-      </div>
-      <ParcelTable parcels={parcels} />
+      <ParcelListView parcels={parcels} />
     </>
   );
 }

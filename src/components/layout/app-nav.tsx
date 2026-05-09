@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Banknote,
   Bike,
@@ -28,7 +31,9 @@ const navItems = [
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
-export function AppNav({ className }: { className?: string }) {
+export function AppNav({ className }: Readonly<{ className?: string }>) {
+  const pathname = usePathname();
+
   return (
     <aside className={cn("hidden w-64 shrink-0 border-r bg-[#fafaf8] lg:block", className)}>
       <div className="flex h-16 items-center gap-3 border-b px-5">
@@ -41,16 +46,26 @@ export function AppNav({ className }: { className?: string }) {
         </div>
       </div>
       <nav className="space-y-1 p-3">
-        {navItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground"
-          >
-            <item.icon className="size-4" />
-            {item.label}
-          </Link>
-        ))}
+        {navItems.map((item) => {
+          const isActive =
+            pathname === item.href ||
+            (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={isActive ? "page" : undefined}
+              className={cn(
+                "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground",
+                isActive && "bg-white text-foreground shadow-sm ring-1 ring-border",
+              )}
+            >
+              <item.icon className="size-4" />
+              {item.label}
+            </Link>
+          );
+        })}
       </nav>
     </aside>
   );
