@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 8px);
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #292827;
+  --card: #ffffff;
+  --card-foreground: #292827;
+  --popover: #ffffff;
+  --popover-foreground: #292827;
+  --primary: #1b1938;
+  --primary-foreground: #ffffff;
+  --secondary: #fafaf8;
+  --secondary-foreground: #292827;
+  --muted: #fafaf8;
+  --muted-foreground: #73706d;
+  --accent: #c9b4fa;
+  --accent-foreground: #1b1938;
+  --destructive: #b42318;
+  --destructive-foreground: #ffffff;
+  --border: #e8e4dd;
+  --input: #e8e4dd;
+  --ring: #1b1938;
+  --radius: 0.5rem;
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-variation-settings: "wght" 460;
+  letter-spacing: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}

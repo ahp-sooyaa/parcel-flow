@@ -1,0 +1,45 @@
+{
+  "name": "parcel-flow-v2",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint . --fix",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@radix-ui/react-checkbox": "latest",
+    "@radix-ui/react-dialog": "latest",
+    "@radix-ui/react-label": "latest",
+    "@radix-ui/react-separator": "latest",
+    "@radix-ui/react-slot": "latest",
+    "@radix-ui/react-tabs": "latest",
+    "better-auth": "latest",
+    "class-variance-authority": "latest",
+    "clsx": "latest",
+    "drizzle-orm": "latest",
+    "lucide-react": "latest",
+    "next": "latest",
+    "postgres": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "tailwind-merge": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "drizzle-kit": "latest",
+    "oxlint": "latest",
+    "tailwindcss": "latest",
+    "typescript": "latest"
+  }
+}
