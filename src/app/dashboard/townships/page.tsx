@@ -3,8 +3,22 @@ import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { listTownships } from "@/features/townships/server/dal";
 import { formatMoney } from "@/lib/format";
 
@@ -27,7 +41,9 @@ export default async function TownshipsPage() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add Township</DialogTitle>
-                <DialogDescription>Dialog placeholder for delivery pricing fields.</DialogDescription>
+                <DialogDescription>
+                  Dialog placeholder for delivery pricing fields.
+                </DialogDescription>
               </DialogHeader>
             </DialogContent>
           </Dialog>
@@ -50,7 +66,9 @@ export default async function TownshipsPage() {
                 <TableCell className="font-medium">{township.name}</TableCell>
                 <TableCell className="text-right">{formatMoney(township.baseFee)} MMK</TableCell>
                 <TableCell className="text-right">{township.baseWeightKg}kg</TableCell>
-                <TableCell className="text-right">{formatMoney(township.extraWeightFee)} MMK</TableCell>
+                <TableCell className="text-right">
+                  {formatMoney(township.extraWeightFee)} MMK
+                </TableCell>
                 <TableCell>
                   <StatusBadge
                     label={township.isActive ? "Active" : "Inactive"}

@@ -105,10 +105,13 @@ export function ParcelListView({
     }
   }, [isAssignDialogOpen, selectedParcelIds.length]);
 
-  const townshipNames = [...new Set(parcels.map((parcel) => parcel.townshipName))].sort((left, right) =>
-    left.localeCompare(right),
+  const townshipNames = [...new Set(parcels.map((parcel) => parcel.townshipName))].toSorted(
+    (left, right) => left.localeCompare(right),
   );
-  const townshipOptions: TownshipOption[] = townshipNames.map((township) => ({ value: township, label: township }));
+  const townshipOptions: TownshipOption[] = townshipNames.map((township) => ({
+    value: township,
+    label: township,
+  }));
   const selectedTownshipOption =
     townshipOptions.find((option) => option.value === selectedTownship) ?? null;
 
@@ -141,9 +144,12 @@ export function ParcelListView({
       return true;
     }
 
-    return [parcel.parcelCode, parcel.receiverPhoneNumber, parcel.receiverName, parcel.merchantName].some((value) =>
-      value.toLowerCase().includes(normalizedSearchTerm),
-    );
+    return [
+      parcel.parcelCode,
+      parcel.receiverPhoneNumber,
+      parcel.receiverName,
+      parcel.merchantName,
+    ].some((value) => value.toLowerCase().includes(normalizedSearchTerm));
   });
 
   const selectedParcels = useMemo(
@@ -181,7 +187,10 @@ export function ParcelListView({
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <Tabs value={assignmentFilter} onValueChange={(value) => setAssignmentFilter(value as AssignmentFilter)}>
+        <Tabs
+          value={assignmentFilter}
+          onValueChange={(value) => setAssignmentFilter(value as AssignmentFilter)}
+        >
           <TabsList className="rounded-lg border border-border bg-[#f3f2ef] p-1">
             {Object.entries(assignmentFilterLabels).map(([value, label]) => (
               <TabsTrigger
@@ -190,7 +199,9 @@ export function ParcelListView({
                 className="gap-2 rounded-md px-4 text-sm data-[state=active]:bg-white data-[state=active]:text-foreground border-0"
               >
                 <span>{label}</span>
-                <span className="text-xs text-muted-foreground">{assignmentCounts[value as AssignmentFilter]}</span>
+                <span className="text-xs text-muted-foreground">
+                  {assignmentCounts[value as AssignmentFilter]}
+                </span>
               </TabsTrigger>
             ))}
           </TabsList>
@@ -209,7 +220,9 @@ export function ParcelListView({
               Assign Rider
             </span>
             {selectedParcels.length > 0 ? (
-              <span className="text-xs text-muted-foreground">{selectedParcels.length} selected</span>
+              <span className="text-xs text-muted-foreground">
+                {selectedParcels.length} selected
+              </span>
             ) : null}
           </Button>
 
@@ -241,7 +254,9 @@ export function ParcelListView({
                   </span>
                 ) : null}
               </span>
-              <ChevronDown className={cn("size-4 transition-transform", isFilterOpen && "rotate-180")} />
+              <ChevronDown
+                className={cn("size-4 transition-transform", isFilterOpen && "rotate-180")}
+              />
             </Button>
 
             {isFilterOpen ? (
@@ -249,9 +264,16 @@ export function ParcelListView({
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm font-semibold text-foreground">Filter parcels</div>
-                    <div className="text-xs text-muted-foreground">Refine the current parcel list.</div>
+                    <div className="text-xs text-muted-foreground">
+                      Refine the current parcel list.
+                    </div>
                   </div>
-                  <Button type="button" variant="ghost" className="h-8 px-2 text-sm" onClick={resetFilters}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-8 px-2 text-sm"
+                    onClick={resetFilters}
+                  >
                     Reset
                   </Button>
                 </div>
@@ -306,7 +328,9 @@ export function ParcelListView({
                                 aria-label={parcelStatusLabels[status]}
                                 className="shadow-sm rounded-[6px]"
                               />
-                              <span className="text-sm text-foreground">{parcelStatusLabels[status]}</span>
+                              <span className="text-sm text-foreground">
+                                {parcelStatusLabels[status]}
+                              </span>
                             </div>
                             {isChecked ? <Check className="size-4 text-primary" /> : null}
                           </label>

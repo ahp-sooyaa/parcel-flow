@@ -1,4 +1,9 @@
-export function calculateDeliveryFee(baseFee: number, weightKg: number, baseWeightKg: number, extraWeightFee: number) {
+export function calculateDeliveryFee(
+  baseFee: number,
+  weightKg: number,
+  baseWeightKg: number,
+  extraWeightFee: number,
+) {
   if (weightKg <= baseWeightKg) {
     return baseFee;
   }

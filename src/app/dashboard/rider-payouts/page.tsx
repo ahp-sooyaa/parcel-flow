@@ -3,8 +3,22 @@ import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { listRiderPayouts } from "@/features/rider-payouts/server/dal";
 import { formatDate, formatMoney } from "@/lib/format";
 
@@ -52,7 +66,8 @@ export default async function RiderPayoutsPage() {
               <SheetHeader>
                 <SheetTitle>Create Rider Payout Draft</SheetTitle>
                 <SheetDescription>
-                  Sheet placeholder for rider selection, delivered way count, fee per way, and payout summary.
+                  Sheet placeholder for rider selection, delivered way count, fee per way, and
+                  payout summary.
                 </SheetDescription>
               </SheetHeader>
             </SheetContent>
@@ -85,7 +100,9 @@ export default async function RiderPayoutsPage() {
                 </TableCell>
                 <TableCell className="text-right">{payout.deliveredWayCount}</TableCell>
                 <TableCell className="text-right">{formatMoney(payout.feePerWay)}</TableCell>
-                <TableCell className="text-right">{formatMoney(payout.totalPayoutAmount)} MMK</TableCell>
+                <TableCell className="text-right">
+                  {formatMoney(payout.totalPayoutAmount)} MMK
+                </TableCell>
                 <TableCell>{formatDate(payout.createdAt)}</TableCell>
               </TableRow>
             ))}

@@ -2,8 +2,22 @@ import { Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { listMerchantContacts } from "@/features/merchant-contacts/server/dal";
 
 export default async function MerchantContactsPage() {
@@ -25,7 +39,9 @@ export default async function MerchantContactsPage() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add Merchant Contact</DialogTitle>
-                <DialogDescription>Dialog placeholder for receiver and township details.</DialogDescription>
+                <DialogDescription>
+                  Dialog placeholder for receiver and township details.
+                </DialogDescription>
               </DialogHeader>
             </DialogContent>
           </Dialog>

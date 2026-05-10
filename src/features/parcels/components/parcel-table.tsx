@@ -12,10 +12,29 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
 import { parcelStatusLabels } from "@/lib/domain";
 import { formatDate, formatMoney } from "@/lib/format";
+
+function getStatusVariant(status: ParcelListItemDto["status"]) {
+  if (status === "delivered") {
+    return "success";
+  }
+
+  if (status === "at_office") {
+    return "secondary";
+  }
+
+  return "warning";
+}
 
 export function ParcelTable({
   parcels,
@@ -34,7 +53,8 @@ export function ParcelTable({
   const [internalSelectedParcelIds, setInternalSelectedParcelIds] = useState<string[]>([]);
   const parcelIds = useMemo(() => parcels.map((parcel) => parcel.id), [parcels]);
   const currentSelectedParcelIds = selectedParcelIds ?? internalSelectedParcelIds;
-  const allVisibleSelected = parcels.length > 0 && parcelIds.every((id) => currentSelectedParcelIds.includes(id));
+  const allVisibleSelected =
+    parcels.length > 0 && parcelIds.every((id) => currentSelectedParcelIds.includes(id));
   const someVisibleSelected = parcelIds.some((id) => currentSelectedParcelIds.includes(id));
 
   useEffect(() => {
@@ -45,13 +65,13 @@ export function ParcelTable({
     setInternalSelectedParcelIds((current) => current.filter((id) => parcelIds.includes(id)));
   }, [parcelIds, selectedParcelIds]);
 
-  function handleSelectedParcelIdsChange(parcelIds: string[]) {
+  function handleSelectedParcelIdsChange(nextSelectedParcelIds: string[]) {
     if (onSelectedParcelIdsChange) {
-      onSelectedParcelIdsChange(parcelIds);
+      onSelectedParcelIdsChange(nextSelectedParcelIds);
       return;
     }
 
-    setInternalSelectedParcelIds(parcelIds);
+    setInternalSelectedParcelIds(nextSelectedParcelIds);
   }
 
   function toggleAllParcels(checked: boolean) {
@@ -76,18 +96,6 @@ export function ParcelTable({
     handleSelectedParcelIdsChange(currentSelectedParcelIds.filter((id) => id !== parcelId));
   }
 
-  function getStatusVariant(status: ParcelListItemDto["status"]) {
-    if (status === "delivered") {
-      return "success";
-    }
-
-    if (status === "at_office") {
-      return "secondary";
-    }
-
-    return "warning";
-  }
-
   return (
     <div className="rounded-lg border bg-white">
       <Table>
@@ -106,9 +114,9 @@ export function ParcelTable({
             <TableHead>Merchant</TableHead>
             <TableHead>Receiver</TableHead>
             <TableHead>Township</TableHead>
+            <TableHead>Rider</TableHead>
             <TableHead className="text-right">COD</TableHead>
             <TableHead className="text-right">Fee</TableHead>
-            <TableHead>Rider</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Date</TableHead>
             {hasActions ? (
@@ -121,7 +129,10 @@ export function ParcelTable({
         <TableBody>
           {parcels.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={hasActions ? 11 : 10} className="py-10 text-center text-sm text-muted-foreground">
+              <TableCell
+                colSpan={hasActions ? 11 : 10}
+                className="py-10 text-center text-sm text-muted-foreground"
+              >
                 No parcels match the current search and filters.
               </TableCell>
             </TableRow>
@@ -143,11 +154,14 @@ export function ParcelTable({
                   <div className="text-xs text-muted-foreground">{parcel.receiverPhoneNumber}</div>
                 </TableCell>
                 <TableCell>{parcel.townshipName}</TableCell>
+                <TableCell>{parcel.riderName ?? "-"}</TableCell>
                 <TableCell className="text-right">{formatMoney(parcel.codAmount)}</TableCell>
                 <TableCell className="text-right">{formatMoney(parcel.deliveryFee)}</TableCell>
-                <TableCell>{parcel.riderName ?? "-"}</TableCell>
                 <TableCell>
-                  <StatusBadge label={parcelStatusLabels[parcel.status]} variant={getStatusVariant(parcel.status)} />
+                  <StatusBadge
+                    label={parcelStatusLabels[parcel.status]}
+                    variant={getStatusVariant(parcel.status)}
+                  />
                 </TableCell>
                 <TableCell>{formatDate(parcel.createdAt)}</TableCell>
                 {hasActions ? (

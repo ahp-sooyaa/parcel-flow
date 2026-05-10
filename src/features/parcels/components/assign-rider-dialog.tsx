@@ -68,7 +68,8 @@ export function AssignRiderDialog({
   const totalDeliveryFee = selectedParcels.reduce((sum, parcel) => sum + parcel.deliveryFee, 0);
   const totalExpectedCollection = totalCodAmount + totalDeliveryFee;
   const riderCurrentExpectedCollection = selectedRider?.expectedCollection ?? 0;
-  const afterAssignmentExpectedCollection = riderCurrentExpectedCollection + totalExpectedCollection;
+  const afterAssignmentExpectedCollection =
+    riderCurrentExpectedCollection + totalExpectedCollection;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -77,7 +78,8 @@ export function AssignRiderDialog({
           <DialogHeader className="space-y-2">
             <DialogTitle className="text-xl">Assign Rider</DialogTitle>
             <DialogDescription>
-              Select a rider and review the cash collection summary for the currently selected parcels.
+              Select a rider and review the cash collection summary for the currently selected
+              parcels.
             </DialogDescription>
           </DialogHeader>
 
@@ -118,8 +120,14 @@ export function AssignRiderDialog({
           <div className="grid gap-3 rounded-xl border bg-[#fcfbf8] p-4 sm:grid-cols-3">
             <SummaryMetric label="Selected parcels" value={String(selectedParcels.length)} />
             <SummaryMetric label="Total COD amount" value={`${formatMoney(totalCodAmount)} MMK`} />
-            <SummaryMetric label="Total delivery fee" value={`${formatMoney(totalDeliveryFee)} MMK`} />
-            <SummaryMetric label="Total expected collection" value={`${formatMoney(totalExpectedCollection)} MMK`} />
+            <SummaryMetric
+              label="Total delivery fee"
+              value={`${formatMoney(totalDeliveryFee)} MMK`}
+            />
+            <SummaryMetric
+              label="Total expected collection"
+              value={`${formatMoney(totalExpectedCollection)} MMK`}
+            />
             <SummaryMetric
               label="Rider current expected"
               value={`${formatMoney(riderCurrentExpectedCollection)} MMK`}
@@ -142,7 +150,10 @@ export function AssignRiderDialog({
             <div className="max-h-[240px] overflow-y-auto rounded-xl border">
               <div className="divide-y">
                 {selectedParcels.map((parcel) => (
-                  <div key={parcel.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[1.3fr_1fr_auto] sm:items-center">
+                  <div
+                    key={parcel.id}
+                    className="grid gap-3 px-4 py-3 sm:grid-cols-[1.3fr_1fr_auto] sm:items-center"
+                  >
                     <div className="min-w-0">
                       <div className="font-medium text-foreground">{parcel.parcelCode}</div>
                       <div className="truncate text-xs text-muted-foreground">
@@ -163,14 +174,19 @@ export function AssignRiderDialog({
           </div>
 
           <div className="rounded-lg border border-dashed bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
-            UI preview only. Confirming here does not save rider assignment or change parcel status yet.
+            UI preview only. Confirming here does not save rider assignment or change parcel status
+            yet.
           </div>
 
           <DialogFooter className="border-t px-0 pt-1">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="button" disabled={selectedRider === null} onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              disabled={selectedRider === null}
+              onClick={() => onOpenChange(false)}
+            >
               Assign Rider
             </Button>
           </DialogFooter>
@@ -192,7 +208,11 @@ function SummaryMetric({
   return (
     <div className="rounded-lg border bg-white p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={emphasized ? "mt-2 text-base font-semibold text-foreground" : "mt-2 text-base font-medium"}>
+      <div
+        className={
+          emphasized ? "mt-2 text-base font-semibold text-foreground" : "mt-2 text-base font-medium"
+        }
+      >
         {value}
       </div>
     </div>

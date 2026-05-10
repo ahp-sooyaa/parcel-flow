@@ -14,7 +14,12 @@ import {
   ComboboxInput,
   ComboboxItem,
 } from "@/components/ui/combobox";
-import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from "@/components/ui/input-group";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -122,7 +127,9 @@ export function CreateParcelForm({
 
   const [selectedMerchant, setSelectedMerchant] = useState<MerchantOption | null>(initialMerchant);
   const [receiverName, setReceiverName] = useState(initialValues?.receiverName ?? "");
-  const [receiverPhoneNumber, setReceiverPhoneNumber] = useState(initialValues?.receiverPhoneNumber ?? "");
+  const [receiverPhoneNumber, setReceiverPhoneNumber] = useState(
+    initialValues?.receiverPhoneNumber ?? "",
+  );
   const [receiverAddress, setReceiverAddress] = useState(initialValues?.receiverAddress ?? "");
   const [specialNotes, setSpecialNotes] = useState(initialValues?.specialNotes ?? "");
   const [selectedTownship, setSelectedTownship] = useState<TownshipOption | null>(initialTownship);
@@ -164,9 +171,7 @@ export function CreateParcelForm({
         </div>
       </div> */}
       <SheetHeader className="border-b border-[#e7dfd8] p-6 pb-4 space-y-3 text-left">
-        <SheetTitle className="text-[2rem] font-semibold tracking-[-0.04em]">
-          {title}
-        </SheetTitle>
+        <SheetTitle className="text-[2rem] font-semibold tracking-[-0.04em]">{title}</SheetTitle>
       </SheetHeader>
 
       <div className="flex-1 overflow-y-auto px-6 pb-6 pt-6">
@@ -298,7 +303,7 @@ export function CreateParcelForm({
                   }}
                 />
               </FieldShell>
-              
+
               <FieldShell htmlFor={deliveryFeeId} label="Delivery fee">
                 <MoneyInput
                   id={deliveryFeeId}

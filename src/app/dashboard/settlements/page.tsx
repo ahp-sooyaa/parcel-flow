@@ -3,8 +3,22 @@ import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { listSettlements } from "@/features/settlements/server/dal";
 import { formatDate, formatMoney } from "@/lib/format";
 
@@ -52,7 +66,8 @@ export default async function SettlementsPage() {
               <SheetHeader>
                 <SheetTitle>Create Settlement Draft</SheetTitle>
                 <SheetDescription>
-                  Sheet placeholder for merchant selection, eligible financial items, and net payment summary.
+                  Sheet placeholder for merchant selection, eligible financial items, and net
+                  payment summary.
                 </SheetDescription>
               </SheetHeader>
             </SheetContent>
@@ -83,9 +98,15 @@ export default async function SettlementsPage() {
                     variant={getSettlementStatusVariant(settlement.status)}
                   />
                 </TableCell>
-                <TableCell className="text-right">{formatMoney(settlement.totalCodAmount)}</TableCell>
-                <TableCell className="text-right">{formatMoney(settlement.totalDeliveryFeeDeduction)}</TableCell>
-                <TableCell className="text-right">{formatMoney(settlement.netPaymentAmount)} MMK</TableCell>
+                <TableCell className="text-right">
+                  {formatMoney(settlement.totalCodAmount)}
+                </TableCell>
+                <TableCell className="text-right">
+                  {formatMoney(settlement.totalDeliveryFeeDeduction)}
+                </TableCell>
+                <TableCell className="text-right">
+                  {formatMoney(settlement.netPaymentAmount)} MMK
+                </TableCell>
                 <TableCell>{formatDate(settlement.createdAt)}</TableCell>
               </TableRow>
             ))}

@@ -13,7 +13,8 @@ export const createSettlementDraftSchema = z
     bankAccountId: z.string().uuid().optional(),
   })
   .refine(
-    (value) => calculateMerchantNetPayment(value.totalCodAmount, value.totalDeliveryFeeDeduction) >= 0,
+    (value) =>
+      calculateMerchantNetPayment(value.totalCodAmount, value.totalDeliveryFeeDeduction) >= 0,
     "Delivery fee deductions exceed selected COD amount.",
   );
 

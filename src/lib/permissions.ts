@@ -24,7 +24,10 @@ export function canRegeneratePassword(actorRole: UserRole, targetRole: UserRole)
   return actorRole === "office_admin" && targetRole !== "super_admin";
 }
 
-export function canEditDeliveryFee(role: UserRole, parcel: { status: ParcelStatus; riderId: string | null }) {
+export function canEditDeliveryFee(
+  role: UserRole,
+  parcel: { status: ParcelStatus; riderId: string | null },
+) {
   return role === "super_admin" && parcel.status === "at_office" && parcel.riderId === null;
 }
 

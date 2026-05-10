@@ -19,7 +19,9 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Account Details</CardTitle>
-              <CardDescription>Users can edit limited personal details and change their password.</CardDescription>
+              <CardDescription>
+                Users can edit limited personal details and change their password.
+              </CardDescription>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
               Role, permissions, active status, and bank account details remain admin-managed.
@@ -30,7 +32,9 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Bank Accounts</CardTitle>
-              <CardDescription>Users can view bank accounts but cannot add, edit, or delete them.</CardDescription>
+              <CardDescription>
+                Users can view bank accounts but cannot add, edit, or delete them.
+              </CardDescription>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
               Display format: KBZ Bank - Account Holder Name - ******123456
@@ -41,7 +45,9 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Delivery Pricing</CardTitle>
-              <CardDescription>Super admins manage township pricing used by parcel creation.</CardDescription>
+              <CardDescription>
+                Super admins manage township pricing used by parcel creation.
+              </CardDescription>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
               Office admins can use pricing but cannot manually override delivery fees.

@@ -27,10 +27,13 @@ export default function HomePage() {
                 Parcel operations after parcels reach the office.
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-7 text-[#bcbac9]">
-                Manage parcel creation, rider assignment, COD collection, merchant settlements, and rider payouts in
-                one internal Next.js system.
+                Manage parcel creation, rider assignment, COD collection, merchant settlements, and
+                rider payouts in one internal Next.js system.
               </p>
-              <Button asChild className="mt-8 rounded-full bg-[#c9b4fa] text-primary hover:bg-[#d7c5ff]">
+              <Button
+                asChild
+                className="mt-8 rounded-full bg-[#c9b4fa] text-primary hover:bg-[#d7c5ff]"
+              >
                 <Link href="/dashboard">
                   Open dashboard
                   <ArrowRight className="size-4" />

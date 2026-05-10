@@ -2,7 +2,14 @@ import { Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { listRiders } from "@/features/riders/server/dal";
 import { formatMoney } from "@/lib/format";
 
@@ -40,8 +47,12 @@ export default async function RidersPage() {
                 <TableCell>{rider.phoneNumber}</TableCell>
                 <TableCell>{rider.serviceTownships.join(", ")}</TableCell>
                 <TableCell className="text-right">{rider.activeParcelCount}</TableCell>
-                <TableCell className="text-right">{formatMoney(rider.expectedCollection)} MMK</TableCell>
-                <TableCell className="text-right">{formatMoney(rider.actualCollection)} MMK</TableCell>
+                <TableCell className="text-right">
+                  {formatMoney(rider.expectedCollection)} MMK
+                </TableCell>
+                <TableCell className="text-right">
+                  {formatMoney(rider.actualCollection)} MMK
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

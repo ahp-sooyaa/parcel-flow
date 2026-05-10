@@ -3,8 +3,22 @@ import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { listUsers } from "@/features/auth/server/dal";
 import { roleLabels } from "@/lib/domain";
 
@@ -28,7 +42,8 @@ export default async function UsersPage() {
               <SheetHeader>
                 <SheetTitle>Create User</SheetTitle>
                 <SheetDescription>
-                  Sheet placeholder for role assignment, initial password generation, and linked profile setup.
+                  Sheet placeholder for role assignment, initial password generation, and linked
+                  profile setup.
                 </SheetDescription>
               </SheetHeader>
             </SheetContent>

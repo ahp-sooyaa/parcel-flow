@@ -25,19 +25,24 @@ export default async function ParcelsPage() {
         description="Search, filter, create, and batch assign parcels after they arrive at the office."
         actions={
           <Sheet>
-            <SheetTrigger asChild>
-              <Button>
+            <Button asChild>
+              <SheetTrigger>
                 <Plus className="size-4" />
                 Create Parcel
-              </Button>
-            </SheetTrigger>
+              </SheetTrigger>
+            </Button>
             <SheetContent className="overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[720px] data-[side=right]:sm:max-w-[720px]">
               <CreateParcelForm merchants={merchants} townships={townships} />
             </SheetContent>
           </Sheet>
         }
       />
-      <ParcelListView parcels={parcels} merchants={merchants} riders={riders} townships={townships} />
+      <ParcelListView
+        parcels={parcels}
+        merchants={merchants}
+        riders={riders}
+        townships={townships}
+      />
     </>
   );
 }

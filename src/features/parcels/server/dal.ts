@@ -1,5 +1,8 @@
 import type { ParcelListItemDto, ParcelSummaryDto } from "@/features/parcels/server/dto";
-import { calculateAmountToCollect, isActiveCollectionStatus } from "@/features/parcels/server/utils";
+import {
+  calculateAmountToCollect,
+  isActiveCollectionStatus,
+} from "@/features/parcels/server/utils";
 
 const parcels: ParcelListItemDto[] = [
   {
@@ -68,7 +71,8 @@ export async function getParcelSummary(): Promise<ParcelSummaryDto> {
         onTheWay: summary.onTheWay + (parcel.status === "on_the_way" ? 1 : 0),
         delivered: summary.delivered + (parcel.status === "delivered" ? 1 : 0),
         expectedCollection:
-          summary.expectedCollection + (isActiveCollectionStatus(parcel.status) ? amountToCollect : 0),
+          summary.expectedCollection +
+          (isActiveCollectionStatus(parcel.status) ? amountToCollect : 0),
       };
     },
     {

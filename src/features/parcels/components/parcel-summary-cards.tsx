@@ -16,7 +16,9 @@ export function ParcelSummaryCards({ summary }: { summary: ParcelSummaryDto }) {
       {cards.map((card) => (
         <Card key={card.label} className="gap-1">
           <CardHeader className="px-4">
-            <CardTitle className="text-sm font-medium text-muted-foreground">{card.label}</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              {card.label}
+            </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pt-0 text-2xl font-semibold">{card.value}</CardContent>
         </Card>

@@ -52,10 +52,14 @@ export const townships = pgTable("townships", {
   baseFee: integer("base_fee").notNull(),
   baseWeightKg: numeric("base_weight_kg", { precision: 10, scale: 2 }).default("3").notNull(),
   extraWeightFee: integer("extra_weight_fee").default(0).notNull(),
-  extraWeightUnitKg: numeric("extra_weight_unit_kg", { precision: 10, scale: 2 }).default("1").notNull(),
+  extraWeightUnitKg: numeric("extra_weight_unit_kg", { precision: 10, scale: 2 })
+    .default("1")
+    .notNull(),
   volumetricDivisor: integer("volumetric_divisor").default(5000).notNull(),
   codFeePercent: numeric("cod_fee_percent", { precision: 5, scale: 2 }).default("0").notNull(),
-  returnFeePercent: numeric("return_fee_percent", { precision: 5, scale: 2 }).default("100").notNull(),
+  returnFeePercent: numeric("return_fee_percent", { precision: 5, scale: 2 })
+    .default("100")
+    .notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   ...timestamps,
 });
@@ -135,8 +139,12 @@ export const parcels = pgTable(
     isReceivedByOffice: boolean("is_received_by_office").default(false).notNull(),
     merchantSettlementStatus: text("merchant_settlement_status").default("pending").notNull(),
     riderPayoutStatus: text("rider_payout_status").default("pending").notNull(),
-    proofOfDeliveryImagesKeys: jsonb("proof_of_delivery_images_keys").$type<string[]>().default(sql`'[]'::jsonb`),
-    pickupImagesKeys: jsonb("pickup_images_keys").$type<string[]>().default(sql`'[]'::jsonb`),
+    proofOfDeliveryImagesKeys: jsonb("proof_of_delivery_images_keys")
+      .$type<string[]>()
+      .default(sql`'[]'::jsonb`),
+    pickupImagesKeys: jsonb("pickup_images_keys")
+      .$type<string[]>()
+      .default(sql`'[]'::jsonb`),
     createdBy: uuid("created_by").references(() => appUsers.id),
     collectionConfirmedBy: uuid("collection_confirmed_by").references(() => appUsers.id),
     assignedAt: timestamp("assigned_at", { withTimezone: true }),
@@ -198,7 +206,9 @@ export const merchantSettlements = pgTable(
     ...timestamps,
   },
   (table) => ({
-    settlementCodeIdx: uniqueIndex("merchant_settlements_settlement_code_idx").on(table.settlementCode),
+    settlementCodeIdx: uniqueIndex("merchant_settlements_settlement_code_idx").on(
+      table.settlementCode,
+    ),
   }),
 );
 

@@ -2,7 +2,14 @@ import { Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { listMerchants } from "@/features/merchants/server/dal";
 import { formatMoney } from "@/lib/format";
 
@@ -41,7 +48,9 @@ export default async function MerchantsPage() {
                 <TableCell>{merchant.phoneNumber}</TableCell>
                 <TableCell>{merchant.address}</TableCell>
                 <TableCell className="text-right">{merchant.parcelCount}</TableCell>
-                <TableCell className="text-right">{formatMoney(merchant.pendingPayment)} MMK</TableCell>
+                <TableCell className="text-right">
+                  {formatMoney(merchant.pendingPayment)} MMK
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

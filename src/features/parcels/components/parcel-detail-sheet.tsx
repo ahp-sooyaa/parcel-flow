@@ -34,7 +34,9 @@ function StatCard({
 }>) {
   return (
     <div className="rounded-xl border border-[#e7dfd8] bg-[#fcfbf8] p-4">
-      <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        {label}
+      </div>
       <div className="mt-2 text-xl font-semibold text-foreground">{value}</div>
     </div>
   );
@@ -43,14 +45,21 @@ function StatCard({
 export function ParcelDetailSheet({ parcel }: Readonly<{ parcel: ParcelListItemDto }>) {
   const parcelType = parcel.codAmount > 0 ? "COD" : "Non-COD";
   const amountToCollect = parcel.codAmount + parcel.deliveryFee;
-  const statusVariant = parcel.status === "delivered" ? "success" : parcel.status === "at_office" ? "secondary" : "warning";
+  const statusVariant =
+    parcel.status === "delivered"
+      ? "success"
+      : parcel.status === "at_office"
+        ? "secondary"
+        : "warning";
 
   return (
     <div className="flex h-full flex-col bg-[#fcfbf8] text-[#292827]">
       <SheetHeader className="space-y-3 border-b border-[#e7dfd8] p-6 pb-4 text-left">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-2">
-            <SheetTitle className="text-[2rem] font-semibold tracking-[-0.04em]">Parcel Detail</SheetTitle>
+            <SheetTitle className="text-[2rem] font-semibold tracking-[-0.04em]">
+              Parcel Detail
+            </SheetTitle>
             <SheetDescription className="max-w-lg text-sm leading-6">
               Review parcel overview, receiver information, and collection amounts from the listing.
             </SheetDescription>
@@ -98,7 +107,9 @@ export function ParcelDetailSheet({ parcel }: Readonly<{ parcel: ParcelListItemD
                   <MapPin className="size-3.5" />
                   Address
                 </div>
-                <div className="mt-2 font-medium text-foreground">{parcel.receiverAddress ?? "-"}</div>
+                <div className="mt-2 font-medium text-foreground">
+                  {parcel.receiverAddress ?? "-"}
+                </div>
               </div>
               <div className="col-span-2 rounded-xl border border-[#e7dfd8] bg-[#fcfbf8] px-4 py-3">
                 <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
@@ -112,14 +123,18 @@ export function ParcelDetailSheet({ parcel }: Readonly<{ parcel: ParcelListItemD
                   <Truck className="size-3.5" />
                   Rider
                 </div>
-                <div className="mt-2 font-medium text-foreground">{parcel.riderName ?? "Not assigned yet"}</div>
+                <div className="mt-2 font-medium text-foreground">
+                  {parcel.riderName ?? "Not assigned yet"}
+                </div>
               </div>
               <div className="rounded-xl border border-[#e7dfd8] bg-[#fcfbf8] px-4 py-3">
                 <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
                   <CalendarDays className="size-3.5" />
                   Intake Date
                 </div>
-                <div className="mt-2 font-medium text-foreground">{formatDate(parcel.createdAt)}</div>
+                <div className="mt-2 font-medium text-foreground">
+                  {formatDate(parcel.createdAt)}
+                </div>
               </div>
             </div>
           </CardContent>

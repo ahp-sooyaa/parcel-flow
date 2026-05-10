@@ -2,7 +2,11 @@ import { randomInt } from "node:crypto";
 
 import type { ParcelStatus } from "@/lib/domain";
 
-export function calculateAmountToCollect(parcel: { codAmount: number; deliveryFee: number; parcelType: string }) {
+export function calculateAmountToCollect(parcel: {
+  codAmount: number;
+  deliveryFee: number;
+  parcelType: string;
+}) {
   if (parcel.parcelType === "cod") {
     return parcel.codAmount + parcel.deliveryFee;
   }
