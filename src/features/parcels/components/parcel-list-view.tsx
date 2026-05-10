@@ -14,9 +14,13 @@ import {
   ComboboxItem,
 } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CreateParcelForm } from "@/features/parcels/components/create-parcel-form";
 import { ParcelTable } from "@/features/parcels/components/parcel-table";
+import type { MerchantListItemDto } from "@/features/merchants/server/dto";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
+import type { TownshipListItemDto } from "@/features/townships/server/dto";
 import { parcelStatusLabels, parcelStatuses, type ParcelStatus } from "@/lib/domain";
 import { cn } from "@/lib/utils";
 
@@ -29,12 +33,21 @@ const assignmentFilterLabels: Record<AssignmentFilter, string> = {
   assigned: "Assigned",
 };
 
-export function ParcelListView({ parcels }: Readonly<{ parcels: ParcelListItemDto[] }>) {
+export function ParcelListView({
+  parcels,
+  merchants,
+  townships,
+}: Readonly<{
+  parcels: ParcelListItemDto[];
+  merchants: MerchantListItemDto[];
+  townships: TownshipListItemDto[];
+}>) {
   const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTownship, setSelectedTownship] = useState("all");
   const [selectedStatuses, setSelectedStatuses] = useState<ParcelStatus[]>([]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [editingParcel, setEditingParcel] = useState<ParcelListItemDto | null>(null);
 
   const filterRef = useRef<HTMLDivElement>(null);
   const townshipInputId = useId();
@@ -72,10 +85,10 @@ export function ParcelListView({ parcels }: Readonly<{ parcels: ParcelListItemDt
     };
   }, [isFilterOpen]);
 
-  const townships = [...new Set(parcels.map((parcel) => parcel.townshipName))].sort((left, right) =>
+  const townshipNames = [...new Set(parcels.map((parcel) => parcel.townshipName))].sort((left, right) =>
     left.localeCompare(right),
   );
-  const townshipOptions: TownshipOption[] = townships.map((township) => ({ value: township, label: township }));
+  const townshipOptions: TownshipOption[] = townshipNames.map((township) => ({ value: township, label: township }));
   const selectedTownshipOption =
     townshipOptions.find((option) => option.value === selectedTownship) ?? null;
 
@@ -252,7 +265,37 @@ export function ParcelListView({ parcels }: Readonly<{ parcels: ParcelListItemDt
         </div>
       </div>
 
-      <ParcelTable parcels={filteredParcels} />
+      <ParcelTable parcels={filteredParcels} onEdit={setEditingParcel} />
+
+      <Sheet
+        open={editingParcel !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingParcel(null);
+          }
+        }}
+      >
+        <SheetContent className="w-full max-w-[560px] overflow-hidden p-0">
+          {editingParcel ? (
+            <CreateParcelForm
+              key={editingParcel.id}
+              merchants={merchants}
+              townships={townships}
+              title="Edit Parcel"
+              submitLabel="Save Changes"
+              initialValues={{
+                merchantName: editingParcel.merchantName,
+                receiverName: editingParcel.receiverName,
+                receiverPhoneNumber: editingParcel.receiverPhoneNumber,
+                townshipName: editingParcel.townshipName,
+                deliveryFee: String(editingParcel.deliveryFee),
+                hasCod: editingParcel.codAmount > 0,
+                codFee: editingParcel.codAmount > 0 ? String(editingParcel.codAmount) : "",
+              }}
+            />
+          ) : null}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

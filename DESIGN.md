@@ -426,7 +426,7 @@ The hero uses **half-bleed portrait subjects** — a person photographed at twil
 
 ### Touch Targets
 - Buttons hit ≥ 44×44px on mobile via 12px vertical padding × 16px line-height. WCAG AAA.
-- Form fields stay at the 44px minimum height.
+- Form fields do not need a 44px minimum height by default; use taller 44px controls only when the design specifically calls for them.
 
 ### Collapsing Strategy
 - Display tiers stair-step 64 → 48 → 36 → 28 → 22px.

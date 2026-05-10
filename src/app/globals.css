@@ -71,5 +71,6 @@ button,
 input,
 textarea,
 select {
-  font: inherit;
+  font-family: inherit;
+  font-variation-settings: inherit;
 }
