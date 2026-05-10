@@ -14,11 +14,11 @@ export function ParcelSummaryCards({ summary }: { summary: ParcelSummaryDto }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       {cards.map((card) => (
-        <Card key={card.label}>
-          <CardHeader className="p-4 pb-2">
+        <Card key={card.label} className="gap-1">
+          <CardHeader className="px-4">
             <CardTitle className="text-sm font-medium text-muted-foreground">{card.label}</CardTitle>
           </CardHeader>
-          <CardContent className="p-4 pt-0 text-2xl font-semibold">{card.value}</CardContent>
+          <CardContent className="px-4 pt-0 text-2xl font-semibold">{card.value}</CardContent>
         </Card>
       ))}
     </div>

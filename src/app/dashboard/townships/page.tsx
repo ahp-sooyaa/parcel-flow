@@ -1,8 +1,8 @@
 import { Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { listTownships } from "@/features/townships/server/dal";
@@ -52,9 +52,10 @@ export default async function TownshipsPage() {
                 <TableCell className="text-right">{township.baseWeightKg}kg</TableCell>
                 <TableCell className="text-right">{formatMoney(township.extraWeightFee)} MMK</TableCell>
                 <TableCell>
-                  <Badge variant={township.isActive ? "success" : "secondary"}>
-                    {township.isActive ? "Active" : "Inactive"}
-                  </Badge>
+                  <StatusBadge
+                    label={township.isActive ? "Active" : "Inactive"}
+                    variant={township.isActive ? "success" : "secondary"}
+                  />
                 </TableCell>
               </TableRow>
             ))}

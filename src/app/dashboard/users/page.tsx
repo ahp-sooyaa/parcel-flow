@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -53,7 +53,10 @@ export default async function UsersPage() {
                 <TableCell>{user.phoneNumber}</TableCell>
                 <TableCell>{roleLabels[user.role]}</TableCell>
                 <TableCell>
-                  <Badge variant={user.isActive ? "success" : "secondary"}>{user.isActive ? "Active" : "Inactive"}</Badge>
+                  <StatusBadge
+                    label={user.isActive ? "Active" : "Inactive"}
+                    variant={user.isActive ? "success" : "secondary"}
+                  />
                 </TableCell>
                 <TableCell>{user.mustResetPassword ? "Required" : "-"}</TableCell>
               </TableRow>

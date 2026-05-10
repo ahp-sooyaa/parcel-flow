@@ -64,6 +64,7 @@ export type ParcelFormInitialValues = {
   receiverName?: string;
   receiverPhoneNumber?: string;
   receiverAddress?: string;
+  specialNotes?: string;
   townshipName?: string;
   deliveryFee?: string;
   hasCod?: boolean;
@@ -92,6 +93,7 @@ export function CreateParcelForm({
   const receiverNameId = useId();
   const receiverPhoneId = useId();
   const receiverAddressId = useId();
+  const specialNotesId = useId();
   const townshipId = useId();
   const deliveryFeeId = useId();
   const codFeeId = useId();
@@ -122,6 +124,7 @@ export function CreateParcelForm({
   const [receiverName, setReceiverName] = useState(initialValues?.receiverName ?? "");
   const [receiverPhoneNumber, setReceiverPhoneNumber] = useState(initialValues?.receiverPhoneNumber ?? "");
   const [receiverAddress, setReceiverAddress] = useState(initialValues?.receiverAddress ?? "");
+  const [specialNotes, setSpecialNotes] = useState(initialValues?.specialNotes ?? "");
   const [selectedTownship, setSelectedTownship] = useState<TownshipOption | null>(initialTownship);
   const [deliveryFee, setDeliveryFee] = useState(
     initialValues?.deliveryFee ?? (initialTownship ? String(initialTownship.baseFee) : ""),
@@ -169,7 +172,7 @@ export function CreateParcelForm({
       <div className="flex-1 overflow-y-auto px-6 pb-6 pt-6">
         <div className="space-y-5">
           <Card className="border-[#e7dfd8] bg-white shadow-[0_20px_50px_rgba(27,25,56,0.06)]">
-            <CardContent className="space-y-4 pt-6">
+            <CardContent className="space-y-4">
               <FieldShell htmlFor={merchantId} label="Merchant">
                 <Combobox
                   items={merchantOptions}
@@ -225,9 +228,19 @@ export function CreateParcelForm({
               <FieldShell htmlFor={receiverAddressId} label="Receiver address">
                 <Textarea
                   id={receiverAddressId}
-                  placeholder="Street, ward, landmark, building, or pickup note"
+                  placeholder="Street, ward, landmark, building"
                   value={receiverAddress}
                   onChange={(event) => setReceiverAddress(event.target.value)}
+                  className={textareaClassName}
+                />
+              </FieldShell>
+
+              <FieldShell htmlFor={specialNotesId} label="Special note">
+                <Textarea
+                  id={specialNotesId}
+                  placeholder="Delivery instructions, gate code, landmark, or handling note"
+                  value={specialNotes}
+                  onChange={(event) => setSpecialNotes(event.target.value)}
                   className={textareaClassName}
                 />
               </FieldShell>
@@ -266,7 +279,7 @@ export function CreateParcelForm({
                     </ComboboxCollection>
                   </ComboboxContent>
                 </Combobox>
-                <p className="text-xs text-[#73706d]">
+                <p className="text-xs text-[#73706d] mt-1">
                   {selectedTownship
                     ? `Base delivery fee from township pricing: ${formatMoney(selectedTownship.baseFee)} MMK`
                     : "Selecting a township pre-fills the base delivery fee."}
@@ -356,7 +369,7 @@ function FieldShell({
       <Label htmlFor={htmlFor} className="text-sm font-medium text-[#292827]">
         {label}
       </Label>
-      {children}
+      <div>{children}</div>
     </div>
   );
 }
@@ -438,7 +451,7 @@ function DimensionsPopover({
         sideOffset={8}
         className="w-[320px] rounded-xl border-[#dcd4cd] bg-white p-4 shadow-[0_20px_50px_rgba(27,25,56,0.12)]"
       >
-        <PopoverHeader className="gap-1.5 pb-3">
+        <PopoverHeader className="gap-1.5">
           <PopoverTitle className="text-sm font-semibold text-[#292827]">Dimensions</PopoverTitle>
           <PopoverDescription className="text-xs leading-5 text-[#73706d]">
             Set the estimated parcel size for intake.

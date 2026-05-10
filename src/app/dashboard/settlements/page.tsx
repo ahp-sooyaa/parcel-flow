@@ -1,12 +1,36 @@
 import { Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { listSettlements } from "@/features/settlements/server/dal";
 import { formatDate, formatMoney } from "@/lib/format";
+
+function getSettlementStatusLabel(status: "in_progress" | "settled" | "void") {
+  if (status === "in_progress") {
+    return "In Progress";
+  }
+
+  if (status === "settled") {
+    return "Settled";
+  }
+
+  return "Void";
+}
+
+function getSettlementStatusVariant(status: "in_progress" | "settled" | "void") {
+  if (status === "settled") {
+    return "success";
+  }
+
+  if (status === "void") {
+    return "destructive";
+  }
+
+  return "warning";
+}
 
 export default async function SettlementsPage() {
   const settlements = await listSettlements();
@@ -54,7 +78,10 @@ export default async function SettlementsPage() {
                 <TableCell className="font-medium">{settlement.settlementCode}</TableCell>
                 <TableCell>{settlement.merchantName}</TableCell>
                 <TableCell>
-                  <Badge variant="warning">{settlement.status}</Badge>
+                  <StatusBadge
+                    label={getSettlementStatusLabel(settlement.status)}
+                    variant={getSettlementStatusVariant(settlement.status)}
+                  />
                 </TableCell>
                 <TableCell className="text-right">{formatMoney(settlement.totalCodAmount)}</TableCell>
                 <TableCell className="text-right">{formatMoney(settlement.totalDeliveryFeeDeduction)}</TableCell>

@@ -1,12 +1,36 @@
 import { Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { listRiderPayouts } from "@/features/rider-payouts/server/dal";
 import { formatDate, formatMoney } from "@/lib/format";
+
+function getPayoutStatusLabel(status: "in_progress" | "settled" | "void") {
+  if (status === "in_progress") {
+    return "In Progress";
+  }
+
+  if (status === "settled") {
+    return "Settled";
+  }
+
+  return "Void";
+}
+
+function getPayoutStatusVariant(status: "in_progress" | "settled" | "void") {
+  if (status === "settled") {
+    return "success";
+  }
+
+  if (status === "void") {
+    return "destructive";
+  }
+
+  return "warning";
+}
 
 export default async function RiderPayoutsPage() {
   const payouts = await listRiderPayouts();
@@ -54,7 +78,10 @@ export default async function RiderPayoutsPage() {
                 <TableCell className="font-medium">{payout.payoutCode}</TableCell>
                 <TableCell>{payout.riderName}</TableCell>
                 <TableCell>
-                  <Badge variant="warning">{payout.status}</Badge>
+                  <StatusBadge
+                    label={getPayoutStatusLabel(payout.status)}
+                    variant={getPayoutStatusVariant(payout.status)}
+                  />
                 </TableCell>
                 <TableCell className="text-right">{payout.deliveredWayCount}</TableCell>
                 <TableCell className="text-right">{formatMoney(payout.feePerWay)}</TableCell>

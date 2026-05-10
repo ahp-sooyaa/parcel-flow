@@ -6,6 +6,8 @@ export type ParcelListItemDto = {
   merchantName: string;
   receiverName: string;
   receiverPhoneNumber: string;
+  receiverAddress: string;
+  specialNotes: string | null;
   townshipName: string;
   codAmount: number;
   deliveryFee: number;

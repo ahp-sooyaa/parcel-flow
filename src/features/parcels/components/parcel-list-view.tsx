@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
-import { Check, ChevronDown, Search, SlidersHorizontal } from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, Route, Search, SlidersHorizontal } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,12 +16,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AssignRiderDialog } from "@/features/parcels/components/assign-rider-dialog";
 import { CreateParcelForm } from "@/features/parcels/components/create-parcel-form";
+import { ParcelDetailSheet } from "@/features/parcels/components/parcel-detail-sheet";
 import { ParcelTable } from "@/features/parcels/components/parcel-table";
 import type { MerchantListItemDto } from "@/features/merchants/server/dto";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
+import type { RiderListItemDto } from "@/features/riders/server/dto";
 import type { TownshipListItemDto } from "@/features/townships/server/dto";
 import { parcelStatusLabels, parcelStatuses, type ParcelStatus } from "@/lib/domain";
+import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type AssignmentFilter = "all" | "unassigned" | "assigned";
@@ -36,10 +40,12 @@ const assignmentFilterLabels: Record<AssignmentFilter, string> = {
 export function ParcelListView({
   parcels,
   merchants,
+  riders,
   townships,
 }: Readonly<{
   parcels: ParcelListItemDto[];
   merchants: MerchantListItemDto[];
+  riders: RiderListItemDto[];
   townships: TownshipListItemDto[];
 }>) {
   const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>("all");
@@ -47,10 +53,14 @@ export function ParcelListView({
   const [selectedTownship, setSelectedTownship] = useState("all");
   const [selectedStatuses, setSelectedStatuses] = useState<ParcelStatus[]>([]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [selectedParcelIds, setSelectedParcelIds] = useState<string[]>([]);
   const [editingParcel, setEditingParcel] = useState<ParcelListItemDto | null>(null);
+  const [viewingParcel, setViewingParcel] = useState<ParcelListItemDto | null>(null);
 
   const filterRef = useRef<HTMLDivElement>(null);
   const townshipInputId = useId();
+  const allParcelIds = useMemo(() => parcels.map((parcel) => parcel.id), [parcels]);
 
   useEffect(() => {
     if (!isFilterOpen) {
@@ -84,6 +94,16 @@ export function ParcelListView({
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isFilterOpen]);
+
+  useEffect(() => {
+    setSelectedParcelIds((current) => current.filter((id) => allParcelIds.includes(id)));
+  }, [allParcelIds]);
+
+  useEffect(() => {
+    if (selectedParcelIds.length === 0 && isAssignDialogOpen) {
+      setIsAssignDialogOpen(false);
+    }
+  }, [isAssignDialogOpen, selectedParcelIds.length]);
 
   const townshipNames = [...new Set(parcels.map((parcel) => parcel.townshipName))].sort((left, right) =>
     left.localeCompare(right),
@@ -126,6 +146,15 @@ export function ParcelListView({
     );
   });
 
+  const selectedParcels = useMemo(
+    () => parcels.filter((parcel) => selectedParcelIds.includes(parcel.id)),
+    [parcels, selectedParcelIds],
+  );
+  const selectedExpectedCollection = selectedParcels.reduce(
+    (sum, parcel) => sum + parcel.codAmount + parcel.deliveryFee,
+    0,
+  );
+
   const activeFilterCount = selectedStatuses.length + (selectedTownship === "all" ? 0 : 1);
 
   function toggleStatus(status: ParcelStatus) {
@@ -139,6 +168,16 @@ export function ParcelListView({
     setSelectedStatuses([]);
   }
 
+  function handleEditParcel(parcel: ParcelListItemDto) {
+    setViewingParcel(null);
+    setEditingParcel(parcel);
+  }
+
+  function handleViewParcel(parcel: ParcelListItemDto) {
+    setEditingParcel(null);
+    setViewingParcel(parcel);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -148,7 +187,7 @@ export function ParcelListView({
               <TabsTrigger
                 key={value}
                 value={value}
-                className="gap-2 rounded-md px-4 text-sm data-[state=active]:bg-white data-[state=active]:text-foreground"
+                className="gap-2 rounded-md px-4 text-sm data-[state=active]:bg-white data-[state=active]:text-foreground border-0"
               >
                 <span>{label}</span>
                 <span className="text-xs text-muted-foreground">{assignmentCounts[value as AssignmentFilter]}</span>
@@ -158,6 +197,22 @@ export function ParcelListView({
         </Tabs>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Button
+            type="button"
+            variant="outline"
+            className="min-w-[168px] justify-between rounded-lg border-border bg-white px-4 shadow-sm"
+            disabled={selectedParcels.length === 0}
+            onClick={() => setIsAssignDialogOpen(true)}
+          >
+            <span className="flex items-center gap-2">
+              <Route className="size-4" />
+              Assign Rider
+            </span>
+            {selectedParcels.length > 0 ? (
+              <span className="text-xs text-muted-foreground">{selectedParcels.length} selected</span>
+            ) : null}
+          </Button>
+
           <div className="relative min-w-0 flex-1 sm:w-[340px]">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -249,6 +304,7 @@ export function ParcelListView({
                                 checked={isChecked}
                                 onCheckedChange={() => toggleStatus(status)}
                                 aria-label={parcelStatusLabels[status]}
+                                className="shadow-sm rounded-[6px]"
                               />
                               <span className="text-sm text-foreground">{parcelStatusLabels[status]}</span>
                             </div>
@@ -265,7 +321,49 @@ export function ParcelListView({
         </div>
       </div>
 
-      <ParcelTable parcels={filteredParcels} onEdit={setEditingParcel} />
+      {selectedParcels.length > 0 ? (
+        <div className="flex flex-col gap-2 rounded-xl border border-dashed bg-[#fcfbf8] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-sm font-medium text-foreground">
+              {selectedParcels.length} parcel{selectedParcels.length > 1 ? "s" : ""} selected
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Current selection expected collection: {formatMoney(selectedExpectedCollection)} MMK
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Selection stays available while you search and filter this list.
+          </div>
+        </div>
+      ) : null}
+
+      <ParcelTable
+        parcels={filteredParcels}
+        selectedParcelIds={selectedParcelIds}
+        onSelectedParcelIdsChange={setSelectedParcelIds}
+        onView={handleViewParcel}
+        onEdit={handleEditParcel}
+      />
+
+      <AssignRiderDialog
+        open={isAssignDialogOpen}
+        onOpenChange={setIsAssignDialogOpen}
+        selectedParcels={selectedParcels}
+        riders={riders}
+      />
+
+      <Sheet
+        open={viewingParcel !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViewingParcel(null);
+          }
+        }}
+      >
+        <SheetContent className="overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[720px] data-[side=right]:sm:max-w-[720px]">
+          {viewingParcel ? <ParcelDetailSheet parcel={viewingParcel} /> : null}
+        </SheetContent>
+      </Sheet>
 
       <Sheet
         open={editingParcel !== null}
@@ -275,7 +373,7 @@ export function ParcelListView({
           }
         }}
       >
-        <SheetContent className="w-full max-w-[560px] overflow-hidden p-0">
+        <SheetContent className="overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[720px] data-[side=right]:sm:max-w-[720px]">
           {editingParcel ? (
             <CreateParcelForm
               key={editingParcel.id}
@@ -287,6 +385,8 @@ export function ParcelListView({
                 merchantName: editingParcel.merchantName,
                 receiverName: editingParcel.receiverName,
                 receiverPhoneNumber: editingParcel.receiverPhoneNumber,
+                receiverAddress: editingParcel.receiverAddress,
+                specialNotes: editingParcel.specialNotes ?? "",
                 townshipName: editingParcel.townshipName,
                 deliveryFee: String(editingParcel.deliveryFee),
                 hasCod: editingParcel.codAmount > 0,

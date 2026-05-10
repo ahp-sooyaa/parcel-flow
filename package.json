@@ -15,12 +15,6 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
-    "@radix-ui/react-checkbox": "latest",
-    "@radix-ui/react-dialog": "latest",
-    "@radix-ui/react-label": "latest",
-    "@radix-ui/react-separator": "latest",
-    "@radix-ui/react-slot": "latest",
-    "@radix-ui/react-tabs": "latest",
     "better-auth": "latest",
     "class-variance-authority": "latest",
     "clsx": "latest",
@@ -28,10 +22,10 @@
     "lucide-react": "latest",
     "next": "latest",
     "postgres": "latest",
-    "radix-ui": "^1.4.3",
     "react": "latest",
     "react-dom": "latest",
     "tailwind-merge": "latest",
+    "tw-animate-css": "^1.4.0",
     "zod": "latest"
   },
   "devDependencies": {
@@ -41,6 +35,7 @@
     "@types/react-dom": "latest",
     "drizzle-kit": "latest",
     "oxlint": "latest",
+    "shadcn": "^4.7.0",
     "tailwindcss": "latest",
     "typescript": "latest"
   }

@@ -2,8 +2,13 @@ import type { ParcelStatus, UserRole } from "@/lib/domain";
 
 type StatusTransition = `${ParcelStatus}->${ParcelStatus}`;
 
-const adminOnlyTransitions = new Set<StatusTransition>([
+const riderAllowedTransitions = new Set<StatusTransition>([
   "at_office->on_the_way",
+  "on_the_way->delivered",
+]);
+
+const officeAdminAllowedTransitions = new Set<StatusTransition>([
+  "on_the_way->delivered",
   "on_the_way->postpone",
   "on_the_way->canceled_returned",
   "postpone->on_the_way",
@@ -24,16 +29,18 @@ export function canEditDeliveryFee(role: UserRole, parcel: { status: ParcelStatu
 }
 
 export function canChangeParcelStatus(role: UserRole, from: ParcelStatus, to: ParcelStatus) {
+  const transition = `${from}->${to}` as StatusTransition;
+
   if (role === "super_admin") {
     return true;
   }
 
   if (role === "rider") {
-    return from === "on_the_way" && to === "delivered";
+    return riderAllowedTransitions.has(transition);
   }
 
   if (role === "office_admin") {
-    return adminOnlyTransitions.has(`${from}->${to}` as StatusTransition);
+    return officeAdminAllowedTransitions.has(transition);
   }
 
   return false;

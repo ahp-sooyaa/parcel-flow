@@ -1,5 +1,9 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 
+import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -9,18 +13,80 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ParcelStatusBadge } from "@/features/parcels/components/parcel-status-badge";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
+import { parcelStatusLabels } from "@/lib/domain";
 import { formatDate, formatMoney } from "@/lib/format";
 
 export function ParcelTable({
   parcels,
+  selectedParcelIds,
+  onSelectedParcelIdsChange,
+  onView,
   onEdit,
 }: Readonly<{
   parcels: ParcelListItemDto[];
+  selectedParcelIds?: string[];
+  onSelectedParcelIdsChange?: (parcelIds: string[]) => void;
+  onView?: (parcel: ParcelListItemDto) => void;
   onEdit?: (parcel: ParcelListItemDto) => void;
 }>) {
-  const hasActions = onEdit !== undefined;
+  const hasActions = onView !== undefined || onEdit !== undefined;
+  const [internalSelectedParcelIds, setInternalSelectedParcelIds] = useState<string[]>([]);
+  const parcelIds = useMemo(() => parcels.map((parcel) => parcel.id), [parcels]);
+  const currentSelectedParcelIds = selectedParcelIds ?? internalSelectedParcelIds;
+  const allVisibleSelected = parcels.length > 0 && parcelIds.every((id) => currentSelectedParcelIds.includes(id));
+  const someVisibleSelected = parcelIds.some((id) => currentSelectedParcelIds.includes(id));
+
+  useEffect(() => {
+    if (selectedParcelIds !== undefined) {
+      return;
+    }
+
+    setInternalSelectedParcelIds((current) => current.filter((id) => parcelIds.includes(id)));
+  }, [parcelIds, selectedParcelIds]);
+
+  function handleSelectedParcelIdsChange(parcelIds: string[]) {
+    if (onSelectedParcelIdsChange) {
+      onSelectedParcelIdsChange(parcelIds);
+      return;
+    }
+
+    setInternalSelectedParcelIds(parcelIds);
+  }
+
+  function toggleAllParcels(checked: boolean) {
+    if (checked) {
+      handleSelectedParcelIdsChange([...new Set([...currentSelectedParcelIds, ...parcelIds])]);
+      return;
+    }
+
+    handleSelectedParcelIdsChange(currentSelectedParcelIds.filter((id) => !parcelIds.includes(id)));
+  }
+
+  function toggleParcel(parcelId: string, checked: boolean) {
+    if (checked) {
+      handleSelectedParcelIdsChange(
+        currentSelectedParcelIds.includes(parcelId)
+          ? currentSelectedParcelIds
+          : [...currentSelectedParcelIds, parcelId],
+      );
+      return;
+    }
+
+    handleSelectedParcelIdsChange(currentSelectedParcelIds.filter((id) => id !== parcelId));
+  }
+
+  function getStatusVariant(status: ParcelListItemDto["status"]) {
+    if (status === "delivered") {
+      return "success";
+    }
+
+    if (status === "at_office") {
+      return "secondary";
+    }
+
+    return "warning";
+  }
 
   return (
     <div className="rounded-lg border bg-white">
@@ -28,7 +94,13 @@ export function ParcelTable({
         <TableHeader>
           <TableRow>
             <TableHead className="w-10">
-              <Checkbox aria-label="Select all parcels" />
+              <Checkbox
+                aria-label="Select all parcels"
+                checked={allVisibleSelected}
+                indeterminate={!allVisibleSelected && someVisibleSelected}
+                onCheckedChange={toggleAllParcels}
+                className="shadow-sm rounded-[6px]"
+              />
             </TableHead>
             <TableHead>Parcel</TableHead>
             <TableHead>Merchant</TableHead>
@@ -57,7 +129,12 @@ export function ParcelTable({
             parcels.map((parcel) => (
               <TableRow key={parcel.id}>
                 <TableCell>
-                  <Checkbox aria-label={`Select ${parcel.parcelCode}`} />
+                  <Checkbox
+                    aria-label={`Select ${parcel.parcelCode}`}
+                    checked={currentSelectedParcelIds.includes(parcel.id)}
+                    onCheckedChange={(checked) => toggleParcel(parcel.id, checked)}
+                    className="shadow-sm rounded-[6px]"
+                  />
                 </TableCell>
                 <TableCell className="font-medium">{parcel.parcelCode}</TableCell>
                 <TableCell>{parcel.merchantName}</TableCell>
@@ -70,7 +147,7 @@ export function ParcelTable({
                 <TableCell className="text-right">{formatMoney(parcel.deliveryFee)}</TableCell>
                 <TableCell>{parcel.riderName ?? "-"}</TableCell>
                 <TableCell>
-                  <ParcelStatusBadge status={parcel.status} />
+                  <StatusBadge label={parcelStatusLabels[parcel.status]} variant={getStatusVariant(parcel.status)} />
                 </TableCell>
                 <TableCell>{formatDate(parcel.createdAt)}</TableCell>
                 {hasActions ? (
@@ -88,8 +165,8 @@ export function ParcelTable({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="min-w-[9rem]">
-                        <DropdownMenuItem onSelect={() => onEdit?.(parcel)}>Edit</DropdownMenuItem>
-                        <DropdownMenuItem>View</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onEdit?.(parcel)}>Edit</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onView?.(parcel)}>View</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

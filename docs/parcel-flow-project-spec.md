@@ -188,6 +188,7 @@ Can:
 - Filter assigned parcels by status
 - View expected collection amount
 - View actual collected amount
+- Start delivery for assigned parcels
 - Mark assigned parcel as delivered
 - View own bank account information
 - Edit limited personal account details
@@ -390,8 +391,8 @@ The system uses these parcel statuses:
 
 | Status | Display Label | Meaning |
 |---|---|---|
-| `at_office` | At Office | Parcel has arrived at office and is ready for assignment |
-| `on_the_way` | On The Way | Parcel is assigned to rider and out for delivery |
+| `at_office` | At Office | Parcel is still at office and not yet out for delivery; it may be unassigned or already assigned to a rider |
+| `on_the_way` | On The Way | Rider has started delivery and parcel is out for delivery |
 | `delivered` | Delivered | Parcel was delivered successfully |
 | `postpone` | Postpone | Delivery is postponed and needs another delivery action |
 | `canceled_returned` | Canceled / Returned | Delivery failed and needs return process |
@@ -513,6 +514,9 @@ Meaning:
 
 ## 11. Parcel Status Flows
 
+Assignment alone does not change parcel status to `on_the_way`.
+The `at_office -> on_the_way` transition happens when the rider starts delivery.
+
 ### 11.1 Successful Delivery Flow
 
 ```text
@@ -549,7 +553,7 @@ at_office -> on_the_way -> postpone -> canceled_returned -> returned_to_merchant
 
 | Status Change | Allowed Role |
 |---|---|
-| `at_office -> on_the_way` | Admin or system during rider assignment |
+| `at_office -> on_the_way` | Rider when starting delivery |
 | `on_the_way -> delivered` | Rider or admin |
 | `on_the_way -> postpone` | Admin only |
 | `on_the_way -> canceled_returned` | Admin only |
@@ -558,7 +562,7 @@ at_office -> on_the_way -> postpone -> canceled_returned -> returned_to_merchant
 | `canceled_returned -> returned_to_merchant` | Admin only |
 | Manual correction | Super admin only |
 
-Rider can only handle successful delivery progress.
+Rider can only handle successful delivery progress by starting delivery and then marking parcel as delivered.
 
 Rider should not directly update parcel to:
 
@@ -575,7 +579,7 @@ Rider should not directly update parcel to:
 
 When admin assigns parcel to rider:
 
-- `status = on_the_way`
+- `status` remains `at_office`
 - `assigned_at` is set
 - `rider_id` is set
 - Rider can see the parcel
@@ -583,7 +587,15 @@ When admin assigns parcel to rider:
 
 ---
 
-### 13.2 When Parcel Is Delivered
+### 13.2 When Rider Starts Delivery
+
+When rider starts delivery:
+
+- `status = on_the_way`
+
+---
+
+### 13.3 When Parcel Is Delivered
 
 When parcel becomes `delivered`:
 
@@ -620,7 +632,7 @@ For non-COD parcel:
 
 ---
 
-### 13.3 When Parcel Is Canceled / Returned
+### 13.4 When Parcel Is Canceled / Returned
 
 When admin changes parcel to `canceled_returned`:
 
@@ -640,7 +652,7 @@ Recommended updates:
 
 ---
 
-### 13.4 When Parcel Is Returned to Merchant
+### 13.5 When Parcel Is Returned to Merchant
 
 When admin changes parcel to `returned_to_merchant`:
 
@@ -672,8 +684,9 @@ Steps:
 6. System displays selected parcel summary.
 7. System displays total amount rider is expected to collect.
 8. Admin confirms assignment.
-9. Parcel status changes from **At Office** to **On The Way**.
+9. Parcel is assigned to rider, but status remains **At Office**.
 10. Rider can now see assigned parcels.
+11. Rider later changes status from **At Office** to **On The Way** when starting delivery.
 
 ---
 
@@ -769,6 +782,7 @@ Expected collection amount includes parcels that are still active for collection
 Include statuses:
 
 ```text
+at_office where rider is already assigned
 on_the_way
 postpone
 ```
@@ -1515,6 +1529,9 @@ Recommended routes and UI patterns:
 /dashboard/settings
   Settings page.
 
+/dashboard/settings?tab=account
+  Account settings tab.
+
 /dashboard/settings?tab=delivery-pricing
   Delivery pricing settings tab.
   Create and edit open as shadcn right-side sheet.
@@ -1535,10 +1552,10 @@ Recommended routes and UI patterns:
 /dashboard/merchant/payments
   Merchant payment or settlement history page.
 
-/dashboard/settings/account
+/dashboard/settings?tab=account
   Account settings page.
 
-/dashboard/settings/bank-accounts
+/dashboard/settings?tab=bank-accounts
   Bank account settings page.
 ```
 
@@ -1553,10 +1570,10 @@ Recommended routes and UI patterns:
 /dashboard/rider/payments
   Rider payout history page.
 
-/dashboard/settings/account
+/dashboard/settings?tab=account
   Account settings page.
 
-/dashboard/settings/bank-accounts
+/dashboard/settings?tab=bank-accounts
   Bank account settings page.
 ```
 
@@ -1575,6 +1592,7 @@ Recommended routes and UI patterns:
 - Merchant parcel visibility
 - Rider parcel assignment
 - Rider parcel listing
+- Rider start delivery update
 - Rider successful delivery update
 - Admin failed/postpone/return status update
 - Township-based delivery fee auto-fill
@@ -1630,7 +1648,8 @@ These features are not required in MVP:
 - Delivery fee is normally collected from receiver.
 - Merchant cannot create or edit parcels.
 - Rider only sees assigned parcels.
-- Rider can only mark parcel as delivered.
+- Parcel remains `at_office` after assignment and changes to `on_the_way` only when rider starts delivery.
+- Rider can start delivery and mark parcel as delivered.
 - Admin handles postpone, failed, and returned statuses.
 - Delivery fee can be manually edited only by super admin before assignment.
 - Parcel code format is `PF-XXXXXX-XXXXXX`.
