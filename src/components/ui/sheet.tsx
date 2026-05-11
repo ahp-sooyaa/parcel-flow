@@ -1,6 +1,7 @@
 "use client";
 
-import * as React from "react";
+import { isValidElement } from "react";
+import type { ComponentProps } from "react";
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
 
 import { cn } from "@/lib/utils";
@@ -23,7 +24,7 @@ function SheetTrigger({ asChild, children, ...rest }: SheetTriggerProps) {
   return (
     <SheetPrimitive.Trigger
       data-slot="sheet-trigger"
-      render={asChild && React.isValidElement(children) ? children : undefined}
+      render={asChild && isValidElement(children) ? children : undefined}
       {...rest}
     >
       {asChild ? null : children}
@@ -35,7 +36,7 @@ function SheetClose({ asChild, children, ...rest }: SheetCloseProps) {
   return (
     <SheetPrimitive.Close
       data-slot="sheet-close"
-      render={asChild && React.isValidElement(children) ? children : undefined}
+      render={asChild && isValidElement(children) ? children : undefined}
       {...rest}
     >
       {asChild ? null : children}
@@ -97,7 +98,7 @@ function SheetContent({
   );
 }
 
-function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
+function SheetHeader({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       data-slot="sheet-header"
@@ -107,7 +108,7 @@ function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
+function SheetFooter({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       data-slot="sheet-footer"

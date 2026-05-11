@@ -3,11 +3,11 @@
 import { z } from "zod";
 
 export const riderSchema = z.object({
-  userId: z.string().uuid().optional(),
+  userId: z.uuid().optional(),
   name: z.string().min(1),
   age: z.coerce.number().int().positive().optional(),
   address: z.string().min(1),
-  townshipIds: z.array(z.string().uuid()).default([]),
+  townshipIds: z.array(z.uuid()).default([]),
 });
 
 export async function upsertRiderAction(input: unknown) {

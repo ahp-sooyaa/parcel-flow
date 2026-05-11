@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 
 import { AppNav } from "@/components/layout/app-nav";
@@ -5,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { getCurrentUser } from "@/lib/session";
 import { roleLabels } from "@/lib/domain";
 
-export async function DashboardShell({ children }: Readonly<{ children: React.ReactNode }>) {
+export async function DashboardShell({ children }: Readonly<{ children: ReactNode }>) {
   const user = await getCurrentUser();
 
   if (!user) {

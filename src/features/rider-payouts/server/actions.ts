@@ -5,8 +5,8 @@ import { z } from "zod";
 import { calculateRiderPayout } from "@/features/riders/server/utils";
 
 export const createRiderPayoutDraftSchema = z.object({
-  riderId: z.string().uuid(),
-  financialItemIds: z.array(z.string().uuid()).min(1),
+  riderId: z.uuid(),
+  financialItemIds: z.array(z.uuid()).min(1),
   deliveredWayCount: z.coerce.number().int().min(1),
   feePerWay: z.coerce.number().int().min(1),
 });

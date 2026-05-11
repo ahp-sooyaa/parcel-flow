@@ -1,6 +1,7 @@
 "use client";
 
-import * as React from "react";
+import { useRef } from "react";
+import type { ComponentProps, ComponentPropsWithRef } from "react";
 import { Combobox as ComboboxPrimitive } from "@base-ui/react";
 
 import { cn } from "@/lib/utils";
@@ -91,7 +92,7 @@ function ComboboxContent({
     ComboboxPrimitive.Positioner.Props,
     "side" | "align" | "sideOffset" | "alignOffset" | "anchor"
   > & {
-    portalContainer?: React.ComponentProps<typeof ComboboxPrimitive.Portal>["container"];
+    portalContainer?: ComponentProps<typeof ComboboxPrimitive.Portal>["container"];
   }) {
   return (
     <ComboboxPrimitive.Portal container={portalContainer}>
@@ -198,7 +199,7 @@ function ComboboxSeparator({ className, ...props }: ComboboxPrimitive.Separator.
 function ComboboxChips({
   className,
   ...props
-}: React.ComponentPropsWithRef<typeof ComboboxPrimitive.Chips> & ComboboxPrimitive.Chips.Props) {
+}: ComponentPropsWithRef<typeof ComboboxPrimitive.Chips> & ComboboxPrimitive.Chips.Props) {
   return (
     <ComboboxPrimitive.Chips
       data-slot="combobox-chips"
@@ -253,7 +254,7 @@ function ComboboxChipsInput({ className, ...props }: ComboboxPrimitive.Input.Pro
 }
 
 function useComboboxAnchor() {
-  return React.useRef<HTMLDivElement | null>(null);
+  return useRef<HTMLDivElement | null>(null);
 }
 
 export {

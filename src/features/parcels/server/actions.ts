@@ -6,12 +6,12 @@ import { parcelTypes } from "@/lib/domain";
 
 export const createParcelSchema = z
   .object({
-    merchantId: z.string().uuid(),
-    merchantContactId: z.string().uuid().optional(),
+    merchantId: z.uuid(),
+    merchantContactId: z.uuid().optional(),
     receiverName: z.string().min(1),
     receiverPhoneNumber: z.string().min(5),
     receiverAddress: z.string().min(1),
-    townshipId: z.string().uuid(),
+    townshipId: z.uuid(),
     parcelType: z.enum(parcelTypes),
     codAmount: z.coerce.number().int().min(0),
     deliveryFee: z.coerce.number().int().min(0),

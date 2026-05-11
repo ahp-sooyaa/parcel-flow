@@ -33,9 +33,7 @@ export const appUsers = pgTable(
     mustResetPassword: boolean("must_reset_password").default(false).notNull(),
     ...softDeleteTimestamps,
   },
-  (table) => ({
-    phoneNumberIdx: uniqueIndex("app_users_phone_number_idx").on(table.phoneNumber),
-  }),
+  (table) => [uniqueIndex("app_users_phone_number_idx").on(table.phoneNumber)],
 );
 
 export const merchants = pgTable("merchants", {
@@ -99,12 +97,9 @@ export const riderServiceTownships = pgTable(
       .references(() => townships.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => ({
-    riderTownshipIdx: uniqueIndex("rider_service_townships_rider_township_idx").on(
-      table.riderId,
-      table.townshipId,
-    ),
-  }),
+  (table) => [
+    uniqueIndex("rider_service_townships_rider_township_idx").on(table.riderId, table.townshipId),
+  ],
 );
 
 export const parcels = pgTable(
@@ -153,9 +148,7 @@ export const parcels = pgTable(
     collectedAt: timestamp("collected_at", { withTimezone: true }),
     ...softDeleteTimestamps,
   },
-  (table) => ({
-    parcelCodeIdx: uniqueIndex("parcels_parcel_code_idx").on(table.parcelCode),
-  }),
+  (table) => [uniqueIndex("parcels_parcel_code_idx").on(table.parcelCode)],
 );
 
 export const financialItems = pgTable("financial_items", {
@@ -205,11 +198,7 @@ export const merchantSettlements = pgTable(
     paymentNote: text("payment_note"),
     ...timestamps,
   },
-  (table) => ({
-    settlementCodeIdx: uniqueIndex("merchant_settlements_settlement_code_idx").on(
-      table.settlementCode,
-    ),
-  }),
+  (table) => [uniqueIndex("merchant_settlements_settlement_code_idx").on(table.settlementCode)],
 );
 
 export const riderPayouts = pgTable(
@@ -231,9 +220,7 @@ export const riderPayouts = pgTable(
     paymentNote: text("payment_note"),
     ...timestamps,
   },
-  (table) => ({
-    payoutCodeIdx: uniqueIndex("rider_payouts_payout_code_idx").on(table.payoutCode),
-  }),
+  (table) => [uniqueIndex("rider_payouts_payout_code_idx").on(table.payoutCode)],
 );
 
 export const parcelStatusLogs = pgTable("parcel_status_logs", {

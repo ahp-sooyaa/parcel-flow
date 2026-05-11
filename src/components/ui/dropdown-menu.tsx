@@ -1,6 +1,7 @@
 "use client";
 
-import * as React from "react";
+import { isValidElement } from "react";
+import type { ComponentProps } from "react";
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 
 import { cn } from "@/lib/utils";
@@ -22,7 +23,7 @@ function DropdownMenuTrigger({ asChild, children, ...rest }: DropdownMenuTrigger
   return (
     <MenuPrimitive.Trigger
       data-slot="dropdown-menu-trigger"
-      render={asChild && React.isValidElement(children) ? children : undefined}
+      render={asChild && isValidElement(children) ? children : undefined}
       {...rest}
     >
       {asChild ? null : children}
@@ -143,7 +144,7 @@ function DropdownMenuSubContent({
   sideOffset = 0,
   className,
   ...props
-}: React.ComponentProps<typeof DropdownMenuContent>) {
+}: ComponentProps<typeof DropdownMenuContent>) {
   return (
     <DropdownMenuContent
       data-slot="dropdown-menu-sub-content"
@@ -238,7 +239,7 @@ function DropdownMenuSeparator({ className, ...props }: MenuPrimitive.Separator.
   );
 }
 
-function DropdownMenuShortcut({ className, ...props }: React.ComponentProps<"span">) {
+function DropdownMenuShortcut({ className, ...props }: ComponentProps<"span">) {
   return (
     <span
       data-slot="dropdown-menu-shortcut"

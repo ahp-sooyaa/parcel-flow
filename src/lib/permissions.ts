@@ -1,4 +1,4 @@
-import type { ParcelStatus, UserRole } from "@/lib/domain";
+import type { CreatableUserRole, ParcelStatus, UserRole } from "@/lib/domain";
 
 type StatusTransition = `${ParcelStatus}->${ParcelStatus}`;
 
@@ -16,12 +16,32 @@ const officeAdminAllowedTransitions = new Set<StatusTransition>([
   "canceled_returned->returned_to_merchant",
 ]);
 
-export function canRegeneratePassword(actorRole: UserRole, targetRole: UserRole) {
+function canOfficeAdminManageNonSuperAdmin(targetRole: UserRole) {
+  return targetRole !== "super_admin";
+}
+
+export function canManageUser(actorRole: UserRole, targetRole: UserRole) {
   if (actorRole === "super_admin") {
     return true;
   }
 
-  return actorRole === "office_admin" && targetRole !== "super_admin";
+  return actorRole === "office_admin" && canOfficeAdminManageNonSuperAdmin(targetRole);
+}
+
+export function canRegeneratePassword(actorRole: UserRole, targetRole: UserRole) {
+  return canManageUser(actorRole, targetRole);
+}
+
+export function canCreateUser(actorRole: UserRole, targetRole: CreatableUserRole) {
+  if (actorRole === "super_admin") {
+    return true;
+  }
+
+  if (actorRole === "office_admin") {
+    return targetRole === "merchant" || targetRole === "rider";
+  }
+
+  return false;
 }
 
 export function canEditDeliveryFee(
@@ -32,7 +52,7 @@ export function canEditDeliveryFee(
 }
 
 export function canChangeParcelStatus(role: UserRole, from: ParcelStatus, to: ParcelStatus) {
-  const transition = `${from}->${to}` as StatusTransition;
+  const transition: StatusTransition = `${from}->${to}`;
 
   if (role === "super_admin") {
     return true;

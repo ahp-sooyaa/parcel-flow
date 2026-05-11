@@ -58,7 +58,7 @@ Rules:
 - Use server actions for protected mutations when appropriate.
 - Perform permission checks on the server.
 - Keep database access out of client components.
-- Validate important inputs with Zod.
+- Validate all users input with Zod.
 
 ---
 

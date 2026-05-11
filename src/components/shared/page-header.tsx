@@ -1,13 +1,15 @@
+import type { ReactNode } from "react";
+
 import { cn } from "@/lib/utils";
 
 type PageHeaderProps = {
   title: string;
   description?: string;
-  actions?: React.ReactNode;
+  actions?: ReactNode;
   className?: string;
 };
 
-export function PageHeader({ title, description, actions, className }: PageHeaderProps) {
+export function PageHeader({ title, description, actions, className }: Readonly<PageHeaderProps>) {
   return (
     <div
       className={cn(

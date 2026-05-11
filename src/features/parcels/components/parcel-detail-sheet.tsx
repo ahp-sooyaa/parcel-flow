@@ -34,7 +34,7 @@ function StatCard({
 }>) {
   return (
     <div className="rounded-xl border border-[#e7dfd8] bg-[#fcfbf8] p-4">
-      <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+      <div className="text-xs font-medium tracking-[0.16em] text-muted-foreground uppercase">
         {label}
       </div>
       <div className="mt-2 text-xl font-semibold text-foreground">{value}</div>
@@ -45,12 +45,13 @@ function StatCard({
 export function ParcelDetailSheet({ parcel }: Readonly<{ parcel: ParcelListItemDto }>) {
   const parcelType = parcel.codAmount > 0 ? "COD" : "Non-COD";
   const amountToCollect = parcel.codAmount + parcel.deliveryFee;
-  const statusVariant =
-    parcel.status === "delivered"
-      ? "success"
-      : parcel.status === "at_office"
-        ? "secondary"
-        : "warning";
+  let statusVariant: "success" | "secondary" | "warning" = "warning";
+
+  if (parcel.status === "delivered") {
+    statusVariant = "success";
+  } else if (parcel.status === "at_office") {
+    statusVariant = "secondary";
+  }
 
   return (
     <div className="flex h-full flex-col bg-[#fcfbf8] text-[#292827]">
@@ -103,7 +104,7 @@ export function ParcelDetailSheet({ parcel }: Readonly<{ parcel: ParcelListItemD
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="col-span-2 rounded-xl border border-[#e7dfd8] bg-[#fcfbf8] px-4 py-3">
-                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs font-medium tracking-[0.16em] text-muted-foreground uppercase">
                   <MapPin className="size-3.5" />
                   Address
                 </div>
@@ -112,14 +113,14 @@ export function ParcelDetailSheet({ parcel }: Readonly<{ parcel: ParcelListItemD
                 </div>
               </div>
               <div className="col-span-2 rounded-xl border border-[#e7dfd8] bg-[#fcfbf8] px-4 py-3">
-                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs font-medium tracking-[0.16em] text-muted-foreground uppercase">
                   <FileText className="size-3.5" />
                   Special Note
                 </div>
                 <div className="mt-2 font-medium text-foreground">{parcel.specialNotes ?? "-"}</div>
               </div>
               <div className="rounded-xl border border-[#e7dfd8] bg-[#fcfbf8] px-4 py-3">
-                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs font-medium tracking-[0.16em] text-muted-foreground uppercase">
                   <Truck className="size-3.5" />
                   Rider
                 </div>
@@ -128,7 +129,7 @@ export function ParcelDetailSheet({ parcel }: Readonly<{ parcel: ParcelListItemD
                 </div>
               </div>
               <div className="rounded-xl border border-[#e7dfd8] bg-[#fcfbf8] px-4 py-3">
-                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs font-medium tracking-[0.16em] text-muted-foreground uppercase">
                   <CalendarDays className="size-3.5" />
                   Intake Date
                 </div>

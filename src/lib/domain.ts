@@ -1,5 +1,7 @@
 export const userRoles = ["super_admin", "office_admin", "merchant", "rider"] as const;
 export type UserRole = (typeof userRoles)[number];
+export const creatableUserRoles = ["office_admin", "merchant", "rider"] as const;
+export type CreatableUserRole = (typeof creatableUserRoles)[number];
 
 export const adminRoles = ["super_admin", "office_admin"] as const;
 

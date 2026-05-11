@@ -23,7 +23,7 @@ export default function HomePage() {
 
           <div className="grid flex-1 items-center gap-12 py-20 lg:grid-cols-[1fr_420px]">
             <div className="max-w-3xl">
-              <h1 className="text-5xl font-semibold leading-[0.96] tracking-normal sm:text-6xl">
+              <h1 className="text-5xl leading-[0.96] font-semibold tracking-normal sm:text-6xl">
                 Parcel operations after parcels reach the office.
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-7 text-[#bcbac9]">

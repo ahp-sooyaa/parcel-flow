@@ -3,7 +3,7 @@
 import { z } from "zod";
 
 export const merchantSchema = z.object({
-  userId: z.string().uuid().optional(),
+  userId: z.uuid().optional(),
   shopName: z.string().min(1),
   address: z.string().min(1),
 });

@@ -6,11 +6,11 @@ import { calculateMerchantNetPayment } from "@/features/merchants/server/utils";
 
 export const createSettlementDraftSchema = z
   .object({
-    merchantId: z.string().uuid(),
-    financialItemIds: z.array(z.string().uuid()).min(1),
+    merchantId: z.uuid(),
+    financialItemIds: z.array(z.uuid()).min(1),
     totalCodAmount: z.coerce.number().int().min(0),
     totalDeliveryFeeDeduction: z.coerce.number().int().min(0),
-    bankAccountId: z.string().uuid().optional(),
+    bankAccountId: z.uuid().optional(),
   })
   .refine(
     (value) =>

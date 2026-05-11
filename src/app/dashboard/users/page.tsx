@@ -1,29 +1,20 @@
 import { Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
-import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { CreateUserForm } from "@/features/auth/components/create-user-form";
+import { UserListTable } from "@/features/auth/components/user-list-table";
 import { listUsers } from "@/features/auth/server/dal";
-import { roleLabels } from "@/lib/domain";
+import { listTownships } from "@/features/townships/server/dal";
+import { getCurrentUser } from "@/lib/session";
 
 export default async function UsersPage() {
-  const users = await listUsers();
+  const [users, townships, currentUser] = await Promise.all([
+    listUsers(),
+    listTownships(),
+    getCurrentUser(),
+  ]);
 
   return (
     <>
@@ -38,47 +29,18 @@ export default async function UsersPage() {
                 Create User
               </Button>
             </SheetTrigger>
-            <SheetContent>
-              <SheetHeader>
-                <SheetTitle>Create User</SheetTitle>
-                <SheetDescription>
-                  Sheet placeholder for role assignment, initial password generation, and linked
-                  profile setup.
-                </SheetDescription>
-              </SheetHeader>
+            <SheetContent className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:w-[500px] data-[side=right]:sm:max-w-[500px]">
+              <CreateUserForm townships={townships} />
             </SheetContent>
           </Sheet>
         }
       />
-      <div className="rounded-lg border bg-white">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Password Reset</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {users.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell className="font-medium">{user.name}</TableCell>
-                <TableCell>{user.phoneNumber}</TableCell>
-                <TableCell>{roleLabels[user.role]}</TableCell>
-                <TableCell>
-                  <StatusBadge
-                    label={user.isActive ? "Active" : "Inactive"}
-                    variant={user.isActive ? "success" : "secondary"}
-                  />
-                </TableCell>
-                <TableCell>{user.mustResetPassword ? "Required" : "-"}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+
+      <UserListTable
+        users={users}
+        townships={townships}
+        currentUserPhoneNumber={currentUser?.phoneNumber ?? null}
+      />
     </>
   );
 }

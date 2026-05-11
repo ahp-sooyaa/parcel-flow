@@ -3,8 +3,8 @@
 import { z } from "zod";
 
 export const merchantContactSchema = z.object({
-  merchantId: z.string().uuid(),
-  townshipId: z.string().uuid(),
+  merchantId: z.uuid(),
+  townshipId: z.uuid(),
   recipientName: z.string().min(1),
   recipientPhoneNumber: z.string().min(5),
   recipientAddress: z.string().min(1),

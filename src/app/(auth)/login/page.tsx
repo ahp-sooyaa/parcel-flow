@@ -15,7 +15,7 @@ export default function LoginPage() {
             </div>
             <span className="text-sm font-semibold">Parcel Flow</span>
           </Link>
-          <h1 className="max-w-xl text-5xl font-semibold leading-[0.96] tracking-normal">
+          <h1 className="max-w-xl text-5xl leading-[0.96] font-semibold tracking-normal">
             Sign in to manage today&apos;s parcel flow.
           </h1>
           <p className="mt-5 max-w-lg text-lg leading-7 text-[#bcbac9]">

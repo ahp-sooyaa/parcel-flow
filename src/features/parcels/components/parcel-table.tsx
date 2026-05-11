@@ -107,7 +107,7 @@ export function ParcelTable({
                 checked={allVisibleSelected}
                 indeterminate={!allVisibleSelected && someVisibleSelected}
                 onCheckedChange={toggleAllParcels}
-                className="shadow-sm rounded-[6px]"
+                className="rounded-[6px] shadow-sm"
               />
             </TableHead>
             <TableHead>Parcel</TableHead>
@@ -144,7 +144,7 @@ export function ParcelTable({
                     aria-label={`Select ${parcel.parcelCode}`}
                     checked={currentSelectedParcelIds.includes(parcel.id)}
                     onCheckedChange={(checked) => toggleParcel(parcel.id, checked)}
-                    className="shadow-sm rounded-[6px]"
+                    className="rounded-[6px] shadow-sm"
                   />
                 </TableCell>
                 <TableCell className="font-medium">{parcel.parcelCode}</TableCell>

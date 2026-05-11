@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useId, useRef, useState } from "react";
 import { ChevronDown, Ruler } from "lucide-react";
 
@@ -170,11 +171,11 @@ export function CreateParcelForm({
           </SheetHeader>
         </div>
       </div> */}
-      <SheetHeader className="border-b border-[#e7dfd8] p-6 pb-4 space-y-3 text-left">
+      <SheetHeader className="space-y-3 border-b border-[#e7dfd8] p-6 pb-4 text-left">
         <SheetTitle className="text-[2rem] font-semibold tracking-[-0.04em]">{title}</SheetTitle>
       </SheetHeader>
 
-      <div className="flex-1 overflow-y-auto px-6 pb-6 pt-6">
+      <div className="flex-1 overflow-y-auto px-6 pt-6 pb-6">
         <div className="space-y-5">
           <Card className="border-[#e7dfd8] bg-white shadow-[0_20px_50px_rgba(27,25,56,0.06)]">
             <CardContent className="space-y-4">
@@ -254,9 +255,7 @@ export function CreateParcelForm({
                 <Combobox
                   items={townshipOptions}
                   value={selectedTownship}
-                  onValueChange={(nextValue) => {
-                    const township = nextValue ?? null;
-
+                  onValueChange={(township = null) => {
                     setSelectedTownship(township);
                     setDeliveryFee(township ? String(township.baseFee) : "");
                   }}
@@ -284,7 +283,7 @@ export function CreateParcelForm({
                     </ComboboxCollection>
                   </ComboboxContent>
                 </Combobox>
-                <p className="text-xs text-[#73706d] mt-1">
+                <p className="mt-1 text-xs text-[#73706d]">
                   {selectedTownship
                     ? `Base delivery fee from township pricing: ${formatMoney(selectedTownship.baseFee)} MMK`
                     : "Selecting a township pre-fills the base delivery fee."}
@@ -327,7 +326,7 @@ export function CreateParcelForm({
                   id={codCheckboxId}
                   checked={hasCod}
                   onCheckedChange={(checked) => {
-                    const enabled = checked === true;
+                    const enabled = checked;
 
                     setHasCod(enabled);
 
@@ -344,7 +343,7 @@ export function CreateParcelForm({
         </div>
       </div>
 
-      <SheetFooter className="border-t border-[#e7dfd8] bg-white px-6 py-4 justify-end mt-0">
+      <SheetFooter className="mt-0 justify-end border-t border-[#e7dfd8] bg-white px-6 py-4">
         <div className="flex items-center gap-2">
           <SheetClose asChild>
             <Button type="button" variant="outline">
@@ -367,7 +366,7 @@ function FieldShell({
 }: Readonly<{
   htmlFor: string;
   label: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }>) {
   return (
     <div className="space-y-2.5">
@@ -393,7 +392,7 @@ function MoneyInput({
   return (
     <InputGroup className={groupedInputClassName}>
       <InputGroupAddon align="inline-start">
-        <InputGroupText className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#73706d]">
+        <InputGroupText className="text-[10px] font-semibold tracking-[0.18em] text-[#73706d] uppercase">
           Ks
         </InputGroupText>
       </InputGroupAddon>

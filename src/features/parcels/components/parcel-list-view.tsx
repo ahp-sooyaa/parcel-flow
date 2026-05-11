@@ -37,6 +37,12 @@ const assignmentFilterLabels: Record<AssignmentFilter, string> = {
   assigned: "Assigned",
 };
 
+const assignmentFilters = ["all", "unassigned", "assigned"] as const;
+
+function isAssignmentFilter(value: string): value is AssignmentFilter {
+  return value === "all" || value === "unassigned" || value === "assigned";
+}
+
 export function ParcelListView({
   parcels,
   merchants,
@@ -64,18 +70,24 @@ export function ParcelListView({
 
   useEffect(() => {
     if (!isFilterOpen) {
-      return;
+      return undefined;
     }
 
     function handlePointerDown(event: MouseEvent) {
-      const target = event.target as HTMLElement | null;
-      const isComboboxContentClick = target?.closest("[data-slot='combobox-content']");
+      const target = event.target;
+
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      const targetElement = target instanceof HTMLElement ? target : null;
+      const isComboboxContentClick = targetElement?.closest("[data-slot='combobox-content']");
 
       if (isComboboxContentClick) {
         return;
       }
 
-      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+      if (filterRef.current && !filterRef.current.contains(target)) {
         setIsFilterOpen(false);
       }
     }
@@ -189,19 +201,21 @@ export function ParcelListView({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <Tabs
           value={assignmentFilter}
-          onValueChange={(value) => setAssignmentFilter(value as AssignmentFilter)}
+          onValueChange={(value) => {
+            if (isAssignmentFilter(value)) {
+              setAssignmentFilter(value);
+            }
+          }}
         >
           <TabsList className="rounded-lg border border-border bg-[#f3f2ef] p-1">
-            {Object.entries(assignmentFilterLabels).map(([value, label]) => (
+            {assignmentFilters.map((value) => (
               <TabsTrigger
                 key={value}
                 value={value}
-                className="gap-2 rounded-md px-4 text-sm data-[state=active]:bg-white data-[state=active]:text-foreground border-0"
+                className="gap-2 rounded-md border-0 px-4 text-sm data-[state=active]:bg-white data-[state=active]:text-foreground"
               >
-                <span>{label}</span>
-                <span className="text-xs text-muted-foreground">
-                  {assignmentCounts[value as AssignmentFilter]}
-                </span>
+                <span>{assignmentFilterLabels[value]}</span>
+                <span className="text-xs text-muted-foreground">{assignmentCounts[value]}</span>
               </TabsTrigger>
             ))}
           </TabsList>
@@ -227,7 +241,7 @@ export function ParcelListView({
           </Button>
 
           <div className="relative min-w-0 flex-1 sm:w-[340px]">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
@@ -260,7 +274,7 @@ export function ParcelListView({
             </Button>
 
             {isFilterOpen ? (
-              <div className="absolute right-0 top-full z-20 mt-2 w-[320px] rounded-xl border bg-white p-4 shadow-2xl">
+              <div className="absolute top-full right-0 z-20 mt-2 w-[320px] rounded-xl border bg-white p-4 shadow-2xl">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm font-semibold text-foreground">Filter parcels</div>
@@ -326,7 +340,7 @@ export function ParcelListView({
                                 checked={isChecked}
                                 onCheckedChange={() => toggleStatus(status)}
                                 aria-label={parcelStatusLabels[status]}
-                                className="shadow-sm rounded-[6px]"
+                                className="rounded-[6px] shadow-sm"
                               />
                               <span className="text-sm text-foreground">
                                 {parcelStatusLabels[status]}

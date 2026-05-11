@@ -15,4 +15,8 @@ export default defineConfig({
     "pnpm-lock.yaml",
   ],
   printWidth: 100,
+  sortTailwindcss: {
+    stylesheet: "./src/app/globals.css",
+    functions: ["cn", "cva", "clsx", "twMerge"],
+  },
 });

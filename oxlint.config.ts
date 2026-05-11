@@ -9,6 +9,9 @@ export default defineConfig({
     "node_modules/**",
     "*.tsbuildinfo",
   ],
+  options: {
+    typeAware: true,
+  },
   categories: {
     correctness: "error",
     suspicious: "warn",
@@ -27,7 +30,7 @@ export default defineConfig({
   env: {
     browser: true,
     node: true,
-    es2022: true,
+    es2025: true,
   },
   settings: {
     next: {
@@ -45,6 +48,7 @@ export default defineConfig({
     "react/jsx-no-useless-fragment": "warn",
     "react/react-in-jsx-scope": "off",
     "react/self-closing-comp": "warn",
+    "typescript/no-deprecated": "error",
   },
   overrides: [
     {

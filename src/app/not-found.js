@@ -21,10 +21,10 @@ export default function NotFound() {
 
           <div className="grid flex-1 items-center gap-12 py-16 lg:grid-cols-[minmax(0,1fr)_380px] lg:py-20">
             <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#c9b4fa]">
+              <p className="text-sm font-semibold tracking-[0.18em] text-[#c9b4fa] uppercase">
                 Error 404
               </p>
-              <h1 className="mt-5 max-w-2xl text-5xl font-semibold leading-[0.96] tracking-[-0.03em] sm:text-6xl">
+              <h1 className="mt-5 max-w-2xl text-5xl leading-[0.96] font-semibold tracking-[-0.03em] sm:text-6xl">
                 This route dropped out of the parcel flow.
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-[#bcbac9]">
@@ -44,8 +44,8 @@ export default function NotFound() {
 
             <div className="rounded-[2rem] border border-[#3f3a52] bg-white/8 p-5 shadow-2xl backdrop-blur-sm">
               <div className="rounded-[1.5rem] border border-white/10 bg-[linear-gradient(160deg,rgba(250,250,248,0.18)_0%,rgba(201,180,250,0.24)_48%,rgba(14,48,48,0.4)_100%)] p-6">
-                <div className="text-xs uppercase tracking-[0.16em] text-[#bcbac9]">Status</div>
-                <div className="mt-3 text-4xl font-semibold leading-none tracking-[-0.04em]">
+                <div className="text-xs tracking-[0.16em] text-[#bcbac9] uppercase">Status</div>
+                <div className="mt-3 text-4xl leading-none font-semibold tracking-[-0.04em]">
                   404
                 </div>
                 <div className="mt-6 space-y-3 text-sm text-[#bcbac9]">
@@ -62,10 +62,10 @@ export default function NotFound() {
       <section className="bg-white text-[#292827]">
         <div className="mx-auto grid w-full max-w-6xl gap-8 px-6 py-10 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#73706d]">
+            <p className="text-sm font-semibold tracking-[0.18em] text-[#73706d] uppercase">
               Next steps
             </p>
-            <p className="mt-3 max-w-2xl text-xl font-semibold leading-tight tracking-[-0.02em]">
+            <p className="mt-3 max-w-2xl text-xl leading-tight font-semibold tracking-[-0.02em]">
               Most missing pages are recoverable by returning to a known entry point and reopening
               the workflow from there.
             </p>
@@ -91,8 +91,8 @@ export default function NotFound() {
 
       <section className="bg-[#0e3030] text-white">
         <div className="mx-auto w-full max-w-6xl px-6 py-10">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">Support</p>
-          <p className="mt-3 max-w-3xl text-2xl font-semibold leading-tight tracking-[-0.02em]">
+          <p className="text-sm font-semibold tracking-[0.18em] text-white/70 uppercase">Support</p>
+          <p className="mt-3 max-w-3xl text-2xl leading-tight font-semibold tracking-[-0.02em]">
             If this route should exist, report the broken link or missing screen so it can be
             restored.
           </p>

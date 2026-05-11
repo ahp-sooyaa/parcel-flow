@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ParcelSummaryDto } from "@/features/parcels/server/dto";
 import { formatMoney } from "@/lib/format";
 
-export function ParcelSummaryCards({ summary }: { summary: ParcelSummaryDto }) {
+export function ParcelSummaryCards({ summary }: Readonly<{ summary: ParcelSummaryDto }>) {
   const cards = [
     { label: "Total Parcels", value: summary.totalParcels },
     { label: "At Office", value: summary.atOffice },
