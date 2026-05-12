@@ -7,6 +7,12 @@ import { Pencil, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  FieldShell,
+  FormBanner,
+  inputClassName,
+  type FormMessageState,
+} from "@/components/shared/form-fields";
+import {
   Card,
   CardAction,
   CardContent,
@@ -33,16 +39,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  FieldShell,
-  FormBanner,
-  inputClassName,
-  type FormMessageState,
-} from "@/features/auth/components/user-form-support";
-import {
   createOwnBankAccountAction,
   updateOwnBankAccountAction,
-} from "@/features/auth/server/actions";
-import type { BankAccountDto, UserListItemDto } from "@/features/auth/server/dto";
+} from "@/features/users/server/actions";
+import type { BankAccountDto, UserListItemDto } from "@/features/users/server/dto";
 
 type BankAccountsSettingsProps = Readonly<{
   user: UserListItemDto;

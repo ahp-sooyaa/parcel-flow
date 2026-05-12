@@ -1,34 +1,41 @@
-export function generateTemporaryPassword() {
+export function generateTemporaryPassword(length = 12) {
+  const effectiveLength = Math.max(length, 12);
+  const lowercase = "abcdefghijkmnpqrstuvwxyz";
   const uppercase = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-  const lowercase = "abcdefghijkmnopqrstuvwxyz";
   const digits = "23456789";
-  const bytes = getRandomBytes(10);
+  const symbols = "!@#$%^&*()-_=+";
+  const allCharacters = `${lowercase}${uppercase}${digits}${symbols}`;
 
-  return [
-    uppercase[bytes[0] % uppercase.length],
-    uppercase[bytes[1] % uppercase.length],
-    lowercase[bytes[2] % lowercase.length],
-    lowercase[bytes[3] % lowercase.length],
-    lowercase[bytes[4] % lowercase.length],
-    digits[bytes[5] % digits.length],
-    digits[bytes[6] % digits.length],
-    digits[bytes[7] % digits.length],
-    digits[bytes[8] % digits.length],
-    lowercase[bytes[9] % lowercase.length],
-  ].join("");
+  const characters = [
+    pickRandomCharacter(lowercase),
+    pickRandomCharacter(uppercase),
+    pickRandomCharacter(digits),
+    pickRandomCharacter(symbols),
+  ];
+
+  while (characters.length < effectiveLength) {
+    characters.push(pickRandomCharacter(allCharacters));
+  }
+
+  // Shuffle so required character classes are not fixed in predictable positions.
+  for (let index = characters.length - 1; index > 0; index -= 1) {
+    const swapIndex = getRandomIndex(index + 1);
+    [characters[index], characters[swapIndex]] = [characters[swapIndex], characters[index]];
+  }
+
+  return characters.join("");
 }
 
-function getRandomBytes(length: number) {
-  const bytes = new Uint8Array(length);
+function pickRandomCharacter(pool: string) {
+  return pool[getRandomIndex(pool.length)] ?? "A";
+}
 
-  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
-    crypto.getRandomValues(bytes);
-    return bytes;
+function getRandomIndex(max: number) {
+  if (typeof crypto === "undefined" || typeof crypto.getRandomValues !== "function") {
+    throw new Error("Secure password generation requires Web Crypto support.");
   }
 
-  for (let index = 0; index < length; index += 1) {
-    bytes[index] = Math.floor(Math.random() * 256);
-  }
+  const randomValue = crypto.getRandomValues(new Uint32Array(1))[0];
 
-  return bytes;
+  return randomValue % max;
 }

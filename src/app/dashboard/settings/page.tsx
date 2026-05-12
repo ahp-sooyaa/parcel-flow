@@ -1,11 +1,10 @@
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AccountSettingsForm } from "@/features/auth/components/account-settings-form";
-import { BankAccountsSettings } from "@/features/auth/components/bank-accounts-settings";
-// i think listBankAccountsForUser should be in feature/
-import { listBankAccountsForUser, listUsers } from "@/features/auth/server/dal";
-import type { UserListItemDto } from "@/features/auth/server/dto";
+import { AccountSettingsForm } from "@/features/users/components/account-settings-form";
+import { BankAccountsSettings } from "@/features/users/components/bank-accounts-settings";
+import { listBankAccountsForUser, listUsers } from "@/features/users/server/dal";
+import type { UserListItemDto } from "@/features/users/server/dto";
 import { getCurrentUser } from "@/lib/session";
 
 export default async function SettingsPage() {
@@ -32,12 +31,6 @@ export default async function SettingsPage() {
             className="rounded-md border-0 px-4 text-sm data-active:bg-white"
           >
             Bank Accounts
-          </TabsTrigger>
-          <TabsTrigger
-            value="delivery-pricing"
-            className="rounded-md border-0 px-4 text-sm data-active:bg-white"
-          >
-            Delivery Pricing
           </TabsTrigger>
         </TabsList>
         <TabsContent value="account">

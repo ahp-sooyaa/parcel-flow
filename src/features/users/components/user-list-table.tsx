@@ -29,8 +29,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { UserListItemDto } from "@/features/auth/server/dto";
-import { EditUserForm } from "@/features/auth/components/edit-user-form";
+import { EditUserForm } from "@/features/users/components/edit-user-form";
+import type { UserListItemDto } from "@/features/users/server/dto";
 import type { TownshipListItemDto } from "@/features/townships/server/dto";
 import { roleLabels } from "@/lib/domain";
 

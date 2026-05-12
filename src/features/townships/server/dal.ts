@@ -7,6 +7,10 @@ const townships: TownshipListItemDto[] = [
     baseFee: 2500,
     baseWeightKg: 3,
     extraWeightFee: 500,
+    extraWeightUnitKg: 1,
+    volumetricDivisor: 5000,
+    codFeePercent: 0,
+    returnFeePercent: 100,
     isActive: true,
   },
   {
@@ -15,6 +19,10 @@ const townships: TownshipListItemDto[] = [
     baseFee: 3000,
     baseWeightKg: 3,
     extraWeightFee: 500,
+    extraWeightUnitKg: 1,
+    volumetricDivisor: 5000,
+    codFeePercent: 0,
+    returnFeePercent: 100,
     isActive: true,
   },
   {
@@ -23,6 +31,10 @@ const townships: TownshipListItemDto[] = [
     baseFee: 2500,
     baseWeightKg: 3,
     extraWeightFee: 500,
+    extraWeightUnitKg: 1,
+    volumetricDivisor: 5000,
+    codFeePercent: 0,
+    returnFeePercent: 100,
     isActive: true,
   },
 ];

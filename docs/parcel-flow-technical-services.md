@@ -186,7 +186,7 @@ The project uses:
 - Dialogs for small forms
 - Tables for listing pages
 - Tabs for account and bank account settings
-- Combo boxes for selecting merchant, rider, township, and saved contacts
+- Combo boxes for selecting merchant, rider, and township
 - Financial-item-based draft creation for merchant settlements and rider payouts
 
 ---

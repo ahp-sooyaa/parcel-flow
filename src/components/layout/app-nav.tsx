@@ -6,7 +6,6 @@ import {
   Banknote,
   Bike,
   Boxes,
-  ContactRound,
   LayoutDashboard,
   MapPinned,
   PackageCheck,
@@ -26,7 +25,6 @@ const navItems = [
   { href: "/dashboard/settlements", label: "Settlements", icon: ReceiptText },
   { href: "/dashboard/rider-payouts", label: "Rider Payouts", icon: Banknote },
   { href: "/dashboard/townships", label: "Townships", icon: MapPinned },
-  { href: "/dashboard/merchant-contacts", label: "Contacts", icon: ContactRound },
   { href: "/dashboard/users", label: "Users", icon: UsersRound },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];

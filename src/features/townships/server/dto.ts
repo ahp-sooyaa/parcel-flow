@@ -4,5 +4,9 @@ export type TownshipListItemDto = {
   baseFee: number;
   baseWeightKg: number;
   extraWeightFee: number;
+  extraWeightUnitKg: number;
+  volumetricDivisor: number;
+  codFeePercent: number;
+  returnFeePercent: number;
   isActive: boolean;
 };

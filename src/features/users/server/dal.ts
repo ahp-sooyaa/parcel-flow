@@ -1,4 +1,4 @@
-import type { BankAccountDto, UserListItemDto } from "@/features/auth/server/dto";
+import type { BankAccountDto, UserListItemDto } from "@/features/users/server/dto";
 
 const users: UserListItemDto[] = [
   {

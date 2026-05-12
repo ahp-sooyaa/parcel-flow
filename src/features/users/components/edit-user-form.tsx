@@ -7,6 +7,14 @@ import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
+  FieldShell,
+  FormBanner,
+  groupedInputClassName,
+  inputClassName,
+  textareaClassName,
+  type FormMessageState,
+} from "@/components/shared/form-fields";
+import {
   Combobox,
   ComboboxCollection,
   ComboboxContent,
@@ -20,20 +28,15 @@ import { SheetClose, SheetFooter, SheetHeader, SheetTitle } from "@/components/u
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import type { UserListItemDto } from "@/features/auth/server/dto";
-import { regeneratePasswordAction, updateUserAction } from "@/features/auth/server/actions";
+import { regeneratePasswordAction } from "@/features/auth/server/actions";
 import {
-  FieldShell,
-  FormBanner,
   buildTownshipOptions,
   findTownshipOption,
-  groupedInputClassName,
-  inputClassName,
-  textareaClassName,
-  type FormMessageState,
   type TownshipOption,
   UserRoleSelectField,
-} from "@/features/auth/components/user-form-support";
+} from "@/features/users/components/user-form-support";
+import { updateUserAction } from "@/features/users/server/actions";
+import type { UserListItemDto } from "@/features/users/server/dto";
 import type { TownshipListItemDto } from "@/features/townships/server/dto";
 import { userRoles, type UserRole } from "@/lib/domain";
 
@@ -291,8 +294,8 @@ export function EditUserForm({
                     <Combobox
                       items={townshipOptions}
                       value={selectedTownship}
-                      onValueChange={(nextValue) => {
-                        setSelectedTownship(nextValue ?? null);
+                      onValueChange={(township = null) => {
+                        setSelectedTownship(township);
                         setSubmissionState(null);
                       }}
                       itemToStringLabel={(option) => option.label}
@@ -348,6 +351,7 @@ export function EditUserForm({
             </Card>
           </TabsContent>
 
+          {/* TODO: wire bank account editing. reference settings page bank account. */}
           <TabsContent value="bank">
             <Card className="border-[#e7dfd8] bg-white shadow-[0_20px_50px_rgba(27,25,56,0.06)]">
               <CardContent className="space-y-3 text-sm text-[#5f5b58]">

@@ -12,17 +12,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import type { UserListItemDto } from "@/features/auth/server/dto";
-import { updateOwnAccountAction, updateOwnPasswordAction } from "@/features/auth/server/actions";
 import {
   FieldShell,
   FormBanner,
   inputClassName,
   textareaClassName,
   type FormMessageState,
-} from "@/features/auth/components/user-form-support";
+} from "@/components/shared/form-fields";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { updateOwnPasswordAction } from "@/features/auth/server/actions";
+import { updateOwnAccountAction } from "@/features/users/server/actions";
+import type { UserListItemDto } from "@/features/users/server/dto";
 
 export function AccountSettingsForm({
   user,

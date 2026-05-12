@@ -1,29 +1,17 @@
 import { Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
-import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { TownshipForm } from "@/features/townships/components/township-form";
+import { TownshipManagement } from "@/features/townships/components/township-management";
 import { listTownships } from "@/features/townships/server/dal";
-import { formatMoney } from "@/lib/format";
+import { canManageTownshipPricing } from "@/lib/permissions";
+import { getCurrentUser } from "@/lib/session";
 
 export default async function TownshipsPage() {
-  const townships = await listTownships();
+  const [townships, currentUser] = await Promise.all([listTownships(), getCurrentUser()]);
+  const canManagePricing = currentUser ? canManageTownshipPricing(currentUser.role) : false;
 
   return (
     <>
@@ -31,55 +19,22 @@ export default async function TownshipsPage() {
         title="Townships"
         description="Township-based delivery pricing used to auto-fill parcel delivery fees."
         actions={
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="size-4" />
-                Add Township
+          canManagePricing ? (
+            <Sheet>
+              <Button asChild>
+                <SheetTrigger>
+                  <Plus className="size-4" />
+                  Create Township
+                </SheetTrigger>
               </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Township</DialogTitle>
-                <DialogDescription>
-                  Dialog placeholder for delivery pricing fields.
-                </DialogDescription>
-              </DialogHeader>
-            </DialogContent>
-          </Dialog>
+              <SheetContent className="overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[720px] data-[side=right]:sm:max-w-[720px]">
+                <TownshipForm mode="create" />
+              </SheetContent>
+            </Sheet>
+          ) : undefined
         }
       />
-      <div className="rounded-lg border bg-white">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead className="text-right">Base Fee</TableHead>
-              <TableHead className="text-right">Base Weight</TableHead>
-              <TableHead className="text-right">Extra Weight Fee</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {townships.map((township) => (
-              <TableRow key={township.id}>
-                <TableCell className="font-medium">{township.name}</TableCell>
-                <TableCell className="text-right">{formatMoney(township.baseFee)} MMK</TableCell>
-                <TableCell className="text-right">{township.baseWeightKg}kg</TableCell>
-                <TableCell className="text-right">
-                  {formatMoney(township.extraWeightFee)} MMK
-                </TableCell>
-                <TableCell>
-                  <StatusBadge
-                    label={township.isActive ? "Active" : "Inactive"}
-                    variant={township.isActive ? "success" : "secondary"}
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      <TownshipManagement townships={townships} canManagePricing={canManagePricing} />
     </>
   );
 }

@@ -20,7 +20,6 @@ Parcel Flow MVP includes:
 - No phone verification
 - Four user roles
 - Parcel creation by admin
-- Merchant contact/address book for receiver auto-fill
 - Merchant parcel visibility
 - Rider parcel assignment
 - Rider parcel listing
@@ -260,46 +259,7 @@ KBZ Bank - Account Holder Name - ******123456
 
 ---
 
-## 6. Merchant Contacts
-
-Merchant contacts are saved receiver records used to auto-fill the parcel creation form.
-
-Purpose:
-
-- Save repeated receiver information.
-- Reduce typing mistakes.
-- Speed up parcel creation.
-
-A merchant contact stores:
-
-- Merchant
-- Recipient name
-- Recipient phone number
-- Recipient address
-- Township
-
-Usage in parcel creation:
-
-1. Admin selects merchant.
-2. Admin searches saved merchant contact by recipient name or phone number.
-3. If contact exists, system auto-fills:
-   - Receiver name
-   - Receiver phone number
-   - Receiver address
-   - Township
-4. Admin can still edit the copied values in the parcel form.
-5. Parcel keeps `merchant_contact_id` when created from a saved contact.
-
-Rules:
-
-- One merchant can have many merchant contacts.
-- One merchant contact belongs to one merchant.
-- Merchant contact is only an address book record.
-- Updating merchant contact later must not automatically rewrite old parcel receiver data.
-
----
-
-## 7. Parcel Creation Flow
+## 6. Parcel Creation Flow
 
 Parcel Flow starts when parcels arrive at the office.
 
@@ -313,28 +273,26 @@ External process before app:
 
 ---
 
-### 7.1 Parcel Creation Steps
+### 6.1 Parcel Creation Steps
 
 1. Super admin or office admin opens **Create Parcel** page.
 2. Admin selects merchant.
-3. Admin optionally selects saved merchant contact.
-4. Admin enters or confirms receiver information.
-5. Admin selects township.
-6. System auto-fills delivery fee from delivery pricing.
-7. Admin enters COD amount if parcel is COD type.
-8. Admin saves parcel.
-9. Parcel is created with status **At Office**.
-10. Merchant can now see the parcel in **My Parcels**.
-11. Rider can see the parcel only after assignment.
+3. Admin enters receiver information.
+4. Admin selects township.
+5. System auto-fills delivery fee from delivery pricing.
+6. Admin enters COD amount if parcel is COD type.
+7. Admin saves parcel.
+8. Parcel is created with status **At Office**.
+9. Merchant can now see the parcel in **My Parcels**.
+10. Rider can see the parcel only after assignment.
 
 ---
 
-### 7.2 Parcel Form Fields
+### 6.2 Parcel Form Fields
 
 Parcel creation form should include:
 
 - Merchant
-- Merchant contact, optional
 - Receiver / customer name
 - Receiver phone number
 - Receiver address
@@ -356,7 +314,7 @@ at_office
 
 ---
 
-## 8. Parcel Code
+## 7. Parcel Code
 
 Parcel code format:
 
@@ -385,7 +343,7 @@ Recommended retry behavior:
 
 ---
 
-## 9. Parcel Statuses
+## 8. Parcel Statuses
 
 The system uses these parcel statuses:
 
@@ -400,11 +358,11 @@ The system uses these parcel statuses:
 
 ---
 
-## 10. Parcel Payment Statuses
+## 9. Parcel Payment Statuses
 
 Payment status fields are stored directly on `parcels` for MVP simplicity.
 
-### 10.1 COD Status
+### 9.1 COD Status
 
 Allowed values:
 
@@ -426,7 +384,7 @@ Meaning:
 
 ---
 
-### 10.2 Delivery Fee Status
+### 9.2 Delivery Fee Status
 
 Allowed values:
 
@@ -450,7 +408,7 @@ Meaning:
 
 ---
 
-### 10.3 Office Collection Confirmation
+### 9.3 Office Collection Confirmation
 
 The final database uses `is_received_by_office` on parcels.
 
@@ -472,7 +430,7 @@ Related rule:
 
 ---
 
-### 10.4 Merchant Settlement Status
+### 9.4 Merchant Settlement Status
 
 Allowed values:
 
@@ -492,7 +450,7 @@ Meaning:
 
 ---
 
-### 10.5 Rider Payout Status
+### 9.5 Rider Payout Status
 
 Allowed values:
 
@@ -512,12 +470,12 @@ Meaning:
 
 ---
 
-## 11. Parcel Status Flows
+## 10. Parcel Status Flows
 
 Assignment alone does not change parcel status to `on_the_way`.
 The `at_office -> on_the_way` transition happens when the rider starts delivery.
 
-### 11.1 Successful Delivery Flow
+### 10.1 Successful Delivery Flow
 
 ```text
 at_office -> on_the_way -> delivered
@@ -525,7 +483,7 @@ at_office -> on_the_way -> delivered
 
 ---
 
-### 11.2 Failed Return Flow
+### 10.2 Failed Return Flow
 
 ```text
 at_office -> on_the_way -> canceled_returned -> returned_to_merchant
@@ -533,7 +491,7 @@ at_office -> on_the_way -> canceled_returned -> returned_to_merchant
 
 ---
 
-### 11.3 Postponed Then Delivered Flow
+### 10.3 Postponed Then Delivered Flow
 
 ```text
 at_office -> on_the_way -> postpone -> on_the_way -> delivered
@@ -541,7 +499,7 @@ at_office -> on_the_way -> postpone -> on_the_way -> delivered
 
 ---
 
-### 11.4 Postponed Then Returned Flow
+### 10.4 Postponed Then Returned Flow
 
 ```text
 at_office -> on_the_way -> postpone -> canceled_returned -> returned_to_merchant
@@ -549,7 +507,7 @@ at_office -> on_the_way -> postpone -> canceled_returned -> returned_to_merchant
 
 ---
 
-## 12. Status Update Permissions
+## 11. Status Update Permissions
 
 | Status Change | Allowed Role |
 |---|---|
@@ -573,9 +531,9 @@ Rider should not directly update parcel to:
 
 ---
 
-## 13. Status Change Side Effects
+## 12. Status Change Side Effects
 
-### 13.1 When Parcel Is Assigned
+### 12.1 When Parcel Is Assigned
 
 When admin assigns parcel to rider:
 
@@ -587,7 +545,7 @@ When admin assigns parcel to rider:
 
 ---
 
-### 13.2 When Rider Starts Delivery
+### 12.2 When Rider Starts Delivery
 
 When rider starts delivery:
 
@@ -595,7 +553,7 @@ When rider starts delivery:
 
 ---
 
-### 13.3 When Parcel Is Delivered
+### 12.3 When Parcel Is Delivered
 
 When parcel becomes `delivered`:
 
@@ -632,7 +590,7 @@ For non-COD parcel:
 
 ---
 
-### 13.4 When Parcel Is Canceled / Returned
+### 12.4 When Parcel Is Canceled / Returned
 
 When admin changes parcel to `canceled_returned`:
 
@@ -652,7 +610,7 @@ Recommended updates:
 
 ---
 
-### 13.5 When Parcel Is Returned to Merchant
+### 12.5 When Parcel Is Returned to Merchant
 
 When admin changes parcel to `returned_to_merchant`:
 
@@ -670,7 +628,7 @@ Recommended updates:
 
 ---
 
-## 14. Rider Assignment Flow
+## 13. Rider Assignment Flow
 
 After parcels are created, admin assigns parcels to riders.
 
@@ -690,7 +648,7 @@ Steps:
 
 ---
 
-### 14.1 Assignment Summary
+### 13.1 Assignment Summary
 
 Before confirming assignment, system should show:
 
@@ -707,9 +665,9 @@ This helps admin avoid assigning too much cash collection to one rider.
 
 ---
 
-## 15. Rider Module
+## 14. Rider Module
 
-### 15.1 Rider Profile Information
+### 14.1 Rider Profile Information
 
 Rider profile should include:
 
@@ -729,7 +687,7 @@ Rules:
 
 ---
 
-### 15.2 Rider Parcel Listing
+### 14.2 Rider Parcel Listing
 
 Rider sees only assigned parcels.
 
@@ -746,7 +704,7 @@ Rider parcel listing columns:
 
 ---
 
-### 15.3 Rider Search and Filter
+### 14.3 Rider Search and Filter
 
 Rider should be able to search by:
 
@@ -760,7 +718,7 @@ Rider should be able to filter by:
 
 ---
 
-### 15.4 Rider Collection Tracking
+### 14.4 Rider Collection Tracking
 
 The system tracks both:
 
@@ -775,7 +733,7 @@ Office confirmation is tracked by `is_received_by_office` and `collection_confir
 
 ---
 
-### 15.5 Rider Expected Collection Amount
+### 14.5 Rider Expected Collection Amount
 
 Expected collection amount includes parcels that are still active for collection.
 
@@ -799,7 +757,7 @@ When admin changes parcel status to `canceled_returned`, the rider expected coll
 
 ---
 
-### 15.6 Rider Actual Collection Amount
+### 14.6 Rider Actual Collection Amount
 
 When parcel is delivered:
 
@@ -823,7 +781,7 @@ parcels.collected_amount
 
 ---
 
-## 16. Rider Payout
+## 15. Rider Payout
 
 Rider payout is separate from merchant settlement.
 
@@ -881,9 +839,9 @@ If payout draft is canceled:
 
 ---
 
-## 17. Merchant Module
+## 16. Merchant Module
 
-### 17.1 Merchant Parcel Access
+### 16.1 Merchant Parcel Access
 
 Merchant can only view own parcels.
 
@@ -897,7 +855,7 @@ Merchant cannot:
 
 ---
 
-### 17.2 Merchant My Parcels Page
+### 16.2 Merchant My Parcels Page
 
 Merchant parcel listing columns:
 
@@ -915,7 +873,7 @@ Merchant parcel listing columns:
 
 ---
 
-### 17.3 Merchant Search and Filter
+### 16.3 Merchant Search and Filter
 
 Merchant should be able to:
 
@@ -933,7 +891,7 @@ Recommended layout:
 
 ---
 
-### 17.4 Merchant Payment Stats
+### 16.4 Merchant Payment Stats
 
 From merchant view, COD remittance should be displayed as:
 
@@ -952,9 +910,9 @@ Recommended merchant stats cards:
 
 ---
 
-## 18. Delivery Fee Rules
+## 17. Delivery Fee Rules
 
-### 18.1 Delivery Fee Collection
+### 17.1 Delivery Fee Collection
 
 Delivery fee is always collected from receiver for normal delivered parcels.
 
@@ -964,7 +922,7 @@ For returned parcels, delivery fee is deducted from merchant COD settlement afte
 
 ---
 
-### 18.2 Delivery Fee Auto Fill
+### 17.2 Delivery Fee Auto Fill
 
 When admin selects township in parcel form:
 
@@ -974,7 +932,7 @@ When admin selects township in parcel form:
 
 ---
 
-### 18.3 Delivery Fee Lock Rule
+### 17.3 Delivery Fee Lock Rule
 
 Delivery fee is locked after rider assignment.
 
@@ -988,9 +946,9 @@ current user = super admin
 
 ---
 
-## 19. COD and Collection Rules
+## 18. COD and Collection Rules
 
-### 19.1 COD Parcel
+### 18.1 COD Parcel
 
 For COD parcel, rider collects:
 
@@ -1000,7 +958,7 @@ COD amount + delivery fee
 
 ---
 
-### 19.2 Non-COD Parcel
+### 18.2 Non-COD Parcel
 
 For non-COD parcel, rider collects:
 
@@ -1010,7 +968,7 @@ delivery fee
 
 ---
 
-### 19.3 Delivered Parcel
+### 18.3 Delivered Parcel
 
 When parcel is delivered:
 
@@ -1024,7 +982,7 @@ When parcel is delivered:
 
 ---
 
-### 19.4 Failed Parcel
+### 18.4 Failed Parcel
 
 When delivery fails:
 
@@ -1038,7 +996,7 @@ When delivery fails:
 
 ---
 
-## 20. Financial Items
+## 19. Financial Items
 
 Financial items are ready rows for merchant settlement and rider payout.
 
@@ -1066,7 +1024,7 @@ void
 
 ---
 
-### 20.1 COD Remit Financial Item
+### 19.1 COD Remit Financial Item
 
 Created when COD parcel becomes `delivered`.
 
@@ -1086,7 +1044,7 @@ Purpose:
 
 ---
 
-### 20.2 Delivery Fee Deduction Financial Item
+### 19.2 Delivery Fee Deduction Financial Item
 
 Created when parcel becomes `returned_to_merchant`.
 
@@ -1106,7 +1064,7 @@ Purpose:
 
 ---
 
-### 20.3 Rider Way Payout Financial Item
+### 19.3 Rider Way Payout Financial Item
 
 Created when parcel becomes `delivered`.
 
@@ -1127,7 +1085,7 @@ Purpose:
 
 ---
 
-### 20.4 Financial Item Rules
+### 19.4 Financial Item Rules
 
 Rules:
 
@@ -1143,7 +1101,7 @@ Rules:
 
 ---
 
-## 21. Returned Parcel Deduction Rule
+## 20. Returned Parcel Deduction Rule
 
 Delivery fee deduction happens only after parcel status becomes:
 
@@ -1165,7 +1123,7 @@ Only returned_to_merchant parcels are eligible for delivery fee deduction.
 
 ---
 
-### 21.1 Deduction Formula
+### 20.1 Deduction Formula
 
 Returned parcel delivery fee is deducted from the merchant's total collected COD remittance.
 
@@ -1189,7 +1147,7 @@ Important rule:
 
 ---
 
-## 22. Merchant Settlement Flow
+## 21. Merchant Settlement Flow
 
 Settlement is done manually by selected financial items.
 
@@ -1197,7 +1155,7 @@ It is not automatic by date, week, or month.
 
 ---
 
-### 22.1 Settlement Permissions
+### 21.1 Settlement Permissions
 
 Office admin can:
 
@@ -1216,7 +1174,7 @@ Super admin can:
 
 ---
 
-### 22.2 Settlement Status Flow
+### 21.2 Settlement Status Flow
 
 ```text
 in_progress -> settled
@@ -1232,7 +1190,7 @@ Draft -> Canceled
 
 ---
 
-### 22.3 Draft Settlement Creation
+### 21.3 Draft Settlement Creation
 
 Office admin or super admin can create settlement draft.
 
@@ -1276,7 +1234,7 @@ Steps:
 
 ---
 
-### 22.4 Settlement Draft Effects
+### 21.4 Settlement Draft Effects
 
 When settlement draft is created:
 
@@ -1294,7 +1252,7 @@ If draft is canceled:
 
 ---
 
-### 22.5 Settlement Payment Confirmation
+### 21.5 Settlement Payment Confirmation
 
 Only super admin can mark settlement as paid.
 
@@ -1319,7 +1277,7 @@ After settlement is marked as paid:
 
 ---
 
-### 22.6 Eligible Settlement Items
+### 21.6 Eligible Settlement Items
 
 COD remit items are eligible if:
 
@@ -1339,7 +1297,7 @@ financial_items.merchant_id = selected merchant
 
 ---
 
-### 22.7 Settlement Calculation
+### 21.7 Settlement Calculation
 
 Settlement calculation:
 
@@ -1362,7 +1320,7 @@ Add more COD remit items or handle remaining fee separately.
 
 ---
 
-## 23. Admin Parcel Listing
+## 22. Admin Parcel Listing
 
 Admin parcel listing should support daily operation and batch assignment.
 
@@ -1400,9 +1358,11 @@ Recommended search:
 
 ---
 
-## 24. Delivery Pricing
+## 23. Delivery Pricing
 
 Delivery fee is based on township pricing.
+
+Delivery pricing is managed from the township listing page.
 
 Township pricing can include:
 
@@ -1430,9 +1390,9 @@ Future enhancement:
 
 ---
 
-## 25. Recommended Pages
+## 24. Recommended Pages
 
-### 25.1 Admin / Super Admin Pages
+### 24.1 Admin / Super Admin Pages
 
 Recommended routes and UI patterns:
 
@@ -1510,31 +1470,22 @@ Recommended routes and UI patterns:
 
 /dashboard/townships
   Township listing page.
+  Includes delivery pricing fields for each township.
 
 /dashboard/townships/create
-  Opens as shadcn dialog from township listing page.
+  Opens as shadcn right-side sheet from township listing page.
+
+/dashboard/townships/[id]
+  Opens as shadcn dialog for township detail view from explicit `View` action in the listing.
 
 /dashboard/townships/[id]/edit
-  Opens as shadcn dialog for township editing.
-
-/dashboard/merchant-contacts
-  Merchant contact listing page.
-
-/dashboard/merchant-contacts/create
-  Opens as shadcn dialog from merchant contact listing page.
-
-/dashboard/merchant-contacts/[id]/edit
-  Opens as shadcn dialog for merchant contact editing.
+  Opens as shadcn right-side sheet for township editing.
 
 /dashboard/settings
   Settings page.
 
 /dashboard/settings?tab=account
   Account settings tab.
-
-/dashboard/settings?tab=delivery-pricing
-  Delivery pricing settings tab.
-  Create and edit open as shadcn right-side sheet.
 
 /dashboard/settings?tab=bank-accounts
   Bank accounts settings tab.
@@ -1543,7 +1494,7 @@ Recommended routes and UI patterns:
 
 ---
 
-### 25.2 Merchant Pages
+### 24.2 Merchant Pages
 
 ```text
 /dashboard/merchant/parcels
@@ -1561,7 +1512,7 @@ Recommended routes and UI patterns:
 
 ---
 
-### 25.3 Rider Pages
+### 24.3 Rider Pages
 
 ```text
 /dashboard/rider/parcels
@@ -1579,14 +1530,13 @@ Recommended routes and UI patterns:
 
 ---
 
-## 26. MVP Must-Have Features
+## 25. MVP Must-Have Features
 
 - Phone number and password login
 - Admin-created user accounts
 - Password regeneration by admin
 - Four roles
 - User settings with account details and bank accounts tab
-- Merchant contacts for receiver auto-fill
 - Parcel creation by admin
 - Parcel code generation
 - Merchant parcel visibility
@@ -1612,7 +1562,7 @@ Recommended routes and UI patterns:
 
 ---
 
-## 27. Out of Scope for MVP
+## 26. Out of Scope for MVP
 
 These features are not required in MVP:
 
@@ -1637,14 +1587,13 @@ These features are not required in MVP:
 
 ---
 
-## 28. Final Business Rules Summary
+## 27. Final Business Rules Summary
 
 - Parcel Flow starts after parcel arrives at office.
 - No public signup.
 - Login uses phone number and password.
 - Admin creates all user accounts.
 - Office admin can regenerate passwords, except for super admin accounts.
-- Merchant contacts are used to auto-fill receiver data in parcel creation.
 - Delivery fee is normally collected from receiver.
 - Merchant cannot create or edit parcels.
 - Rider only sees assigned parcels.

@@ -1,9 +1,14 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { useId, useRef, useState } from "react";
-import { ChevronDown, Ruler } from "lucide-react";
 
+import {
+  FieldShell,
+  MoneyInput,
+  groupedInputClassName,
+  inputClassName,
+  textareaClassName,
+} from "@/components/shared/form-fields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,85 +20,27 @@ import {
   ComboboxInput,
   ComboboxItem,
 } from "@/components/ui/combobox";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText,
-} from "@/components/ui/input-group";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverDescription,
-  PopoverHeader,
-  PopoverTitle,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { SheetClose, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import type { MerchantListItemDto } from "@/features/merchants/server/dto";
+import {
+  buildMerchantOptions,
+  buildTownshipOptions,
+  DimensionsPopover,
+  type MerchantOption,
+  type ParcelDimensions,
+  type TownshipOption,
+} from "@/features/parcels/components/parcel-form-support";
 import type { TownshipListItemDto } from "@/features/townships/server/dto";
 import { formatMoney } from "@/lib/format";
-
-type MerchantOption = {
-  value: string;
-  label: string;
-  helper: string;
-};
-
-type TownshipOption = {
-  value: string;
-  label: string;
-  helper: string;
-  baseFee: number;
-};
 
 type CreateParcelFormProps = Readonly<{
   merchants: MerchantListItemDto[];
   townships: TownshipListItemDto[];
-  title?: string;
-  submitLabel?: string;
-  initialValues?: ParcelFormInitialValues;
 }>;
 
-type ParcelDimensions = {
-  estimatedWeight: string;
-  width: string;
-  height: string;
-  length: string;
-};
-
-export type ParcelFormInitialValues = {
-  merchantName?: string;
-  receiverName?: string;
-  receiverPhoneNumber?: string;
-  receiverAddress?: string;
-  specialNotes?: string;
-  townshipName?: string;
-  deliveryFee?: string;
-  hasCod?: boolean;
-  codFee?: string;
-  dimensions?: Partial<ParcelDimensions>;
-};
-
-const inputClassName =
-  "h-10 rounded-md border-[#dcd4cd] bg-[#fcfbf8] text-sm text-[#292827] shadow-none placeholder:text-sm placeholder:text-[#9a9794] focus-visible:border-[#1b1938] focus-visible:ring-[#c9b4fa]";
-
-const groupedInputClassName =
-  "h-10 rounded-md border-[#dcd4cd] bg-[#fcfbf8] text-sm text-[#292827] shadow-none has-[[data-slot=input-group-control]:focus-visible]:border-[#1b1938] has-[[data-slot=input-group-control]:focus-visible]:ring-[#c9b4fa]";
-
-const textareaClassName =
-  "min-h-28 rounded-md border-[#dcd4cd] bg-[#fcfbf8] text-sm text-[#292827] shadow-none placeholder:text-sm placeholder:text-[#9a9794] focus-visible:border-[#1b1938] focus-visible:ring-[#c9b4fa]";
-
-export function CreateParcelForm({
-  merchants,
-  townships,
-  title = "Create Parcel",
-  submitLabel = "Create Parcel",
-  initialValues,
-}: CreateParcelFormProps) {
+export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps) {
   const overlayContainerRef = useRef<HTMLFormElement>(null);
   const merchantId = useId();
   const receiverNameId = useId();
@@ -106,44 +53,23 @@ export function CreateParcelForm({
   const codCheckboxId = useId();
   const parcelDimensionsId = useId();
 
-  const merchantOptions: MerchantOption[] = merchants.map((merchant) => ({
-    value: merchant.id,
-    label: merchant.shopName,
-    helper: `${merchant.ownerName} • ${merchant.phoneNumber}`,
-  }));
+  const merchantOptions = buildMerchantOptions(merchants);
+  const townshipOptions = buildTownshipOptions(townships);
 
-  const townshipOptions: TownshipOption[] = townships
-    .filter((township) => township.isActive)
-    .map((township) => ({
-      value: township.id,
-      label: township.name,
-      helper: `${formatMoney(township.baseFee)} MMK base fee`,
-      baseFee: township.baseFee,
-    }));
-
-  const initialMerchant =
-    merchantOptions.find((option) => option.label === initialValues?.merchantName) ?? null;
-  const initialTownship =
-    townshipOptions.find((option) => option.label === initialValues?.townshipName) ?? null;
-
-  const [selectedMerchant, setSelectedMerchant] = useState<MerchantOption | null>(initialMerchant);
-  const [receiverName, setReceiverName] = useState(initialValues?.receiverName ?? "");
-  const [receiverPhoneNumber, setReceiverPhoneNumber] = useState(
-    initialValues?.receiverPhoneNumber ?? "",
-  );
-  const [receiverAddress, setReceiverAddress] = useState(initialValues?.receiverAddress ?? "");
-  const [specialNotes, setSpecialNotes] = useState(initialValues?.specialNotes ?? "");
-  const [selectedTownship, setSelectedTownship] = useState<TownshipOption | null>(initialTownship);
-  const [deliveryFee, setDeliveryFee] = useState(
-    initialValues?.deliveryFee ?? (initialTownship ? String(initialTownship.baseFee) : ""),
-  );
-  const [hasCod, setHasCod] = useState(initialValues?.hasCod ?? false);
-  const [codFee, setCodFee] = useState(initialValues?.codFee ?? "");
+  const [selectedMerchant, setSelectedMerchant] = useState<MerchantOption | null>(null);
+  const [receiverName, setReceiverName] = useState("");
+  const [receiverPhoneNumber, setReceiverPhoneNumber] = useState("");
+  const [receiverAddress, setReceiverAddress] = useState("");
+  const [specialNotes, setSpecialNotes] = useState("");
+  const [selectedTownship, setSelectedTownship] = useState<TownshipOption | null>(null);
+  const [deliveryFee, setDeliveryFee] = useState("");
+  const [hasCod, setHasCod] = useState(false);
+  const [codFee, setCodFee] = useState("");
   const [dimensions, setDimensions] = useState<ParcelDimensions>({
-    estimatedWeight: initialValues?.dimensions?.estimatedWeight ?? "",
-    width: initialValues?.dimensions?.width ?? "",
-    height: initialValues?.dimensions?.height ?? "",
-    length: initialValues?.dimensions?.length ?? "",
+    estimatedWeight: "",
+    width: "",
+    height: "",
+    length: "",
   });
 
   return (
@@ -154,25 +80,10 @@ export function CreateParcelForm({
         event.preventDefault();
       }}
     >
-      {/* <div className="border-b border-[#e7dfd8] p-6">
-        <div className="rounded-[28px] bg-[radial-gradient(circle_at_top,#c9b4fa_0%,#1b1938_34%,#0e0c1f_100%)] p-6 text-white shadow-[0_24px_80px_rgba(14,12,31,0.28)]">
-          <div className="mb-6 flex items-center justify-between gap-3">
-            <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.24em] text-white/75">
-              Draft Intake
-            </span>
-            <span className="text-xs font-medium uppercase tracking-[0.18em] text-white/55">No submit action</span>
-          </div>
-          <SheetHeader className="space-y-3 text-left">
-            <SheetTitle className="text-[2rem] font-semibold tracking-[-0.04em] text-white">Create Parcel</SheetTitle>
-            <SheetDescription className="max-w-md text-sm leading-6 text-white/72">
-              Capture merchant, receiver, township, and COD details in a styled right-side sheet. This pass is
-              presentation only, so submit stays inactive.
-            </SheetDescription>
-          </SheetHeader>
-        </div>
-      </div> */}
       <SheetHeader className="space-y-3 border-b border-[#e7dfd8] p-6 pb-4 text-left">
-        <SheetTitle className="text-[2rem] font-semibold tracking-[-0.04em]">{title}</SheetTitle>
+        <SheetTitle className="text-[2rem] font-semibold tracking-[-0.04em]">
+          Create Parcel
+        </SheetTitle>
       </SheetHeader>
 
       <div className="flex-1 overflow-y-auto px-6 pt-6 pb-6">
@@ -351,180 +262,10 @@ export function CreateParcelForm({
             </Button>
           </SheetClose>
           <Button type="submit" className="bg-[#1b1938] text-white hover:bg-[#0e0c1f]">
-            {submitLabel}
+            Create Parcel
           </Button>
         </div>
       </SheetFooter>
     </form>
-  );
-}
-
-function FieldShell({
-  htmlFor,
-  label,
-  children,
-}: Readonly<{
-  htmlFor: string;
-  label: string;
-  children: ReactNode;
-}>) {
-  return (
-    <div className="space-y-2.5">
-      <Label htmlFor={htmlFor} className="text-sm font-medium text-[#292827]">
-        {label}
-      </Label>
-      <div>{children}</div>
-    </div>
-  );
-}
-
-function MoneyInput({
-  id,
-  value,
-  onChange,
-  placeholder,
-}: Readonly<{
-  id: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-}>) {
-  return (
-    <InputGroup className={groupedInputClassName}>
-      <InputGroupAddon align="inline-start">
-        <InputGroupText className="text-[10px] font-semibold tracking-[0.18em] text-[#73706d] uppercase">
-          Ks
-        </InputGroupText>
-      </InputGroupAddon>
-      <InputGroupInput
-        id={id}
-        type="number"
-        min="0"
-        inputMode="numeric"
-        placeholder={placeholder}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-full px-2 text-sm text-[#292827] placeholder:text-[#9a9794]"
-      />
-    </InputGroup>
-  );
-}
-
-function DimensionsPopover({
-  id,
-  dimensions,
-  onChange,
-}: Readonly<{
-  id: string;
-  dimensions: ParcelDimensions;
-  onChange: (key: keyof ParcelDimensions, value: string) => void;
-}>) {
-  const estimatedWeightId = useId();
-  const widthId = useId();
-  const heightId = useId();
-  const lengthId = useId();
-  const filledCount = Object.values(dimensions).filter(Boolean).length;
-  const summary =
-    filledCount === 0
-      ? "Estimated weight, width, height, and length"
-      : `${filledCount}/4 values added`;
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          id={id}
-          type="button"
-          variant="outline"
-          className="h-auto w-full items-center justify-between rounded-md border-[#dcd4cd] bg-[#fcfbf8] px-3 py-2 text-left text-[#292827] shadow-none hover:bg-[#f6f2ed]"
-        >
-          <span className="flex min-w-0 items-center gap-3">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white text-[#1b1938]">
-              <Ruler className="size-4" />
-            </span>
-            <span className="flex min-w-0 flex-col">
-              <span className="text-sm font-medium text-[#292827]">Open dimensions popover</span>
-              <span className="truncate text-xs font-normal text-[#73706d]">{summary}</span>
-            </span>
-          </span>
-          <ChevronDown className="size-4 shrink-0 text-[#73706d]" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        sideOffset={8}
-        className="w-[320px] rounded-xl border-[#dcd4cd] bg-white p-4 shadow-[0_20px_50px_rgba(27,25,56,0.12)]"
-      >
-        <PopoverHeader className="gap-1.5">
-          <PopoverTitle className="text-sm font-semibold text-[#292827]">Dimensions</PopoverTitle>
-          <PopoverDescription className="text-xs leading-5 text-[#73706d]">
-            Set the estimated parcel size for intake.
-          </PopoverDescription>
-        </PopoverHeader>
-
-        <div className="grid gap-3">
-          <DimensionInput
-            id={estimatedWeightId}
-            label="Estimated weight"
-            placeholder="0"
-            value={dimensions.estimatedWeight}
-            onChange={(value) => onChange("estimatedWeight", value)}
-          />
-          <DimensionInput
-            id={widthId}
-            label="Width"
-            placeholder="0"
-            value={dimensions.width}
-            onChange={(value) => onChange("width", value)}
-          />
-          <DimensionInput
-            id={heightId}
-            label="Height"
-            placeholder="0"
-            value={dimensions.height}
-            onChange={(value) => onChange("height", value)}
-          />
-          <DimensionInput
-            id={lengthId}
-            label="Length"
-            placeholder="0"
-            value={dimensions.length}
-            onChange={(value) => onChange("length", value)}
-          />
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-function DimensionInput({
-  id,
-  label,
-  placeholder,
-  value,
-  onChange,
-}: Readonly<{
-  id: string;
-  label: string;
-  placeholder: string;
-  value: string;
-  onChange: (value: string) => void;
-}>) {
-  return (
-    <div className="grid gap-1.5">
-      <Label htmlFor={id} className="text-sm font-medium text-[#292827]">
-        {label}
-      </Label>
-      <Input
-        id={id}
-        type="number"
-        min="0"
-        inputMode="decimal"
-        placeholder={placeholder}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className={inputClassName}
-      />
-    </div>
   );
 }

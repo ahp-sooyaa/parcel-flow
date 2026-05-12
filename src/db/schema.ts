@@ -62,20 +62,6 @@ export const townships = pgTable("townships", {
   ...timestamps,
 });
 
-export const merchantContacts = pgTable("merchant_contacts", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  merchantId: uuid("merchant_id")
-    .notNull()
-    .references(() => merchants.id),
-  townshipId: uuid("township_id")
-    .notNull()
-    .references(() => townships.id),
-  recipientName: text("recipient_name").notNull(),
-  recipientPhoneNumber: text("recipient_phone_number").notNull(),
-  recipientAddress: text("recipient_address").notNull(),
-  ...softDeleteTimestamps,
-});
-
 export const riders = pgTable("riders", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").references(() => appUsers.id),
@@ -110,7 +96,6 @@ export const parcels = pgTable(
     merchantId: uuid("merchant_id")
       .notNull()
       .references(() => merchants.id),
-    merchantContactId: uuid("merchant_contact_id").references(() => merchantContacts.id),
     riderId: uuid("rider_id").references(() => riders.id),
     townshipId: uuid("township_id")
       .notNull()
@@ -242,7 +227,6 @@ export const appUsersRelations = relations(appUsers, ({ many, one }) => ({
 
 export const merchantsRelations = relations(merchants, ({ many, one }) => ({
   user: one(appUsers, { fields: [merchants.userId], references: [appUsers.id] }),
-  contacts: many(merchantContacts),
   parcels: many(parcels),
   settlements: many(merchantSettlements),
 }));
@@ -256,10 +240,6 @@ export const ridersRelations = relations(riders, ({ many, one }) => ({
 
 export const parcelsRelations = relations(parcels, ({ many, one }) => ({
   merchant: one(merchants, { fields: [parcels.merchantId], references: [merchants.id] }),
-  merchantContact: one(merchantContacts, {
-    fields: [parcels.merchantContactId],
-    references: [merchantContacts.id],
-  }),
   rider: one(riders, { fields: [parcels.riderId], references: [riders.id] }),
   township: one(townships, { fields: [parcels.townshipId], references: [townships.id] }),
   financialItems: many(financialItems),

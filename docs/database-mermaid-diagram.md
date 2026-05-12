@@ -1,78 +1,63 @@
 erDiagram
-  app_users {
-    uuid id PK
-    text name
-    text phone_number UK
-    text email
-    text role
-    boolean is_active
-    boolean must_reset_password
-    timestamp created_at
-    timestamp updated_at
-    timestamp deleted_at
-  }
+app_users {
+uuid id PK
+text name
+text phone_number UK
+text email
+text role
+boolean is_active
+boolean must_reset_password
+timestamp created_at
+timestamp updated_at
+timestamp deleted_at
+}
 
-  merchants {
-    uuid id PK
-    uuid user_id FK
-    text shop_name
-    text address
-    timestamp created_at
-    timestamp updated_at
-  }
+merchants {
+uuid id PK
+uuid user_id FK
+text shop_name
+text address
+timestamp created_at
+timestamp updated_at
+}
 
-  merchant_contacts {
-    uuid id PK
-    uuid merchant_id FK
-    uuid township_id FK
+riders {
+uuid id PK
+uuid user_id FK
+text name
+integer age
+text address
+timestamp created_at
+timestamp updated_at
+}
 
-    text recipient_name
-    text recipient_phone_number
-    text recipient_address
+townships {
+uuid id PK
+text name
+integer base_fee
+numeric base_weight_kg
+integer extra_weight_fee
+numeric extra_weight_unit_kg
+integer volumetric_divisor
+numeric cod_fee_percent
+numeric return_fee_percent
+boolean is_active
+timestamp created_at
+timestamp updated_at
+}
 
-    timestamp created_at
-    timestamp updated_at
-    timestamp deleted_at
-  }
+rider_service_townships {
+uuid id PK
+uuid rider_id FK
+uuid township_id FK
+timestamp created_at
+}
 
-  riders {
-    uuid id PK
-    uuid user_id FK
-    text name
-    integer age
-    text address
-    timestamp created_at
-    timestamp updated_at
-  }
-
-  townships {
-    uuid id PK
-    text name
-    integer base_fee
-    numeric base_weight_kg
-    integer extra_weight_fee
-    numeric extra_weight_unit_kg
-    integer volumetric_divisor
-    numeric cod_fee_percent
-    numeric return_fee_percent
-    boolean is_active
-    timestamp created_at
-    timestamp updated_at
-  }
-
-  rider_service_townships {
-    uuid id PK
-    uuid rider_id FK
-    uuid township_id FK
-    timestamp created_at
-  }
-
-  parcels {
-    uuid id PK
-    text parcel_code UK
+parcels {
+uuid id PK
+text parcel_code UK
 
     uuid merchant_id FK
-    uuid merchant_contact_id FK
     uuid rider_id FK
     uuid township_id FK
 
@@ -85,7 +70,6 @@ erDiagram
     integer delivery_fee
 
     numeric weight_kg
-    boolean is_large_parcel
     numeric parcel_width_cm
     numeric parcel_height_cm
     numeric parcel_length_cm
@@ -113,15 +97,16 @@ erDiagram
     timestamp created_at
     timestamp updated_at
     timestamp deleted_at
-  }
 
-  financial_items {
-    uuid id PK
-    uuid parcel_id FK
-    uuid merchant_id FK
-    uuid rider_id FK
-    uuid merchant_settlement_id FK
-    uuid rider_payout_id FK
+}
+
+financial_items {
+uuid id PK
+uuid parcel_id FK
+uuid merchant_id FK
+uuid rider_id FK
+uuid merchant_settlement_id FK
+uuid rider_payout_id FK
 
     text item_type
     integer amount
@@ -131,13 +116,14 @@ erDiagram
     timestamp created_at
     timestamp updated_at
     timestamp settled_at
-  }
 
-  merchant_settlements {
-    uuid id PK
-    text settlement_code UK
-    uuid merchant_id FK
-    text status
+}
+
+merchant_settlements {
+uuid id PK
+text settlement_code UK
+uuid merchant_id FK
+text status
 
     integer total_cod_amount
     integer total_delivery_fee_deduction
@@ -152,13 +138,14 @@ erDiagram
 
     timestamp created_at
     timestamp updated_at
-  }
 
-  rider_payouts {
-    uuid id PK
-    text payout_code UK
-    uuid rider_id FK
-    text status
+}
+
+rider_payouts {
+uuid id PK
+text payout_code UK
+uuid rider_id FK
+text status
 
     integer delivered_way_count
     integer fee_per_way
@@ -173,11 +160,12 @@ erDiagram
 
     timestamp created_at
     timestamp updated_at
-  }
 
-  bank_accounts {
-    uuid id PK
-    uuid user_id FK
+}
+
+bank_accounts {
+uuid id PK
+uuid user_id FK
 
     text bank_name
     text account_holder_name
@@ -188,52 +176,50 @@ erDiagram
     timestamp created_at
     timestamp updated_at
     timestamp deleted_at
-  }
 
-  parcel_status_logs {
-    uuid id PK
-    uuid parcel_id FK
-    text old_status
-    text new_status
-    uuid changed_by FK
-    
+}
+
+parcel_status_logs {
+uuid id PK
+uuid parcel_id FK
+text old_status
+text new_status
+uuid changed_by FK
+
     timestamp created_at
-  }
 
-  app_users ||--o| merchants : "has merchant profile"
-  app_users ||--o| riders : "has rider profile"
+}
 
-  merchants ||--o{ merchant_contacts : "saves contacts"
-  townships ||--o{ merchant_contacts : "contact township"
+app_users ||--o| merchants : "has merchant profile"
+app_users ||--o| riders : "has rider profile"
 
-  merchants ||--o{ parcels : "owns"
-  merchant_contacts ||--o{ parcels : "auto-fills"
-  riders ||--o{ parcels : "assigned"
-  townships ||--o{ parcels : "delivery township"
+merchants ||--o{ parcels : "owns"
+riders ||--o{ parcels : "assigned"
+townships ||--o{ parcels : "delivery township"
 
-  riders ||--o{ rider_service_townships : "serves"
-  townships ||--o{ rider_service_townships : "covered by"
+riders ||--o{ rider_service_townships : "serves"
+townships ||--o{ rider_service_townships : "covered by"
 
-  parcels ||--o{ financial_items : "generates"
-  merchants ||--o{ financial_items : "has settlement items"
-  riders ||--o{ financial_items : "has payout items"
+parcels ||--o{ financial_items : "generates"
+merchants ||--o{ financial_items : "has settlement items"
+riders ||--o{ financial_items : "has payout items"
 
-  merchants ||--o{ merchant_settlements : "has settlements"
-  merchant_settlements ||--o{ financial_items : "settles"
+merchants ||--o{ merchant_settlements : "has settlements"
+merchant_settlements ||--o{ financial_items : "settles"
 
-  riders ||--o{ rider_payouts : "has payouts"
-  rider_payouts ||--o{ financial_items : "pays rider ways"
+riders ||--o{ rider_payouts : "has payouts"
+rider_payouts ||--o{ financial_items : "pays rider ways"
 
-  parcels ||--o{ parcel_status_logs : "status history"
-  app_users ||--o{ parcel_status_logs : "changed by"
+parcels ||--o{ parcel_status_logs : "status history"
+app_users ||--o{ parcel_status_logs : "changed by"
 
-  app_users ||--o{ parcels : "created by"
-  app_users ||--o{ parcels : "confirmed collection by"
-  app_users ||--o{ financial_items : "created by"
-  app_users ||--o{ bank_accounts : "owns"
+app_users ||--o{ parcels : "created by"
+app_users ||--o{ parcels : "confirmed collection by"
+app_users ||--o{ financial_items : "created by"
+app_users ||--o{ bank_accounts : "owns"
 
-  app_users ||--o{ merchant_settlements : "created by"
-  app_users ||--o{ merchant_settlements : "paid by"
+app_users ||--o{ merchant_settlements : "created by"
+app_users ||--o{ merchant_settlements : "paid by"
 
-  app_users ||--o{ rider_payouts : "created by"
-  app_users ||--o{ rider_payouts : "paid by"
+app_users ||--o{ rider_payouts : "created by"
+app_users ||--o{ rider_payouts : "paid by"

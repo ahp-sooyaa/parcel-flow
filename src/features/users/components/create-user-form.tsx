@@ -7,6 +7,14 @@ import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
+  FieldShell,
+  FormBanner,
+  groupedInputClassName,
+  inputClassName,
+  textareaClassName,
+  type FormMessageState,
+} from "@/components/shared/form-fields";
+import {
   Combobox,
   ComboboxCollection,
   ComboboxContent,
@@ -29,19 +37,13 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { createUserAction } from "@/features/auth/server/actions";
+import { createUserAction } from "@/features/users/server/actions";
 import {
-  FieldShell,
-  FormBanner,
   buildTownshipOptions,
   generateTemporaryPassword,
-  groupedInputClassName,
-  inputClassName,
-  textareaClassName,
-  type FormMessageState,
   type TownshipOption,
   UserRoleSelectField,
-} from "@/features/auth/components/user-form-support";
+} from "@/features/users/components/user-form-support";
 import type { TownshipListItemDto } from "@/features/townships/server/dto";
 import { creatableUserRoles, roleLabels, type CreatableUserRole } from "@/lib/domain";
 

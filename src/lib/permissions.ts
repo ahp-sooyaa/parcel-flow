@@ -51,6 +51,10 @@ export function canEditDeliveryFee(
   return role === "super_admin" && parcel.status === "at_office" && parcel.riderId === null;
 }
 
+export function canManageTownshipPricing(role: UserRole) {
+  return role === "super_admin";
+}
+
 export function canChangeParcelStatus(role: UserRole, from: ParcelStatus, to: ParcelStatus) {
   const transition: StatusTransition = `${from}->${to}`;
 

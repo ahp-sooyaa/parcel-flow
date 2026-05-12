@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AssignRiderDialog } from "@/features/parcels/components/assign-rider-dialog";
-import { CreateParcelForm } from "@/features/parcels/components/create-parcel-form";
+import { EditParcelForm } from "@/features/parcels/components/edit-parcel-form";
 import { ParcelDetailSheet } from "@/features/parcels/components/parcel-detail-sheet";
 import { ParcelTable } from "@/features/parcels/components/parcel-table";
 import type { MerchantListItemDto } from "@/features/merchants/server/dto";
@@ -413,23 +413,11 @@ export function ParcelListView({
       >
         <SheetContent className="overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[720px] data-[side=right]:sm:max-w-[720px]">
           {editingParcel ? (
-            <CreateParcelForm
+            <EditParcelForm
               key={editingParcel.id}
+              parcel={editingParcel}
               merchants={merchants}
               townships={townships}
-              title="Edit Parcel"
-              submitLabel="Save Changes"
-              initialValues={{
-                merchantName: editingParcel.merchantName,
-                receiverName: editingParcel.receiverName,
-                receiverPhoneNumber: editingParcel.receiverPhoneNumber,
-                receiverAddress: editingParcel.receiverAddress,
-                specialNotes: editingParcel.specialNotes ?? "",
-                townshipName: editingParcel.townshipName,
-                deliveryFee: String(editingParcel.deliveryFee),
-                hasCod: editingParcel.codAmount > 0,
-                codFee: editingParcel.codAmount > 0 ? String(editingParcel.codAmount) : "",
-              }}
             />
           ) : null}
         </SheetContent>
