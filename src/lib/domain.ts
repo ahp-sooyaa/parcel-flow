@@ -31,6 +31,7 @@ export const financialItemTypes = [
 ] as const;
 export const financialItemStatuses = ["pending", "in_progress", "settled", "void"] as const;
 export const parcelTypes = ["cod", "non_cod"] as const;
+export type ParcelType = (typeof parcelTypes)[number];
 
 export const roleLabels: Record<UserRole, string> = {
   super_admin: "Super Admin",

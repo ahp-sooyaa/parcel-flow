@@ -44,6 +44,26 @@ export function canCreateUser(actorRole: UserRole, targetRole: CreatableUserRole
   return false;
 }
 
+export function canCreateParcel(role: UserRole) {
+  return role === "super_admin" || role === "office_admin";
+}
+
+export function canManageMerchantProfiles(role: UserRole) {
+  return role === "super_admin";
+}
+
+export function canManageRiderProfiles(role: UserRole) {
+  return role === "super_admin";
+}
+
+export function canCreateSettlementDraft(role: UserRole) {
+  return role === "super_admin" || role === "office_admin";
+}
+
+export function canCreateRiderPayoutDraft(role: UserRole) {
+  return role === "super_admin" || role === "office_admin";
+}
+
 export function canEditDeliveryFee(
   role: UserRole,
   parcel: { status: ParcelStatus; riderId: string | null },

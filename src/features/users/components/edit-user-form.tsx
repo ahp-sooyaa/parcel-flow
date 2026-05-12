@@ -82,7 +82,9 @@ export function EditUserForm({
 
     startPasswordResetTransition(async () => {
       try {
-        const result = await regeneratePasswordAction(user.role);
+        const result = await regeneratePasswordAction({
+          targetUserId: user.id,
+        });
 
         setSubmissionState({
           kind: "success",
@@ -106,7 +108,6 @@ export function EditUserForm({
     startTransition(async () => {
       const result = await updateUserAction({
         id: user.id,
-        currentRole: user.role,
         name,
         phoneNumber,
         address,

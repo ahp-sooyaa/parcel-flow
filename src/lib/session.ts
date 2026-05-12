@@ -1,7 +1,8 @@
 import { headers } from "next/headers";
+import { z } from "zod";
 
 import { auth } from "@/lib/auth";
-import type { UserRole } from "@/lib/domain";
+import { userRoles, type UserRole } from "@/lib/domain";
 
 export type CurrentUser = {
   id: string;
@@ -17,6 +18,11 @@ const demoUser: CurrentUser = {
   role: "super_admin",
 };
 
+const sessionUserRoleSchema = z.looseObject({
+  role: z.enum(userRoles),
+  phoneNumber: z.string().optional(),
+});
+
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   if (process.env.NEXT_PUBLIC_DEMO_AUTH === "true" || process.env.NODE_ENV === "development") {
     return demoUser;
@@ -30,11 +36,21 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     return null;
   }
 
+  const sessionUserParseResult = sessionUserRoleSchema.safeParse(session.user);
+
+  if (!sessionUserParseResult.success) {
+    throw new Error(
+      "Authenticated sessions must include a valid Parcel Flow user role before non-demo auth is enabled.",
+    );
+  }
+
+  const sessionUser = sessionUserParseResult.data;
+
   return {
     id: session.user.id,
     name: session.user.name,
-    phoneNumber: "unavailable",
-    role: "merchant",
+    phoneNumber: sessionUser.phoneNumber ?? "unavailable",
+    role: sessionUser.role,
   };
 }
 

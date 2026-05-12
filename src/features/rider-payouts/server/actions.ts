@@ -1,24 +1,39 @@
 "use server";
 
-import { z } from "zod";
-
+import { createRiderPayoutDraftInputSchema } from "@/features/rider-payouts/server/dto";
 import { calculateRiderPayout } from "@/features/riders/server/utils";
-
-export const createRiderPayoutDraftSchema = z.object({
-  riderId: z.uuid(),
-  financialItemIds: z.array(z.uuid()).min(1),
-  deliveredWayCount: z.coerce.number().int().min(1),
-  feePerWay: z.coerce.number().int().min(1),
-});
+import { canCreateRiderPayoutDraft } from "@/lib/permissions";
+import { requireCurrentUser } from "@/lib/session";
 
 export async function createRiderPayoutDraftAction(input: unknown) {
-  const payout = createRiderPayoutDraftSchema.parse(input);
+  const actor = await requireCurrentUser();
+  const parseResult = createRiderPayoutDraftInputSchema.safeParse(input);
+
+  if (!parseResult.success) {
+    return {
+      ok: false as const,
+      message: parseResult.error.issues[0]?.message ?? "Invalid rider payout details.",
+    };
+  }
+
+  if (!canCreateRiderPayoutDraft(actor.role)) {
+    return {
+      ok: false as const,
+      message: "You do not have permission to create rider payout drafts.",
+    };
+  }
+
+  const validatedInput = parseResult.data;
 
   return {
-    ok: true,
+    ok: true as const,
+    message: "Rider payout draft validated.",
     payout: {
-      ...payout,
-      totalPayoutAmount: calculateRiderPayout(payout.deliveredWayCount, payout.feePerWay),
+      ...validatedInput,
+      totalPayoutAmount: calculateRiderPayout(
+        validatedInput.deliveredWayCount,
+        validatedInput.feePerWay,
+      ),
     },
   };
 }

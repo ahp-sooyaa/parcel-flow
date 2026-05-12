@@ -1,26 +1,32 @@
 "use server";
 
-import { z } from "zod";
-
-import { calculateMerchantNetPayment } from "@/features/merchants/server/utils";
-
-export const createSettlementDraftSchema = z
-  .object({
-    merchantId: z.uuid(),
-    financialItemIds: z.array(z.uuid()).min(1),
-    totalCodAmount: z.coerce.number().int().min(0),
-    totalDeliveryFeeDeduction: z.coerce.number().int().min(0),
-    bankAccountId: z.uuid().optional(),
-  })
-  .refine(
-    (value) =>
-      calculateMerchantNetPayment(value.totalCodAmount, value.totalDeliveryFeeDeduction) >= 0,
-    "Delivery fee deductions exceed selected COD amount.",
-  );
+import { createSettlementDraftInputSchema } from "@/features/settlements/server/dto";
+import { canCreateSettlementDraft } from "@/lib/permissions";
+import { requireCurrentUser } from "@/lib/session";
 
 export async function createSettlementDraftAction(input: unknown) {
+  const actor = await requireCurrentUser();
+  const parseResult = createSettlementDraftInputSchema.safeParse(input);
+
+  if (!parseResult.success) {
+    return {
+      ok: false as const,
+      message: parseResult.error.issues[0]?.message ?? "Invalid settlement details.",
+    };
+  }
+
+  if (!canCreateSettlementDraft(actor.role)) {
+    return {
+      ok: false as const,
+      message: "You do not have permission to create settlement drafts.",
+    };
+  }
+
+  const validatedInput = parseResult.data;
+
   return {
-    ok: true,
-    settlement: createSettlementDraftSchema.parse(input),
+    ok: true as const,
+    message: "Settlement draft validated.",
+    settlement: validatedInput,
   };
 }

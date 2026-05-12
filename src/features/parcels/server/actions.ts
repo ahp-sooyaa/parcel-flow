@@ -1,34 +1,34 @@
 "use server";
 
-import { z } from "zod";
-
-import { parcelTypes } from "@/lib/domain";
-
-const createParcelSchema = z
-  .object({
-    merchantId: z.uuid(),
-    merchantContactId: z.uuid().optional(), // remove this, decided not to add contact feature
-    receiverName: z.string().min(1),
-    receiverPhoneNumber: z.string().min(5),
-    receiverAddress: z.string().min(1),
-    townshipId: z.uuid(),
-    parcelType: z.enum(parcelTypes), // if 'cash on delivery' checkbox is checked, this one will be cod
-    codAmount: z.coerce.number().int().min(0), // if cod type, cod field is required.
-    deliveryFee: z.coerce.number().int().min(0),
-    weightKg: z.coerce.number().positive().default(3),
-    isLargeParcel: z.coerce.boolean().default(false), // remove this, we will default value to weight_kg, parcel_width, parcel_height, parcel_length both in form field and database
-    specialNotes: z.string().optional(),
-  })
-  .refine((value) => value.parcelType !== "cod" || value.codAmount > 0, {
-    message: "COD amount is required for COD parcels.",
-    path: ["codAmount"],
-  });
+import { createParcelFormInputSchema } from "@/features/parcels/server/dto";
+import { mapCreateParcelFormInputToCreateParcelInput } from "@/features/parcels/server/utils";
+import { canCreateParcel } from "@/lib/permissions";
+import { requireCurrentUser } from "@/lib/session";
 
 export async function createParcelAction(input: unknown) {
-  const payload = createParcelSchema.parse(input);
+  const actor = await requireCurrentUser();
+  const parseResult = createParcelFormInputSchema.safeParse(input);
+
+  if (!parseResult.success) {
+    return {
+      ok: false as const,
+      message: parseResult.error.issues[0]?.message ?? "Invalid parcel details.",
+    };
+  }
+
+  if (!canCreateParcel(actor.role)) {
+    return {
+      ok: false as const,
+      message: "You do not have permission to create parcels.",
+    };
+  }
+
+  const validatedInput = parseResult.data;
+  const parcel = mapCreateParcelFormInputToCreateParcelInput(validatedInput);
 
   return {
-    ok: true,
-    parcel: payload,
+    ok: true as const,
+    message: "Parcel details validated.",
+    parcel,
   };
 }

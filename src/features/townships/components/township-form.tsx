@@ -84,7 +84,7 @@ export function TownshipForm({ mode, township }: TownshipFormProps) {
     setSubmissionState(null);
 
     startTransition(async () => {
-      const payload = {
+      const formInput = {
         name,
         baseFee,
         baseWeightKg,
@@ -99,9 +99,9 @@ export function TownshipForm({ mode, township }: TownshipFormProps) {
       const result = isEditMode
         ? await updateTownshipAction({
             id: township?.id,
-            ...payload,
+            ...formInput,
           })
-        : await createTownshipAction(payload);
+        : await createTownshipAction(formInput);
 
       if (!result.ok) {
         setSubmissionState({

@@ -1,18 +1,32 @@
 "use server";
 
-import { z } from "zod";
-
-export const riderSchema = z.object({
-  userId: z.uuid().optional(),
-  name: z.string().min(1),
-  age: z.coerce.number().int().positive().optional(),
-  address: z.string().min(1),
-  townshipIds: z.array(z.uuid()).default([]),
-});
+import { upsertRiderInputSchema } from "@/features/riders/server/dto";
+import { canManageRiderProfiles } from "@/lib/permissions";
+import { requireCurrentUser } from "@/lib/session";
 
 export async function upsertRiderAction(input: unknown) {
+  const actor = await requireCurrentUser();
+  const parseResult = upsertRiderInputSchema.safeParse(input);
+
+  if (!parseResult.success) {
+    return {
+      ok: false as const,
+      message: parseResult.error.issues[0]?.message ?? "Invalid rider details.",
+    };
+  }
+
+  if (!canManageRiderProfiles(actor.role)) {
+    return {
+      ok: false as const,
+      message: "You do not have permission to manage riders.",
+    };
+  }
+
+  const validatedInput = parseResult.data;
+
   return {
-    ok: true,
-    rider: riderSchema.parse(input),
+    ok: true as const,
+    message: "Rider details validated.",
+    rider: validatedInput,
   };
 }

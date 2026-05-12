@@ -98,6 +98,10 @@ export async function listUsers() {
   return users;
 }
 
+export async function getUserById(id: string) {
+  return users.find((user) => user.id === id) ?? null;
+}
+
 export async function listBankAccountsForUser(userId: string) {
   return bankAccounts.filter((bankAccount) => bankAccount.userId === userId);
 }
