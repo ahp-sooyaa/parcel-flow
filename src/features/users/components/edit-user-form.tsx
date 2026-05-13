@@ -1,9 +1,10 @@
 "use client";
 
-import type { SubmitEvent } from "react";
-import { useId, useRef, useState, useTransition } from "react";
-import { RefreshCw } from "lucide-react";
+import type { KeyboardEvent, SubmitEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
+import { Pencil, Plus, RefreshCw } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -24,7 +25,7 @@ import {
 } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SheetClose, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { SheetClose, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,16 +36,32 @@ import {
   type TownshipOption,
   UserRoleSelectField,
 } from "@/features/users/components/user-form-support";
-import { updateUserAction } from "@/features/users/server/actions";
-import type { UserListItemDto } from "@/features/users/server/dto";
+import {
+  createUserBankAccountAction,
+  updateUserAction,
+  updateUserBankAccountAction,
+} from "@/features/users/server/actions";
+import type { BankAccountDto, UserListItemDto } from "@/features/users/server/dto";
 import type { TownshipListItemDto } from "@/features/townships/server/dto";
 import { userRoles, type UserRole } from "@/lib/domain";
 
+type BankAccountFormMode = "create" | "edit";
+
+type BankAccountFormInput = {
+  bankName: string;
+  accountHolderName: string;
+  accountNumber: string;
+  isCompanyAccount: boolean;
+  isPrimary: boolean;
+};
+
 export function EditUserForm({
   user,
+  initialBankAccounts,
   townships,
 }: Readonly<{
   user: UserListItemDto;
+  initialBankAccounts: BankAccountDto[];
   townships: TownshipListItemDto[];
 }>) {
   const overlayContainerRef = useRef<HTMLFormElement>(null);
@@ -74,8 +91,20 @@ export function EditUserForm({
   const [role, setRole] = useState<UserRole>(user.role);
   const [shopName, setShopName] = useState(user.shopName ?? "");
   const [selectedTownship, setSelectedTownship] = useState(initialTownship);
+  const [bankAccounts, setBankAccounts] = useState(initialBankAccounts);
+  const [bankAccountFormMode, setBankAccountFormMode] = useState<BankAccountFormMode | null>(null);
+  const [editingBankAccountId, setEditingBankAccountId] = useState<string | null>(null);
   const [submissionState, setSubmissionState] = useState<FormMessageState | null>(null);
   const isBusy = isPending || isPasswordResetPending;
+  const orderedBankAccounts = useMemo(
+    () =>
+      bankAccounts.toSorted(
+        (left, right) =>
+          Number(right.isPrimary) - Number(left.isPrimary) ||
+          left.bankName.localeCompare(right.bankName),
+      ),
+    [bankAccounts],
+  );
 
   function handlePasswordReset() {
     setSubmissionState(null);
@@ -99,6 +128,52 @@ export function EditUserForm({
         });
       }
     });
+  }
+
+  function closeBankAccountForm() {
+    setBankAccountFormMode(null);
+    setEditingBankAccountId(null);
+  }
+
+  async function handleCreateBankAccount(input: BankAccountFormInput) {
+    const result = await createUserBankAccountAction({
+      userId: user.id,
+      ...input,
+    });
+
+    if (!result.ok) {
+      return result;
+    }
+
+    setBankAccounts((currentAccounts) =>
+      reconcilePrimaryAccount([...currentAccounts, result.bankAccount]),
+    );
+    closeBankAccountForm();
+
+    return result;
+  }
+
+  async function handleUpdateBankAccount(bankAccount: BankAccountDto, input: BankAccountFormInput) {
+    const result = await updateUserBankAccountAction({
+      id: bankAccount.id,
+      userId: user.id,
+      ...input,
+    });
+
+    if (!result.ok) {
+      return result;
+    }
+
+    setBankAccounts((currentAccounts) =>
+      reconcilePrimaryAccount(
+        currentAccounts.map((currentAccount) =>
+          currentAccount.id === bankAccount.id ? result.bankAccount : currentAccount,
+        ),
+      ),
+    );
+    closeBankAccountForm();
+
+    return result;
   }
 
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
@@ -348,41 +423,331 @@ export function EditUserForm({
                     {isPasswordResetPending ? "Generating..." : "Regenerate Password"}
                   </Button>
                 </div>
+
+                <div className="flex justify-end gap-2 border-t border-[#f0e7df] pt-5">
+                  <SheetClose asChild>
+                    <Button type="button" variant="outline" disabled={isBusy}>
+                      Cancel
+                    </Button>
+                  </SheetClose>
+                  <Button
+                    type="submit"
+                    className="bg-[#1b1938] text-white hover:bg-[#0e0c1f]"
+                    disabled={isBusy}
+                  >
+                    {isPending ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* TODO: wire bank account editing. reference settings page bank account. */}
           <TabsContent value="bank">
-            <Card className="border-[#e7dfd8] bg-white shadow-[0_20px_50px_rgba(27,25,56,0.06)]">
-              <CardContent className="space-y-3 text-sm text-[#5f5b58]">
-                <p className="font-medium text-[#292827]">Bank account editing is not wired yet.</p>
-                <p>
-                  This tab is reserved for the spec-required bank account section on the user edit
-                  sheet.
-                </p>
-              </CardContent>
-            </Card>
+            <div className="grid gap-3">
+              {bankAccountFormMode === "create" ? (
+                <CompactBankAccountForm
+                  mode="create"
+                  initialValue={null}
+                  onCancel={closeBankAccountForm}
+                  onSubmit={handleCreateBankAccount}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="flex min-h-36 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[#dcd4cd] bg-[#fcfbf8] p-5 text-sm font-medium text-[#73706d] transition-colors hover:border-[#1b1938] hover:bg-white hover:text-[#292827] focus-visible:border-[#1b1938] focus-visible:ring-3 focus-visible:ring-[#c9b4fa]/50 focus-visible:outline-none"
+                  onClick={() => {
+                    setBankAccountFormMode("create");
+                    setEditingBankAccountId(null);
+                  }}
+                >
+                  <span className="flex size-8 items-center justify-center rounded-md bg-white text-[#1b1938] shadow-xs ring-1 ring-[#e8e4dd]">
+                    <Plus className="size-4" />
+                  </span>
+                  Add Bank Account
+                </button>
+              )}
+
+              {orderedBankAccounts.map((bankAccount) =>
+                bankAccountFormMode === "edit" && editingBankAccountId === bankAccount.id ? (
+                  <CompactBankAccountForm
+                    key={bankAccount.id}
+                    mode="edit"
+                    initialValue={bankAccount}
+                    onCancel={closeBankAccountForm}
+                    onSubmit={(input) => handleUpdateBankAccount(bankAccount, input)}
+                  />
+                ) : (
+                  <BankAccountCard
+                    key={bankAccount.id}
+                    bankAccount={bankAccount}
+                    onEdit={() => {
+                      setBankAccountFormMode("edit");
+                      setEditingBankAccountId(bankAccount.id);
+                    }}
+                  />
+                ),
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </div>
-
-      <SheetFooter className="mt-0 justify-end border-t border-[#e7dfd8] bg-white px-6 py-4">
-        <div className="flex items-center gap-2">
-          <SheetClose asChild>
-            <Button type="button" variant="outline" disabled={isBusy}>
-              Cancel
-            </Button>
-          </SheetClose>
-          <Button
-            type="submit"
-            className="bg-[#1b1938] text-white hover:bg-[#0e0c1f]"
-            disabled={isBusy}
-          >
-            {isPending ? "Saving..." : "Save Changes"}
-          </Button>
-        </div>
-      </SheetFooter>
     </form>
   );
+}
+
+function BankAccountCard({
+  bankAccount,
+  onEdit,
+}: Readonly<{
+  bankAccount: BankAccountDto;
+  onEdit: () => void;
+}>) {
+  return (
+    <div className="relative min-h-36 rounded-lg border border-[#e7dfd8] bg-white p-5 text-[#292827] shadow-[0_20px_50px_rgba(27,25,56,0.06)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <p className="truncate text-base leading-5 font-medium">{bankAccount.bankName}</p>
+          <p className="truncate text-sm leading-5 text-[#73706d]">
+            {bankAccount.accountHolderName}
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="text-[#73706d] hover:bg-[#f6f2ed] hover:text-[#292827]"
+          aria-label={`Edit ${bankAccount.bankName} bank account`}
+          onClick={onEdit}
+        >
+          <Pencil className="size-4" />
+        </Button>
+      </div>
+
+      <div className="mt-7 flex items-end justify-between gap-3">
+        <p className="font-mono text-lg leading-6 font-semibold tracking-normal break-all text-[#292827]">
+          {bankAccount.accountNumber}
+        </p>
+        <Badge
+          variant={getBankAccountBadgeVariant(bankAccount)}
+          className="border-[#e8e4dd] bg-[#fcfbf8] text-[#292827] shadow-xs"
+        >
+          {getBankAccountBadgeLabel(bankAccount)}
+        </Badge>
+      </div>
+    </div>
+  );
+}
+
+function CompactBankAccountForm({
+  mode,
+  initialValue,
+  onCancel,
+  onSubmit,
+}: Readonly<{
+  mode: BankAccountFormMode;
+  initialValue: BankAccountDto | null;
+  onCancel: () => void;
+  onSubmit: (
+    input: BankAccountFormInput,
+  ) => Promise<{ ok: true; message: string } | { ok: false; message: string }>;
+}>) {
+  const [isPending, startTransition] = useTransition();
+  const [submissionState, setSubmissionState] = useState<FormMessageState | null>(null);
+  const bankNameId = useId();
+  const accountHolderNameId = useId();
+  const accountNumberId = useId();
+  const companyAccountId = useId();
+  const primaryAccountId = useId();
+
+  const [bankName, setBankName] = useState(initialValue?.bankName ?? "");
+  const [accountHolderName, setAccountHolderName] = useState(initialValue?.accountHolderName ?? "");
+  const [accountNumber, setAccountNumber] = useState(initialValue?.accountNumber ?? "");
+  const [isCompanyAccount, setIsCompanyAccount] = useState(initialValue?.isCompanyAccount ?? false);
+  const [isPrimary, setIsPrimary] = useState(initialValue?.isPrimary ?? false);
+
+  useEffect(() => {
+    setBankName(initialValue?.bankName ?? "");
+    setAccountHolderName(initialValue?.accountHolderName ?? "");
+    setAccountNumber(initialValue?.accountNumber ?? "");
+    setIsCompanyAccount(initialValue?.isCompanyAccount ?? false);
+    setIsPrimary(initialValue?.isPrimary ?? false);
+    setSubmissionState(null);
+  }, [initialValue]);
+
+  function handleSave() {
+    setSubmissionState(null);
+
+    startTransition(async () => {
+      const result = await onSubmit({
+        bankName,
+        accountHolderName,
+        accountNumber,
+        isCompanyAccount,
+        isPrimary,
+      });
+
+      if (!result.ok) {
+        setSubmissionState({
+          kind: "error",
+          message: result.message,
+        });
+      }
+    });
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+    handleSave();
+  }
+
+  const submitLabel = mode === "create" ? "Add Account" : "Save";
+  const pendingLabel = mode === "create" ? "Adding..." : "Saving...";
+
+  return (
+    <div
+      role="group"
+      className="space-y-3 rounded-lg border border-[#e7dfd8] bg-white p-4 shadow-[0_20px_50px_rgba(27,25,56,0.06)]"
+      onKeyDown={handleKeyDown}
+    >
+      {submissionState ? <FormBanner state={submissionState} /> : null}
+
+      <div className="grid gap-3">
+        <FieldShell htmlFor={bankNameId} label="Bank name">
+          <Input
+            id={bankNameId}
+            value={bankName}
+            onChange={(event) => {
+              setBankName(event.target.value);
+              setSubmissionState(null);
+            }}
+            placeholder="KBZ Bank"
+            className={inputClassName}
+            disabled={isPending}
+          />
+        </FieldShell>
+
+        <FieldShell htmlFor={accountHolderNameId} label="Account holder">
+          <Input
+            id={accountHolderNameId}
+            value={accountHolderName}
+            onChange={(event) => {
+              setAccountHolderName(event.target.value);
+              setSubmissionState(null);
+            }}
+            placeholder="Account holder name"
+            className={inputClassName}
+            disabled={isPending}
+          />
+        </FieldShell>
+
+        <FieldShell htmlFor={accountNumberId} label="Account number">
+          <Input
+            id={accountNumberId}
+            value={accountNumber}
+            onChange={(event) => {
+              setAccountNumber(event.target.value);
+              setSubmissionState(null);
+            }}
+            placeholder="Enter account number"
+            className={inputClassName}
+            disabled={isPending}
+          />
+        </FieldShell>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <CompactToggleField
+          id={companyAccountId}
+          label="Company"
+          checked={isCompanyAccount}
+          disabled={isPending}
+          onCheckedChange={(checked) => {
+            setIsCompanyAccount(checked);
+            setSubmissionState(null);
+          }}
+        />
+        <CompactToggleField
+          id={primaryAccountId}
+          label="Primary"
+          checked={isPrimary}
+          disabled={isPending}
+          onCheckedChange={(checked) => {
+            setIsPrimary(checked);
+            setSubmissionState(null);
+          }}
+        />
+      </div>
+
+      <div className="flex justify-end gap-2 border-t border-[#f0e7df] pt-3">
+        <Button type="button" variant="outline" size="sm" disabled={isPending} onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          className="bg-[#1b1938] text-white hover:bg-[#0e0c1f]"
+          disabled={isPending}
+          onClick={handleSave}
+        >
+          {isPending ? pendingLabel : submitLabel}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function CompactToggleField({
+  id,
+  label,
+  checked,
+  disabled,
+  onCheckedChange,
+}: Readonly<{
+  id: string;
+  label: string;
+  checked: boolean;
+  disabled: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}>) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-dashed border-[#dcd4cd] bg-[#fcfbf8] px-3 py-2">
+      <Label htmlFor={id} className="text-sm font-medium text-[#292827]">
+        {label}
+      </Label>
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} />
+    </div>
+  );
+}
+
+function reconcilePrimaryAccount(bankAccounts: BankAccountDto[]) {
+  const primaryAccountId = bankAccounts.findLast((bankAccount) => bankAccount.isPrimary)?.id;
+
+  if (!primaryAccountId) {
+    return bankAccounts;
+  }
+
+  return bankAccounts.map((bankAccount) => ({
+    ...bankAccount,
+    isPrimary: bankAccount.id === primaryAccountId,
+  }));
+}
+
+function getBankAccountBadgeLabel(bankAccount: BankAccountDto) {
+  if (bankAccount.isPrimary) {
+    return "Primary";
+  }
+
+  if (bankAccount.isCompanyAccount) {
+    return "Company";
+  }
+
+  return "Personal";
+}
+
+function getBankAccountBadgeVariant(bankAccount: BankAccountDto) {
+  return bankAccount.isPrimary ? "success" : "secondary";
 }

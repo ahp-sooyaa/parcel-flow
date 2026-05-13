@@ -92,6 +92,15 @@ export const updateOwnBankAccountInputSchema = bankAccountInputSchema.extend({
   id: z.string().min(1),
 });
 
+export const createUserBankAccountInputSchema = bankAccountInputSchema.extend({
+  userId: z.string().min(1),
+});
+
+export const updateUserBankAccountInputSchema = bankAccountInputSchema.extend({
+  id: z.string().min(1),
+  userId: z.string().min(1),
+});
+
 export type UserListItemDto = {
   id: string;
   name: string;

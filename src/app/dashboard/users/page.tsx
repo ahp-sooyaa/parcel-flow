@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { CreateUserForm } from "@/features/users/components/create-user-form";
 import { UserListTable } from "@/features/users/components/user-list-table";
-import { listUsers } from "@/features/users/server/dal";
+import { listBankAccountsForUser, listUsers } from "@/features/users/server/dal";
 import { listTownships } from "@/features/townships/server/dal";
 import { getCurrentUser } from "@/lib/session";
 
@@ -15,6 +15,11 @@ export default async function UsersPage() {
     listTownships(),
     getCurrentUser(),
   ]);
+  const bankAccountsByUserId = Object.fromEntries(
+    await Promise.all(
+      users.map(async (user) => [user.id, await listBankAccountsForUser(user.id)] as const),
+    ),
+  );
 
   return (
     <>
@@ -38,6 +43,7 @@ export default async function UsersPage() {
 
       <UserListTable
         users={users}
+        bankAccountsByUserId={bankAccountsByUserId}
         townships={townships}
         currentUserPhoneNumber={currentUser?.phoneNumber ?? null}
       />

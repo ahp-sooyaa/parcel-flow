@@ -13,14 +13,6 @@ import {
   type FormMessageState,
 } from "@/components/shared/form-fields";
 import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -30,14 +22,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   createOwnBankAccountAction,
   updateOwnBankAccountAction,
@@ -103,71 +87,67 @@ export function BankAccountsSettings({ user, initialBankAccounts }: BankAccounts
 
   return (
     <>
-      <Card className="gap-3 overflow-visible py-0 ring-0">
-        <CardHeader className="px-0">
-          <CardTitle>Bank Accounts</CardTitle>
-          <CardDescription>
-            Add payout and settlement destinations for {user.name}. Create and edit both open in
-            dialogs.
-          </CardDescription>
-          <CardAction>
-            <Button onClick={() => setIsCreateOpen(true)}>
+      {orderedBankAccounts.length === 0 ? (
+        <button
+          type="button"
+          className="flex min-h-36 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[#dcd4cd] bg-[#fcfbf8] px-5 py-10 text-center text-sm font-medium text-[#73706d] transition-colors hover:border-[#1b1938] hover:bg-white hover:text-[#292827] focus-visible:border-[#1b1938] focus-visible:ring-3 focus-visible:ring-[#c9b4fa]/50 focus-visible:outline-none"
+          onClick={() => setIsCreateOpen(true)}
+        >
+          <span className="flex size-8 items-center justify-center rounded-md bg-white text-[#1b1938] shadow-xs ring-1 ring-[#e8e4dd]">
+            <Plus className="size-4" />
+          </span>{" "}
+          Add Bank Account
+        </button>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <button
+            type="button"
+            className="flex min-h-36 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[#dcd4cd] bg-[#fcfbf8] p-5 text-sm font-medium text-[#73706d] transition-colors hover:border-[#1b1938] hover:bg-white hover:text-[#292827] focus-visible:border-[#1b1938] focus-visible:ring-3 focus-visible:ring-[#c9b4fa]/50 focus-visible:outline-none"
+            onClick={() => setIsCreateOpen(true)}
+          >
+            <span className="flex size-8 items-center justify-center rounded-md bg-white text-[#1b1938] shadow-xs ring-1 ring-[#e8e4dd]">
               <Plus className="size-4" />
-              Add Bank Account
-            </Button>
-          </CardAction>
-        </CardHeader>
-        <CardContent className="space-y-4 px-0">
-          {orderedBankAccounts.length === 0 ? (
-            <div className="rounded-xl border border-dashed bg-muted/20 px-5 py-10 text-center text-sm text-muted-foreground">
-              No bank accounts added yet. Use the dialog to create the first account.
+            </span>{" "}
+            Add Bank Account
+          </button>
+          {orderedBankAccounts.map((bankAccount) => (
+            <div
+              key={bankAccount.id}
+              className="relative min-h-36 rounded-lg border border-[#e7dfd8] bg-white p-5 text-[#292827]"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 space-y-1">
+                  <p className="truncate text-base leading-5 font-medium">{bankAccount.bankName}</p>
+                  <p className="truncate text-sm leading-5 text-[#73706d]">
+                    {bankAccount.accountHolderName}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-[#73706d] hover:bg-[#f6f2ed] hover:text-[#292827]"
+                  aria-label={`Edit ${bankAccount.bankName} bank account`}
+                  onClick={() => setEditingBankAccount(bankAccount)}
+                >
+                  <Pencil className="size-4" />
+                </Button>
+              </div>
+
+              <div className="mt-7 flex items-end justify-between gap-3">
+                <p className="font-mono text-lg leading-6 font-semibold tracking-normal break-all text-[#292827]">
+                  {bankAccount.accountNumber}
+                </p>
+                <Badge
+                  variant={getBankAccountBadgeVariant(bankAccount)}
+                  className="border-[#e8e4dd] bg-[#fcfbf8] text-[#292827] shadow-xs"
+                >
+                  {getBankAccountBadgeLabel(bankAccount)}
+                </Badge>
+              </div>
             </div>
-          ) : (
-            <div className="rounded-xl border bg-white">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Bank</TableHead>
-                    <TableHead>Account Holder</TableHead>
-                    <TableHead>Account Number</TableHead>
-                    <TableHead>Flags</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {orderedBankAccounts.map((bankAccount) => (
-                    <TableRow key={bankAccount.id}>
-                      <TableCell className="font-medium">{bankAccount.bankName}</TableCell>
-                      <TableCell>{bankAccount.accountHolderName}</TableCell>
-                      <TableCell>{bankAccount.accountNumber}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-2">
-                          {bankAccount.isPrimary ? <Badge variant="success">Primary</Badge> : null}
-                          {bankAccount.isCompanyAccount ? (
-                            <Badge variant="outline">Company</Badge>
-                          ) : (
-                            <Badge variant="secondary">Personal</Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setEditingBankAccount(bankAccount)}
-                        >
-                          <Pencil className="size-4" />
-                          Edit
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          ))}
+        </div>
+      )}
 
       <BankAccountDialog
         open={isCreateOpen}
@@ -414,6 +394,22 @@ function reconcilePrimaryAccount(bankAccounts: BankAccountDto[]) {
     ...bankAccount,
     isPrimary: bankAccount.id === primaryAccountId,
   }));
+}
+
+function getBankAccountBadgeLabel(bankAccount: BankAccountDto) {
+  if (bankAccount.isPrimary) {
+    return "Primary";
+  }
+
+  if (bankAccount.isCompanyAccount) {
+    return "Company";
+  }
+
+  return "Personal";
+}
+
+function getBankAccountBadgeVariant(bankAccount: BankAccountDto) {
+  return bankAccount.isPrimary ? "success" : "secondary";
 }
 
 function getBankAccountFormState(bankAccount: BankAccountDto | null) {

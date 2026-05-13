@@ -3,9 +3,11 @@
 import { getUserById } from "@/features/users/server/dal";
 import {
   bankAccountInputSchema,
+  createUserBankAccountInputSchema,
   createUserInputSchema,
   updateOwnAccountInputSchema,
   updateOwnBankAccountInputSchema,
+  updateUserBankAccountInputSchema,
   updateUserInputSchema,
 } from "@/features/users/server/dto";
 import { canCreateUser, canManageUser } from "@/lib/permissions";
@@ -141,5 +143,78 @@ export async function updateOwnBankAccountAction(input: unknown) {
       userId: actor.id,
       ...validatedInput,
     },
+  };
+}
+
+export async function createUserBankAccountAction(input: unknown) {
+  const actor = await requireCurrentUser();
+  const parseResult = createUserBankAccountInputSchema.safeParse(input);
+
+  if (!parseResult.success) {
+    return {
+      ok: false as const,
+      message: parseResult.error.issues[0]?.message ?? "Invalid bank account details.",
+    };
+  }
+
+  const validatedInput = parseResult.data;
+  const targetUser = await getUserById(validatedInput.userId);
+
+  if (!targetUser) {
+    return {
+      ok: false as const,
+      message: "User was not found.",
+    };
+  }
+
+  if (!canManageUser(actor.role, targetUser.role)) {
+    return {
+      ok: false as const,
+      message: "You do not have permission to edit this account.",
+    };
+  }
+
+  return {
+    ok: true as const,
+    message: "Bank account details validated.",
+    bankAccount: {
+      id: crypto.randomUUID(),
+      ...validatedInput,
+    },
+  };
+}
+
+export async function updateUserBankAccountAction(input: unknown) {
+  const actor = await requireCurrentUser();
+  const parseResult = updateUserBankAccountInputSchema.safeParse(input);
+
+  if (!parseResult.success) {
+    return {
+      ok: false as const,
+      message: parseResult.error.issues[0]?.message ?? "Invalid bank account details.",
+    };
+  }
+
+  const validatedInput = parseResult.data;
+  const targetUser = await getUserById(validatedInput.userId);
+
+  if (!targetUser) {
+    return {
+      ok: false as const,
+      message: "User was not found.",
+    };
+  }
+
+  if (!canManageUser(actor.role, targetUser.role)) {
+    return {
+      ok: false as const,
+      message: "You do not have permission to edit this account.",
+    };
+  }
+
+  return {
+    ok: true as const,
+    message: "Bank account details validated.",
+    bankAccount: validatedInput,
   };
 }

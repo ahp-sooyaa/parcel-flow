@@ -30,16 +30,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EditUserForm } from "@/features/users/components/edit-user-form";
-import type { UserListItemDto } from "@/features/users/server/dto";
+import type { BankAccountDto, UserListItemDto } from "@/features/users/server/dto";
 import type { TownshipListItemDto } from "@/features/townships/server/dto";
 import { roleLabels } from "@/lib/domain";
 
 export function UserListTable({
   users,
+  bankAccountsByUserId,
   townships,
   currentUserPhoneNumber,
 }: Readonly<{
   users: UserListItemDto[];
+  bankAccountsByUserId: Record<string, BankAccountDto[]>;
   townships: TownshipListItemDto[];
   currentUserPhoneNumber: string | null;
 }>) {
@@ -147,7 +149,13 @@ export function UserListTable({
 
       <Sheet open={editingUser !== null} onOpenChange={(open) => !open && setEditingUser(null)}>
         <SheetContent className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:w-[500px] data-[side=right]:sm:max-w-[500px]">
-          {editingUser && <EditUserForm user={editingUser} townships={townships} />}
+          {editingUser && (
+            <EditUserForm
+              user={editingUser}
+              initialBankAccounts={bankAccountsByUserId[editingUser.id] ?? []}
+              townships={townships}
+            />
+          )}
         </SheetContent>
       </Sheet>
     </>
