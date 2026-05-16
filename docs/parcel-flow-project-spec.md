@@ -15,7 +15,7 @@ The app is used by admins, merchants, and riders to manage parcel records, rider
 Parcel Flow MVP includes:
 
 - Admin-created user accounts
-- Phone number and password login
+- Username and password login
 - No public signup
 - No phone verification
 - Four user roles
@@ -41,7 +41,7 @@ Parcel Flow MVP includes:
 
 Users sign in with:
 
-- **Phone number**
+- **Username**
 - **Password**
 
 The system does not support:
@@ -60,6 +60,11 @@ User accounts are created manually by an admin.
 Required behavior:
 
 - Admin creates the account.
+- Admin enters the user's name, phone number, address, optional age, role, and role-specific profile details.
+- System generates a unique username from the user's name.
+- System stores an internal email generated from the username for Better Auth compatibility.
+- Phone number, address, and age are stored as Better Auth user additional/custom fields.
+- The generated internal email is not used as a user-facing login field.
 - Admin assigns the role.
 - Admin gives credentials to the user outside the system.
 - Admin can generate an initial password.
@@ -141,6 +146,8 @@ Can:
 Cannot:
 
 - Edit delivery fee manually
+- Create or edit bank accounts
+- Create or edit delivery pricing / township settings
 - Mark merchant settlements as paid
 - Mark rider payouts as paid
 - Cancel merchant settlements
@@ -239,17 +246,19 @@ Not editable by user:
 
 Users can view bank account information but cannot edit it.
 
-Bank accounts are managed by admin.
+Bank accounts are managed by super admin only.
 
 Rules:
 
-- Bank accounts are linked to the auth user table.
-- In this spec, `app_users` is a placeholder name for the final auth user table from BetterAuth.
+- Bank accounts are linked to the Better Auth user model.
+- The application does not maintain a separate `app_users` domain table.
+- Parcel Flow user fields such as username, phone number, address, age, role, active status, and password reset requirement belong on the Better Auth user model as configured application-specific fields.
 - Merchant users can have multiple bank accounts.
 - Rider users can have multiple bank accounts.
 - Company bank accounts can be stored with `is_company_account = true`.
 - One account can be marked as primary.
 - Users cannot add, edit, or delete bank accounts from their own settings.
+- Office admin, merchant, and rider users cannot create, edit, or delete bank accounts.
 
 Recommended display format:
 
@@ -537,11 +546,11 @@ Rider should not directly update parcel to:
 
 When admin assigns parcel to rider:
 
-- `status` remains `at_office`
+- `status` remains unchanged
 - `assigned_at` is set
 - `rider_id` is set
 - Rider can see the parcel
-- Rider expected collection amount increases
+- Rider expected collection amount updates if the parcel is active for rider collection
 
 ---
 
@@ -630,21 +639,50 @@ Recommended updates:
 
 ## 13. Rider Assignment Flow
 
-After parcels are created, admin assigns parcels to riders.
+Admin assigns parcels to riders when a rider needs to deliver, retry, schedule, or return the parcel.
+
+Assignment does not mean the rider has started delivery.
+Assignment only links the parcel to a rider and sets assignment metadata.
+It must not change the parcel status.
+
+Allowed assignment statuses:
+
+| Status | Assignment purpose |
+|---|---|
+| `at_office` | Parcel is at office and ready for delivery |
+| `postpone` | Parcel needs scheduled delivery or retry delivery |
+| `canceled_returned` | Parcel will not be retried and needs return handling back to merchant |
+
+Not assignable through the normal bulk assignment flow:
+
+| Status | Reason |
+|---|---|
+| `on_the_way` | Rider has already started delivery |
+| `delivered` | Delivery is complete |
+| `returned_to_merchant` | Return is complete |
+
+Bulk assignment rules:
+
+- Bulk assignment can be performed by super admin and office admin.
+- Bulk assignment only applies to unassigned parcels.
+- Assigned parcels should not be selectable in the bulk assignment UI.
+- If assigned parcel IDs are submitted to the bulk assignment action, the server must reject them.
+- Reassigning an already assigned parcel is handled from the edit parcel flow for now.
+- Future bulk reassignment, bulk delete, and related batch operations are separate future features.
 
 Steps:
 
 1. Admin opens parcel listing page.
-2. Admin filters parcels by township and unassigned status.
-3. Admin selects multiple parcels.
+2. Admin filters parcels by township, status, and unassigned status.
+3. Admin selects one or more unassigned eligible parcels.
 4. Admin clicks **Assign Rider**.
 5. Admin selects rider.
 6. System displays selected parcel summary.
-7. System displays total amount rider is expected to collect.
+7. System displays total collection amount for selected delivery/retry parcels and selected return-ready parcel count.
 8. Admin confirms assignment.
-9. Parcel is assigned to rider, but status remains **At Office**.
+9. Parcel is assigned to rider, but its status remains unchanged.
 10. Rider can now see assigned parcels.
-11. Rider later changes status from **At Office** to **On The Way** when starting delivery.
+11. Rider later changes eligible delivery parcels from **At Office** or **Postpone** to **On The Way** when starting delivery, once that status workflow is available.
 
 ---
 
@@ -657,11 +695,15 @@ Selected parcels: 12
 Total COD amount: 450,000 MMK
 Total delivery fee: 24,000 MMK
 Total expected collection: 474,000 MMK
+Return-ready parcels: 2
 Rider current expected collection today: 300,000 MMK
 After assignment: 774,000 MMK
 ```
 
-This helps admin avoid assigning too much cash collection to one rider.
+Expected collection should include selected `at_office` and `postpone` parcels.
+Selected `canceled_returned` parcels are return work and should be counted separately from expected cash collection.
+
+This helps admin avoid assigning too much cash collection or return workload to one rider.
 
 ---
 
@@ -671,10 +713,10 @@ This helps admin avoid assigning too much cash collection to one rider.
 
 Rider profile should include:
 
-- Name
-- Age
+- Name from linked user account
+- Age from linked user account
 - Phone number from linked user account
-- Address
+- Address from linked user account
 - Service townships
 - Active status from linked user account
 
@@ -1341,20 +1383,28 @@ Recommended columns:
 | Status | Parcel status |
 | Created date | Created date |
 
-Recommended filters:
+MVP filters:
 
 - Township
-- Assigned / unassigned
-- Rider
 - Parcel status
-- Date
+- Assignment state tabs:
+  - All
+  - Unassigned
+  - Assigned
 
-Recommended search:
+MVP search:
 
 - Parcel code
 - Receiver phone number
 - Receiver name
 - Merchant name
+
+Not included in the current MVP parcel list filters:
+
+- Merchant filter
+- Rider filter
+- Date range filter
+- Pagination
 
 ---
 
@@ -1391,6 +1441,40 @@ Future enhancement:
 ---
 
 ## 24. Recommended Pages
+
+### 24.0 Form Implementation Rules
+
+All forms should use controlled values from the first render to avoid uncontrolled-to-controlled React warnings and inconsistent submitted state.
+
+Simple forms should use server action forms with `useActionState`.
+This applies to forms that are mostly text inputs, password inputs, textareas, and straightforward submit behavior.
+The submitted values should be preserved after validation errors so users do not lose their input.
+
+Examples:
+
+- Login form
+- Change password form
+- Small account detail forms with basic text fields
+
+Complex forms should use React Hook Form with server actions.
+This applies to forms that include select fields, comboboxes, checkboxes, conditional sections, repeatable fields, popovers, dialogs, or multi-step/summary behavior.
+React Hook Form should own client-side field state, while the server action remains the source of truth for validation, permissions, and persistence.
+
+Examples:
+
+- Create/edit user form
+- Bank account create/edit form
+- Create/edit parcel form
+- Assign rider form
+- Township pricing form
+- Settlement and rider payout draft forms
+
+Validation rules:
+
+- Validate all submitted data on the server with Zod.
+- Client-side validation can improve UX, but must not replace server validation.
+- Server action responses should return field-level or form-level errors where practical.
+- Form controls should receive explicit default values such as empty strings, booleans, arrays, or null-safe option values.
 
 ### 24.1 Admin / Super Admin Pages
 
@@ -1532,7 +1616,7 @@ Recommended routes and UI patterns:
 
 ## 25. MVP Must-Have Features
 
-- Phone number and password login
+- Username and password login
 - Admin-created user accounts
 - Password regeneration by admin
 - Four roles
@@ -1591,13 +1675,13 @@ These features are not required in MVP:
 
 - Parcel Flow starts after parcel arrives at office.
 - No public signup.
-- Login uses phone number and password.
+- Login uses username and password.
 - Admin creates all user accounts.
 - Office admin can regenerate passwords, except for super admin accounts.
 - Delivery fee is normally collected from receiver.
 - Merchant cannot create or edit parcels.
 - Rider only sees assigned parcels.
-- Parcel remains `at_office` after assignment and changes to `on_the_way` only when rider starts delivery.
+- Parcel status remains unchanged after assignment; eligible delivery parcels change to `on_the_way` only when rider starts delivery.
 - Rider can start delivery and mark parcel as delivered.
 - Admin handles postpone, failed, and returned statuses.
 - Delivery fee can be manually edited only by super admin before assignment.

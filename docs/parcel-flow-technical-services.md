@@ -14,9 +14,10 @@ Parcel Flow is a Next.js-based internal delivery management system. The stack is
 |---|---|---|
 | Hosting / Deployment | Railway | Deploy and host the web application |
 | Database Infrastructure | Supabase | PostgreSQL database and database hosting infrastructure |
-| Authentication | Better Auth | Phone + password authentication and session management |
+| Authentication | Better Auth | Username + password authentication and session management |
 | Frontend Framework | Next.js | Full-stack React framework |
 | UI Components | shadcn/ui | Reusable UI components |
+| Form State | React Hook Form | Controlled complex forms with server actions |
 | Styling | Tailwind CSS | Utility-first CSS styling |
 | ORM / Database Access | Drizzle ORM | Type-safe database schema and queries |
 | Validation | Zod | Runtime validation and form/schema validation |
@@ -71,8 +72,8 @@ Supabase provides hosted PostgreSQL, database dashboard, and SQL tooling.
 Supabase is used for:
 
 - PostgreSQL database
-- Storing Parcel Flow tables
-- Storing Better Auth tables and app domain tables in the same database
+- Storing Parcel Flow domain tables
+- Storing Better Auth tables in the same database as the domain tables
 - Database migrations through Drizzle
 - Optional Row Level Security if needed later
 
@@ -80,7 +81,7 @@ Supabase is used for:
 
 - Public signup is disabled in the application flow.
 - Users are created by admin only.
-- The app uses phone number and password login through Better Auth.
+- The app uses username and password login through Better Auth.
 - Database access from the app should go through controlled server-side logic.
 - Sensitive queries should not be exposed directly from the client.
 
@@ -100,9 +101,10 @@ Better Auth gives flexible authentication logic and can support custom account c
 
 Better Auth is used for:
 
-- Phone number + password login
+- Username + password login
 - Session management
 - Auth-related tables in the main database
+- The Better Auth user model as the canonical user record for Parcel Flow
 - Password changes
 - Admin-created user accounts
 - Password regeneration flow
@@ -113,7 +115,12 @@ Better Auth is used for:
 - There is no public signup.
 - There is no phone verification in MVP.
 - Admin-created users receive credentials manually.
-- The final auth user table comes from Better Auth. Domain docs may refer to it as `app_users` as a placeholder name.
+- The canonical user record is the Better Auth user model.
+- The application must not create a separate `app_users` domain table.
+- Better Auth should use the username plugin and admin plugin for MVP authentication/account administration.
+- Better Auth admin-created users still require an email, so the system should generate an internal email from the generated username. Email is not a user-facing login field in MVP.
+- Parcel Flow-specific user fields such as username, generated internal email, phone number, address, age, role, active status, and `must_reset_password` should be configured on the Better Auth user model.
+- Phone number, address, and age are profile/contact fields only; they are not authentication factors in MVP.
 - After password regeneration, `must_reset_password` should be set to true.
 - Office admin can regenerate normal user passwords but not super admin passwords.
 
@@ -218,6 +225,40 @@ Tailwind is used for:
 - Avoid over-customizing components unless needed.
 - Reuse consistent spacing and layout patterns.
 - Prefer clear UI structure over complex custom design.
+
+---
+
+## 8.1 React Hook Form
+
+## Purpose
+
+React Hook Form is used for complex client-side form state while preserving server actions as the persistence and authorization boundary.
+
+## Why We Use It
+
+Parcel Flow has forms with comboboxes, selects, checkboxes, conditional fields, sheets, dialogs, and summary panels. React Hook Form helps keep those controlled and predictable without moving business rules to the client.
+
+## Usage in Parcel Flow
+
+React Hook Form is used for complex forms such as:
+
+- Create/edit user
+- Bank account create/edit
+- Create/edit parcel
+- Assign rider
+- Township pricing
+- Settlement draft
+- Rider payout draft
+
+Simple forms should use server action forms with `useActionState` instead. Examples include login, password change, and small text-only account detail forms.
+
+## Important Notes
+
+- All form fields should be controlled from the first render.
+- Preserve submitted values after validation errors.
+- Use server actions for final validation, permission checks, and persistence.
+- Use Zod on the server for all important submitted inputs.
+- Client-side validation is allowed for UX but must not be the only validation layer.
 
 ---
 
@@ -417,6 +458,7 @@ Socket Security is used for:
 | Database | Supabase PostgreSQL |
 | Authentication | Better Auth |
 | UI components | shadcn/ui |
+| Form state | React Hook Form |
 | Styling | Tailwind CSS |
 | ORM and migrations | Drizzle |
 | Input validation | Zod |
@@ -434,13 +476,15 @@ Recommended development workflow:
 1. Create or update feature branch.
 2. Update Drizzle schema and migrations if database changes are needed.
 3. Build UI with shadcn/ui and Tailwind CSS.
-4. Validate all form/server inputs with Zod.
-5. Use server actions or server-side functions for protected operations.
-6. Run OXC lint and format checks.
-7. Run typecheck.
-8. Open pull request.
-9. Confirm CI, automatic SonarQube pull request checks, and Socket Security checks.
-10. Deploy through Railway after merge.
+4. Use `useActionState` for simple controlled server-action forms.
+5. Use React Hook Form with server actions for complex controlled forms.
+6. Validate all form/server inputs with Zod.
+7. Use server actions or server-side functions for protected operations.
+8. Run OXC lint and format checks.
+9. Run typecheck.
+10. Open pull request.
+11. Confirm CI, automatic SonarQube pull request checks, and Socket Security checks.
+12. Deploy through Railway after merge.
 
 ---
 

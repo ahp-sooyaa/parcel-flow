@@ -1,9 +1,15 @@
 erDiagram
-app_users {
+%% `auth_users` represents the Better Auth user model with Parcel Flow custom fields.
+%% It is not a separate app-owned `app_users` table.
+%% The physical table name should follow the Better Auth configuration.
+auth_users {
 uuid id PK
 text name
-text phone_number UK
-text email
+text username UK
+text email UK
+text phone_number
+text address
+integer age
 text role
 boolean is_active
 boolean must_reset_password
@@ -24,9 +30,6 @@ timestamp updated_at
 riders {
 uuid id PK
 uuid user_id FK
-text name
-integer age
-text address
 timestamp created_at
 timestamp updated_at
 }
@@ -190,8 +193,8 @@ uuid changed_by FK
 
 }
 
-app_users ||--o| merchants : "has merchant profile"
-app_users ||--o| riders : "has rider profile"
+auth_users ||--o| merchants : "has merchant profile"
+auth_users ||--o| riders : "has rider profile"
 
 merchants ||--o{ parcels : "owns"
 riders ||--o{ parcels : "assigned"
@@ -211,15 +214,15 @@ riders ||--o{ rider_payouts : "has payouts"
 rider_payouts ||--o{ financial_items : "pays rider ways"
 
 parcels ||--o{ parcel_status_logs : "status history"
-app_users ||--o{ parcel_status_logs : "changed by"
+auth_users ||--o{ parcel_status_logs : "changed by"
 
-app_users ||--o{ parcels : "created by"
-app_users ||--o{ parcels : "confirmed collection by"
-app_users ||--o{ financial_items : "created by"
-app_users ||--o{ bank_accounts : "owns"
+auth_users ||--o{ parcels : "created by"
+auth_users ||--o{ parcels : "confirmed collection by"
+auth_users ||--o{ financial_items : "created by"
+auth_users ||--o{ bank_accounts : "owns"
 
-app_users ||--o{ merchant_settlements : "created by"
-app_users ||--o{ merchant_settlements : "paid by"
+auth_users ||--o{ merchant_settlements : "created by"
+auth_users ||--o{ merchant_settlements : "paid by"
 
-app_users ||--o{ rider_payouts : "created by"
-app_users ||--o{ rider_payouts : "paid by"
+auth_users ||--o{ rider_payouts : "created by"
+auth_users ||--o{ rider_payouts : "paid by"
