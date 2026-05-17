@@ -1,7 +1,7 @@
 "use client";
 
-import type { SubmitEvent } from "react";
 import { useId, useState, useTransition } from "react";
+import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -47,6 +47,8 @@ function getInitialValues(township?: TownshipListItemDto) {
   };
 }
 
+type TownshipFormValues = ReturnType<typeof getInitialValues>;
+
 export function TownshipForm({ mode, township }: TownshipFormProps) {
   const nameId = useId();
   const baseFeeId = useId();
@@ -59,15 +61,10 @@ export function TownshipForm({ mode, township }: TownshipFormProps) {
   const [isPending, startTransition] = useTransition();
   const [submissionState, setSubmissionState] = useState<FormMessageState | null>(null);
   const initialValues = getInitialValues(township);
-  const [name, setName] = useState(initialValues.name);
-  const [baseFee, setBaseFee] = useState(initialValues.baseFee);
-  const [baseWeightKg, setBaseWeightKg] = useState(initialValues.baseWeightKg);
-  const [extraWeightFee, setExtraWeightFee] = useState(initialValues.extraWeightFee);
-  const [extraWeightUnitKg, setExtraWeightUnitKg] = useState(initialValues.extraWeightUnitKg);
-  const [volumetricDivisor, setVolumetricDivisor] = useState(initialValues.volumetricDivisor);
-  const [codFeePercent, setCodFeePercent] = useState(initialValues.codFeePercent);
-  const [returnFeePercent, setReturnFeePercent] = useState(initialValues.returnFeePercent);
-  const [isActive, setIsActive] = useState(initialValues.isActive);
+  const { handleSubmit, setValue, watch } = useForm<TownshipFormValues>({
+    defaultValues: initialValues,
+  });
+  const values = watch();
 
   const isEditMode = mode === "edit";
   const title = isEditMode ? "Edit Township" : "Create Township";
@@ -79,23 +76,10 @@ export function TownshipForm({ mode, township }: TownshipFormProps) {
     }
   }
 
-  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function submitForm(formInput: TownshipFormValues) {
     setSubmissionState(null);
 
     startTransition(async () => {
-      const formInput = {
-        name,
-        baseFee,
-        baseWeightKg,
-        extraWeightFee,
-        extraWeightUnitKg,
-        volumetricDivisor,
-        codFeePercent,
-        returnFeePercent,
-        isActive,
-      };
-
       const result = isEditMode
         ? await updateTownshipAction({
             id: township?.id,
@@ -121,7 +105,10 @@ export function TownshipForm({ mode, township }: TownshipFormProps) {
   }
 
   return (
-    <form className="flex h-full flex-col bg-[#fcfbf8] text-[#292827]" onSubmit={handleSubmit}>
+    <form
+      className="flex h-full flex-col bg-[#fcfbf8] text-[#292827]"
+      onSubmit={handleSubmit(submitForm)}
+    >
       <SheetHeader className="space-y-3 border-b border-[#e7dfd8] p-6 pb-4 text-left">
         <SheetTitle className="text-[2rem] font-semibold tracking-[-0.04em]">{title}</SheetTitle>
         <SheetDescription className="max-w-lg text-sm leading-6 text-[#73706d]">
@@ -139,9 +126,9 @@ export function TownshipForm({ mode, township }: TownshipFormProps) {
               <FieldShell htmlFor={nameId} label="Township name">
                 <Input
                   id={nameId}
-                  value={name}
+                  value={values.name}
                   onChange={(event) => {
-                    setName(event.target.value);
+                    setValue("name", event.target.value);
                     clearBanner();
                   }}
                   placeholder="Enter township name"
@@ -154,9 +141,9 @@ export function TownshipForm({ mode, township }: TownshipFormProps) {
                 <FieldShell htmlFor={baseFeeId} label="Base fee">
                   <MoneyInput
                     id={baseFeeId}
-                    value={baseFee}
+                    value={values.baseFee}
                     onChange={(value) => {
-                      setBaseFee(value);
+                      setValue("baseFee", value);
                       clearBanner();
                     }}
                     disabled={isPending}
@@ -166,9 +153,9 @@ export function TownshipForm({ mode, township }: TownshipFormProps) {
                 <FieldShell htmlFor={baseWeightKgId} label="Base weight">
                   <NumberInput
                     id={baseWeightKgId}
-                    value={baseWeightKg}
+                    value={values.baseWeightKg}
                     onChange={(value) => {
-                      setBaseWeightKg(value);
+                      setValue("baseWeightKg", value);
                       clearBanner();
                     }}
                     suffix="kg"
@@ -182,9 +169,9 @@ export function TownshipForm({ mode, township }: TownshipFormProps) {
                 <FieldShell htmlFor={extraWeightFeeId} label="Extra weight fee">
                   <MoneyInput
                     id={extraWeightFeeId}
-                    value={extraWeightFee}
+                    value={values.extraWeightFee}
                     onChange={(value) => {
-                      setExtraWeightFee(value);
+                      setValue("extraWeightFee", value);
                       clearBanner();
                     }}
                     disabled={isPending}
@@ -194,9 +181,9 @@ export function TownshipForm({ mode, township }: TownshipFormProps) {
                 <FieldShell htmlFor={extraWeightUnitKgId} label="Extra weight unit">
                   <NumberInput
                     id={extraWeightUnitKgId}
-                    value={extraWeightUnitKg}
+                    value={values.extraWeightUnitKg}
                     onChange={(value) => {
-                      setExtraWeightUnitKg(value);
+                      setValue("extraWeightUnitKg", value);
                       clearBanner();
                     }}
                     suffix="kg"
@@ -210,9 +197,9 @@ export function TownshipForm({ mode, township }: TownshipFormProps) {
                 <FieldShell htmlFor={volumetricDivisorId} label="Volumetric divisor">
                   <NumberInput
                     id={volumetricDivisorId}
-                    value={volumetricDivisor}
+                    value={values.volumetricDivisor}
                     onChange={(value) => {
-                      setVolumetricDivisor(value);
+                      setValue("volumetricDivisor", value);
                       clearBanner();
                     }}
                     inputMode="numeric"
@@ -223,9 +210,9 @@ export function TownshipForm({ mode, township }: TownshipFormProps) {
                 <FieldShell htmlFor={codFeePercentId} label="COD fee percent">
                   <NumberInput
                     id={codFeePercentId}
-                    value={codFeePercent}
+                    value={values.codFeePercent}
                     onChange={(value) => {
-                      setCodFeePercent(value);
+                      setValue("codFeePercent", value);
                       clearBanner();
                     }}
                     suffix="%"
@@ -238,9 +225,9 @@ export function TownshipForm({ mode, township }: TownshipFormProps) {
               <FieldShell htmlFor={returnFeePercentId} label="Return fee percent">
                 <NumberInput
                   id={returnFeePercentId}
-                  value={returnFeePercent}
+                  value={values.returnFeePercent}
                   onChange={(value) => {
-                    setReturnFeePercent(value);
+                    setValue("returnFeePercent", value);
                     clearBanner();
                   }}
                   suffix="%"
@@ -264,9 +251,9 @@ export function TownshipForm({ mode, township }: TownshipFormProps) {
                 </div>
                 <Switch
                   id="township-active-switch"
-                  checked={isActive}
+                  checked={values.isActive}
                   onCheckedChange={(checked) => {
-                    setIsActive(checked);
+                    setValue("isActive", checked);
                     clearBanner();
                   }}
                   disabled={isPending}

@@ -15,7 +15,7 @@ export async function DashboardShell({ children }: Readonly<{ children: ReactNod
 
   return (
     <div className="flex min-h-svh bg-background">
-      <AppNav />
+      <AppNav role={user.role} />
       <div className="min-w-0 flex-1">
         <header className="flex h-16 items-center justify-between border-b bg-white px-4 sm:px-6">
           <div>

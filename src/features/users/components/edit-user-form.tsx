@@ -1,8 +1,8 @@
 "use client";
 
-import type { KeyboardEvent, SubmitEvent } from "react";
 import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { Pencil, Plus, RefreshCw } from "lucide-react";
+import { useForm } from "react-hook-form";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,8 +51,18 @@ type BankAccountFormInput = {
   bankName: string;
   accountHolderName: string;
   accountNumber: string;
-  isCompanyAccount: boolean;
   isPrimary: boolean;
+};
+
+type EditUserFormValues = {
+  name: string;
+  phoneNumber: string;
+  address: string;
+  age: string;
+  isActive: boolean;
+  role: UserRole;
+  shopName: string;
+  selectedTownship: TownshipOption | null;
 };
 
 export function EditUserForm({
@@ -83,14 +93,19 @@ export function EditUserForm({
     user.serviceTownshipName,
   );
 
-  const [name, setName] = useState(user.name);
-  const [phoneNumber, setPhoneNumber] = useState(user.phoneNumber);
-  const [address, setAddress] = useState(user.address);
-  const [age, setAge] = useState(user.age ? String(user.age) : "");
-  const [isActive, setIsActive] = useState(user.isActive);
-  const [role, setRole] = useState<UserRole>(user.role);
-  const [shopName, setShopName] = useState(user.shopName ?? "");
-  const [selectedTownship, setSelectedTownship] = useState(initialTownship);
+  const { handleSubmit, setValue, watch } = useForm<EditUserFormValues>({
+    defaultValues: {
+      name: user.name,
+      phoneNumber: user.phoneNumber,
+      address: user.address,
+      age: user.age ? String(user.age) : "",
+      isActive: user.isActive,
+      role: user.role,
+      shopName: user.shopName ?? "",
+      selectedTownship: initialTownship,
+    },
+  });
+  const values = watch();
   const [bankAccounts, setBankAccounts] = useState(initialBankAccounts);
   const [bankAccountFormMode, setBankAccountFormMode] = useState<BankAccountFormMode | null>(null);
   const [editingBankAccountId, setEditingBankAccountId] = useState<string | null>(null);
@@ -176,21 +191,20 @@ export function EditUserForm({
     return result;
   }
 
-  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function submitForm(payload: EditUserFormValues) {
     setSubmissionState(null);
 
     startTransition(async () => {
       const result = await updateUserAction({
         id: user.id,
-        name,
-        phoneNumber,
-        address,
-        age,
-        isActive,
-        role,
-        shopName: role === "merchant" ? shopName : undefined,
-        serviceTownshipId: role === "rider" ? selectedTownship?.value : undefined,
+        name: payload.name,
+        phoneNumber: payload.phoneNumber,
+        address: payload.address,
+        age: payload.age,
+        isActive: payload.isActive,
+        role: payload.role,
+        shopName: payload.role === "merchant" ? payload.shopName : undefined,
+        serviceTownshipId: payload.role === "rider" ? payload.selectedTownship?.value : undefined,
       });
 
       if (!result.ok) {
@@ -204,8 +218,8 @@ export function EditUserForm({
 
       setSubmissionState({
         kind: "success",
-        message: `${name} is ready to save.`,
-        detail: "This mock flow validates the edited profile details without persistence yet.",
+        message: `${payload.name} has been saved.`,
+        detail: "The persisted profile data will be reflected after refresh.",
       });
     });
   }
@@ -214,7 +228,7 @@ export function EditUserForm({
     <form
       ref={overlayContainerRef}
       className="flex h-full flex-col bg-[#fcfbf8] text-[#292827]"
-      onSubmit={handleSubmit}
+      onSubmit={handleSubmit(submitForm)}
     >
       <SheetHeader className="space-y-3 border-b border-[#e7dfd8] p-6 pb-4 text-left">
         <SheetTitle className="text-[2rem] font-semibold tracking-[-0.04em]">Edit User</SheetTitle>
@@ -246,9 +260,9 @@ export function EditUserForm({
                   <FieldShell htmlFor={nameId} label="Name">
                     <Input
                       id={nameId}
-                      value={name}
+                      value={values.name}
                       onChange={(event) => {
-                        setName(event.target.value);
+                        setValue("name", event.target.value);
                         setSubmissionState(null);
                       }}
                       placeholder="Enter full name"
@@ -260,9 +274,9 @@ export function EditUserForm({
                   <FieldShell htmlFor={phoneNumberId} label="Phone number">
                     <Input
                       id={phoneNumberId}
-                      value={phoneNumber}
+                      value={values.phoneNumber}
                       onChange={(event) => {
-                        setPhoneNumber(event.target.value);
+                        setValue("phoneNumber", event.target.value);
                         setSubmissionState(null);
                       }}
                       placeholder="09xxxxxxxxx"
@@ -275,9 +289,9 @@ export function EditUserForm({
                 <FieldShell htmlFor={addressId} label="Address">
                   <Textarea
                     id={addressId}
-                    value={address}
+                    value={values.address}
                     onChange={(event) => {
-                      setAddress(event.target.value);
+                      setValue("address", event.target.value);
                       setSubmissionState(null);
                     }}
                     placeholder="Street, ward, township, landmark"
@@ -293,9 +307,9 @@ export function EditUserForm({
                       type="number"
                       min="1"
                       inputMode="numeric"
-                      value={age}
+                      value={values.age}
                       onChange={(event) => {
-                        setAge(event.target.value);
+                        setValue("age", event.target.value);
                         setSubmissionState(null);
                       }}
                       placeholder="Optional"
@@ -307,17 +321,17 @@ export function EditUserForm({
                   <FieldShell htmlFor={roleId} label="Role">
                     <UserRoleSelectField
                       id={roleId}
-                      value={role}
+                      value={values.role}
                       onChange={(nextRole) => {
-                        setRole(nextRole);
+                        setValue("role", nextRole);
                         setSubmissionState(null);
 
                         if (nextRole !== "merchant") {
-                          setShopName("");
+                          setValue("shopName", "");
                         }
 
                         if (nextRole !== "rider") {
-                          setSelectedTownship(null);
+                          setValue("selectedTownship", null);
                         }
                       }}
                       disabled={isBusy}
@@ -340,22 +354,22 @@ export function EditUserForm({
                   </div>
                   <Switch
                     id="user-active-switch"
-                    checked={isActive}
+                    checked={values.isActive}
                     onCheckedChange={(checked) => {
-                      setIsActive(checked);
+                      setValue("isActive", checked);
                       setSubmissionState(null);
                     }}
                     disabled={isBusy}
                   />
                 </div>
 
-                {role === "merchant" ? (
+                {values.role === "merchant" ? (
                   <FieldShell htmlFor={shopId} label="Shop">
                     <Input
                       id={shopId}
-                      value={shopName}
+                      value={values.shopName}
                       onChange={(event) => {
-                        setShopName(event.target.value);
+                        setValue("shopName", event.target.value);
                         setSubmissionState(null);
                       }}
                       placeholder="Enter shop name"
@@ -365,13 +379,13 @@ export function EditUserForm({
                   </FieldShell>
                 ) : null}
 
-                {role === "rider" ? (
+                {values.role === "rider" ? (
                   <FieldShell htmlFor={serviceTownshipId} label="Service township">
                     <Combobox
                       items={townshipOptions}
-                      value={selectedTownship}
+                      value={values.selectedTownship}
                       onValueChange={(township = null) => {
-                        setSelectedTownship(township);
+                        setValue("selectedTownship", township);
                         setSubmissionState(null);
                       }}
                       itemToStringLabel={(option) => option.label}
@@ -381,7 +395,7 @@ export function EditUserForm({
                         id={serviceTownshipId}
                         aria-label="Select rider service township"
                         placeholder="Search township"
-                        showClear={selectedTownship !== null}
+                        showClear={values.selectedTownship !== null}
                         className={groupedInputClassName}
                         disabled={isBusy}
                       />
@@ -556,35 +570,23 @@ function CompactBankAccountForm({
   const bankNameId = useId();
   const accountHolderNameId = useId();
   const accountNumberId = useId();
-  const companyAccountId = useId();
   const primaryAccountId = useId();
 
-  const [bankName, setBankName] = useState(initialValue?.bankName ?? "");
-  const [accountHolderName, setAccountHolderName] = useState(initialValue?.accountHolderName ?? "");
-  const [accountNumber, setAccountNumber] = useState(initialValue?.accountNumber ?? "");
-  const [isCompanyAccount, setIsCompanyAccount] = useState(initialValue?.isCompanyAccount ?? false);
-  const [isPrimary, setIsPrimary] = useState(initialValue?.isPrimary ?? false);
+  const { handleSubmit, reset, setValue, watch } = useForm<BankAccountFormInput>({
+    defaultValues: getBankAccountFormInput(initialValue),
+  });
+  const values = watch();
 
   useEffect(() => {
-    setBankName(initialValue?.bankName ?? "");
-    setAccountHolderName(initialValue?.accountHolderName ?? "");
-    setAccountNumber(initialValue?.accountNumber ?? "");
-    setIsCompanyAccount(initialValue?.isCompanyAccount ?? false);
-    setIsPrimary(initialValue?.isPrimary ?? false);
+    reset(getBankAccountFormInput(initialValue));
     setSubmissionState(null);
-  }, [initialValue]);
+  }, [initialValue, reset]);
 
-  function handleSave() {
+  function submitForm(payload: BankAccountFormInput) {
     setSubmissionState(null);
 
     startTransition(async () => {
-      const result = await onSubmit({
-        bankName,
-        accountHolderName,
-        accountNumber,
-        isCompanyAccount,
-        isPrimary,
-      });
+      const result = await onSubmit(payload);
 
       if (!result.ok) {
         setSubmissionState({
@@ -595,15 +597,6 @@ function CompactBankAccountForm({
     });
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key !== "Enter") {
-      return;
-    }
-
-    event.preventDefault();
-    handleSave();
-  }
-
   const submitLabel = mode === "create" ? "Add Account" : "Save";
   const pendingLabel = mode === "create" ? "Adding..." : "Saving...";
 
@@ -611,7 +604,6 @@ function CompactBankAccountForm({
     <div
       role="group"
       className="space-y-3 rounded-lg border border-[#e7dfd8] bg-white p-4 shadow-[0_20px_50px_rgba(27,25,56,0.06)]"
-      onKeyDown={handleKeyDown}
     >
       {submissionState ? <FormBanner state={submissionState} /> : null}
 
@@ -619,9 +611,9 @@ function CompactBankAccountForm({
         <FieldShell htmlFor={bankNameId} label="Bank name">
           <Input
             id={bankNameId}
-            value={bankName}
+            value={values.bankName}
             onChange={(event) => {
-              setBankName(event.target.value);
+              setValue("bankName", event.target.value);
               setSubmissionState(null);
             }}
             placeholder="KBZ Bank"
@@ -633,9 +625,9 @@ function CompactBankAccountForm({
         <FieldShell htmlFor={accountHolderNameId} label="Account holder">
           <Input
             id={accountHolderNameId}
-            value={accountHolderName}
+            value={values.accountHolderName}
             onChange={(event) => {
-              setAccountHolderName(event.target.value);
+              setValue("accountHolderName", event.target.value);
               setSubmissionState(null);
             }}
             placeholder="Account holder name"
@@ -647,9 +639,9 @@ function CompactBankAccountForm({
         <FieldShell htmlFor={accountNumberId} label="Account number">
           <Input
             id={accountNumberId}
-            value={accountNumber}
+            value={values.accountNumber}
             onChange={(event) => {
-              setAccountNumber(event.target.value);
+              setValue("accountNumber", event.target.value);
               setSubmissionState(null);
             }}
             placeholder="Enter account number"
@@ -659,24 +651,14 @@ function CompactBankAccountForm({
         </FieldShell>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
-        <CompactToggleField
-          id={companyAccountId}
-          label="Company"
-          checked={isCompanyAccount}
-          disabled={isPending}
-          onCheckedChange={(checked) => {
-            setIsCompanyAccount(checked);
-            setSubmissionState(null);
-          }}
-        />
+      <div className="grid gap-2">
         <CompactToggleField
           id={primaryAccountId}
           label="Primary"
-          checked={isPrimary}
+          checked={values.isPrimary}
           disabled={isPending}
           onCheckedChange={(checked) => {
-            setIsPrimary(checked);
+            setValue("isPrimary", checked);
             setSubmissionState(null);
           }}
         />
@@ -691,7 +673,7 @@ function CompactBankAccountForm({
           size="sm"
           className="bg-[#1b1938] text-white hover:bg-[#0e0c1f]"
           disabled={isPending}
-          onClick={handleSave}
+          onClick={handleSubmit(submitForm)}
         >
           {isPending ? pendingLabel : submitLabel}
         </Button>
@@ -750,4 +732,13 @@ function getBankAccountBadgeLabel(bankAccount: BankAccountDto) {
 
 function getBankAccountBadgeVariant(bankAccount: BankAccountDto) {
   return bankAccount.isPrimary ? "success" : "secondary";
+}
+
+function getBankAccountFormInput(bankAccount: BankAccountDto | null): BankAccountFormInput {
+  return {
+    bankName: bankAccount?.bankName ?? "",
+    accountHolderName: bankAccount?.accountHolderName ?? "",
+    accountNumber: bankAccount?.accountNumber ?? "",
+    isPrimary: bankAccount?.isPrimary ?? false,
+  };
 }

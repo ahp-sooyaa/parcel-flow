@@ -9,8 +9,16 @@ import { ParcelListView } from "@/features/parcels/components/parcel-list-view";
 import { listParcels } from "@/features/parcels/server/dal";
 import { listRiders } from "@/features/riders/server/dal";
 import { listTownships } from "@/features/townships/server/dal";
+import { isAdminRole } from "@/lib/domain";
+import { requireCurrentUser } from "@/lib/session";
 
 export default async function ParcelsPage() {
+  const currentUser = await requireCurrentUser();
+
+  if (!isAdminRole(currentUser.role)) {
+    throw new Error("Admin access required.");
+  }
+
   const [parcels, merchants, riders, townships] = await Promise.all([
     listParcels(),
     listMerchants(),

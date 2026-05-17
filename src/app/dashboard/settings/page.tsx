@@ -3,14 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AccountSettingsForm } from "@/features/users/components/account-settings-form";
 import { BankAccountsSettings } from "@/features/users/components/bank-accounts-settings";
-import { listBankAccountsForUser, listUsers } from "@/features/users/server/dal";
+import { getUserById, listBankAccountsForUser } from "@/features/users/server/dal";
 import type { UserListItemDto } from "@/features/users/server/dto";
-import { getCurrentUser } from "@/lib/session";
+import { requireCurrentUser } from "@/lib/session";
 
 export default async function SettingsPage() {
-  const [currentUser, users] = await Promise.all([getCurrentUser(), listUsers()]);
-  const settingsUser = buildSettingsUser(currentUser, users);
-  const bankAccounts = settingsUser ? await listBankAccountsForUser(settingsUser.id) : [];
+  const currentUser = await requireCurrentUser();
+  const settingsUser = (await getUserById(currentUser.id)) ?? buildSettingsUser(currentUser);
+  const bankAccounts = await listBankAccountsForUser(settingsUser.id);
 
   return (
     <>
@@ -62,30 +62,19 @@ export default async function SettingsPage() {
 // this function we may not need if we fetch real data from database and auth.
 // no need to compare currentUser with userlist
 function buildSettingsUser(
-  currentUser: Awaited<ReturnType<typeof getCurrentUser>>,
-  users: UserListItemDto[],
-) {
-  if (!currentUser) {
-    return null;
-  }
-
-  const matchedUser = users.find((user) => user.phoneNumber === currentUser.phoneNumber);
-
-  if (matchedUser) {
-    return matchedUser;
-  }
-
+  currentUser: Awaited<ReturnType<typeof requireCurrentUser>>,
+): UserListItemDto {
   return {
     id: currentUser.id,
     name: currentUser.name,
     phoneNumber: currentUser.phoneNumber,
-    address: "",
-    age: null,
+    address: currentUser.address,
+    age: currentUser.age,
     role: currentUser.role,
     shopName: null,
     serviceTownshipId: null,
     serviceTownshipName: null,
-    isActive: true,
-    mustResetPassword: false,
+    isActive: currentUser.isActive,
+    mustResetPassword: currentUser.mustResetPassword,
   };
 }

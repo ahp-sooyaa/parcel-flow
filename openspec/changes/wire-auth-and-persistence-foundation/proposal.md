@@ -7,7 +7,7 @@ Parcel Flow currently uses mock data and validation-only server actions, so the 
 - Configure Better Auth as the canonical user model for Parcel Flow users; do not create a separate `app_users` domain table.
 - Support admin-created accounts with username and password login, no public signup, no OTP login, no email login UI, and no phone verification flow in MVP.
 - Generate unique usernames and internal Better Auth emails from the entered user name during account creation.
-- Replace development demo-session behavior with real session loading and explicit route protection for dashboard pages.
+- Replace development demo-session behavior with real session loading, a first-super-admin seed script, and explicit route protection for dashboard pages.
 - Persist users, merchant profiles, rider profiles, rider service townships, bank accounts, townships, and parcel records through Drizzle against Supabase PostgreSQL.
 - Replace mock DAL arrays and validation-only server actions for Phase 1 and Phase 2 screens with real database reads and mutations.
 - Standardize form implementation: `useActionState` for simple controlled server-action forms and React Hook Form plus server actions for complex controlled forms.

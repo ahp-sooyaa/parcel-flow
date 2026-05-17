@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
+import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
+import { FormBanner, type FormMessageState } from "@/components/shared/form-fields";
 import {
   Combobox,
   ComboboxCollection,
@@ -20,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
+import { assignParcelsToRiderAction } from "@/features/parcels/server/actions";
 import type { RiderListItemDto } from "@/features/riders/server/dto";
 import { formatMoney } from "@/lib/format";
 
@@ -45,6 +48,7 @@ export function AssignRiderDialog({
 }: AssignRiderDialogProps) {
   const overlayContainerRef = useRef<HTMLDivElement>(null);
   const riderInputId = useId();
+  const [isPending, startTransition] = useTransition();
   const riderOptions = useMemo<RiderOption[]>(
     () =>
       riders.map((rider) => ({
@@ -56,13 +60,18 @@ export function AssignRiderDialog({
     [riders],
   );
 
-  const [selectedRider, setSelectedRider] = useState<RiderOption | null>(null);
+  const { setValue, watch, reset } = useForm<{ selectedRider: RiderOption | null }>({
+    defaultValues: { selectedRider: null },
+  });
+  const selectedRider = watch("selectedRider");
+  const [submissionState, setSubmissionState] = useState<FormMessageState | null>(null);
 
   useEffect(() => {
     if (!open) {
-      setSelectedRider(null);
+      reset({ selectedRider: null });
+      setSubmissionState(null);
     }
-  }, [open]);
+  }, [open, reset]);
 
   const totalCodAmount = selectedParcels.reduce((sum, parcel) => sum + parcel.codAmount, 0);
   const totalDeliveryFee = selectedParcels.reduce((sum, parcel) => sum + parcel.deliveryFee, 0);
@@ -83,6 +92,8 @@ export function AssignRiderDialog({
             </DialogDescription>
           </DialogHeader>
 
+          {submissionState ? <FormBanner state={submissionState} /> : null}
+
           <div className="space-y-3">
             <label htmlFor={riderInputId} className="text-sm font-medium text-foreground">
               Rider
@@ -90,7 +101,7 @@ export function AssignRiderDialog({
             <Combobox
               items={riderOptions}
               value={selectedRider}
-              onValueChange={(nextValue) => setSelectedRider(nextValue ?? null)}
+              onValueChange={(nextValue) => setValue("selectedRider", nextValue ?? null)}
               itemToStringLabel={(option) => `${option.label} ${option.helper}`}
               isItemEqualToValue={(item, value) => item.value === value.value}
             >
@@ -173,21 +184,38 @@ export function AssignRiderDialog({
             </div>
           </div>
 
-          <div className="rounded-lg border border-dashed bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
-            UI preview only. Confirming here does not save rider assignment or change parcel status
-            yet.
-          </div>
-
           <DialogFooter className="border-t px-0 pt-1">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button
               type="button"
-              disabled={selectedRider === null}
-              onClick={() => onOpenChange(false)}
+              disabled={selectedRider === null || isPending}
+              onClick={() => {
+                if (!selectedRider) {
+                  return;
+                }
+
+                setSubmissionState(null);
+                startTransition(async () => {
+                  const result = await assignParcelsToRiderAction({
+                    riderId: selectedRider.value,
+                    parcelIds: selectedParcels.map((parcel) => parcel.id),
+                  });
+
+                  if (!result.ok) {
+                    setSubmissionState({
+                      kind: "error",
+                      message: result.message,
+                    });
+                    return;
+                  }
+
+                  onOpenChange(false);
+                });
+              }}
             >
-              Assign Rider
+              {isPending ? "Assigning..." : "Assign Rider"}
             </Button>
           </DialogFooter>
         </div>

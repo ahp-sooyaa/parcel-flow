@@ -1,8 +1,8 @@
 "use client";
 
-import type { SubmitEvent } from "react";
 import { useEffect, useId, useMemo, useState, useTransition } from "react";
 import { Pencil, Plus } from "lucide-react";
+import { useForm } from "react-hook-form";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,7 @@ type BankAccountDialogProps = Readonly<{
 }>;
 
 export function BankAccountsSettings({ user, initialBankAccounts }: BankAccountsSettingsProps) {
+  const canManageBankAccounts = user.role === "super_admin";
   const [bankAccounts, setBankAccounts] = useState(initialBankAccounts);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingBankAccount, setEditingBankAccount] = useState<BankAccountDto | null>(null);
@@ -88,28 +89,24 @@ export function BankAccountsSettings({ user, initialBankAccounts }: BankAccounts
   return (
     <>
       {orderedBankAccounts.length === 0 ? (
-        <button
-          type="button"
-          className="flex min-h-36 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[#dcd4cd] bg-[#fcfbf8] px-5 py-10 text-center text-sm font-medium text-[#73706d] transition-colors hover:border-[#1b1938] hover:bg-white hover:text-[#292827] focus-visible:border-[#1b1938] focus-visible:ring-3 focus-visible:ring-[#c9b4fa]/50 focus-visible:outline-none"
-          onClick={() => setIsCreateOpen(true)}
-        >
-          <span className="flex size-8 items-center justify-center rounded-md bg-white text-[#1b1938] shadow-xs ring-1 ring-[#e8e4dd]">
-            <Plus className="size-4" />
-          </span>{" "}
-          Add Bank Account
-        </button>
+        <EmptyBankAccountsState
+          canManageBankAccounts={canManageBankAccounts}
+          onCreate={() => setIsCreateOpen(true)}
+        />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <button
-            type="button"
-            className="flex min-h-36 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[#dcd4cd] bg-[#fcfbf8] p-5 text-sm font-medium text-[#73706d] transition-colors hover:border-[#1b1938] hover:bg-white hover:text-[#292827] focus-visible:border-[#1b1938] focus-visible:ring-3 focus-visible:ring-[#c9b4fa]/50 focus-visible:outline-none"
-            onClick={() => setIsCreateOpen(true)}
-          >
-            <span className="flex size-8 items-center justify-center rounded-md bg-white text-[#1b1938] shadow-xs ring-1 ring-[#e8e4dd]">
-              <Plus className="size-4" />
-            </span>{" "}
-            Add Bank Account
-          </button>
+          {canManageBankAccounts ? (
+            <button
+              type="button"
+              className="flex min-h-36 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[#dcd4cd] bg-[#fcfbf8] p-5 text-sm font-medium text-[#73706d] transition-colors hover:border-[#1b1938] hover:bg-white hover:text-[#292827] focus-visible:border-[#1b1938] focus-visible:ring-3 focus-visible:ring-[#c9b4fa]/50 focus-visible:outline-none"
+              onClick={() => setIsCreateOpen(true)}
+            >
+              <span className="flex size-8 items-center justify-center rounded-md bg-white text-[#1b1938] shadow-xs ring-1 ring-[#e8e4dd]">
+                <Plus className="size-4" />
+              </span>{" "}
+              Add Bank Account
+            </button>
+          ) : null}
           {orderedBankAccounts.map((bankAccount) => (
             <div
               key={bankAccount.id}
@@ -122,15 +119,17 @@ export function BankAccountsSettings({ user, initialBankAccounts }: BankAccounts
                     {bankAccount.accountHolderName}
                   </p>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-[#73706d] hover:bg-[#f6f2ed] hover:text-[#292827]"
-                  aria-label={`Edit ${bankAccount.bankName} bank account`}
-                  onClick={() => setEditingBankAccount(bankAccount)}
-                >
-                  <Pencil className="size-4" />
-                </Button>
+                {canManageBankAccounts ? (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-[#73706d] hover:bg-[#f6f2ed] hover:text-[#292827]"
+                    aria-label={`Edit ${bankAccount.bankName} bank account`}
+                    onClick={() => setEditingBankAccount(bankAccount)}
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
+                ) : null}
               </div>
 
               <div className="mt-7 flex items-end justify-between gap-3">
@@ -149,22 +148,59 @@ export function BankAccountsSettings({ user, initialBankAccounts }: BankAccounts
         </div>
       )}
 
-      <BankAccountDialog
-        open={isCreateOpen}
-        mode="create"
-        initialValue={null}
-        onClose={() => setIsCreateOpen(false)}
-        onSubmit={handleCreate}
-      />
+      {canManageBankAccounts ? (
+        <>
+          <BankAccountDialog
+            open={isCreateOpen}
+            mode="create"
+            initialValue={null}
+            onClose={() => setIsCreateOpen(false)}
+            onSubmit={handleCreate}
+          />
 
-      <BankAccountDialog
-        open={editingBankAccount !== null}
-        mode="edit"
-        initialValue={editingBankAccount}
-        onClose={() => setEditingBankAccount(null)}
-        onSubmit={handleEdit}
-      />
+          <BankAccountDialog
+            open={editingBankAccount !== null}
+            mode="edit"
+            initialValue={editingBankAccount}
+            onClose={() => setEditingBankAccount(null)}
+            onSubmit={handleEdit}
+          />
+        </>
+      ) : null}
     </>
+  );
+}
+
+function EmptyBankAccountsState({
+  canManageBankAccounts,
+  onCreate,
+}: Readonly<{
+  canManageBankAccounts: boolean;
+  onCreate: () => void;
+}>) {
+  if (canManageBankAccounts) {
+    return (
+      <button
+        type="button"
+        className="flex min-h-36 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[#dcd4cd] bg-[#fcfbf8] px-5 py-10 text-center text-sm font-medium text-[#73706d] transition-colors hover:border-[#1b1938] hover:bg-white hover:text-[#292827] focus-visible:border-[#1b1938] focus-visible:ring-3 focus-visible:ring-[#c9b4fa]/50 focus-visible:outline-none"
+        onClick={onCreate}
+      >
+        <span className="flex size-8 items-center justify-center rounded-md bg-white text-[#1b1938] shadow-xs ring-1 ring-[#e8e4dd]">
+          <Plus className="size-4" />
+        </span>{" "}
+        Add Bank Account
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex min-h-36 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[#dcd4cd] bg-[#fcfbf8] px-5 py-10 text-center">
+      <p className="text-sm font-medium text-[#292827]">No bank accounts yet</p>
+      <p className="max-w-md text-sm leading-5 text-[#73706d]">
+        Bank accounts are managed by super admins. Contact an admin when payout or settlement bank
+        details need to be added.
+      </p>
+    </div>
   );
 }
 
@@ -181,29 +217,26 @@ function BankAccountDialog({
   const bankNameId = useId();
   const accountHolderNameId = useId();
   const accountNumberId = useId();
-  const companyAccountId = useId();
   const primaryAccountId = useId();
 
-  const [bankName, setBankName] = useState(initialFormState.bankName);
-  const [accountHolderName, setAccountHolderName] = useState(initialFormState.accountHolderName);
-  const [accountNumber, setAccountNumber] = useState(initialFormState.accountNumber);
-  const [isCompanyAccount, setIsCompanyAccount] = useState(initialFormState.isCompanyAccount);
-  const [isPrimary, setIsPrimary] = useState(initialFormState.isPrimary);
+  const { handleSubmit, reset, setValue, watch } = useForm<
+    ReturnType<typeof getBankAccountFormState>
+  >({
+    defaultValues: initialFormState,
+  });
+  const values = watch();
 
   useEffect(() => {
     if (!open) {
       return;
     }
 
-    syncFormState(initialValue);
-  }, [initialValue, open]);
+    reset(getBankAccountFormState(initialValue));
+    setSubmissionState(null);
+  }, [initialValue, open, reset]);
 
   function syncFormState(bankAccount: BankAccountDto | null) {
-    setBankName(bankAccount?.bankName ?? "");
-    setAccountHolderName(bankAccount?.accountHolderName ?? "");
-    setAccountNumber(bankAccount?.accountNumber ?? "");
-    setIsCompanyAccount(bankAccount?.isCompanyAccount ?? false);
-    setIsPrimary(bankAccount?.isPrimary ?? false);
+    reset(getBankAccountFormState(bankAccount));
     setSubmissionState(null);
   }
 
@@ -214,19 +247,10 @@ function BankAccountDialog({
     }
   }
 
-  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function submitForm(payload: ReturnType<typeof getBankAccountFormState>) {
     setSubmissionState(null);
 
     startTransition(async () => {
-      const payload = {
-        bankName,
-        accountHolderName,
-        accountNumber,
-        isCompanyAccount,
-        isPrimary,
-      };
-
       const result =
         mode === "create"
           ? await createOwnBankAccountAction(payload)
@@ -251,7 +275,7 @@ function BankAccountDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-[640px] gap-5 p-0 sm:max-w-[640px]">
-        <form className="space-y-5 p-6" onSubmit={handleSubmit}>
+        <form className="space-y-5 p-6" onSubmit={handleSubmit(submitForm)}>
           <DialogHeader>
             <DialogTitle className="text-xl">
               {mode === "create" ? "Add Bank Account" : "Edit Bank Account"}
@@ -269,9 +293,9 @@ function BankAccountDialog({
             <FieldShell htmlFor={bankNameId} label="Bank name">
               <Input
                 id={bankNameId}
-                value={bankName}
+                value={values.bankName}
                 onChange={(event) => {
-                  setBankName(event.target.value);
+                  setValue("bankName", event.target.value);
                   setSubmissionState(null);
                 }}
                 placeholder="KBZ Bank"
@@ -283,9 +307,9 @@ function BankAccountDialog({
             <FieldShell htmlFor={accountHolderNameId} label="Account holder name">
               <Input
                 id={accountHolderNameId}
-                value={accountHolderName}
+                value={values.accountHolderName}
                 onChange={(event) => {
-                  setAccountHolderName(event.target.value);
+                  setValue("accountHolderName", event.target.value);
                   setSubmissionState(null);
                 }}
                 placeholder="Account holder name"
@@ -298,9 +322,9 @@ function BankAccountDialog({
           <FieldShell htmlFor={accountNumberId} label="Account number">
             <Input
               id={accountNumberId}
-              value={accountNumber}
+              value={values.accountNumber}
               onChange={(event) => {
-                setAccountNumber(event.target.value);
+                setValue("accountNumber", event.target.value);
                 setSubmissionState(null);
               }}
               placeholder="Enter account number"
@@ -309,27 +333,15 @@ function BankAccountDialog({
             />
           </FieldShell>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <ToggleField
-              id={companyAccountId}
-              label="Company account"
-              description="Use this for shared company settlement."
-              checked={isCompanyAccount}
-              disabled={isPending}
-              onCheckedChange={(checked) => {
-                setIsCompanyAccount(checked);
-                setSubmissionState(null);
-              }}
-            />
-
+          <div className="grid gap-4">
             <ToggleField
               id={primaryAccountId}
               label="Primary account"
               description="Mark this as the default bank account."
-              checked={isPrimary}
+              checked={values.isPrimary}
               disabled={isPending}
               onCheckedChange={(checked) => {
-                setIsPrimary(checked);
+                setValue("isPrimary", checked);
                 setSubmissionState(null);
               }}
             />
@@ -417,7 +429,6 @@ function getBankAccountFormState(bankAccount: BankAccountDto | null) {
     bankName: bankAccount?.bankName ?? "",
     accountHolderName: bankAccount?.accountHolderName ?? "",
     accountNumber: bankAccount?.accountNumber ?? "",
-    isCompanyAccount: bankAccount?.isCompanyAccount ?? false,
     isPrimary: bankAccount?.isPrimary ?? false,
   };
 }

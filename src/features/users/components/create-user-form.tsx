@@ -1,8 +1,8 @@
 "use client";
 
-import type { SubmitEvent } from "react";
 import { useId, useRef, useState, useTransition } from "react";
 import { RefreshCw } from "lucide-react";
+import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -51,6 +51,17 @@ type CreateUserFormProps = Readonly<{
   townships: TownshipListItemDto[];
 }>;
 
+type CreateUserFormValues = {
+  name: string;
+  phoneNumber: string;
+  address: string;
+  age: string;
+  role: CreatableUserRole;
+  password: string;
+  shopName: string;
+  selectedTownship: TownshipOption | null;
+};
+
 export function CreateUserForm({ townships }: CreateUserFormProps) {
   const overlayContainerRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
@@ -64,33 +75,38 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
   const shopId = useId();
   const serviceTownshipId = useId();
 
-  const [name, setName] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [address, setAddress] = useState("");
-  const [age, setAge] = useState("");
-  const [role, setRole] = useState<CreatableUserRole>("office_admin");
-  const [password, setPassword] = useState(() => generateTemporaryPassword());
-  const [shopName, setShopName] = useState("");
-  const [selectedTownship, setSelectedTownship] = useState<TownshipOption | null>(null);
   const [submissionState, setSubmissionState] = useState<FormMessageState | null>(null);
 
   const townshipOptions = buildTownshipOptions(townships);
+  const { handleSubmit, setValue, watch } = useForm<CreateUserFormValues>({
+    defaultValues: {
+      name: "",
+      phoneNumber: "",
+      address: "",
+      age: "",
+      role: "office_admin",
+      password: generateTemporaryPassword(),
+      shopName: "",
+      selectedTownship: null,
+    },
+  });
+  const values = watch();
 
-  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function submitForm(formValues: CreateUserFormValues) {
     setSubmissionState(null);
 
     startTransition(async () => {
       const result = await createUserAction({
-        name,
-        phoneNumber,
-        address,
-        age,
+        name: formValues.name,
+        phoneNumber: formValues.phoneNumber,
+        address: formValues.address,
+        age: formValues.age,
         isActive: true,
-        role,
-        password,
-        shopName: role === "merchant" ? shopName : undefined,
-        serviceTownshipId: role === "rider" ? selectedTownship?.value : undefined,
+        role: formValues.role,
+        password: formValues.password,
+        shopName: formValues.role === "merchant" ? formValues.shopName : undefined,
+        serviceTownshipId:
+          formValues.role === "rider" ? formValues.selectedTownship?.value : undefined,
       });
 
       if (!result.ok) {
@@ -104,7 +120,7 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
 
       setSubmissionState({
         kind: "success",
-        message: `${roleLabels[role]} account is ready to hand off.`,
+        message: `${roleLabels[formValues.role]} account is ready to hand off.`,
         detail: `Password to share: ${result.temporaryPassword}`,
       });
     });
@@ -114,7 +130,7 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
     <form
       ref={overlayContainerRef}
       className="flex h-full flex-col bg-[#fcfbf8] text-[#292827]"
-      onSubmit={handleSubmit}
+      onSubmit={handleSubmit(submitForm)}
     >
       <SheetHeader className="space-y-3 border-b border-[#e7dfd8] p-6 pb-4 text-left">
         <SheetTitle className="text-[2rem] font-semibold tracking-[-0.04em]">
@@ -136,8 +152,8 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
                 <FieldShell htmlFor={nameId} label="Name">
                   <Input
                     id={nameId}
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
+                    value={values.name}
+                    onChange={(event) => setValue("name", event.target.value)}
                     placeholder="Enter full name"
                     className={inputClassName}
                     disabled={isPending}
@@ -147,8 +163,8 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
                 <FieldShell htmlFor={phoneNumberId} label="Phone number">
                   <Input
                     id={phoneNumberId}
-                    value={phoneNumber}
-                    onChange={(event) => setPhoneNumber(event.target.value)}
+                    value={values.phoneNumber}
+                    onChange={(event) => setValue("phoneNumber", event.target.value)}
                     placeholder="09xxxxxxxxx"
                     className={inputClassName}
                     disabled={isPending}
@@ -159,8 +175,8 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
               <FieldShell htmlFor={addressId} label="Address">
                 <Textarea
                   id={addressId}
-                  value={address}
-                  onChange={(event) => setAddress(event.target.value)}
+                  value={values.address}
+                  onChange={(event) => setValue("address", event.target.value)}
                   placeholder="Street, ward, township, landmark"
                   className={textareaClassName}
                   disabled={isPending}
@@ -174,8 +190,8 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
                     type="number"
                     min="1"
                     inputMode="numeric"
-                    value={age}
-                    onChange={(event) => setAge(event.target.value)}
+                    value={values.age}
+                    onChange={(event) => setValue("age", event.target.value)}
                     placeholder="Optional"
                     className={inputClassName}
                     disabled={isPending}
@@ -185,9 +201,9 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
                 <FieldShell htmlFor={roleId} label="Role">
                   <UserRoleSelectField
                     id={roleId}
-                    value={role}
+                    value={values.role}
                     onChange={(nextRole) => {
-                      setRole(nextRole);
+                      setValue("role", nextRole);
                       setSubmissionState(null);
                     }}
                     disabled={isPending}
@@ -200,7 +216,7 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
                 <InputGroup className={groupedInputClassName}>
                   <InputGroupInput
                     id={passwordId}
-                    value={password}
+                    value={values.password}
                     readOnly
                     className="h-full px-2 text-sm text-[#292827]"
                   />
@@ -210,7 +226,7 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
                       size="xs"
                       disabled={isPending}
                       onClick={() => {
-                        setPassword(generateTemporaryPassword());
+                        setValue("password", generateTemporaryPassword());
                         setSubmissionState(null);
                       }}
                     >
@@ -224,12 +240,12 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
                 </p>
               </FieldShell>
 
-              {role === "merchant" ? (
+              {values.role === "merchant" ? (
                 <FieldShell htmlFor={shopId} label="Shop">
                   <Input
                     id={shopId}
-                    value={shopName}
-                    onChange={(event) => setShopName(event.target.value)}
+                    value={values.shopName}
+                    onChange={(event) => setValue("shopName", event.target.value)}
                     placeholder="Enter shop name"
                     className={inputClassName}
                     disabled={isPending}
@@ -237,13 +253,13 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
                 </FieldShell>
               ) : null}
 
-              {role === "rider" ? (
+              {values.role === "rider" ? (
                 <FieldShell htmlFor={serviceTownshipId} label="Service township">
                   <Combobox
                     items={townshipOptions}
-                    value={selectedTownship}
+                    value={values.selectedTownship}
                     onValueChange={(nextValue) => {
-                      setSelectedTownship(nextValue ?? null);
+                      setValue("selectedTownship", nextValue ?? null);
                       setSubmissionState(null);
                     }}
                     itemToStringLabel={(option) => option.label}
@@ -253,7 +269,7 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
                       id={serviceTownshipId}
                       aria-label="Select rider service township"
                       placeholder="Search township"
-                      showClear={selectedTownship !== null}
+                      showClear={values.selectedTownship !== null}
                       className={groupedInputClassName}
                       disabled={isPending}
                     />

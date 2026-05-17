@@ -11,9 +11,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { listRiders } from "@/features/riders/server/dal";
+import { isAdminRole } from "@/lib/domain";
 import { formatMoney } from "@/lib/format";
+import { requireCurrentUser } from "@/lib/session";
 
 export default async function RidersPage() {
+  const currentUser = await requireCurrentUser();
+
+  if (!isAdminRole(currentUser.role)) {
+    throw new Error("Admin access required.");
+  }
+
   const riders = await listRiders();
 
   return (

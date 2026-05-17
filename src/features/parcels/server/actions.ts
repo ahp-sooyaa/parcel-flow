@@ -1,9 +1,18 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
+import { assignParcelsToRider, createParcel } from "@/features/parcels/server/dal";
 import { createParcelFormInputSchema } from "@/features/parcels/server/dto";
 import { mapCreateParcelFormInputToCreateParcelInput } from "@/features/parcels/server/utils";
 import { canCreateParcel } from "@/lib/permissions";
 import { requireCurrentUser } from "@/lib/session";
+
+const assignParcelsInputSchema = z.object({
+  parcelIds: z.array(z.string().min(1)).min(1, "Select at least one parcel."),
+  riderId: z.string().min(1, "Rider is required."),
+});
 
 export async function createParcelAction(input: unknown) {
   const actor = await requireCurrentUser();
@@ -25,10 +34,57 @@ export async function createParcelAction(input: unknown) {
 
   const validatedInput = parseResult.data;
   const parcel = mapCreateParcelFormInputToCreateParcelInput(validatedInput);
+  const createdParcel = await createParcel({
+    ...parcel,
+    createdBy: actor.id,
+  });
+
+  revalidatePath("/dashboard/parcels");
 
   return {
     ok: true as const,
-    message: "Parcel details validated.",
-    parcel,
+    message: "Parcel created.",
+    parcel: {
+      ...parcel,
+      id: createdParcel.id,
+      parcelCode: createdParcel.parcelCode,
+    },
+  };
+}
+
+export async function assignParcelsToRiderAction(input: unknown) {
+  const actor = await requireCurrentUser();
+  const parseResult = assignParcelsInputSchema.safeParse(input);
+
+  if (!parseResult.success) {
+    return {
+      ok: false as const,
+      message: parseResult.error.issues[0]?.message ?? "Invalid assignment details.",
+    };
+  }
+
+  if (!canCreateParcel(actor.role)) {
+    return {
+      ok: false as const,
+      message: "You do not have permission to assign parcels.",
+    };
+  }
+
+  try {
+    await assignParcelsToRider(parseResult.data);
+  } catch (error) {
+    return {
+      ok: false as const,
+      message: error instanceof Error ? error.message : "Unable to assign parcels.",
+    };
+  }
+
+  revalidatePath("/dashboard/parcels");
+  revalidatePath("/dashboard/riders");
+  revalidatePath("/dashboard/rider/parcels");
+
+  return {
+    ok: true as const,
+    message: "Parcels assigned.",
   };
 }

@@ -1,11 +1,17 @@
 "use server";
 
+import { headers } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { db } from "@/db";
+import { appUsers } from "@/db/schema";
 import { getUserById } from "@/features/users/server/dal";
+import { auth } from "@/lib/auth";
 import { canRegeneratePassword } from "@/lib/permissions";
 import { generateTemporaryPassword } from "@/lib/password";
 import { requireCurrentUser } from "@/lib/session";
+import { eq } from "drizzle-orm";
 
 const updateOwnPasswordSchema = z
   .object({
@@ -26,8 +32,13 @@ const regeneratePasswordSchema = z.object({
   targetUserId: z.string().min(1),
 });
 
+export type PasswordSettingsFormState = {
+  ok: boolean;
+  message: string | null;
+};
+
 export async function updateOwnPasswordAction(input: unknown) {
-  await requireCurrentUser();
+  const actor = await requireCurrentUser();
   const parsedInput = updateOwnPasswordSchema.safeParse(input);
 
   if (!parsedInput.success) {
@@ -37,9 +48,40 @@ export async function updateOwnPasswordAction(input: unknown) {
     };
   }
 
+  await auth.api.changePassword({
+    body: {
+      currentPassword: parsedInput.data.currentPassword,
+      newPassword: parsedInput.data.newPassword,
+      revokeOtherSessions: true,
+    },
+    headers: await headers(),
+  });
+
+  await db
+    .update(appUsers)
+    .set({ mustResetPassword: false, updatedAt: new Date() })
+    .where(eq(appUsers.id, actor.id));
+
+  revalidatePath("/dashboard/settings");
+
   return {
     ok: true as const,
-    message: "Password details validated.",
+    message: "Password updated.",
+  };
+}
+
+export async function updateOwnPasswordFormAction(
+  _previousState: PasswordSettingsFormState,
+  formData: FormData,
+): Promise<PasswordSettingsFormState> {
+  const result = await updateOwnPasswordAction({
+    currentPassword: formData.get("currentPassword"),
+    newPassword: formData.get("newPassword"),
+  });
+
+  return {
+    ok: result.ok,
+    message: result.message,
   };
 }
 
@@ -61,8 +103,25 @@ export async function regeneratePasswordAction(input: unknown) {
     throw new Error("You do not have permission to regenerate this password.");
   }
 
+  const temporaryPassword = generateTemporaryPassword();
+
+  await auth.api.setUserPassword({
+    body: {
+      userId: targetUser.id,
+      newPassword: temporaryPassword,
+    },
+    headers: await headers(),
+  });
+
+  await db
+    .update(appUsers)
+    .set({ mustResetPassword: true, updatedAt: new Date() })
+    .where(eq(appUsers.id, targetUser.id));
+
+  revalidatePath("/dashboard/users");
+
   return {
-    temporaryPassword: generateTemporaryPassword(),
+    temporaryPassword,
     mustResetPassword: true,
   };
 }

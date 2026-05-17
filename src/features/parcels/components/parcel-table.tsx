@@ -24,6 +24,8 @@ import type { ParcelListItemDto } from "@/features/parcels/server/dto";
 import { parcelStatusLabels } from "@/lib/domain";
 import { formatDate, formatMoney } from "@/lib/format";
 
+const assignmentEligibleStatuses = ["at_office", "postpone", "canceled_returned"] as const;
+
 function getStatusVariant(status: ParcelListItemDto["status"]) {
   if (status === "delivered") {
     return "success";
@@ -42,28 +44,45 @@ export function ParcelTable({
   onSelectedParcelIdsChange,
   onView,
   onEdit,
+  enableSelection = false,
 }: Readonly<{
   parcels: ParcelListItemDto[];
   selectedParcelIds?: string[];
   onSelectedParcelIdsChange?: (parcelIds: string[]) => void;
   onView?: (parcel: ParcelListItemDto) => void;
   onEdit?: (parcel: ParcelListItemDto) => void;
+  enableSelection?: boolean;
 }>) {
   const hasActions = onView !== undefined || onEdit !== undefined;
   const [internalSelectedParcelIds, setInternalSelectedParcelIds] = useState<string[]>([]);
-  const parcelIds = useMemo(() => parcels.map((parcel) => parcel.id), [parcels]);
+  const selectableParcelIds = useMemo(
+    () =>
+      parcels
+        .filter(
+          (parcel) =>
+            parcel.riderName === null &&
+            assignmentEligibleStatuses.some((status) => status === parcel.status),
+        )
+        .map((parcel) => parcel.id),
+    [parcels],
+  );
   const currentSelectedParcelIds = selectedParcelIds ?? internalSelectedParcelIds;
   const allVisibleSelected =
-    parcels.length > 0 && parcelIds.every((id) => currentSelectedParcelIds.includes(id));
-  const someVisibleSelected = parcelIds.some((id) => currentSelectedParcelIds.includes(id));
+    selectableParcelIds.length > 0 &&
+    selectableParcelIds.every((id) => currentSelectedParcelIds.includes(id));
+  const someVisibleSelected = selectableParcelIds.some((id) =>
+    currentSelectedParcelIds.includes(id),
+  );
 
   useEffect(() => {
     if (selectedParcelIds !== undefined) {
       return;
     }
 
-    setInternalSelectedParcelIds((current) => current.filter((id) => parcelIds.includes(id)));
-  }, [parcelIds, selectedParcelIds]);
+    setInternalSelectedParcelIds((current) =>
+      current.filter((id) => selectableParcelIds.includes(id)),
+    );
+  }, [selectableParcelIds, selectedParcelIds]);
 
   function handleSelectedParcelIdsChange(nextSelectedParcelIds: string[]) {
     if (onSelectedParcelIdsChange) {
@@ -76,11 +95,15 @@ export function ParcelTable({
 
   function toggleAllParcels(checked: boolean) {
     if (checked) {
-      handleSelectedParcelIdsChange([...new Set([...currentSelectedParcelIds, ...parcelIds])]);
+      handleSelectedParcelIdsChange([
+        ...new Set([...currentSelectedParcelIds, ...selectableParcelIds]),
+      ]);
       return;
     }
 
-    handleSelectedParcelIdsChange(currentSelectedParcelIds.filter((id) => !parcelIds.includes(id)));
+    handleSelectedParcelIdsChange(
+      currentSelectedParcelIds.filter((id) => !selectableParcelIds.includes(id)),
+    );
   }
 
   function toggleParcel(parcelId: string, checked: boolean) {
@@ -102,13 +125,15 @@ export function ParcelTable({
         <TableHeader>
           <TableRow>
             <TableHead className="w-10">
-              <Checkbox
-                aria-label="Select all parcels"
-                checked={allVisibleSelected}
-                indeterminate={!allVisibleSelected && someVisibleSelected}
-                onCheckedChange={toggleAllParcels}
-                className="rounded-[6px] shadow-sm"
-              />
+              {enableSelection ? (
+                <Checkbox
+                  aria-label="Select all parcels"
+                  checked={allVisibleSelected}
+                  indeterminate={!allVisibleSelected && someVisibleSelected}
+                  onCheckedChange={toggleAllParcels}
+                  className="rounded-[6px] shadow-sm"
+                />
+              ) : null}
             </TableHead>
             <TableHead>Parcel</TableHead>
             <TableHead>Merchant</TableHead>
@@ -140,12 +165,15 @@ export function ParcelTable({
             parcels.map((parcel) => (
               <TableRow key={parcel.id}>
                 <TableCell>
-                  <Checkbox
-                    aria-label={`Select ${parcel.parcelCode}`}
-                    checked={currentSelectedParcelIds.includes(parcel.id)}
-                    onCheckedChange={(checked) => toggleParcel(parcel.id, checked)}
-                    className="rounded-[6px] shadow-sm"
-                  />
+                  {enableSelection ? (
+                    <Checkbox
+                      aria-label={`Select ${parcel.parcelCode}`}
+                      checked={currentSelectedParcelIds.includes(parcel.id)}
+                      onCheckedChange={(checked) => toggleParcel(parcel.id, checked)}
+                      disabled={!selectableParcelIds.includes(parcel.id)}
+                      className="rounded-[6px] shadow-sm"
+                    />
+                  ) : null}
                 </TableCell>
                 <TableCell className="font-medium">{parcel.parcelCode}</TableCell>
                 <TableCell>{parcel.merchantName}</TableCell>

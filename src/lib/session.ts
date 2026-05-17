@@ -7,27 +7,28 @@ import { userRoles, type UserRole } from "@/lib/domain";
 export type CurrentUser = {
   id: string;
   name: string;
+  username: string;
+  email: string;
   phoneNumber: string;
+  address: string;
+  age: number | null;
   role: UserRole;
-};
-
-const demoUser: CurrentUser = {
-  id: "00000000-0000-0000-0000-000000000001",
-  name: "AungHtetPaing",
-  phoneNumber: "09000000000",
-  role: "super_admin",
+  isActive: boolean;
+  mustResetPassword: boolean;
 };
 
 const sessionUserRoleSchema = z.looseObject({
+  username: z.string(),
+  email: z.string(),
   role: z.enum(userRoles),
-  phoneNumber: z.string().optional(),
+  phoneNumber: z.string(),
+  address: z.string(),
+  age: z.number().nullable().optional(),
+  isActive: z.boolean(),
+  mustResetPassword: z.boolean(),
 });
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {
-  if (process.env.NEXT_PUBLIC_DEMO_AUTH === "true" || process.env.NODE_ENV === "development") {
-    return demoUser;
-  }
-
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -39,9 +40,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const sessionUserParseResult = sessionUserRoleSchema.safeParse(session.user);
 
   if (!sessionUserParseResult.success) {
-    throw new Error(
-      "Authenticated sessions must include a valid Parcel Flow user role before non-demo auth is enabled.",
-    );
+    throw new Error("Authenticated sessions must include a valid Parcel Flow user role.");
   }
 
   const sessionUser = sessionUserParseResult.data;
@@ -49,8 +48,14 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   return {
     id: session.user.id,
     name: session.user.name,
-    phoneNumber: sessionUser.phoneNumber ?? "unavailable",
+    username: sessionUser.username,
+    email: sessionUser.email,
+    phoneNumber: sessionUser.phoneNumber,
+    address: sessionUser.address,
+    age: sessionUser.age ?? null,
     role: sessionUser.role,
+    isActive: sessionUser.isActive,
+    mustResetPassword: sessionUser.mustResetPassword,
   };
 }
 
@@ -61,5 +66,25 @@ export async function requireCurrentUser() {
     throw new Error("Authentication required.");
   }
 
+  if (!user.isActive) {
+    throw new Error("Account is inactive.");
+  }
+
   return user;
+}
+
+export function getRoleLandingPath(role: UserRole) {
+  if (role === "super_admin") {
+    return "/dashboard";
+  }
+
+  if (role === "office_admin") {
+    return "/dashboard/parcels";
+  }
+
+  if (role === "merchant") {
+    return "/dashboard/merchant/parcels";
+  }
+
+  return "/dashboard/rider/parcels";
 }

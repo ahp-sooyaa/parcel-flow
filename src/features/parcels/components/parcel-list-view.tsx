@@ -66,7 +66,17 @@ export function ParcelListView({
 
   const filterRef = useRef<HTMLDivElement>(null);
   const townshipInputId = useId();
-  const allParcelIds = useMemo(() => parcels.map((parcel) => parcel.id), [parcels]);
+  const selectableParcelIds = useMemo(
+    () =>
+      parcels
+        .filter(
+          (parcel) =>
+            parcel.riderName === null &&
+            ["at_office", "postpone", "canceled_returned"].includes(parcel.status),
+        )
+        .map((parcel) => parcel.id),
+    [parcels],
+  );
 
   useEffect(() => {
     if (!isFilterOpen) {
@@ -108,8 +118,8 @@ export function ParcelListView({
   }, [isFilterOpen]);
 
   useEffect(() => {
-    setSelectedParcelIds((current) => current.filter((id) => allParcelIds.includes(id)));
-  }, [allParcelIds]);
+    setSelectedParcelIds((current) => current.filter((id) => selectableParcelIds.includes(id)));
+  }, [selectableParcelIds]);
 
   useEffect(() => {
     if (selectedParcelIds.length === 0 && isAssignDialogOpen) {
@@ -381,6 +391,7 @@ export function ParcelListView({
         onSelectedParcelIdsChange={setSelectedParcelIds}
         onView={handleViewParcel}
         onEdit={handleEditParcel}
+        enableSelection
       />
 
       <AssignRiderDialog

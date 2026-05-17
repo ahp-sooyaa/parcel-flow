@@ -1,6 +1,7 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useId, useRef } from "react";
+import { useForm } from "react-hook-form";
 
 import {
   FieldShell,
@@ -28,12 +29,26 @@ import {
   buildMerchantOptions,
   buildTownshipOptions,
   DimensionsPopover,
+  type MerchantOption,
   type ParcelDimensions,
   type TownshipOption,
 } from "@/features/parcels/components/parcel-form-support";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
 import type { TownshipListItemDto } from "@/features/townships/server/dto";
 import { formatMoney } from "@/lib/format";
+
+type EditParcelFormValues = {
+  selectedMerchant: MerchantOption | null;
+  receiverName: string;
+  receiverPhoneNumber: string;
+  receiverAddress: string;
+  specialNotes: string;
+  selectedTownship: TownshipOption | null;
+  deliveryFee: string;
+  hasCod: boolean;
+  codFee: string;
+  dimensions: ParcelDimensions;
+};
 
 export function EditParcelForm({
   parcel,
@@ -63,29 +78,32 @@ export function EditParcelForm({
   const initialTownship =
     townshipOptions.find((option) => option.label === parcel.townshipName) ?? null;
 
-  const [selectedMerchant, setSelectedMerchant] = useState(initialMerchant);
-  const [receiverName, setReceiverName] = useState(parcel.receiverName);
-  const [receiverPhoneNumber, setReceiverPhoneNumber] = useState(parcel.receiverPhoneNumber);
-  const [receiverAddress, setReceiverAddress] = useState(parcel.receiverAddress);
-  const [specialNotes, setSpecialNotes] = useState(parcel.specialNotes ?? "");
-  const [selectedTownship, setSelectedTownship] = useState<TownshipOption | null>(initialTownship);
-  const [deliveryFee, setDeliveryFee] = useState(String(parcel.deliveryFee));
-  const [hasCod, setHasCod] = useState(parcel.codAmount > 0);
-  const [codFee, setCodFee] = useState(parcel.codAmount > 0 ? String(parcel.codAmount) : "");
-  const [dimensions, setDimensions] = useState<ParcelDimensions>({
-    estimatedWeight: "",
-    width: "",
-    height: "",
-    length: "",
+  const { handleSubmit, setValue, watch } = useForm<EditParcelFormValues>({
+    defaultValues: {
+      selectedMerchant: initialMerchant,
+      receiverName: parcel.receiverName,
+      receiverPhoneNumber: parcel.receiverPhoneNumber,
+      receiverAddress: parcel.receiverAddress,
+      specialNotes: parcel.specialNotes ?? "",
+      selectedTownship: initialTownship,
+      deliveryFee: String(parcel.deliveryFee),
+      hasCod: parcel.codAmount > 0,
+      codFee: parcel.codAmount > 0 ? String(parcel.codAmount) : "",
+      dimensions: {
+        estimatedWeight: "",
+        width: "",
+        height: "",
+        length: "",
+      },
+    },
   });
+  const values = watch();
 
   return (
     <form
       ref={overlayContainerRef}
       className="flex h-full flex-col bg-[#fcfbf8] text-[#292827]"
-      onSubmit={(event) => {
-        event.preventDefault();
-      }}
+      onSubmit={handleSubmit(() => undefined)}
     >
       <SheetHeader className="space-y-3 border-b border-[#e7dfd8] p-6 pb-4 text-left">
         <SheetTitle className="text-[2rem] font-semibold tracking-[-0.04em]">
@@ -100,8 +118,8 @@ export function EditParcelForm({
               <FieldShell htmlFor={merchantId} label="Merchant">
                 <Combobox
                   items={merchantOptions}
-                  value={selectedMerchant}
-                  onValueChange={(nextValue) => setSelectedMerchant(nextValue ?? null)}
+                  value={values.selectedMerchant}
+                  onValueChange={(nextValue) => setValue("selectedMerchant", nextValue ?? null)}
                   itemToStringLabel={(option) => option.label}
                   isItemEqualToValue={(item, value) => item.value === value.value}
                 >
@@ -109,7 +127,7 @@ export function EditParcelForm({
                     id={merchantId}
                     aria-label="Select merchant"
                     placeholder="Search merchant by name"
-                    showClear={selectedMerchant !== null}
+                    showClear={values.selectedMerchant !== null}
                     className={groupedInputClassName}
                   />
                   <ComboboxContent className="z-50" portalContainer={overlayContainerRef}>
@@ -133,8 +151,8 @@ export function EditParcelForm({
                   <Input
                     id={receiverNameId}
                     placeholder="Enter receiver name"
-                    value={receiverName}
-                    onChange={(event) => setReceiverName(event.target.value)}
+                    value={values.receiverName}
+                    onChange={(event) => setValue("receiverName", event.target.value)}
                     className={inputClassName}
                   />
                 </FieldShell>
@@ -142,8 +160,8 @@ export function EditParcelForm({
                   <Input
                     id={receiverPhoneId}
                     placeholder="09xxxxxxxxx"
-                    value={receiverPhoneNumber}
-                    onChange={(event) => setReceiverPhoneNumber(event.target.value)}
+                    value={values.receiverPhoneNumber}
+                    onChange={(event) => setValue("receiverPhoneNumber", event.target.value)}
                     className={inputClassName}
                   />
                 </FieldShell>
@@ -153,8 +171,8 @@ export function EditParcelForm({
                 <Textarea
                   id={receiverAddressId}
                   placeholder="Street, ward, landmark, building"
-                  value={receiverAddress}
-                  onChange={(event) => setReceiverAddress(event.target.value)}
+                  value={values.receiverAddress}
+                  onChange={(event) => setValue("receiverAddress", event.target.value)}
                   className={textareaClassName}
                 />
               </FieldShell>
@@ -163,8 +181,8 @@ export function EditParcelForm({
                 <Textarea
                   id={specialNotesId}
                   placeholder="Delivery instructions, gate code, landmark, or handling note"
-                  value={specialNotes}
-                  onChange={(event) => setSpecialNotes(event.target.value)}
+                  value={values.specialNotes}
+                  onChange={(event) => setValue("specialNotes", event.target.value)}
                   className={textareaClassName}
                 />
               </FieldShell>
@@ -172,10 +190,10 @@ export function EditParcelForm({
               <FieldShell htmlFor={townshipId} label="Receiver township">
                 <Combobox
                   items={townshipOptions}
-                  value={selectedTownship}
+                  value={values.selectedTownship}
                   onValueChange={(township = null) => {
-                    setSelectedTownship(township);
-                    setDeliveryFee(township ? String(township.baseFee) : "");
+                    setValue("selectedTownship", township);
+                    setValue("deliveryFee", township ? String(township.baseFee) : "");
                   }}
                   itemToStringLabel={(option) => option.label}
                   isItemEqualToValue={(item, value) => item.value === value.value}
@@ -184,7 +202,7 @@ export function EditParcelForm({
                     id={townshipId}
                     aria-label="Select receiver township"
                     placeholder="Search township"
-                    showClear={selectedTownship !== null}
+                    showClear={values.selectedTownship !== null}
                     className={groupedInputClassName}
                   />
                   <ComboboxContent className="z-50" portalContainer={overlayContainerRef}>
@@ -202,8 +220,8 @@ export function EditParcelForm({
                   </ComboboxContent>
                 </Combobox>
                 <p className="mt-1 text-xs text-[#73706d]">
-                  {selectedTownship
-                    ? `Base delivery fee from township pricing: ${formatMoney(selectedTownship.baseFee)} MMK`
+                  {values.selectedTownship
+                    ? `Base delivery fee from township pricing: ${formatMoney(values.selectedTownship.baseFee)} MMK`
                     : "Selecting a township pre-fills the base delivery fee."}
                 </p>
               </FieldShell>
@@ -211,12 +229,12 @@ export function EditParcelForm({
               <FieldShell htmlFor={parcelDimensionsId} label="Parcel dimensions">
                 <DimensionsPopover
                   id={parcelDimensionsId}
-                  dimensions={dimensions}
+                  dimensions={values.dimensions}
                   onChange={(key, value) => {
-                    setDimensions((current) => ({
-                      ...current,
+                    setValue("dimensions", {
+                      ...values.dimensions,
                       [key]: value,
-                    }));
+                    });
                   }}
                 />
               </FieldShell>
@@ -224,15 +242,20 @@ export function EditParcelForm({
               <FieldShell htmlFor={deliveryFeeId} label="Delivery fee">
                 <MoneyInput
                   id={deliveryFeeId}
-                  value={deliveryFee}
-                  onChange={setDeliveryFee}
+                  value={values.deliveryFee}
+                  onChange={(value) => setValue("deliveryFee", value)}
                   placeholder="0"
                 />
               </FieldShell>
 
-              {hasCod ? (
+              {values.hasCod ? (
                 <FieldShell htmlFor={codFeeId} label="COD fee">
-                  <MoneyInput id={codFeeId} value={codFee} onChange={setCodFee} placeholder="0" />
+                  <MoneyInput
+                    id={codFeeId}
+                    value={values.codFee}
+                    onChange={(value) => setValue("codFee", value)}
+                    placeholder="0"
+                  />
                 </FieldShell>
               ) : null}
 
@@ -242,14 +265,14 @@ export function EditParcelForm({
               >
                 <Checkbox
                   id={codCheckboxId}
-                  checked={hasCod}
+                  checked={values.hasCod}
                   onCheckedChange={(checked) => {
                     const enabled = checked;
 
-                    setHasCod(enabled);
+                    setValue("hasCod", enabled);
 
                     if (!enabled) {
-                      setCodFee("");
+                      setValue("codFee", "");
                     }
                   }}
                   className="mt-0.5"

@@ -1,7 +1,7 @@
 "use client";
 
-import type { SubmitEvent } from "react";
 import { useId, useRef, useState, useTransition } from "react";
+import { useForm } from "react-hook-form";
 
 import {
   FieldShell,
@@ -62,21 +62,37 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
   const merchantOptions = buildMerchantOptions(merchants);
   const townshipOptions = buildTownshipOptions(townships);
 
-  const [selectedMerchant, setSelectedMerchant] = useState<MerchantOption | null>(null);
-  const [receiverName, setReceiverName] = useState("");
-  const [receiverPhoneNumber, setReceiverPhoneNumber] = useState("");
-  const [receiverAddress, setReceiverAddress] = useState("");
-  const [specialNotes, setSpecialNotes] = useState("");
-  const [selectedTownship, setSelectedTownship] = useState<TownshipOption | null>(null);
-  const [deliveryFee, setDeliveryFee] = useState("");
-  const [hasCod, setHasCod] = useState(false);
-  const [codAmount, setCodAmount] = useState("");
-  const [dimensions, setDimensions] = useState<ParcelDimensions>({
-    estimatedWeight: "",
-    width: "",
-    height: "",
-    length: "",
+  const { handleSubmit, setValue, watch } = useForm<{
+    selectedMerchant: MerchantOption | null;
+    receiverName: string;
+    receiverPhoneNumber: string;
+    receiverAddress: string;
+    specialNotes: string;
+    selectedTownship: TownshipOption | null;
+    deliveryFee: string;
+    hasCod: boolean;
+    codAmount: string;
+    dimensions: ParcelDimensions;
+  }>({
+    defaultValues: {
+      selectedMerchant: null,
+      receiverName: "",
+      receiverPhoneNumber: "",
+      receiverAddress: "",
+      specialNotes: "",
+      selectedTownship: null,
+      deliveryFee: "",
+      hasCod: false,
+      codAmount: "",
+      dimensions: {
+        estimatedWeight: "",
+        width: "",
+        height: "",
+        length: "",
+      },
+    },
   });
+  const values = watch();
   const [submissionState, setSubmissionState] = useState<FormMessageState | null>(null);
 
   function clearBanner() {
@@ -85,21 +101,20 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
     }
   }
 
-  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function submitForm(formValues: typeof values) {
     setSubmissionState(null);
 
     const formInput: CreateParcelFormInputDto = {
-      merchantId: selectedMerchant?.value ?? "",
-      receiverName,
-      receiverPhoneNumber,
-      receiverAddress,
-      specialNotes,
-      townshipId: selectedTownship?.value ?? "",
-      deliveryFee,
-      hasCod,
-      codAmount,
-      dimensions,
+      merchantId: formValues.selectedMerchant?.value ?? "",
+      receiverName: formValues.receiverName,
+      receiverPhoneNumber: formValues.receiverPhoneNumber,
+      receiverAddress: formValues.receiverAddress,
+      specialNotes: formValues.specialNotes,
+      townshipId: formValues.selectedTownship?.value ?? "",
+      deliveryFee: formValues.deliveryFee,
+      hasCod: formValues.hasCod,
+      codAmount: formValues.codAmount,
+      dimensions: formValues.dimensions,
     };
 
     startTransition(async () => {
@@ -116,8 +131,8 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
 
       setSubmissionState({
         kind: "success",
-        message: `${result.parcel.receiverName}'s parcel is ready to save.`,
-        detail: "This mock flow validates parcel intake details without persistence yet.",
+        message: `${result.parcel.receiverName}'s parcel has been created.`,
+        detail: `Parcel code: ${result.parcel.parcelCode}`,
       });
     });
   }
@@ -126,7 +141,7 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
     <form
       ref={overlayContainerRef}
       className="flex h-full flex-col bg-[#fcfbf8] text-[#292827]"
-      onSubmit={handleSubmit}
+      onSubmit={handleSubmit(submitForm)}
     >
       <SheetHeader className="space-y-3 border-b border-[#e7dfd8] p-6 pb-4 text-left">
         <SheetTitle className="text-[2rem] font-semibold tracking-[-0.04em]">
@@ -143,9 +158,9 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
               <FieldShell htmlFor={merchantId} label="Merchant">
                 <Combobox
                   items={merchantOptions}
-                  value={selectedMerchant}
+                  value={values.selectedMerchant}
                   onValueChange={(nextValue) => {
-                    setSelectedMerchant(nextValue ?? null);
+                    setValue("selectedMerchant", nextValue ?? null);
                     clearBanner();
                   }}
                   itemToStringLabel={(option) => option.label}
@@ -155,7 +170,7 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
                     id={merchantId}
                     aria-label="Select merchant"
                     placeholder="Search merchant by name"
-                    showClear={selectedMerchant !== null}
+                    showClear={values.selectedMerchant !== null}
                     className={groupedInputClassName}
                     disabled={isPending}
                   />
@@ -180,9 +195,9 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
                   <Input
                     id={receiverNameId}
                     placeholder="Enter receiver name"
-                    value={receiverName}
+                    value={values.receiverName}
                     onChange={(event) => {
-                      setReceiverName(event.target.value);
+                      setValue("receiverName", event.target.value);
                       clearBanner();
                     }}
                     className={inputClassName}
@@ -193,9 +208,9 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
                   <Input
                     id={receiverPhoneId}
                     placeholder="09xxxxxxxxx"
-                    value={receiverPhoneNumber}
+                    value={values.receiverPhoneNumber}
                     onChange={(event) => {
-                      setReceiverPhoneNumber(event.target.value);
+                      setValue("receiverPhoneNumber", event.target.value);
                       clearBanner();
                     }}
                     className={inputClassName}
@@ -208,9 +223,9 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
                 <Textarea
                   id={receiverAddressId}
                   placeholder="Street, ward, landmark, building"
-                  value={receiverAddress}
+                  value={values.receiverAddress}
                   onChange={(event) => {
-                    setReceiverAddress(event.target.value);
+                    setValue("receiverAddress", event.target.value);
                     clearBanner();
                   }}
                   className={textareaClassName}
@@ -222,9 +237,9 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
                 <Textarea
                   id={specialNotesId}
                   placeholder="Delivery instructions, gate code, landmark, or handling note"
-                  value={specialNotes}
+                  value={values.specialNotes}
                   onChange={(event) => {
-                    setSpecialNotes(event.target.value);
+                    setValue("specialNotes", event.target.value);
                     clearBanner();
                   }}
                   className={textareaClassName}
@@ -235,10 +250,10 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
               <FieldShell htmlFor={townshipId} label="Receiver township">
                 <Combobox
                   items={townshipOptions}
-                  value={selectedTownship}
+                  value={values.selectedTownship}
                   onValueChange={(township = null) => {
-                    setSelectedTownship(township);
-                    setDeliveryFee(township ? String(township.baseFee) : "");
+                    setValue("selectedTownship", township);
+                    setValue("deliveryFee", township ? String(township.baseFee) : "");
                     clearBanner();
                   }}
                   itemToStringLabel={(option) => option.label}
@@ -248,7 +263,7 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
                     id={townshipId}
                     aria-label="Select receiver township"
                     placeholder="Search township"
-                    showClear={selectedTownship !== null}
+                    showClear={values.selectedTownship !== null}
                     className={groupedInputClassName}
                     disabled={isPending}
                   />
@@ -267,8 +282,8 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
                   </ComboboxContent>
                 </Combobox>
                 <p className="mt-1 text-xs text-[#73706d]">
-                  {selectedTownship
-                    ? `Base delivery fee from township pricing: ${formatMoney(selectedTownship.baseFee)} MMK`
+                  {values.selectedTownship
+                    ? `Base delivery fee from township pricing: ${formatMoney(values.selectedTownship.baseFee)} MMK`
                     : "Selecting a township pre-fills the base delivery fee."}
                 </p>
               </FieldShell>
@@ -276,12 +291,12 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
               <FieldShell htmlFor={parcelDimensionsId} label="Parcel dimensions">
                 <DimensionsPopover
                   id={parcelDimensionsId}
-                  dimensions={dimensions}
+                  dimensions={values.dimensions}
                   onChange={(key, value) => {
-                    setDimensions((current) => ({
-                      ...current,
+                    setValue("dimensions", {
+                      ...values.dimensions,
                       [key]: value,
-                    }));
+                    });
                     clearBanner();
                   }}
                 />
@@ -290,9 +305,9 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
               <FieldShell htmlFor={deliveryFeeId} label="Delivery fee">
                 <MoneyInput
                   id={deliveryFeeId}
-                  value={deliveryFee}
+                  value={values.deliveryFee}
                   onChange={(value) => {
-                    setDeliveryFee(value);
+                    setValue("deliveryFee", value);
                     clearBanner();
                   }}
                   placeholder="0"
@@ -300,13 +315,13 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
                 />
               </FieldShell>
 
-              {hasCod ? (
+              {values.hasCod ? (
                 <FieldShell htmlFor={codAmountId} label="COD amount">
                   <MoneyInput
                     id={codAmountId}
-                    value={codAmount}
+                    value={values.codAmount}
                     onChange={(value) => {
-                      setCodAmount(value);
+                      setValue("codAmount", value);
                       clearBanner();
                     }}
                     placeholder="0"
@@ -321,15 +336,15 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
               >
                 <Checkbox
                   id={codCheckboxId}
-                  checked={hasCod}
+                  checked={values.hasCod}
                   onCheckedChange={(checked) => {
                     const enabled = checked;
 
-                    setHasCod(enabled);
+                    setValue("hasCod", enabled);
                     clearBanner();
 
                     if (!enabled) {
-                      setCodAmount("");
+                      setValue("codAmount", "");
                     }
                   }}
                   className="mt-0.5"

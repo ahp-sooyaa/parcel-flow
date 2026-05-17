@@ -1,7 +1,6 @@
 "use client";
 
-import type { SubmitEvent } from "react";
-import { useId, useState, useTransition } from "react";
+import { useActionState, useId } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -17,30 +16,20 @@ import {
   FormBanner,
   inputClassName,
   textareaClassName,
-  type FormMessageState,
 } from "@/components/shared/form-fields";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { updateOwnPasswordAction } from "@/features/auth/server/actions";
-import { updateOwnAccountAction } from "@/features/users/server/actions";
+import {
+  updateOwnPasswordFormAction,
+  type PasswordSettingsFormState,
+} from "@/features/auth/server/actions";
+import {
+  updateOwnAccountFormAction,
+  type AccountSettingsFormState,
+} from "@/features/users/server/actions";
 import type { UserListItemDto } from "@/features/users/server/dto";
 
-export function AccountSettingsForm({
-  user,
-}: Readonly<{
-  user: UserListItemDto;
-}>) {
-  const [isPending, startTransition] = useTransition();
-  const [isPasswordPending, startPasswordTransition] = useTransition();
-  const [name, setName] = useState(user.name);
-  const [phoneNumber, setPhoneNumber] = useState(user.phoneNumber);
-  const [address, setAddress] = useState(user.address);
-  const [age, setAge] = useState(user.age ? String(user.age) : "");
-  const [submissionState, setSubmissionState] = useState<FormMessageState | null>(null);
-  const [passwordState, setPasswordState] = useState<FormMessageState | null>(null);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-
+export function AccountSettingsForm({ user }: Readonly<{ user: UserListItemDto }>) {
   const nameId = useId();
   const phoneNumberId = useId();
   const addressId = useId();
@@ -48,61 +37,28 @@ export function AccountSettingsForm({
   const currentPasswordId = useId();
   const newPasswordId = useId();
 
-  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSubmissionState(null);
-
-    startTransition(async () => {
-      const result = await updateOwnAccountAction({
-        name,
-        phoneNumber,
-        address,
-        age,
-      });
-
-      if (!result.ok) {
-        setSubmissionState({
-          kind: "error",
-          message: result.message,
-        });
-        return;
-      }
-
-      setSubmissionState({
-        kind: "success",
-        message: "Account details are ready to save.",
-        detail: "This mock flow validates your account changes without persistence yet.",
-      });
-    });
-  }
-
-  function handlePasswordSubmit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setPasswordState(null);
-
-    startPasswordTransition(async () => {
-      const result = await updateOwnPasswordAction({
-        currentPassword,
-        newPassword,
-      });
-
-      if (!result.ok) {
-        setPasswordState({
-          kind: "error",
-          message: result.message,
-        });
-        return;
-      }
-
-      setCurrentPassword("");
-      setNewPassword("");
-      setPasswordState({
-        kind: "success",
-        message: "Password change is ready to save.",
-        detail: "This mock flow validates the password change without persistence yet.",
-      });
-    });
-  }
+  const initialAccountState: AccountSettingsFormState = {
+    ok: false,
+    message: null,
+    values: {
+      name: user.name,
+      phoneNumber: user.phoneNumber,
+      address: user.address,
+      age: user.age ? String(user.age) : "",
+    },
+  };
+  const initialPasswordState: PasswordSettingsFormState = {
+    ok: false,
+    message: null,
+  };
+  const [accountState, accountFormAction, isAccountPending] = useActionState(
+    updateOwnAccountFormAction,
+    initialAccountState,
+  );
+  const [passwordState, passwordFormAction, isPasswordPending] = useActionState(
+    updateOwnPasswordFormAction,
+    initialPasswordState,
+  );
 
   return (
     <div className="grid max-w-5xl gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
@@ -115,35 +71,39 @@ export function AccountSettingsForm({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          {submissionState ? <FormBanner state={submissionState} /> : null}
+          {accountState.message ? (
+            <FormBanner
+              state={{
+                kind: accountState.ok ? "success" : "error",
+                message: accountState.message,
+                detail: accountState.ok
+                  ? "Your persisted account details will be reflected after refresh."
+                  : undefined,
+              }}
+            />
+          ) : null}
 
-          <form className="space-y-5" onSubmit={handleSubmit}>
+          <form action={accountFormAction} className="space-y-5">
             <div className="grid gap-4 sm:grid-cols-2">
               <FieldShell htmlFor={nameId} label="Name">
                 <Input
                   id={nameId}
-                  value={name}
-                  onChange={(event) => {
-                    setName(event.target.value);
-                    setSubmissionState(null);
-                  }}
+                  name="name"
+                  defaultValue={accountState.values.name}
                   placeholder="Enter full name"
                   className={inputClassName}
-                  disabled={isPending}
+                  disabled={isAccountPending}
                 />
               </FieldShell>
 
               <FieldShell htmlFor={phoneNumberId} label="Phone number">
                 <Input
                   id={phoneNumberId}
-                  value={phoneNumber}
-                  onChange={(event) => {
-                    setPhoneNumber(event.target.value);
-                    setSubmissionState(null);
-                  }}
+                  name="phoneNumber"
+                  defaultValue={accountState.values.phoneNumber}
                   placeholder="09xxxxxxxxx"
                   className={inputClassName}
-                  disabled={isPending}
+                  disabled={isAccountPending}
                 />
               </FieldShell>
             </div>
@@ -151,14 +111,11 @@ export function AccountSettingsForm({
             <FieldShell htmlFor={addressId} label="Address">
               <Textarea
                 id={addressId}
-                value={address}
-                onChange={(event) => {
-                  setAddress(event.target.value);
-                  setSubmissionState(null);
-                }}
+                name="address"
+                defaultValue={accountState.values.address}
                 placeholder="Street, ward, township, landmark"
                 className={textareaClassName}
-                disabled={isPending}
+                disabled={isAccountPending}
               />
             </FieldShell>
 
@@ -166,17 +123,14 @@ export function AccountSettingsForm({
               <FieldShell htmlFor={ageId} label="Age (optional)">
                 <Input
                   id={ageId}
+                  name="age"
                   type="number"
                   min="1"
                   inputMode="numeric"
-                  value={age}
-                  onChange={(event) => {
-                    setAge(event.target.value);
-                    setSubmissionState(null);
-                  }}
+                  defaultValue={accountState.values.age}
                   placeholder="Optional"
                   className={inputClassName}
-                  disabled={isPending}
+                  disabled={isAccountPending}
                 />
               </FieldShell>
 
@@ -206,8 +160,8 @@ export function AccountSettingsForm({
             </div>
 
             <CardFooter className="justify-end border-t px-0 pt-5">
-              <Button type="submit" disabled={isPending}>
-                {isPending ? "Saving..." : "Save Changes"}
+              <Button type="submit" disabled={isAccountPending}>
+                {isAccountPending ? "Saving..." : "Save Changes"}
               </Button>
             </CardFooter>
           </form>
@@ -222,18 +176,24 @@ export function AccountSettingsForm({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          {passwordState ? <FormBanner state={passwordState} /> : null}
+          {passwordState.message ? (
+            <FormBanner
+              state={{
+                kind: passwordState.ok ? "success" : "error",
+                message: passwordState.message,
+                detail: passwordState.ok
+                  ? "Use the new password the next time you sign in."
+                  : undefined,
+              }}
+            />
+          ) : null}
 
-          <form className="space-y-5" onSubmit={handlePasswordSubmit}>
+          <form action={passwordFormAction} className="space-y-5">
             <FieldShell htmlFor={currentPasswordId} label="Current password">
               <Input
                 id={currentPasswordId}
+                name="currentPassword"
                 type="password"
-                value={currentPassword}
-                onChange={(event) => {
-                  setCurrentPassword(event.target.value);
-                  setPasswordState(null);
-                }}
                 placeholder="Enter current password"
                 className={inputClassName}
                 disabled={isPasswordPending}
@@ -243,12 +203,8 @@ export function AccountSettingsForm({
             <FieldShell htmlFor={newPasswordId} label="New password">
               <Input
                 id={newPasswordId}
+                name="newPassword"
                 type="password"
-                value={newPassword}
-                onChange={(event) => {
-                  setNewPassword(event.target.value);
-                  setPasswordState(null);
-                }}
                 placeholder="Enter new password"
                 className={inputClassName}
                 disabled={isPasswordPending}

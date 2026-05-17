@@ -99,7 +99,7 @@ Alternative considered: sequential writes without transactions. That is easier t
 - Generated usernames or internal emails may collide for similar names -> check uniqueness and append a deterministic suffix before creating the Better Auth user.
 - Internal emails are implementation details -> never expose them as a login field or user-facing account field in MVP.
 - Current dashboard UI is superadmin-oriented -> redirect merchant/rider users to minimal role-specific pages and enforce route-level guards.
-- Local development currently bypasses auth in development -> replace with an explicit demo flag so real auth can be tested locally.
+- Local development must use real Better Auth sessions -> remove the development demo bypass and seed the first super admin account.
 - Existing UI success messages describe mock behavior -> update only affected text and refresh behavior as mutations become persistent.
 - Introducing React Hook Form adds a dependency and pattern to the project -> limit it to complex forms and keep simple forms on `useActionState`.
 - Phase 2 parcel assignment without status transitions means riders can see assigned parcels in `at_office`, `postpone`, or `canceled_returned` status but cannot progress delivery/return statuses yet -> document this as expected until Phase 3.
@@ -109,8 +109,8 @@ Alternative considered: sequential writes without transactions. That is easier t
 
 1. Align Drizzle schema with Better Auth's required tables and the Parcel Flow domain diagram, removing the domain-owned `app_users` table.
 2. Generate and apply migrations against a local or development Supabase PostgreSQL database.
-3. Seed or manually create an initial super admin account using the Better Auth user model with generated username/internal email and `mustResetPassword` as needed.
-4. Replace demo session fallback with explicit demo mode and verify real login locally.
+3. Seed an initial super admin account using the Better Auth user model with generated username/internal email and `mustResetPassword` as needed.
+4. Remove the demo session fallback and verify real login locally.
 5. Wire feature DAL/actions incrementally: auth/session, users/profiles/bank accounts, townships, parcels, rider assignment.
 6. Run lint, typecheck, and database-backed smoke checks for login, create user, create township, create parcel, and assign rider.
 
@@ -121,4 +121,4 @@ Rollback for production should keep this behind migration review until ready. Be
 - What exact canonical phone format should be used for contact phone numbers: local `09...` or international `+959...`?
 - Should office admins be allowed to edit merchant/rider profile fields after user creation, or only super admins?
 - Should a newly created user always start with `mustResetPassword = true`, including the initial generated password flow?
-- Should this change include a minimal seed script for the first super admin, or should first admin creation be handled manually through a one-off command?
+- Resolved: include a minimal seed script for the first super admin and keep the credentials in local environment variables.

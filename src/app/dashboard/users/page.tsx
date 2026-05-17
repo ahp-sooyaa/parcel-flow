@@ -7,14 +7,17 @@ import { CreateUserForm } from "@/features/users/components/create-user-form";
 import { UserListTable } from "@/features/users/components/user-list-table";
 import { listBankAccountsForUser, listUsers } from "@/features/users/server/dal";
 import { listTownships } from "@/features/townships/server/dal";
-import { getCurrentUser } from "@/lib/session";
+import { isAdminRole } from "@/lib/domain";
+import { requireCurrentUser } from "@/lib/session";
 
 export default async function UsersPage() {
-  const [users, townships, currentUser] = await Promise.all([
-    listUsers(),
-    listTownships(),
-    getCurrentUser(),
-  ]);
+  const currentUser = await requireCurrentUser();
+
+  if (!isAdminRole(currentUser.role)) {
+    throw new Error("Admin access required.");
+  }
+
+  const [users, townships] = await Promise.all([listUsers(), listTownships()]);
   const bankAccountsByUserId = Object.fromEntries(
     await Promise.all(
       users.map(async (user) => [user.id, await listBankAccountsForUser(user.id)] as const),

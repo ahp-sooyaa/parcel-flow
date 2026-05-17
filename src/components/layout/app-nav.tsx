@@ -15,22 +15,61 @@ import {
   UsersRound,
 } from "lucide-react";
 
+import type { UserRole } from "@/lib/domain";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
-  { href: "/dashboard/parcels", label: "Parcels", icon: Boxes },
-  { href: "/dashboard/merchants", label: "Merchants", icon: Store },
-  { href: "/dashboard/riders", label: "Riders", icon: Bike },
-  { href: "/dashboard/settlements", label: "Settlements", icon: ReceiptText },
-  { href: "/dashboard/rider-payouts", label: "Rider Payouts", icon: Banknote },
-  { href: "/dashboard/townships", label: "Townships", icon: MapPinned },
-  { href: "/dashboard/users", label: "Users", icon: UsersRound },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
+  { href: "/dashboard", label: "Overview", icon: LayoutDashboard, roles: ["super_admin"] },
+  {
+    href: "/dashboard/parcels",
+    label: "Parcels",
+    icon: Boxes,
+    roles: ["super_admin", "office_admin"],
+  },
+  { href: "/dashboard/merchants", label: "Merchants", icon: Store, roles: ["super_admin"] },
+  { href: "/dashboard/riders", label: "Riders", icon: Bike, roles: ["super_admin"] },
+  {
+    href: "/dashboard/settlements",
+    label: "Settlements",
+    icon: ReceiptText,
+    roles: ["super_admin", "office_admin"],
+  },
+  {
+    href: "/dashboard/rider-payouts",
+    label: "Rider Payouts",
+    icon: Banknote,
+    roles: ["super_admin", "office_admin"],
+  },
+  { href: "/dashboard/townships", label: "Townships", icon: MapPinned, roles: ["super_admin"] },
+  {
+    href: "/dashboard/users",
+    label: "Users",
+    icon: UsersRound,
+    roles: ["super_admin", "office_admin"],
+  },
+  {
+    href: "/dashboard/merchant/parcels",
+    label: "My Parcels",
+    icon: Boxes,
+    roles: ["merchant"],
+  },
+  {
+    href: "/dashboard/rider/parcels",
+    label: "My Parcels",
+    icon: Boxes,
+    roles: ["rider"],
+  },
+  {
+    href: "/dashboard/settings",
+    label: "Settings",
+    icon: Settings,
+    roles: ["super_admin", "office_admin", "merchant", "rider"],
+  },
 ];
 
-export function AppNav({ className }: Readonly<{ className?: string }>) {
+export function AppNav({ className, role }: Readonly<{ className?: string; role: UserRole }>) {
   const pathname = usePathname();
+  const visibleNavItems = navItems.filter((item) => item.roles.includes(role));
 
   return (
     <aside className={cn("hidden w-64 shrink-0 border-r bg-[#fafaf8] lg:block", className)}>
@@ -44,7 +83,7 @@ export function AppNav({ className }: Readonly<{ className?: string }>) {
         </div>
       </div>
       <nav className="space-y-1 p-3">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const isActive =
             pathname === item.href ||
             (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));

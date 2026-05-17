@@ -11,9 +11,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { listMerchants } from "@/features/merchants/server/dal";
+import { isAdminRole } from "@/lib/domain";
 import { formatMoney } from "@/lib/format";
+import { requireCurrentUser } from "@/lib/session";
 
 export default async function MerchantsPage() {
+  const currentUser = await requireCurrentUser();
+
+  if (!isAdminRole(currentUser.role)) {
+    throw new Error("Admin access required.");
+  }
+
   const merchants = await listMerchants();
 
   return (

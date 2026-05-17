@@ -1,7 +1,22 @@
 "use server";
 
-import { getUserById } from "@/features/users/server/dal";
+import { headers } from "next/headers";
+import { revalidatePath } from "next/cache";
+
+import { eq } from "drizzle-orm";
+
+import { db } from "@/db";
+import { appUsers } from "@/db/schema";
 import {
+  createBankAccountForUser,
+  createRoleProfile,
+  findUniqueUsername,
+  getUserById,
+  updateBankAccountForUser,
+  updateUserProfile,
+} from "@/features/users/server/dal";
+import {
+  type BankAccountDto,
   bankAccountInputSchema,
   createUserBankAccountInputSchema,
   createUserInputSchema,
@@ -10,8 +25,25 @@ import {
   updateUserBankAccountInputSchema,
   updateUserInputSchema,
 } from "@/features/users/server/dto";
+import { buildInternalEmail, normalizePhoneNumber } from "@/features/users/server/utils";
+import { auth } from "@/lib/auth";
 import { canCreateUser, canManageUser } from "@/lib/permissions";
 import { requireCurrentUser } from "@/lib/session";
+
+type BankAccountActionResult =
+  | { ok: false; message: string }
+  | { ok: true; message: string; bankAccount: BankAccountDto };
+
+export type AccountSettingsFormState = {
+  ok: boolean;
+  message: string | null;
+  values: {
+    name: string;
+    phoneNumber: string;
+    address: string;
+    age: string;
+  };
+};
 
 export async function createUserAction(input: unknown) {
   const actor = await requireCurrentUser();
@@ -33,11 +65,49 @@ export async function createUserAction(input: unknown) {
     };
   }
 
+  const username = await findUniqueUsername(validatedInput.name);
+  const email = buildInternalEmail(username);
+  const createdUser = await auth.api.createUser({
+    body: {
+      name: validatedInput.name,
+      email,
+      password: validatedInput.password,
+      role: validatedInput.role,
+      data: {
+        username,
+        displayUsername: username,
+        phoneNumber: normalizePhoneNumber(validatedInput.phoneNumber),
+        address: validatedInput.address,
+        age: validatedInput.age,
+        isActive: true,
+        mustResetPassword: true,
+      },
+    },
+    headers: await headers(),
+  });
+
+  await createRoleProfile({
+    userId: createdUser.user.id,
+    role: validatedInput.role,
+    shopName: validatedInput.shopName,
+    address: validatedInput.address,
+    serviceTownshipId: validatedInput.serviceTownshipId,
+  });
+
+  revalidatePath("/dashboard/users");
+  revalidatePath("/dashboard/merchants");
+  revalidatePath("/dashboard/riders");
+
   return {
     ok: true as const,
-    message: "User details validated.",
+    message: "User account created.",
     temporaryPassword: validatedInput.password,
-    user: validatedInput,
+    user: {
+      ...validatedInput,
+      id: createdUser.user.id,
+      username,
+      email,
+    },
   };
 }
 
@@ -72,15 +142,21 @@ export async function updateUserAction(input: unknown) {
     };
   }
 
+  const user = await updateUserProfile(validatedInput);
+
+  revalidatePath("/dashboard/users");
+  revalidatePath("/dashboard/merchants");
+  revalidatePath("/dashboard/riders");
+
   return {
     ok: true as const,
-    message: "User details validated.",
-    user: validatedInput,
+    message: "User details saved.",
+    user,
   };
 }
 
 export async function updateOwnAccountAction(input: unknown) {
-  await requireCurrentUser();
+  const actor = await requireCurrentUser();
   const parseResult = updateOwnAccountInputSchema.safeParse(input);
 
   if (!parseResult.success) {
@@ -92,14 +168,52 @@ export async function updateOwnAccountAction(input: unknown) {
 
   const validatedInput = parseResult.data;
 
+  await db
+    .update(appUsers)
+    .set({
+      name: validatedInput.name,
+      phoneNumber: normalizePhoneNumber(validatedInput.phoneNumber),
+      address: validatedInput.address,
+      age: validatedInput.age ?? null,
+      updatedAt: new Date(),
+    })
+    .where(eq(appUsers.id, actor.id));
+
+  revalidatePath("/dashboard/settings");
+
   return {
     ok: true as const,
-    message: "Account details validated.",
+    message: "Account details saved.",
     user: validatedInput,
   };
 }
 
-export async function createOwnBankAccountAction(input: unknown) {
+export async function updateOwnAccountFormAction(
+  _previousState: AccountSettingsFormState,
+  formData: FormData,
+): Promise<AccountSettingsFormState> {
+  const values = {
+    name: getFormDataString(formData, "name"),
+    phoneNumber: getFormDataString(formData, "phoneNumber"),
+    address: getFormDataString(formData, "address"),
+    age: getFormDataString(formData, "age"),
+  };
+  const result = await updateOwnAccountAction(values);
+
+  return {
+    ok: result.ok,
+    message: result.message,
+    values,
+  };
+}
+
+function getFormDataString(formData: FormData, name: string) {
+  const value = formData.get(name);
+
+  return typeof value === "string" ? value : "";
+}
+
+export async function createOwnBankAccountAction(input: unknown): Promise<BankAccountActionResult> {
   const actor = await requireCurrentUser();
   const parseResult = bankAccountInputSchema.safeParse(input);
 
@@ -110,20 +224,29 @@ export async function createOwnBankAccountAction(input: unknown) {
     };
   }
 
-  const validatedInput = parseResult.data;
+  if (actor.role !== "super_admin") {
+    return {
+      ok: false as const,
+      message: "Only super admins can manage bank accounts.",
+    };
+  }
+
+  const bankAccount = await createBankAccountForUser({
+    userId: actor.id,
+    ...parseResult.data,
+    isCompanyAccount: true,
+  });
+
+  revalidatePath("/dashboard/settings");
 
   return {
     ok: true as const,
-    message: "Bank account details validated.",
-    bankAccount: {
-      id: crypto.randomUUID(),
-      userId: actor.id,
-      ...validatedInput,
-    },
+    message: "Bank account saved.",
+    bankAccount,
   };
 }
 
-export async function updateOwnBankAccountAction(input: unknown) {
+export async function updateOwnBankAccountAction(input: unknown): Promise<BankAccountActionResult> {
   const actor = await requireCurrentUser();
   const parseResult = updateOwnBankAccountInputSchema.safeParse(input);
 
@@ -134,15 +257,32 @@ export async function updateOwnBankAccountAction(input: unknown) {
     };
   }
 
-  const validatedInput = parseResult.data;
+  if (actor.role !== "super_admin") {
+    return {
+      ok: false as const,
+      message: "Only super admins can manage bank accounts.",
+    };
+  }
+
+  const bankAccount = await updateBankAccountForUser({
+    ...parseResult.data,
+    userId: actor.id,
+    isCompanyAccount: true,
+  });
+
+  if (!bankAccount) {
+    return {
+      ok: false as const,
+      message: "Bank account was not found.",
+    };
+  }
+
+  revalidatePath("/dashboard/settings");
 
   return {
     ok: true as const,
-    message: "Bank account details validated.",
-    bankAccount: {
-      userId: actor.id,
-      ...validatedInput,
-    },
+    message: "Bank account saved.",
+    bankAccount,
   };
 }
 
@@ -167,20 +307,24 @@ export async function createUserBankAccountAction(input: unknown) {
     };
   }
 
-  if (!canManageUser(actor.role, targetUser.role)) {
+  if (actor.role !== "super_admin" || !canManageUser(actor.role, targetUser.role)) {
     return {
       ok: false as const,
-      message: "You do not have permission to edit this account.",
+      message: "Only super admins can manage bank accounts.",
     };
   }
 
+  const bankAccount = await createBankAccountForUser({
+    ...validatedInput,
+    isCompanyAccount: false,
+  });
+
+  revalidatePath("/dashboard/users");
+
   return {
     ok: true as const,
-    message: "Bank account details validated.",
-    bankAccount: {
-      id: crypto.randomUUID(),
-      ...validatedInput,
-    },
+    message: "Bank account saved.",
+    bankAccount,
   };
 }
 
@@ -205,16 +349,30 @@ export async function updateUserBankAccountAction(input: unknown) {
     };
   }
 
-  if (!canManageUser(actor.role, targetUser.role)) {
+  if (actor.role !== "super_admin" || !canManageUser(actor.role, targetUser.role)) {
     return {
       ok: false as const,
-      message: "You do not have permission to edit this account.",
+      message: "Only super admins can manage bank accounts.",
     };
   }
 
+  const bankAccount = await updateBankAccountForUser({
+    ...validatedInput,
+    isCompanyAccount: false,
+  });
+
+  if (!bankAccount) {
+    return {
+      ok: false as const,
+      message: "Bank account was not found.",
+    };
+  }
+
+  revalidatePath("/dashboard/users");
+
   return {
     ok: true as const,
-    message: "Bank account details validated.",
-    bankAccount: validatedInput,
+    message: "Bank account saved.",
+    bankAccount,
   };
 }
