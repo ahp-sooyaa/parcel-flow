@@ -2,9 +2,8 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 
 import { AppNav } from "@/components/layout/app-nav";
-import { Badge } from "@/components/ui/badge";
+import { DashboardAccountMenu } from "@/components/shared/dashboard-account-menu";
 import { getCurrentUser } from "@/lib/session";
-import { roleLabels } from "@/lib/domain";
 
 export async function DashboardShell({ children }: Readonly<{ children: ReactNode }>) {
   const user = await getCurrentUser();
@@ -23,10 +22,12 @@ export async function DashboardShell({ children }: Readonly<{ children: ReactNod
             <div className="text-xs text-muted-foreground">After-office parcel lifecycle</div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="hidden text-right text-sm sm:block">
-              <div className="font-medium">{user.name}</div>
-              <Badge variant="secondary">{roleLabels[user.role]}</Badge>
-            </div>
+            <DashboardAccountMenu
+              name={user.name}
+              role={user.role}
+              userId={user.id}
+              username={user.username}
+            />
           </div>
         </header>
         <main className="p-4 sm:p-6">{children}</main>

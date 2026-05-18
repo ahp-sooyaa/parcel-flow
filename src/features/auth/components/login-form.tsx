@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,12 @@ export function LoginForm() {
     message: null,
   };
   const [state, formAction, isPending] = useActionState(loginAction, initialState);
+  const [username, setUsername] = useState(initialState.username);
+  const [password, setPassword] = useState("");
+
+  useEffect(() => {
+    setUsername(state.username);
+  }, [state.username]);
 
   return (
     <Card className="w-full max-w-md border-[#3f3a52] bg-white text-foreground shadow-2xl">
@@ -29,13 +35,21 @@ export function LoginForm() {
               id="username"
               name="username"
               autoComplete="username"
-              defaultValue={state.username}
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
               placeholder="daw-hnin"
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
-            <Input id="password" name="password" type="password" autoComplete="current-password" />
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
           </div>
           {state.message ? <p className="text-sm text-destructive">{state.message}</p> : null}
           <Button className="w-full" type="submit" disabled={isPending}>

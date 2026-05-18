@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { db } from "@/db";
@@ -124,4 +125,12 @@ export async function regeneratePasswordAction(input: unknown) {
     temporaryPassword,
     mustResetPassword: true,
   };
+}
+
+export async function signOutAction() {
+  await auth.api.signOut({
+    headers: await headers(),
+  });
+
+  redirect("/login");
 }
