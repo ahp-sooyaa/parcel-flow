@@ -1,0 +1,11 @@
+[test]
+coverageSkipTestFiles = true
+coveragePathIgnorePatterns = [
+  "tests/**",
+  "src/components/ui/**",
+  "playwright.config.ts",
+  "drizzle.config.ts",
+  "next-env.d.ts",
+  "src/db/schema.ts",
+  "src/lib/domain.ts",
+]
