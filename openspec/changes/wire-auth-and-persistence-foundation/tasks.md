@@ -51,7 +51,7 @@
 
 - [x] 6.1 Replace mock merchant list reads with Drizzle queries joining merchant profiles to Better Auth users.
 - [x] 6.2 Replace mock rider list reads with Drizzle queries joining rider profiles, Better Auth users, service townships, and parcel collection aggregates.
-- [x] 6.3 Calculate rider expected collection from active assigned parcels with statuses `at_office`, `on_the_way`, and `postpone`.
+- [x] 6.3 Calculate rider expected collection from active assigned parcels with statuses `at_office` and `on_the_way`.
 - [x] 6.4 Calculate rider actual collection from delivered assigned parcels using persisted collection fields available in Phase 2 scope.
 - [x] 6.5 Enforce role-scoped merchant and rider read access server-side.
 
@@ -73,7 +73,7 @@
 ## 8. Rider Assignment Persistence
 
 - [x] 8.1 Add server action and DAL logic for assigning selected parcels to a rider in one transaction.
-- [x] 8.2 Validate assignment permissions, active rider existence, selected parcel existence, unassigned state, and eligible statuses `at_office`, `postpone`, or `canceled_returned` before writing.
+- [x] 8.2 Validate assignment permissions, active rider existence, selected parcel existence, unassigned state, and eligible statuses `at_office` or `canceled_returned` before writing.
 - [x] 8.3 Disable bulk assignment selection for already assigned parcels and reject assigned parcel IDs server-side if submitted.
 - [x] 8.4 Persist `rider_id` and `assigned_at` for selected parcels without changing parcel status or creating financial side effects.
 - [x] 8.5 Wire `AssignRiderDialog` confirm behavior to the persisted assignment action.

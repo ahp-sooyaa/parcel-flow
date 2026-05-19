@@ -52,12 +52,12 @@ The current dashboard pages and UI are built from the superadmin point of view. 
 
 Initial role landing routes:
 
-| Role | Landing route |
-|---|---|
-| `super_admin` | `/dashboard` |
-| `office_admin` | `/dashboard/parcels` |
-| `merchant` | `/dashboard/merchant/parcels` |
-| `rider` | `/dashboard/rider/parcels` |
+| Role           | Landing route                 |
+| -------------- | ----------------------------- |
+| `super_admin`  | `/dashboard`                  |
+| `office_admin` | `/dashboard/parcels`          |
+| `merchant`     | `/dashboard/merchant/parcels` |
+| `rider`        | `/dashboard/rider/parcels`    |
 
 Alternative considered: send every role to `/dashboard` and hide actions. That risks exposing a confusing superadmin-oriented interface and makes accidental data leakage more likely if a page-level guard is missed.
 
@@ -83,7 +83,7 @@ Alternative considered: keep manually managed `useState` for all forms. That is 
 
 ### Persist rider assignment before broader status workflows
 
-Rider assignment is included with Phase 1/2 because the frontend already has selection, summary, and assignment affordances. Bulk assignment must only select unassigned parcels in statuses that require a rider: `at_office` for delivery, `postpone` for retry or scheduled delivery, and `canceled_returned` for return handling. Assignment must only set `rider_id` and `assigned_at`; it must not change parcel status to `on_the_way` or create financial items. Already assigned parcels should be disabled in the bulk assignment UI. Reassignment is handled from the edit parcel flow for now, with future bulk reassignment left out of scope.
+Rider assignment is included with Phase 1/2 because the frontend already has selection, summary, and assignment affordances. Bulk assignment must only select unassigned parcels in statuses that require a rider: `at_office` for normal delivery or retry after admin has prepared the parcel again, and `canceled_returned` for return handling. `postpone` parcels should remain unassigned until admin moves them back to `at_office` for retry. Assignment must only set `rider_id` and `assigned_at`; it must not change parcel status to `on_the_way` or create financial items. Already assigned parcels should be disabled in the bulk assignment UI. Reassignment is handled from the edit parcel flow for now, with future bulk reassignment left out of scope.
 
 Alternative considered: defer assignment to Phase 3 with status transitions. That would leave a visible UI flow non-functional after persistence wiring, despite the assignment rule being simpler than delivery status side effects.
 
@@ -102,7 +102,7 @@ Alternative considered: sequential writes without transactions. That is easier t
 - Local development must use real Better Auth sessions -> remove the development demo bypass and seed the first super admin account.
 - Existing UI success messages describe mock behavior -> update only affected text and refresh behavior as mutations become persistent.
 - Introducing React Hook Form adds a dependency and pattern to the project -> limit it to complex forms and keep simple forms on `useActionState`.
-- Phase 2 parcel assignment without status transitions means riders can see assigned parcels in `at_office`, `postpone`, or `canceled_returned` status but cannot progress delivery/return statuses yet -> document this as expected until Phase 3.
+- Phase 2 parcel assignment without status transitions means riders can see assigned parcels in `at_office` or `canceled_returned` status but cannot progress delivery/return statuses yet -> document this as expected until Phase 3.
 - Settlement and payout pages may still show empty persisted data or basic list data -> avoid implementing financial business rules in this change.
 
 ## Migration Plan

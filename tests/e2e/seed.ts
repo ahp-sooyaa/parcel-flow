@@ -258,8 +258,7 @@ async function upsertMerchantProfile(userId: string) {
 
 async function upsertRiderProfile(userId: string, townshipId: string) {
   const [existingRider] = await db.select().from(riders).where(eq(riders.userId, userId)).limit(1);
-  const rider =
-    existingRider ?? (await db.insert(riders).values({ userId }).returning()).at(0);
+  const rider = existingRider ?? (await db.insert(riders).values({ userId }).returning()).at(0);
 
   if (!rider) {
     throw new Error("Unable to seed E2E rider profile.");

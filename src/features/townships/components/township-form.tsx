@@ -69,6 +69,7 @@ export function TownshipForm({ mode, township }: TownshipFormProps) {
   const isEditMode = mode === "edit";
   const title = isEditMode ? "Edit Township" : "Create Township";
   const submitLabel = isEditMode ? "Save Changes" : "Create Township";
+  const pendingSubmitLabel = isEditMode ? "Saving..." : "Creating...";
 
   function clearBanner() {
     if (submissionState) {
@@ -276,7 +277,7 @@ export function TownshipForm({ mode, township }: TownshipFormProps) {
             className="bg-[#1b1938] text-white hover:bg-[#0e0c1f]"
             disabled={isPending}
           >
-            {isPending ? (isEditMode ? "Saving..." : "Creating...") : submitLabel}
+            {isPending ? pendingSubmitLabel : submitLabel}
           </Button>
         </div>
       </SheetFooter>

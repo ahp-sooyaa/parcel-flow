@@ -76,7 +76,9 @@ export function DashboardAccountMenu({
           <Badge variant="secondary">{roleLabels[role]}</Badge>
         </div>
         <DropdownMenuSeparator />
-        {signOutError ? <div className="px-3 pb-2 text-xs text-destructive">{signOutError}</div> : null}
+        {signOutError ? (
+          <div className="px-3 pb-2 text-xs text-destructive">{signOutError}</div>
+        ) : null}
         <DropdownMenuItem
           variant="destructive"
           disabled={isSigningOut}

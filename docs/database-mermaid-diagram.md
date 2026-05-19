@@ -77,6 +77,7 @@ text parcel_code UK
     numeric parcel_height_cm
     numeric parcel_length_cm
     text special_notes
+    text delivery_failure_note
 
     text status
 

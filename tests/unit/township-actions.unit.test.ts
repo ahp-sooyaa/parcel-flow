@@ -4,10 +4,12 @@ import { buildCurrentUser } from "../fixtures/builders";
 
 const requireCurrentUserMock = mock(async () => buildCurrentUser({ role: "super_admin" }));
 const createTownshipMock = mock(async (input: unknown) => ({ id: "township-id", input }));
-const updateTownshipMock = mock(async (id: string, input: unknown): Promise<unknown> => ({
-  id,
-  input,
-}));
+const updateTownshipMock = mock(
+  async (id: string, input: unknown): Promise<unknown> => ({
+    id,
+    input,
+  }),
+);
 const revalidatePathMock = mock(() => undefined);
 
 void mock.module("@/lib/session", () => ({
@@ -24,9 +26,8 @@ void mock.module("next/cache", () => ({
 }));
 
 describe("township server actions", async () => {
-  const { createTownshipAction, updateTownshipAction } = await import(
-    "@/features/townships/server/actions"
-  );
+  const { createTownshipAction, updateTownshipAction } =
+    await import("@/features/townships/server/actions");
 
   beforeEach(() => {
     requireCurrentUserMock.mockReset();

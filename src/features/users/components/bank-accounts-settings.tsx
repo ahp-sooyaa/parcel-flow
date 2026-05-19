@@ -212,6 +212,8 @@ function BankAccountDialog({
   onSubmit,
 }: BankAccountDialogProps) {
   const [isPending, startTransition] = useTransition();
+  const submitLabel = mode === "create" ? "Create Bank Account" : "Save Changes";
+  const pendingSubmitLabel = mode === "create" ? "Creating..." : "Saving...";
   const [submissionState, setSubmissionState] = useState<FormMessageState | null>(null);
   const initialFormState = getBankAccountFormState(initialValue);
   const bankNameId = useId();
@@ -352,13 +354,7 @@ function BankAccountDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={isPending}>
-              {isPending
-                ? mode === "create"
-                  ? "Creating..."
-                  : "Saving..."
-                : mode === "create"
-                  ? "Create Bank Account"
-                  : "Save Changes"}
+              {isPending ? pendingSubmitLabel : submitLabel}
             </Button>
           </DialogFooter>
         </form>

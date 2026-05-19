@@ -32,7 +32,10 @@ Object.assign(globalThis, {
   requestAnimationFrame: (callback: FrameRequestCallback) => {
     const handle = nextAnimationFrameHandle;
     nextAnimationFrameHandle += 1;
-    animationFrameHandles.set(handle, window.setTimeout(() => callback(Date.now()), 16));
+    animationFrameHandles.set(
+      handle,
+      window.setTimeout(() => callback(Date.now()), 16),
+    );
     return handle;
   },
   cancelAnimationFrame: (handle: number) => {

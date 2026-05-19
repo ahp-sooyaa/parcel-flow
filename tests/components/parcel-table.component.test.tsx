@@ -29,7 +29,9 @@ describe("ParcelTable", async () => {
     );
 
     expect(screen.getByLabelText("Select PF-ELIGIBLE").getAttribute("data-disabled")).toBeNull();
-    expect(screen.getByLabelText("Select PF-ASSIGNED").getAttribute("data-disabled")).not.toBeNull();
+    expect(
+      screen.getByLabelText("Select PF-ASSIGNED").getAttribute("data-disabled"),
+    ).not.toBeNull();
   });
 
   test("emits selected parcel IDs when selection changes", async () => {

@@ -18,7 +18,10 @@ test("signs in a seeded super admin and lands on the admin dashboard", async ({
   await expect(page).toHaveURL(/\/dashboard/);
 });
 
-test("redirects merchant users away from admin parcel management", async ({ page, seededUsers }) => {
+test("redirects merchant users away from admin parcel management", async ({
+  page,
+  seededUsers,
+}) => {
   await page.goto("/login");
   await page.getByLabel("Username").fill(seededUsers.merchant.username);
   await page.getByLabel("Password").fill(seededUsers.merchant.password);

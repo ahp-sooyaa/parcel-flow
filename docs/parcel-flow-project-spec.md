@@ -361,8 +361,8 @@ The system uses these parcel statuses:
 | `at_office` | At Office | Parcel is still at office and not yet out for delivery; it may be unassigned or already assigned to a rider |
 | `on_the_way` | On The Way | Rider has started delivery and parcel is out for delivery |
 | `delivered` | Delivered | Parcel was delivered successfully |
-| `postpone` | Postpone | Delivery is postponed and needs another delivery action |
-| `canceled_returned` | Canceled / Returned | Delivery failed and needs return process |
+| `postpone` | Postpone | Delivery failed or cannot be completed now, and admin has decided to retry later |
+| `canceled_returned` | Canceled / Returned | Delivery failed and admin has decided the parcel needs return handling |
 | `returned_to_merchant` | Returned to Merchant | Parcel has been physically returned to merchant |
 
 ---
@@ -483,6 +483,8 @@ Meaning:
 
 Assignment alone does not change parcel status to `on_the_way`.
 The `at_office -> on_the_way` transition happens when the rider starts delivery.
+When a rider cannot complete delivery, the rider reports failure with a failure note while the parcel remains `on_the_way`.
+Admin or super admin then reviews the note and chooses the next parcel status.
 
 ### 10.1 Successful Delivery Flow
 
@@ -495,7 +497,7 @@ at_office -> on_the_way -> delivered
 ### 10.2 Failed Return Flow
 
 ```text
-at_office -> on_the_way -> canceled_returned -> returned_to_merchant
+at_office -> on_the_way -> rider reports failure -> canceled_returned -> returned_to_merchant
 ```
 
 ---
@@ -503,7 +505,8 @@ at_office -> on_the_way -> canceled_returned -> returned_to_merchant
 ### 10.3 Postponed Then Delivered Flow
 
 ```text
-at_office -> on_the_way -> postpone -> on_the_way -> delivered
+at_office -> on_the_way -> rider reports failure -> postpone
+postpone -> at_office -> on_the_way -> delivered
 ```
 
 ---
@@ -511,8 +514,22 @@ at_office -> on_the_way -> postpone -> on_the_way -> delivered
 ### 10.4 Postponed Then Returned Flow
 
 ```text
-at_office -> on_the_way -> postpone -> canceled_returned -> returned_to_merchant
+at_office -> on_the_way -> rider reports failure -> postpone -> canceled_returned -> returned_to_merchant
 ```
+
+Retry rule:
+
+- When admin changes a failed delivery to `postpone`, the rider assignment is cleared.
+- When the parcel is ready for retry, admin changes the status back to `at_office` and assigns a rider again.
+- The normal delivery flow then restarts from `at_office`.
+
+Return rule:
+
+- When admin changes a failed delivery to `canceled_returned`, the rider assignment is cleared.
+- When the parcel is ready to return to merchant, admin assigns a rider again.
+- The status remains `canceled_returned` because this is return work, not normal delivery work.
+- Assigned `canceled_returned` parcels appear in the rider `To Deliver` tab until returned to merchant.
+- Admin or super admin can still change a `postpone` parcel to `canceled_returned` if the business decision changes.
 
 ---
 
@@ -522,14 +539,16 @@ at_office -> on_the_way -> postpone -> canceled_returned -> returned_to_merchant
 |---|---|
 | `at_office -> on_the_way` | Rider when starting delivery |
 | `on_the_way -> delivered` | Rider or admin |
-| `on_the_way -> postpone` | Admin only |
-| `on_the_way -> canceled_returned` | Admin only |
-| `postpone -> on_the_way` | Admin only |
-| `postpone -> canceled_returned` | Admin only |
-| `canceled_returned -> returned_to_merchant` | Admin only |
+| Report failure while `on_the_way` | Rider records delivery failure note; no status change |
+| `on_the_way -> postpone` | Admin only, after reviewing rider failure note |
+| `on_the_way -> canceled_returned` | Admin only, after reviewing rider failure note |
+| `postpone -> at_office` | Admin only, when the parcel is ready for retry |
+| `postpone -> canceled_returned` | Admin only, when retry is canceled |
+| `canceled_returned -> returned_to_merchant` | Admin only, after physical return to merchant |
 | Manual correction | Super admin only |
 
-Rider can only handle successful delivery progress by starting delivery and then marking parcel as delivered.
+Rider can start delivery, mark an `on_the_way` parcel as delivered, or report delivery failure with a note.
+Reporting failure does not directly change parcel status.
 
 Rider should not directly update parcel to:
 
@@ -562,7 +581,22 @@ When rider starts delivery:
 
 ---
 
-### 12.3 When Parcel Is Delivered
+### 12.3 When Rider Reports Delivery Failure
+
+When rider cannot complete delivery:
+
+- `status` remains `on_the_way`
+- Rider enters a failure note
+- Failure note is stored in `parcels.delivery_failure_note`
+- `rider_id` remains set until admin or super admin reviews the report
+- No financial items, settlement records, rider payout records, delivered timestamps, or return timestamps are created
+
+The failure note is separate from `special_notes`.
+`special_notes` is merchant/intake context and must not be reused for rider delivery failure reporting.
+
+---
+
+### 12.4 When Parcel Is Delivered
 
 When parcel becomes `delivered`:
 
@@ -599,11 +633,33 @@ For non-COD parcel:
 
 ---
 
-### 12.4 When Parcel Is Canceled / Returned
+### 12.5 When Parcel Is Postponed After Failure
+
+When admin changes an `on_the_way` parcel to `postpone` after reviewing a rider failure note:
+
+- Delivery is paused for later retry
+- `rider_id` is cleared
+- `assigned_at` is cleared
+- Rider expected collection amount reduces immediately
+- COD is not collected
+- Delivery fee deduction is not created
+- No financial items are created
+
+When the parcel is ready for retry:
+
+- Admin changes `status` back to `at_office`
+- Admin assigns a rider again
+- The normal delivery flow restarts from `at_office`
+
+---
+
+### 12.6 When Parcel Is Canceled / Returned
 
 When admin changes parcel to `canceled_returned`:
 
 - Delivery is considered failed
+- `rider_id` is cleared
+- `assigned_at` is cleared
 - Rider expected collection amount reduces immediately
 - COD is not collected
 - Delivery fee deduction is not created yet
@@ -619,7 +675,7 @@ Recommended updates:
 
 ---
 
-### 12.5 When Parcel Is Returned to Merchant
+### 12.7 When Parcel Is Returned to Merchant
 
 When admin changes parcel to `returned_to_merchant`:
 
@@ -639,7 +695,7 @@ Recommended updates:
 
 ## 13. Rider Assignment Flow
 
-Admin assigns parcels to riders when a rider needs to deliver, retry, schedule, or return the parcel.
+Admin assigns parcels to riders when a rider needs to deliver, retry after the parcel is prepared again, or return the parcel.
 
 Assignment does not mean the rider has started delivery.
 Assignment only links the parcel to a rider and sets assignment metadata.
@@ -649,8 +705,7 @@ Allowed assignment statuses:
 
 | Status | Assignment purpose |
 |---|---|
-| `at_office` | Parcel is at office and ready for delivery |
-| `postpone` | Parcel needs scheduled delivery or retry delivery |
+| `at_office` | Parcel is at office and ready for normal delivery or retry delivery |
 | `canceled_returned` | Parcel will not be retried and needs return handling back to merchant |
 
 Not assignable through the normal bulk assignment flow:
@@ -658,6 +713,7 @@ Not assignable through the normal bulk assignment flow:
 | Status | Reason |
 |---|---|
 | `on_the_way` | Rider has already started delivery |
+| `postpone` | Parcel is waiting for an admin retry decision; admin must move it back to `at_office` before normal delivery assignment |
 | `delivered` | Delivery is complete |
 | `returned_to_merchant` | Return is complete |
 
@@ -678,11 +734,12 @@ Steps:
 4. Admin clicks **Assign Rider**.
 5. Admin selects rider.
 6. System displays selected parcel summary.
-7. System displays total collection amount for selected delivery/retry parcels and selected return-ready parcel count.
+7. System displays total collection amount for selected normal delivery parcels and selected return-ready parcel count.
 8. Admin confirms assignment.
 9. Parcel is assigned to rider, but its status remains unchanged.
 10. Rider can now see assigned parcels.
-11. Rider later changes eligible delivery parcels from **At Office** or **Postpone** to **On The Way** when starting delivery, once that status workflow is available.
+11. Rider later changes eligible **At Office** delivery parcels to **On The Way** when starting delivery.
+12. Assigned **Canceled / Returned** parcels remain `canceled_returned` because they are return work, not normal delivery work.
 
 ---
 
@@ -700,7 +757,7 @@ Rider current expected collection today: 300,000 MMK
 After assignment: 774,000 MMK
 ```
 
-Expected collection should include selected `at_office` and `postpone` parcels.
+Expected collection should include selected `at_office` parcels.
 Selected `canceled_returned` parcels are return work and should be counted separately from expected cash collection.
 
 This helps admin avoid assigning too much cash collection or return workload to one rider.
@@ -784,18 +841,18 @@ Include statuses:
 ```text
 at_office where rider is already assigned
 on_the_way
-postpone
 ```
 
 Exclude statuses:
 
 ```text
+postpone
 delivered
 canceled_returned
 returned_to_merchant
 ```
 
-When admin changes parcel status to `canceled_returned`, the rider expected collection amount should reduce immediately.
+When admin changes parcel status to `postpone` or `canceled_returned`, the rider assignment should be cleared and the rider expected collection amount should reduce immediately.
 
 ---
 
@@ -1028,13 +1085,17 @@ When parcel is delivered:
 
 When delivery fails:
 
-1. Admin changes status to `canceled_returned`.
-2. Rider expected collection amount reduces immediately.
-3. No delivery fee deduction happens yet.
-4. Parcel must be returned to merchant.
-5. Admin changes status to `returned_to_merchant` after physical return.
-6. One `delivery_fee_deduction` financial item is created.
-7. Delivery fee becomes eligible for deduction from merchant settlement.
+1. Rider reports failure and enters a failure note.
+2. Parcel stays `on_the_way` until admin or super admin reviews the note.
+3. Admin changes status to `postpone` for retry or `canceled_returned` for return.
+4. Rider assignment is cleared when status becomes `postpone` or `canceled_returned`.
+5. Rider expected collection amount reduces immediately.
+6. No delivery fee deduction happens while the parcel is only `postpone` or `canceled_returned`.
+7. If retrying, admin assigns a rider again, changes status to `at_office`, and the normal delivery flow restarts.
+8. If returning, admin assigns a rider again while status remains `canceled_returned`.
+9. Admin changes status to `returned_to_merchant` after physical return.
+10. One `delivery_fee_deduction` financial item is created.
+11. Delivery fee becomes eligible for deduction from merchant settlement.
 
 ---
 
@@ -1628,6 +1689,7 @@ Recommended routes and UI patterns:
 - Rider parcel listing
 - Rider start delivery update
 - Rider successful delivery update
+- Rider failed delivery report with failure note
 - Admin failed/postpone/return status update
 - Township-based delivery fee auto-fill
 - Super admin delivery fee override before assignment
@@ -1682,12 +1744,12 @@ These features are not required in MVP:
 - Merchant cannot create or edit parcels.
 - Rider only sees assigned parcels.
 - Parcel status remains unchanged after assignment; eligible delivery parcels change to `on_the_way` only when rider starts delivery.
-- Rider can start delivery and mark parcel as delivered.
+- Rider can start delivery, mark parcel as delivered, or report delivery failure with a note.
 - Admin handles postpone, failed, and returned statuses.
 - Delivery fee can be manually edited only by super admin before assignment.
 - Parcel code format is `PF-XXXXXX-XXXXXX`.
 - Parcel payment statuses are stored directly on `parcels`.
-- Rider expected collection amount reduces when parcel becomes `canceled_returned`.
+- Rider expected collection amount reduces when parcel becomes `postpone` or `canceled_returned`.
 - Failed parcel delivery fee deduction happens only after `returned_to_merchant`.
 - Delivered COD parcel creates one `cod_remit` financial item.
 - Returned-to-merchant parcel creates one `delivery_fee_deduction` financial item.

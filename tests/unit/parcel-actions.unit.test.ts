@@ -5,6 +5,7 @@ import { buildCurrentUser } from "../fixtures/builders";
 const requireCurrentUserMock = mock(async () => buildCurrentUser({ role: "super_admin" }));
 const createParcelMock = mock(async () => ({ id: "parcel-id", parcelCode: "PF-000001-000001" }));
 const assignParcelsToRiderMock = mock(async () => undefined);
+const startDeliveryForRiderParcelsMock = mock(async () => undefined);
 const revalidatePathMock = mock(() => undefined);
 
 void mock.module("@/lib/session", () => ({
@@ -14,6 +15,7 @@ void mock.module("@/lib/session", () => ({
 void mock.module("@/features/parcels/server/dal", () => ({
   assignParcelsToRider: assignParcelsToRiderMock,
   createParcel: createParcelMock,
+  startDeliveryForRiderParcels: startDeliveryForRiderParcelsMock,
 }));
 
 void mock.module("next/cache", () => ({
@@ -21,18 +23,21 @@ void mock.module("next/cache", () => ({
 }));
 
 describe("parcel server actions", async () => {
-  const { assignParcelsToRiderAction, createParcelAction } = await import(
-    "@/features/parcels/server/actions"
-  );
+  const { assignParcelsToRiderAction, createParcelAction } =
+    await import("@/features/parcels/server/actions");
 
   beforeEach(() => {
     requireCurrentUserMock.mockReset();
     createParcelMock.mockReset();
     assignParcelsToRiderMock.mockReset();
+    startDeliveryForRiderParcelsMock.mockReset();
     revalidatePathMock.mockReset();
-    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ id: "actor-id", role: "super_admin" }));
+    requireCurrentUserMock.mockResolvedValue(
+      buildCurrentUser({ id: "actor-id", role: "super_admin" }),
+    );
     createParcelMock.mockResolvedValue({ id: "parcel-id", parcelCode: "PF-000001-000001" });
     assignParcelsToRiderMock.mockResolvedValue(undefined);
+    startDeliveryForRiderParcelsMock.mockResolvedValue(undefined);
   });
 
   test("rejects invalid parcel creation input before persistence", async () => {

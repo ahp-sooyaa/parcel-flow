@@ -58,11 +58,8 @@ void mock.module("@/db", () => ({
 }));
 
 describe("auth server actions", async () => {
-  const {
-    regeneratePasswordAction,
-    updateOwnPasswordAction,
-    updateOwnPasswordFormAction,
-  } = await import("@/features/auth/server/actions");
+  const { regeneratePasswordAction, updateOwnPasswordAction, updateOwnPasswordFormAction } =
+    await import("@/features/auth/server/actions");
 
   beforeEach(() => {
     requireCurrentUserMock.mockReset();
@@ -77,8 +74,12 @@ describe("auth server actions", async () => {
     dbSetMock.mockReset();
     dbUpdateMock.mockReset();
 
-    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ id: "actor-id", role: "super_admin" }));
-    getUserByIdMock.mockResolvedValue(buildUserListItem({ id: "target-user-id", role: "merchant" }));
+    requireCurrentUserMock.mockResolvedValue(
+      buildCurrentUser({ id: "actor-id", role: "super_admin" }),
+    );
+    getUserByIdMock.mockResolvedValue(
+      buildUserListItem({ id: "target-user-id", role: "merchant" }),
+    );
     canRegeneratePasswordMock.mockReturnValue(true);
     generateTemporaryPasswordMock.mockReturnValue("TempPassword123!");
     changePasswordMock.mockResolvedValue(undefined);
@@ -143,10 +144,7 @@ describe("auth server actions", async () => {
     formData.set("currentPassword", "current-password");
     formData.set("newPassword", "new-password-123");
 
-    const result = await updateOwnPasswordFormAction(
-      { ok: false, message: null },
-      formData,
-    );
+    const result = await updateOwnPasswordFormAction({ ok: false, message: null }, formData);
 
     expect(result).toEqual({
       ok: true,

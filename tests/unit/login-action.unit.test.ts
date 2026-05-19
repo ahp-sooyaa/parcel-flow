@@ -102,7 +102,10 @@ describe("login action", async () => {
     formData.set("username", "rider-user");
     formData.set("password", "password123");
 
-    const result = (await loginAction({ username: "", message: null }, formData)) as unknown as string;
+    const result = (await loginAction(
+      { username: "", message: null },
+      formData,
+    )) as unknown as string;
 
     expect(signInUsernameMock).toHaveBeenCalledWith({
       body: {

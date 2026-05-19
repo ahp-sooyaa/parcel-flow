@@ -67,5 +67,8 @@ async function selectComboboxOption(
   optionName: string,
 ) {
   await page.getByLabel(label).fill(optionName);
-  await page.getByRole("option", { name: new RegExp(optionName, "i") }).first().click();
+  await page
+    .getByRole("option", { name: new RegExp(optionName, "i") })
+    .first()
+    .click();
 }

@@ -13,9 +13,11 @@ The login form currently mixes `useActionState` with uncontrolled inputs, which 
 ## Capabilities
 
 ### New Capabilities
+
 None.
 
 ### Modified Capabilities
+
 - `auth-session-access`: refine login form state handling and authenticated dashboard account controls to use controlled credentials input, generated avatars, and avatar-menu logout access.
 
 ## Impact

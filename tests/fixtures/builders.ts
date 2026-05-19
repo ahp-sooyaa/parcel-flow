@@ -59,9 +59,7 @@ export function buildUserListItem(overrides: Partial<UserListItemDto> = {}): Use
   };
 }
 
-export function buildParcelListItem(
-  overrides: Partial<ParcelListItemDto> = {},
-): ParcelListItemDto {
+export function buildParcelListItem(overrides: Partial<ParcelListItemDto> = {}): ParcelListItemDto {
   return {
     id: overrides.id ?? uniqueTestId("parcel"),
     parcelCode: overrides.parcelCode ?? "PF-000001-000001",

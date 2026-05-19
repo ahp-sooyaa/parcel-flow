@@ -64,9 +64,8 @@ describe("persistence integration coverage", () => {
     const first = await seedTestBankAccount(testDb.db, { userId: user.id, isPrimary: true });
     seededIds.bankAccountIds.push(first.bankAccount.id);
 
-    const { createBankAccountForUser, listBankAccountsForUser } = await import(
-      "@/features/users/server/dal"
-    );
+    const { createBankAccountForUser, listBankAccountsForUser } =
+      await import("@/features/users/server/dal");
     const second = await createBankAccountForUser({
       userId: user.id,
       bankName: "Second Bank",
@@ -118,9 +117,8 @@ describe("persistence integration coverage", () => {
     seededIds.merchantIds.push(merchantSeed.merchant.id);
     seededIds.townshipIds.push(township.id);
 
-    const { createParcel, listParcels, listParcelsForMerchantUser } = await import(
-      "@/features/parcels/server/dal"
-    );
+    const { createParcel, listParcels, listParcelsForMerchantUser } =
+      await import("@/features/parcels/server/dal");
     const parcel = await createParcel({
       merchantId: merchantSeed.merchant.id,
       townshipId: township.id,
@@ -164,9 +162,8 @@ describe("persistence integration coverage", () => {
     seededIds.townshipIds.push(parcelSeed.township.id, riderSeed.township.id);
     seededIds.riderIds.push(riderSeed.rider.id);
 
-    const { assignParcelsToRider, listParcelsForRiderUser } = await import(
-      "@/features/parcels/server/dal"
-    );
+    const { assignParcelsToRider, listParcelsForRiderUser } =
+      await import("@/features/parcels/server/dal");
     await assignParcelsToRider({
       riderId: riderSeed.rider.id,
       parcelIds: [parcelSeed.parcel.id],
@@ -290,9 +287,7 @@ describe("persistence integration coverage", () => {
         riderId: riderSeed.rider.id,
         parcelIds: [deliveredParcelSeed.parcel.id],
       }),
-    ).rejects.toThrow(
-      "Only unassigned at-office, postponed, or returned parcels can be assigned.",
-    );
+    ).rejects.toThrow("Only unassigned at-office, postponed, or returned parcels can be assigned.");
   });
 
   test("summarizes assigned active collections only", async () => {

@@ -105,9 +105,9 @@ describe("parcel validation and mapping", () => {
   });
 
   test("calculates collection totals by parcel type and active collection status", () => {
-    expect(calculateAmountToCollect({ codAmount: 10_000, deliveryFee: 2_000, parcelType: "cod" })).toBe(
-      12_000,
-    );
+    expect(
+      calculateAmountToCollect({ codAmount: 10_000, deliveryFee: 2_000, parcelType: "cod" }),
+    ).toBe(12_000);
     expect(
       calculateAmountToCollect({ codAmount: 10_000, deliveryFee: 2_000, parcelType: "non_cod" }),
     ).toBe(2_000);

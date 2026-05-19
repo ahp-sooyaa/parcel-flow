@@ -91,7 +91,8 @@ export async function seedTestRider(
   db: TestDb,
   overrides: Partial<typeof riders.$inferInsert> & { userId?: string; townshipId?: string } = {},
 ) {
-  const user = overrides.userId === undefined ? await seedTestUser(db, { role: "rider" }) : undefined;
+  const user =
+    overrides.userId === undefined ? await seedTestUser(db, { role: "rider" }) : undefined;
   const township =
     overrides.townshipId === undefined ? await seedTestTownship(db) : { id: overrides.townshipId };
   const [rider] = await db
@@ -121,8 +122,7 @@ export async function seedTestParcel(
     createdBy?: string;
   } = {},
 ) {
-  const merchantSeed =
-    overrides.merchantId === undefined ? await seedTestMerchant(db) : undefined;
+  const merchantSeed = overrides.merchantId === undefined ? await seedTestMerchant(db) : undefined;
   const township =
     overrides.townshipId === undefined ? await seedTestTownship(db) : { id: overrides.townshipId };
   const creator =

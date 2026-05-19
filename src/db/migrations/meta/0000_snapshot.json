@@ -112,12 +112,8 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -385,12 +381,8 @@
           "name": "bank_accounts_user_id_user_id_fk",
           "tableFrom": "bank_accounts",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -494,12 +486,8 @@
           "name": "financial_items_parcel_id_parcels_id_fk",
           "tableFrom": "financial_items",
           "tableTo": "parcels",
-          "columnsFrom": [
-            "parcel_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parcel_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -507,12 +495,8 @@
           "name": "financial_items_merchant_id_merchants_id_fk",
           "tableFrom": "financial_items",
           "tableTo": "merchants",
-          "columnsFrom": [
-            "merchant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["merchant_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -520,12 +504,8 @@
           "name": "financial_items_rider_id_riders_id_fk",
           "tableFrom": "financial_items",
           "tableTo": "riders",
-          "columnsFrom": [
-            "rider_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["rider_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -533,12 +513,8 @@
           "name": "financial_items_merchant_settlement_id_merchant_settlements_id_fk",
           "tableFrom": "financial_items",
           "tableTo": "merchant_settlements",
-          "columnsFrom": [
-            "merchant_settlement_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["merchant_settlement_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -546,12 +522,8 @@
           "name": "financial_items_rider_payout_id_rider_payouts_id_fk",
           "tableFrom": "financial_items",
           "tableTo": "rider_payouts",
-          "columnsFrom": [
-            "rider_payout_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["rider_payout_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -559,12 +531,8 @@
           "name": "financial_items_created_by_user_id_fk",
           "tableFrom": "financial_items",
           "tableTo": "user",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -693,12 +661,8 @@
           "name": "merchant_settlements_merchant_id_merchants_id_fk",
           "tableFrom": "merchant_settlements",
           "tableTo": "merchants",
-          "columnsFrom": [
-            "merchant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["merchant_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -706,12 +670,8 @@
           "name": "merchant_settlements_bank_account_id_bank_accounts_id_fk",
           "tableFrom": "merchant_settlements",
           "tableTo": "bank_accounts",
-          "columnsFrom": [
-            "bank_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["bank_account_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -719,12 +679,8 @@
           "name": "merchant_settlements_created_by_user_id_fk",
           "tableFrom": "merchant_settlements",
           "tableTo": "user",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -732,12 +688,8 @@
           "name": "merchant_settlements_paid_by_user_id_fk",
           "tableFrom": "merchant_settlements",
           "tableTo": "user",
-          "columnsFrom": [
-            "paid_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["paid_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -798,12 +750,8 @@
           "name": "merchants_user_id_user_id_fk",
           "tableFrom": "merchants",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -863,12 +811,8 @@
           "name": "parcel_status_logs_parcel_id_parcels_id_fk",
           "tableFrom": "parcel_status_logs",
           "tableTo": "parcels",
-          "columnsFrom": [
-            "parcel_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parcel_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -876,12 +820,8 @@
           "name": "parcel_status_logs_changed_by_user_id_fk",
           "tableFrom": "parcel_status_logs",
           "tableTo": "user",
-          "columnsFrom": [
-            "changed_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["changed_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1144,12 +1084,8 @@
           "name": "parcels_merchant_id_merchants_id_fk",
           "tableFrom": "parcels",
           "tableTo": "merchants",
-          "columnsFrom": [
-            "merchant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["merchant_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1157,12 +1093,8 @@
           "name": "parcels_rider_id_riders_id_fk",
           "tableFrom": "parcels",
           "tableTo": "riders",
-          "columnsFrom": [
-            "rider_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["rider_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1170,12 +1102,8 @@
           "name": "parcels_township_id_townships_id_fk",
           "tableFrom": "parcels",
           "tableTo": "townships",
-          "columnsFrom": [
-            "township_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["township_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1183,12 +1111,8 @@
           "name": "parcels_created_by_user_id_fk",
           "tableFrom": "parcels",
           "tableTo": "user",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1196,12 +1120,8 @@
           "name": "parcels_collection_confirmed_by_user_id_fk",
           "tableFrom": "parcels",
           "tableTo": "user",
-          "columnsFrom": [
-            "collection_confirmed_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["collection_confirmed_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1329,12 +1249,8 @@
           "name": "rider_payouts_rider_id_riders_id_fk",
           "tableFrom": "rider_payouts",
           "tableTo": "riders",
-          "columnsFrom": [
-            "rider_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["rider_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1342,12 +1258,8 @@
           "name": "rider_payouts_bank_account_id_bank_accounts_id_fk",
           "tableFrom": "rider_payouts",
           "tableTo": "bank_accounts",
-          "columnsFrom": [
-            "bank_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["bank_account_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1355,12 +1267,8 @@
           "name": "rider_payouts_created_by_user_id_fk",
           "tableFrom": "rider_payouts",
           "tableTo": "user",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1368,12 +1276,8 @@
           "name": "rider_payouts_paid_by_user_id_fk",
           "tableFrom": "rider_payouts",
           "tableTo": "user",
-          "columnsFrom": [
-            "paid_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["paid_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1443,12 +1347,8 @@
           "name": "rider_service_townships_rider_id_riders_id_fk",
           "tableFrom": "rider_service_townships",
           "tableTo": "riders",
-          "columnsFrom": [
-            "rider_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["rider_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1456,12 +1356,8 @@
           "name": "rider_service_townships_township_id_townships_id_fk",
           "tableFrom": "rider_service_townships",
           "tableTo": "townships",
-          "columnsFrom": [
-            "township_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["township_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1510,12 +1406,8 @@
           "name": "riders_user_id_user_id_fk",
           "tableFrom": "riders",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1625,12 +1517,8 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1638,12 +1526,8 @@
           "name": "session_impersonated_by_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "impersonated_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["impersonated_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
