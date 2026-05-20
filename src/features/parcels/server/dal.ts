@@ -2,7 +2,7 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
-import { appUsers, merchants, parcels, riders, townships } from "@/db/schema";
+import { appUsers, financialItems, merchants, parcels, riders, townships } from "@/db/schema";
 import type {
   CreateParcelInputDto,
   ParcelListItemDto,
@@ -27,9 +27,11 @@ function mapParcel(row: {
   receiverPhoneNumber: string;
   receiverAddress: string;
   specialNotes: string | null;
+  deliveryFailureNote: string | null;
   townshipName: string;
   codAmount: number;
   deliveryFee: number;
+  proofOfDeliveryImagesKeys: string[] | null;
   riderName: string | null;
   status: string;
   createdAt: Date;
@@ -42,9 +44,11 @@ function mapParcel(row: {
     receiverPhoneNumber: row.receiverPhoneNumber,
     receiverAddress: row.receiverAddress,
     specialNotes: row.specialNotes,
+    deliveryFailureNote: row.deliveryFailureNote,
     townshipName: row.townshipName,
     codAmount: row.codAmount,
     deliveryFee: row.deliveryFee,
+    proofOfDeliveryImagesKeys: row.proofOfDeliveryImagesKeys ?? [],
     riderName: row.riderName,
     status: parcelStatusSchema.parse(row.status),
     createdAt: row.createdAt.toISOString(),
@@ -76,9 +80,11 @@ async function listParcelsByScope(scope: {
       receiverPhoneNumber: parcels.receiverPhoneNumber,
       receiverAddress: parcels.receiverAddress,
       specialNotes: parcels.specialNotes,
+      deliveryFailureNote: parcels.deliveryFailureNote,
       townshipName: townships.name,
       codAmount: parcels.codAmount,
       deliveryFee: parcels.deliveryFee,
+      proofOfDeliveryImagesKeys: parcels.proofOfDeliveryImagesKeys,
       riderName: appUsers.name,
       status: parcels.status,
       createdAt: parcels.createdAt,
@@ -306,5 +312,213 @@ export async function startDeliveryForRiderParcels(input: {
         updatedAt: new Date(),
       })
       .where(and(inArray(parcels.id, input.parcelIds), eq(parcels.riderId, rider.id)));
+  });
+}
+
+export async function reportDeliveryFailureForRiderParcel(input: {
+  parcelId: string;
+  note: string;
+  riderUserId: string;
+  actorRole: "rider";
+}) {
+  if (input.actorRole !== "rider") {
+    throw new Error("You do not have permission to report delivery failure.");
+  }
+
+  await db.transaction(async (tx) => {
+    const [rider] = await tx
+      .select({ id: riders.id, userIsActive: appUsers.isActive })
+      .from(riders)
+      .innerJoin(appUsers, eq(appUsers.id, riders.userId))
+      .where(eq(riders.userId, input.riderUserId))
+      .limit(1);
+
+    if (!rider?.userIsActive) {
+      throw new Error("Active rider profile was not found.");
+    }
+
+    const [parcel] = await tx
+      .select({
+        id: parcels.id,
+        status: parcels.status,
+        riderId: parcels.riderId,
+      })
+      .from(parcels)
+      .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
+      .limit(1);
+
+    if (!parcel) {
+      throw new Error("Parcel was not found.");
+    }
+
+    if (parcel.riderId !== rider.id) {
+      throw new Error("You can only report failure for parcels assigned to your rider account.");
+    }
+
+    if (parcel.status !== "on_the_way") {
+      throw new Error("Only on-the-way parcels can be reported as failed.");
+    }
+
+    await tx
+      .update(parcels)
+      .set({
+        deliveryFailureNote: input.note,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(parcels.id, input.parcelId), eq(parcels.riderId, rider.id)));
+  });
+}
+
+export async function deleteDeliveryFailureForRiderParcel(input: {
+  parcelId: string;
+  riderUserId: string;
+  actorRole: "rider";
+}) {
+  if (input.actorRole !== "rider") {
+    throw new Error("You do not have permission to delete delivery failure notes.");
+  }
+
+  await db.transaction(async (tx) => {
+    const [rider] = await tx
+      .select({ id: riders.id, userIsActive: appUsers.isActive })
+      .from(riders)
+      .innerJoin(appUsers, eq(appUsers.id, riders.userId))
+      .where(eq(riders.userId, input.riderUserId))
+      .limit(1);
+
+    if (!rider?.userIsActive) {
+      throw new Error("Active rider profile was not found.");
+    }
+
+    const [parcel] = await tx
+      .select({
+        id: parcels.id,
+        status: parcels.status,
+        riderId: parcels.riderId,
+      })
+      .from(parcels)
+      .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
+      .limit(1);
+
+    if (!parcel) {
+      throw new Error("Parcel was not found.");
+    }
+
+    if (parcel.riderId !== rider.id) {
+      throw new Error(
+        "You can only delete failure notes for parcels assigned to your rider account.",
+      );
+    }
+
+    if (parcel.status !== "on_the_way") {
+      throw new Error("Only on-the-way parcel failure notes can be deleted.");
+    }
+
+    await tx
+      .update(parcels)
+      .set({
+        deliveryFailureNote: null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(parcels.id, input.parcelId), eq(parcels.riderId, rider.id)));
+  });
+}
+
+export async function markRiderParcelDelivered(input: {
+  parcelId: string;
+  proofImageKey: string;
+  riderUserId: string;
+  actorRole: "rider";
+  createdBy: string;
+}) {
+  if (!canChangeParcelStatus(input.actorRole, "on_the_way", "delivered")) {
+    throw new Error("You do not have permission to mark parcels delivered.");
+  }
+
+  await db.transaction(async (tx) => {
+    const [rider] = await tx
+      .select({ id: riders.id, userIsActive: appUsers.isActive })
+      .from(riders)
+      .innerJoin(appUsers, eq(appUsers.id, riders.userId))
+      .where(eq(riders.userId, input.riderUserId))
+      .limit(1);
+
+    if (!rider?.userIsActive) {
+      throw new Error("Active rider profile was not found.");
+    }
+
+    const [parcel] = await tx
+      .select({
+        id: parcels.id,
+        merchantId: parcels.merchantId,
+        riderId: parcels.riderId,
+        status: parcels.status,
+        parcelType: parcels.parcelType,
+        codAmount: parcels.codAmount,
+        deliveryFee: parcels.deliveryFee,
+      })
+      .from(parcels)
+      .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
+      .limit(1);
+
+    if (!parcel) {
+      throw new Error("Parcel was not found.");
+    }
+
+    if (parcel.riderId !== rider.id) {
+      throw new Error("You can only mark parcels assigned to your rider account delivered.");
+    }
+
+    if (parcel.status !== "on_the_way") {
+      throw new Error("Only on-the-way parcels can be marked delivered.");
+    }
+
+    const deliveredAt = new Date();
+    const isCodParcel = parcel.parcelType === "cod";
+    const collectedAmount = (isCodParcel ? parcel.codAmount : 0) + parcel.deliveryFee;
+
+    await tx
+      .update(parcels)
+      .set({
+        status: "delivered",
+        deliveredAt,
+        collectedAt: deliveredAt,
+        collectedAmount,
+        codStatus: isCodParcel ? "collected" : "not_applicable",
+        deliveryFeeStatus: "collected",
+        isReceivedByOffice: false,
+        merchantSettlementStatus: "pending",
+        riderPayoutStatus: "pending",
+        proofOfDeliveryImagesKeys: [input.proofImageKey],
+        updatedAt: deliveredAt,
+      })
+      .where(and(eq(parcels.id, input.parcelId), eq(parcels.riderId, rider.id)));
+
+    const pendingFinancialItems = [
+      ...(isCodParcel
+        ? [
+            {
+              parcelId: parcel.id,
+              merchantId: parcel.merchantId,
+              riderId: null,
+              itemType: "cod_remit",
+              amount: parcel.codAmount,
+              status: "pending",
+              createdBy: input.createdBy,
+            },
+          ]
+        : []),
+      {
+        parcelId: parcel.id,
+        merchantId: parcel.merchantId,
+        riderId: rider.id,
+        itemType: "rider_way_payout",
+        amount: 1,
+        status: "pending",
+        createdBy: input.createdBy,
+      },
+    ];
+
+    await tx.insert(financialItems).values(pendingFinancialItems);
   });
 }

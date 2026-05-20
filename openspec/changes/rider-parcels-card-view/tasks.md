@@ -50,4 +50,4 @@
 
 - [x] 8.1 Run lint after implementation.
 - [x] 8.2 Run typecheck after implementation.
-- [ ] 8.3 Manually verify the rider parcels page on desktop and mobile widths for card columns, expansion, filtering, selection, detail sheet, start-delivery behavior, and deferred `Report Failure` / `Mark Delivered` buttons.
+- [x] 8.3 Manually verify the rider parcels page on desktop and mobile widths for card columns, expansion, filtering, selection, detail sheet, start-delivery behavior, and deferred `Report Failure` / `Mark Delivered` buttons.

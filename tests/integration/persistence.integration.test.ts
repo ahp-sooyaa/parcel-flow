@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
-import { parcels } from "@/db/schema";
+import { financialItems, parcels } from "@/db/schema";
 import { cleanupTestRecords } from "../fixtures/cleanup";
 import { createTestDatabase } from "../fixtures/db";
 import {
@@ -361,6 +361,322 @@ describe("persistence integration coverage", () => {
     expect(afterSummary.expectedCollection - beforeSummary.expectedCollection).toBe(13_500);
   });
 
+  test("reports rider delivery failure without delivery side effects", async () => {
+    const parcelSeed = await seedTestParcel(testDb.db, { status: "on_the_way" });
+    const riderSeed = await seedTestRider(testDb.db);
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.userIds.push(
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+      riderSeed.user?.id ?? "",
+    );
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+    seededIds.townshipIds.push(parcelSeed.township.id, riderSeed.township.id);
+    seededIds.riderIds.push(riderSeed.rider.id);
+
+    await testDb.db
+      .update(parcels)
+      .set({ riderId: riderSeed.rider.id })
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+
+    const { reportDeliveryFailureForRiderParcel } = await import("@/features/parcels/server/dal");
+    await reportDeliveryFailureForRiderParcel({
+      parcelId: parcelSeed.parcel.id,
+      note: "Receiver was not available.",
+      riderUserId: riderSeed.user?.id ?? "",
+      actorRole: "rider",
+    });
+
+    const [updatedParcel] = await testDb.db
+      .select()
+      .from(parcels)
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+    const relatedFinancialItems = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(eq(financialItems.parcelId, parcelSeed.parcel.id));
+
+    expect(updatedParcel).toMatchObject({
+      status: "on_the_way",
+      riderId: riderSeed.rider.id,
+      deliveryFailureNote: "Receiver was not available.",
+      collectedAmount: 0,
+    });
+    expect(updatedParcel.deliveredAt).toBeNull();
+    expect(relatedFinancialItems).toHaveLength(0);
+  });
+
+  test("rejects delivery failure reports for unrelated or non-on-the-way parcels", async () => {
+    const parcelSeed = await seedTestParcel(testDb.db, { status: "at_office" });
+    const assignedRiderSeed = await seedTestRider(testDb.db);
+    const otherRiderSeed = await seedTestRider(testDb.db);
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.userIds.push(
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+      assignedRiderSeed.user?.id ?? "",
+      otherRiderSeed.user?.id ?? "",
+    );
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+    seededIds.townshipIds.push(
+      parcelSeed.township.id,
+      assignedRiderSeed.township.id,
+      otherRiderSeed.township.id,
+    );
+    seededIds.riderIds.push(assignedRiderSeed.rider.id, otherRiderSeed.rider.id);
+
+    await testDb.db
+      .update(parcels)
+      .set({ riderId: assignedRiderSeed.rider.id })
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+
+    const { reportDeliveryFailureForRiderParcel } = await import("@/features/parcels/server/dal");
+
+    await expectPromiseToRejectWith(
+      reportDeliveryFailureForRiderParcel({
+        parcelId: parcelSeed.parcel.id,
+        note: "Receiver was not available.",
+        riderUserId: otherRiderSeed.user?.id ?? "",
+        actorRole: "rider",
+      }),
+      "You can only report failure for parcels assigned to your rider account.",
+    );
+
+    await expectPromiseToRejectWith(
+      reportDeliveryFailureForRiderParcel({
+        parcelId: parcelSeed.parcel.id,
+        note: "Receiver was not available.",
+        riderUserId: assignedRiderSeed.user?.id ?? "",
+        actorRole: "rider",
+      }),
+      "Only on-the-way parcels can be reported as failed.",
+    );
+  });
+
+  test("marks COD rider parcel delivered and creates settlement and payout items", async () => {
+    const parcelSeed = await seedTestParcel(testDb.db, {
+      status: "on_the_way",
+      parcelType: "cod",
+      codAmount: 10_000,
+      deliveryFee: 2_000,
+    });
+    const riderSeed = await seedTestRider(testDb.db);
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.userIds.push(
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+      riderSeed.user?.id ?? "",
+    );
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+    seededIds.townshipIds.push(parcelSeed.township.id, riderSeed.township.id);
+    seededIds.riderIds.push(riderSeed.rider.id);
+
+    await testDb.db
+      .update(parcels)
+      .set({ riderId: riderSeed.rider.id })
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+
+    const { markRiderParcelDelivered } = await import("@/features/parcels/server/dal");
+    await markRiderParcelDelivered({
+      parcelId: parcelSeed.parcel.id,
+      proofImageKey: "parcels/proof.jpg",
+      riderUserId: riderSeed.user?.id ?? "",
+      actorRole: "rider",
+      createdBy: riderSeed.user?.id ?? "",
+    });
+
+    const [updatedParcel] = await testDb.db
+      .select()
+      .from(parcels)
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+    const items = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(eq(financialItems.parcelId, parcelSeed.parcel.id));
+
+    expect(updatedParcel).toMatchObject({
+      status: "delivered",
+      codStatus: "collected",
+      deliveryFeeStatus: "collected",
+      isReceivedByOffice: false,
+      collectedAmount: 12_000,
+      merchantSettlementStatus: "pending",
+      riderPayoutStatus: "pending",
+      proofOfDeliveryImagesKeys: ["parcels/proof.jpg"],
+    });
+    expect(updatedParcel.deliveredAt).toBeInstanceOf(Date);
+    expect(updatedParcel.collectedAt).toBeInstanceOf(Date);
+    expect(items).toHaveLength(2);
+    expect(items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          itemType: "cod_remit",
+          amount: 10_000,
+          status: "pending",
+          merchantId: parcelSeed.merchantSeed?.merchant.id,
+          parcelId: parcelSeed.parcel.id,
+        }),
+        expect.objectContaining({
+          itemType: "rider_way_payout",
+          amount: 1,
+          status: "pending",
+          merchantId: parcelSeed.merchantSeed?.merchant.id,
+          riderId: riderSeed.rider.id,
+          parcelId: parcelSeed.parcel.id,
+        }),
+      ]),
+    );
+  });
+
+  test("marks non-COD rider parcel delivered and creates only payout item", async () => {
+    const parcelSeed = await seedTestParcel(testDb.db, {
+      status: "on_the_way",
+      parcelType: "non_cod",
+      codAmount: 0,
+      deliveryFee: 1_500,
+    });
+    const riderSeed = await seedTestRider(testDb.db);
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.userIds.push(
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+      riderSeed.user?.id ?? "",
+    );
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+    seededIds.townshipIds.push(parcelSeed.township.id, riderSeed.township.id);
+    seededIds.riderIds.push(riderSeed.rider.id);
+
+    await testDb.db
+      .update(parcels)
+      .set({ riderId: riderSeed.rider.id })
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+
+    const { markRiderParcelDelivered } = await import("@/features/parcels/server/dal");
+    await markRiderParcelDelivered({
+      parcelId: parcelSeed.parcel.id,
+      proofImageKey: "parcels/non-cod-proof.jpg",
+      riderUserId: riderSeed.user?.id ?? "",
+      actorRole: "rider",
+      createdBy: riderSeed.user?.id ?? "",
+    });
+
+    const [updatedParcel] = await testDb.db
+      .select()
+      .from(parcels)
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+    const items = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(eq(financialItems.parcelId, parcelSeed.parcel.id));
+
+    expect(updatedParcel).toMatchObject({
+      status: "delivered",
+      codStatus: "not_applicable",
+      deliveryFeeStatus: "collected",
+      collectedAmount: 1_500,
+      riderPayoutStatus: "pending",
+      proofOfDeliveryImagesKeys: ["parcels/non-cod-proof.jpg"],
+    });
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      itemType: "rider_way_payout",
+      amount: 1,
+      status: "pending",
+      riderId: riderSeed.rider.id,
+      parcelId: parcelSeed.parcel.id,
+    });
+  });
+
+  test("rejects mark delivered for inactive, unrelated, missing, or non-on-the-way parcels", async () => {
+    const parcelSeed = await seedTestParcel(testDb.db, { status: "at_office" });
+    const assignedRiderSeed = await seedTestRider(testDb.db);
+    const otherRiderSeed = await seedTestRider(testDb.db);
+    const inactiveRiderUser = await seedTestUser(testDb.db, { role: "rider", isActive: false });
+    const inactiveRiderSeed = await seedTestRider(testDb.db, { userId: inactiveRiderUser.id });
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.userIds.push(
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+      assignedRiderSeed.user?.id ?? "",
+      otherRiderSeed.user?.id ?? "",
+      inactiveRiderUser.id,
+    );
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+    seededIds.townshipIds.push(
+      parcelSeed.township.id,
+      assignedRiderSeed.township.id,
+      otherRiderSeed.township.id,
+      inactiveRiderSeed.township.id,
+    );
+    seededIds.riderIds.push(
+      assignedRiderSeed.rider.id,
+      otherRiderSeed.rider.id,
+      inactiveRiderSeed.rider.id,
+    );
+
+    await testDb.db
+      .update(parcels)
+      .set({ riderId: assignedRiderSeed.rider.id })
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+
+    const { markRiderParcelDelivered } = await import("@/features/parcels/server/dal");
+
+    await expectPromiseToRejectWith(
+      markRiderParcelDelivered({
+        parcelId: parcelSeed.parcel.id,
+        proofImageKey: "parcels/proof.jpg",
+        riderUserId: inactiveRiderUser.id,
+        actorRole: "rider",
+        createdBy: inactiveRiderUser.id,
+      }),
+      "Active rider profile was not found.",
+    );
+
+    await expectPromiseToRejectWith(
+      markRiderParcelDelivered({
+        parcelId: parcelSeed.parcel.id,
+        proofImageKey: "parcels/proof.jpg",
+        riderUserId: otherRiderSeed.user?.id ?? "",
+        actorRole: "rider",
+        createdBy: otherRiderSeed.user?.id ?? "",
+      }),
+      "You can only mark parcels assigned to your rider account delivered.",
+    );
+
+    await expectPromiseToRejectWith(
+      markRiderParcelDelivered({
+        parcelId: crypto.randomUUID(),
+        proofImageKey: "parcels/proof.jpg",
+        riderUserId: assignedRiderSeed.user?.id ?? "",
+        actorRole: "rider",
+        createdBy: assignedRiderSeed.user?.id ?? "",
+      }),
+      "Parcel was not found.",
+    );
+
+    await expectPromiseToRejectWith(
+      markRiderParcelDelivered({
+        parcelId: parcelSeed.parcel.id,
+        proofImageKey: "parcels/proof.jpg",
+        riderUserId: assignedRiderSeed.user?.id ?? "",
+        actorRole: "rider",
+        createdBy: assignedRiderSeed.user?.id ?? "",
+      }),
+      "Only on-the-way parcels can be marked delivered.",
+    );
+
+    const relatedFinancialItems = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(
+        and(
+          eq(financialItems.parcelId, parcelSeed.parcel.id),
+          eq(financialItems.status, "pending"),
+        ),
+      );
+    expect(relatedFinancialItems).toHaveLength(0);
+  });
+
   test("updates user profiles across rider-specific branches", async () => {
     const townshipA = await seedTestTownship(testDb.db, { name: uniqueTownshipName("A") });
     const townshipB = await seedTestTownship(testDb.db, { name: uniqueTownshipName("B") });
@@ -422,4 +738,19 @@ function uniqueTownshipName(suffix: string) {
 
 function uniquePhoneNumber() {
   return `09${Math.floor(10_000_000 + Math.random() * 89_999_999)}`;
+}
+
+async function expectPromiseToRejectWith(promise: Promise<unknown>, message: string) {
+  try {
+    await promise;
+  } catch (error) {
+    if (!(error instanceof Error)) {
+      throw error;
+    }
+
+    expect(error.message).toBe(message);
+    return;
+  }
+
+  throw new Error(`Expected promise to reject with: ${message}`);
 }

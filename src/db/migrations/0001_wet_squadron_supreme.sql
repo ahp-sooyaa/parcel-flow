@@ -1,0 +1,1 @@
+ALTER TABLE "parcels" ADD COLUMN "delivery_failure_note" text;

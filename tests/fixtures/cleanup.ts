@@ -5,6 +5,7 @@ import * as schema from "@/db/schema";
 import {
   appUsers,
   bankAccounts,
+  financialItems,
   merchants,
   parcels,
   riders,
@@ -27,6 +28,7 @@ export async function cleanupTestRecords(
   ids: TestRecordIds,
 ) {
   if (ids.parcelIds?.length) {
+    await db.delete(financialItems).where(inArray(financialItems.parcelId, ids.parcelIds));
     await db.delete(parcels).where(inArray(parcels.id, ids.parcelIds));
   }
 

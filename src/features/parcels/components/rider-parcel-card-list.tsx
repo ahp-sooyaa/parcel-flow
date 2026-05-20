@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import type { ChangeEvent } from "react";
 import {
+  Camera,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -24,12 +25,28 @@ import {
   ComboboxInput,
   ComboboxItem,
 } from "@/components/ui/combobox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { ParcelDetailSheet } from "@/features/parcels/components/parcel-detail-sheet";
-import { startDeliveryForRiderParcelsAction } from "@/features/parcels/server/actions";
+import {
+  deleteDeliveryFailureForRiderParcelAction,
+  markRiderParcelDeliveredAction,
+  reportDeliveryFailureForRiderParcelAction,
+  startDeliveryForRiderParcelsAction,
+} from "@/features/parcels/server/actions";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
+import { useAppRouter } from "@/lib/client-navigation";
 import { parcelStatusLabels, parcelStatuses, type ParcelStatus } from "@/lib/domain";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -76,9 +93,12 @@ export function RiderParcelCardList({
 }: Readonly<{
   parcels: ParcelListItemDto[];
 }>) {
-  const router = useRouter();
+  const router = useAppRouter();
   const filterRef = useRef<HTMLDivElement>(null);
+  const proofInputRef = useRef<HTMLInputElement>(null);
   const townshipInputId = useId();
+  const failureNoteId = useId();
+  const proofInputId = useId();
   const [activeTab, setActiveTab] = useState<RiderParcelTab>("to_deliver");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTownship, setSelectedTownship] = useState("all");
@@ -88,6 +108,14 @@ export function RiderParcelCardList({
   const [currentPage, setCurrentPage] = useState(1);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [viewingParcel, setViewingParcel] = useState<ParcelListItemDto | null>(null);
+  const [failureParcel, setFailureParcel] = useState<ParcelListItemDto | null>(null);
+  const [deliveryParcel, setDeliveryParcel] = useState<ParcelListItemDto | null>(null);
+  const [failureNote, setFailureNote] = useState("");
+  const [failureNotePendingAction, setFailureNotePendingAction] = useState<
+    "save" | "delete" | null
+  >(null);
+  const [proofImage, setProofImage] = useState<File | null>(null);
+  const [proofPreviewUrl, setProofPreviewUrl] = useState<string | null>(null);
   const [submissionState, setSubmissionState] = useState<FormMessageState | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -169,6 +197,16 @@ export function RiderParcelCardList({
       setExpandedParcelId(null);
     }
   }, [expandedParcelId, parcels]);
+
+  useEffect(() => {
+    if (!proofPreviewUrl) {
+      return undefined;
+    }
+
+    return () => {
+      URL.revokeObjectURL(proofPreviewUrl);
+    };
+  }, [proofPreviewUrl]);
 
   const filteredParcels = useMemo(() => {
     const tabStatuses = getTabStatuses(activeTab);
@@ -263,6 +301,128 @@ export function RiderParcelCardList({
     });
   }
 
+  function openFailureDialog(parcel: ParcelListItemDto) {
+    setSubmissionState(null);
+    setFailureNotePendingAction(null);
+    setFailureNote(parcel.deliveryFailureNote ?? "");
+    setFailureParcel(parcel);
+  }
+
+  function openDeliveryDialog(parcel: ParcelListItemDto) {
+    setSubmissionState(null);
+    setProofImage(null);
+    setProofPreviewUrl(null);
+    if (proofInputRef.current) {
+      proofInputRef.current.value = "";
+    }
+    setDeliveryParcel(parcel);
+  }
+
+  function handleProofImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    setProofImage(file);
+    setProofPreviewUrl(file ? URL.createObjectURL(file) : null);
+  }
+
+  function submitFailureReport(event: { preventDefault: () => void }) {
+    event.preventDefault();
+
+    if (!failureParcel) {
+      return;
+    }
+
+    setSubmissionState(null);
+    setFailureNotePendingAction("save");
+    startTransition(async () => {
+      const result = await reportDeliveryFailureForRiderParcelAction({
+        parcelId: failureParcel.id,
+        note: failureNote,
+      });
+
+      setSubmissionState({
+        kind: result.ok ? "success" : "error",
+        message: result.message,
+      });
+      setFailureNotePendingAction(null);
+
+      if (!result.ok) {
+        return;
+      }
+
+      setFailureParcel(null);
+      setFailureNote("");
+      router.refresh();
+    });
+  }
+
+  function deleteFailureReport() {
+    if (!failureParcel) {
+      return;
+    }
+
+    setSubmissionState(null);
+    setFailureNotePendingAction("delete");
+    startTransition(async () => {
+      const result = await deleteDeliveryFailureForRiderParcelAction({
+        parcelId: failureParcel.id,
+      });
+
+      setSubmissionState({
+        kind: result.ok ? "success" : "error",
+        message: result.message,
+      });
+      setFailureNotePendingAction(null);
+
+      if (!result.ok) {
+        return;
+      }
+
+      setFailureParcel(null);
+      setFailureNote("");
+      router.refresh();
+    });
+  }
+
+  function submitDelivered(event: { preventDefault: () => void }) {
+    event.preventDefault();
+
+    if (!deliveryParcel) {
+      return;
+    }
+
+    if (!proofImage) {
+      setSubmissionState({
+        kind: "error",
+        message: "Delivery proof photo is required.",
+      });
+      return;
+    }
+
+    const formData = new FormData();
+    formData.set("parcelId", deliveryParcel.id);
+    formData.set("proofImage", proofImage);
+
+    setSubmissionState(null);
+    startTransition(async () => {
+      const result = await markRiderParcelDeliveredAction(formData);
+
+      setSubmissionState({
+        kind: result.ok ? "success" : "error",
+        message: result.message,
+      });
+
+      if (!result.ok) {
+        return;
+      }
+
+      setDeliveryParcel(null);
+      setProofImage(null);
+      setProofPreviewUrl(null);
+      setExpandedParcelId((current) => (current === deliveryParcel.id ? null : current));
+      router.refresh();
+    });
+  }
+
   function renderParcelContent() {
     if (parcels.length === 0) {
       return (
@@ -296,7 +456,9 @@ export function RiderParcelCardList({
             const isSelected = selectedParcelIds.includes(parcel.id);
             const isSelectable = parcel.status === "at_office";
             const amountToCollect = parcel.codAmount + parcel.deliveryFee;
-            const showDeferredActions = parcel.status === "on_the_way";
+            const hasFailureNote = Boolean(parcel.deliveryFailureNote);
+            const showDeliveryActions = parcel.status === "on_the_way" && !hasFailureNote;
+            const showFailureNoteAction = parcel.status === "on_the_way" && hasFailureNote;
 
             return (
               <Card
@@ -370,7 +532,7 @@ export function RiderParcelCardList({
                           <div className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
                             Amount to Collect
                           </div>
-                          <div className="mt-1 text-md font-semibold text-foreground">
+                          <div className="text-md mt-1 font-semibold text-foreground">
                             {formatMoney(amountToCollect)} MMK
                           </div>
                         </div>
@@ -387,15 +549,39 @@ export function RiderParcelCardList({
                           </Button>
                         ) : null}
 
-                        {showDeferredActions ? (
+                        {showDeliveryActions ? (
                           <>
-                            <Button type="button" variant="outline" disabled className="flex-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={isPending}
+                              className="flex-1"
+                              onClick={() => openFailureDialog(parcel)}
+                            >
                               Report Failure
                             </Button>
-                            <Button type="button" variant="outline" disabled className="flex-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={isPending}
+                              className="flex-1"
+                              onClick={() => openDeliveryDialog(parcel)}
+                            >
                               Mark Delivered
                             </Button>
                           </>
+                        ) : null}
+
+                        {showFailureNoteAction ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={isPending}
+                            className="flex-1"
+                            onClick={() => openFailureDialog(parcel)}
+                          >
+                            View Failure Note
+                          </Button>
                         ) : null}
                       </div>
                     </div>
@@ -423,7 +609,7 @@ export function RiderParcelCardList({
               <ChevronLeft className="size-4" />
               Previous
             </Button>
-            <div className="flex-1 min-w-[96px] text-center text-sm text-foreground">
+            <div className="min-w-[96px] flex-1 text-center text-sm text-foreground">
               Page {safeCurrentPage} of {totalPages}
             </div>
             <Button
@@ -624,10 +810,156 @@ export function RiderParcelCardList({
           }
         }}
       >
-        <SheetContent className="overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-full data-[side=right]:sm:max-w-none">
+        <SheetContent className="overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[720px] data-[side=right]:sm:max-w-[720px]">
           {viewingParcel ? <ParcelDetailSheet parcel={viewingParcel} /> : null}
         </SheetContent>
       </Sheet>
+
+      <Dialog
+        open={failureParcel !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setFailureParcel(null);
+            setFailureNote("");
+            setFailureNotePendingAction(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <form className="space-y-5" onSubmit={submitFailureReport}>
+            <DialogHeader>
+              <DialogTitle>
+                {failureParcel?.deliveryFailureNote ? "Failure Note" : "Report Failure"}
+              </DialogTitle>
+              <DialogDescription>
+                {failureParcel?.parcelCode} · {failureParcel?.receiverName}
+              </DialogDescription>
+            </DialogHeader>
+
+            {submissionState && failureParcel ? <FormBanner state={submissionState} /> : null}
+
+            <div className="space-y-2">
+              <Label htmlFor={failureNoteId}>Failure note</Label>
+              <Textarea
+                id={failureNoteId}
+                value={failureNote}
+                onChange={(event) => setFailureNote(event.target.value)}
+                minLength={1}
+                required
+                disabled={isPending}
+                placeholder="Write what happened during delivery"
+                className="min-h-32"
+              />
+            </div>
+
+            <DialogFooter>
+              {failureParcel?.deliveryFailureNote ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={isPending}
+                  onClick={deleteFailureReport}
+                >
+                  {failureNotePendingAction === "delete" ? "Deleting..." : "Delete"}
+                </Button>
+              ) : null}
+
+              <Button type="submit" disabled={isPending}>
+                {failureNotePendingAction === "save" ? "Saving..." : "Save"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deliveryParcel !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeliveryParcel(null);
+            setProofImage(null);
+            setProofPreviewUrl(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <form className="space-y-5" onSubmit={submitDelivered}>
+            <DialogHeader>
+              <DialogTitle>Mark Delivered</DialogTitle>
+              <DialogDescription>
+                {deliveryParcel?.parcelCode} · {deliveryParcel?.receiverName}
+              </DialogDescription>
+            </DialogHeader>
+
+            {submissionState && deliveryParcel ? <FormBanner state={submissionState} /> : null}
+
+            <div className="rounded-lg border bg-secondary/40 px-4 py-3">
+              <div className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+                Collection Amount
+              </div>
+              <div className="mt-1 text-lg font-semibold text-foreground">
+                {deliveryParcel
+                  ? `${formatMoney(deliveryParcel.codAmount + deliveryParcel.deliveryFee)} MMK`
+                  : "0 MMK"}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label htmlFor={proofInputId}>Delivery proof photo</Label>
+              <input
+                ref={proofInputRef}
+                id={proofInputId}
+                name="proofImage"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                required
+                disabled={isPending}
+                className="sr-only"
+                onChange={handleProofImageChange}
+              />
+              <Label
+                htmlFor={proofInputId}
+                className="flex min-h-36 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-white px-4 py-5 text-center transition-colors hover:bg-secondary/50"
+              >
+                {proofPreviewUrl ? (
+                  <div
+                    role="img"
+                    aria-label="Delivery proof preview"
+                    className="h-56 w-full rounded-md bg-contain bg-center bg-no-repeat"
+                    style={{ backgroundImage: `url(${proofPreviewUrl})` }}
+                  />
+                ) : (
+                  <>
+                    <Camera className="size-8 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">
+                      Take or choose delivery proof photo
+                    </span>
+                  </>
+                )}
+              </Label>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPending}
+                onClick={() => {
+                  setDeliveryParcel(null);
+                  setProofImage(null);
+                  setProofPreviewUrl(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isPending}>
+                {isPending ? "Saving..." : "Save Delivery"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

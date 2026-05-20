@@ -93,9 +93,11 @@ export type ParcelListItemDto = {
   receiverPhoneNumber: string;
   receiverAddress: string;
   specialNotes: string | null;
+  deliveryFailureNote: string | null;
   townshipName: string;
   codAmount: number;
   deliveryFee: number;
+  proofOfDeliveryImagesKeys: string[];
   riderName: string | null;
   status: ParcelStatus;
   createdAt: string;
