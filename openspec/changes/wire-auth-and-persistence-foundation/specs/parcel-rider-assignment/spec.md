@@ -9,9 +9,9 @@ The system SHALL allow super admins and office admins to assign one or more parc
 - **WHEN** a super admin or office admin selects eligible parcels, selects a rider, and confirms assignment
 - **THEN** the system stores the rider ID and assignment timestamp for each selected parcel
 
-#### Scenario: Assignment preserves parcel status
+#### Scenario: Assignment preserves non-postponed parcel status
 
-- **WHEN** a parcel is assigned to a rider
+- **WHEN** an unassigned parcel with status `at_office` or `canceled_returned` is assigned to a rider
 - **THEN** the parcel keeps its current status
 
 #### Scenario: Unauthorized assignment rejected
@@ -33,10 +33,10 @@ The system SHALL validate selected parcels before rider assignment.
 - **WHEN** selected parcels are unassigned and have status `canceled_returned`
 - **THEN** the system allows assignment to an active rider for return handling
 
-#### Scenario: Reject postponed parcels until retry is prepared
+#### Scenario: Assign postponed parcels for retry
 
 - **WHEN** selected parcels are unassigned and have status `postpone`
-- **THEN** the system rejects assignment until an admin changes them back to `at_office`
+- **THEN** the system allows assignment to an active rider and changes those parcels to `at_office`
 
 #### Scenario: Bulk assignment excludes assigned parcels
 
@@ -50,7 +50,7 @@ The system SHALL validate selected parcels before rider assignment.
 
 #### Scenario: Assign ineligible status
 
-- **WHEN** a selected parcel has a status other than `at_office` or `canceled_returned`
+- **WHEN** a selected parcel has a status other than `at_office`, `postpone`, or `canceled_returned`
 - **THEN** the system rejects the assignment
 
 ### Requirement: Assignment summary uses persisted data

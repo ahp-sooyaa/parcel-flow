@@ -1,11 +1,38 @@
-import { describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { buildParcelListItem } from "../fixtures/builders";
 
+const postponeFailedParcelActionMock = mock(async () => ({
+  ok: true,
+  message: "Parcel postponed for retry.",
+}));
+const returnFailedParcelToMerchantActionMock = mock(async () => ({
+  ok: true,
+  message: "Parcel marked for merchant return.",
+}));
+
+void mock.module("@/features/parcels/server/actions", () => ({
+  postponeFailedParcelAction: postponeFailedParcelActionMock,
+  returnFailedParcelToMerchantAction: returnFailedParcelToMerchantActionMock,
+}));
+
 describe("ParcelTable", async () => {
   const { ParcelTable } = await import("@/features/parcels/components/parcel-table");
+
+  beforeEach(() => {
+    postponeFailedParcelActionMock.mockReset();
+    returnFailedParcelToMerchantActionMock.mockReset();
+    postponeFailedParcelActionMock.mockResolvedValue({
+      ok: true,
+      message: "Parcel postponed for retry.",
+    });
+    returnFailedParcelToMerchantActionMock.mockResolvedValue({
+      ok: true,
+      message: "Parcel marked for merchant return.",
+    });
+  });
 
   test("renders empty state", () => {
     render(<ParcelTable parcels={[]} />);
@@ -74,5 +101,81 @@ describe("ParcelTable", async () => {
     await user.click(screen.getByLabelText("Select all parcels"));
 
     expect(onSelectedParcelIdsChange).toHaveBeenCalledWith(["at-office", "postpone"]);
+  });
+
+  test("shows failure review icon only when enabled for unresolved failed parcels", () => {
+    const failedParcel = buildParcelListItem({
+      parcelCode: "PF-FAILED",
+      status: "on_the_way",
+      riderName: "Ko Rider",
+      deliveryFailureNote: "Receiver was not available.",
+      hasUnresolvedFailureReview: true,
+    });
+
+    const { rerender } = render(<ParcelTable parcels={[failedParcel]} />);
+
+    expect(screen.queryByLabelText("Review failure note for PF-FAILED")).toBeNull();
+
+    rerender(<ParcelTable parcels={[failedParcel]} enableFailureReview />);
+
+    expect(screen.getByLabelText("Review failure note for PF-FAILED")).toBeTruthy();
+  });
+
+  test("opens failure review dialog and submits postpone action", async () => {
+    const user = userEvent.setup();
+    render(
+      <ParcelTable
+        enableFailureReview
+        parcels={[
+          buildParcelListItem({
+            id: "parcel-1",
+            parcelCode: "PF-FAILED",
+            status: "on_the_way",
+            riderName: "Ko Rider",
+            deliveryFailureNote: "Receiver was not available.",
+            hasUnresolvedFailureReview: true,
+          }),
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByLabelText("Review failure note for PF-FAILED"));
+
+    expect(screen.getByRole("heading", { name: "Delivery Failure" })).toBeTruthy();
+    expect(screen.getByText("Receiver was not available.")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Postpone" }));
+
+    expect(postponeFailedParcelActionMock).toHaveBeenCalledWith({ parcelId: "parcel-1" });
+  });
+
+  test("submits return merchant action and keeps dialog open on errors", async () => {
+    const user = userEvent.setup();
+    returnFailedParcelToMerchantActionMock.mockResolvedValueOnce({
+      ok: false,
+      message: "This failure report has already been handled.",
+    });
+
+    render(
+      <ParcelTable
+        enableFailureReview
+        parcels={[
+          buildParcelListItem({
+            id: "parcel-1",
+            parcelCode: "PF-FAILED",
+            status: "on_the_way",
+            riderName: "Ko Rider",
+            deliveryFailureNote: "Receiver was not available.",
+            hasUnresolvedFailureReview: true,
+          }),
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByLabelText("Review failure note for PF-FAILED"));
+    await user.click(screen.getByRole("button", { name: "Return Merchant" }));
+
+    expect(returnFailedParcelToMerchantActionMock).toHaveBeenCalledWith({ parcelId: "parcel-1" });
+    expect(screen.getByText("This failure report has already been handled.")).toBeTruthy();
   });
 });

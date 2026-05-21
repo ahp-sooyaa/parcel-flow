@@ -149,6 +149,7 @@ export async function seedTestParcel(
       codAmount: overrides.codAmount ?? 10_000,
       deliveryFee: overrides.deliveryFee ?? 2_000,
       weightKg: overrides.weightKg ?? "3",
+      deliveryFailureNote: overrides.deliveryFailureNote,
       status: overrides.status ?? "at_office",
       createdBy,
     })

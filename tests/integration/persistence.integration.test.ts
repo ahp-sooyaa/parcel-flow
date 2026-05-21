@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { and, eq } from "drizzle-orm";
 
-import { financialItems, parcels } from "@/db/schema";
+import { financialItems, parcels, parcelStatusLogs } from "@/db/schema";
 import { cleanupTestRecords } from "../fixtures/cleanup";
 import { createTestDatabase } from "../fixtures/db";
 import {
@@ -172,6 +172,79 @@ describe("persistence integration coverage", () => {
     const riderParcels = await listParcelsForRiderUser(riderSeed.user?.id ?? "");
 
     expect(riderParcels.map((parcel) => parcel.id)).toContain(parcelSeed.parcel.id);
+  });
+
+  test("assigns postponed parcels by resetting them to at office", async () => {
+    const parcelSeed = await seedTestParcel(testDb.db, { status: "postpone" });
+    const riderSeed = await seedTestRider(testDb.db);
+    const admin = await seedTestUser(testDb.db, { role: "office_admin" });
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.userIds.push(
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+      riderSeed.user?.id ?? "",
+      admin.id,
+    );
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+    seededIds.townshipIds.push(parcelSeed.township.id, riderSeed.township.id);
+    seededIds.riderIds.push(riderSeed.rider.id);
+
+    const { assignParcelsToRider } = await import("@/features/parcels/server/dal");
+    await assignParcelsToRider({
+      riderId: riderSeed.rider.id,
+      parcelIds: [parcelSeed.parcel.id],
+      actorId: admin.id,
+    });
+
+    const [updatedParcel] = await testDb.db
+      .select()
+      .from(parcels)
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+    const [statusLog] = await testDb.db
+      .select()
+      .from(parcelStatusLogs)
+      .where(eq(parcelStatusLogs.parcelId, parcelSeed.parcel.id));
+
+    expect(updatedParcel).toMatchObject({
+      status: "at_office",
+      riderId: riderSeed.rider.id,
+    });
+    expect(updatedParcel.assignedAt).toBeInstanceOf(Date);
+    expect(statusLog).toMatchObject({
+      oldStatus: "postpone",
+      newStatus: "at_office",
+      changedBy: admin.id,
+    });
+  });
+
+  test("assigns return-ready parcels without changing their status", async () => {
+    const parcelSeed = await seedTestParcel(testDb.db, { status: "canceled_returned" });
+    const riderSeed = await seedTestRider(testDb.db);
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.userIds.push(
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+      riderSeed.user?.id ?? "",
+    );
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+    seededIds.townshipIds.push(parcelSeed.township.id, riderSeed.township.id);
+    seededIds.riderIds.push(riderSeed.rider.id);
+
+    const { assignParcelsToRider } = await import("@/features/parcels/server/dal");
+    await assignParcelsToRider({
+      riderId: riderSeed.rider.id,
+      parcelIds: [parcelSeed.parcel.id],
+    });
+
+    const [updatedParcel] = await testDb.db
+      .select()
+      .from(parcels)
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+
+    expect(updatedParcel).toMatchObject({
+      status: "canceled_returned",
+      riderId: riderSeed.rider.id,
+    });
   });
 
   test("rejects parcel creation when the merchant does not exist", async () => {
@@ -403,6 +476,131 @@ describe("persistence integration coverage", () => {
       collectedAmount: 0,
     });
     expect(updatedParcel.deliveredAt).toBeNull();
+    expect(relatedFinancialItems).toHaveLength(0);
+  });
+
+  test("admin postpones failed parcel and clears rider assignment without financial side effects", async () => {
+    const parcelSeed = await seedTestParcel(testDb.db, {
+      status: "on_the_way",
+      deliveryFailureNote: "Receiver asked to deliver tomorrow.",
+      parcelType: "cod",
+      codAmount: 10_000,
+      deliveryFee: 2_000,
+    });
+    const riderSeed = await seedTestRider(testDb.db);
+    const admin = await seedTestUser(testDb.db, { role: "office_admin" });
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.userIds.push(
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+      riderSeed.user?.id ?? "",
+      admin.id,
+    );
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+    seededIds.townshipIds.push(parcelSeed.township.id, riderSeed.township.id);
+    seededIds.riderIds.push(riderSeed.rider.id);
+
+    await testDb.db
+      .update(parcels)
+      .set({ riderId: riderSeed.rider.id, assignedAt: new Date() })
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+
+    const { getParcelSummary, resolveFailedParcelByAdmin } =
+      await import("@/features/parcels/server/dal");
+    const beforeSummary = await getParcelSummary();
+
+    await resolveFailedParcelByAdmin({
+      parcelId: parcelSeed.parcel.id,
+      targetStatus: "postpone",
+      actorId: admin.id,
+      actorRole: "office_admin",
+    });
+
+    const afterSummary = await getParcelSummary();
+    const [updatedParcel] = await testDb.db
+      .select()
+      .from(parcels)
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+    const relatedFinancialItems = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(eq(financialItems.parcelId, parcelSeed.parcel.id));
+    const [statusLog] = await testDb.db
+      .select()
+      .from(parcelStatusLogs)
+      .where(eq(parcelStatusLogs.parcelId, parcelSeed.parcel.id));
+
+    expect(updatedParcel).toMatchObject({
+      status: "postpone",
+      riderId: null,
+      assignedAt: null,
+      collectedAmount: 0,
+    });
+    expect(afterSummary.expectedCollection - beforeSummary.expectedCollection).toBe(-12_000);
+    expect(relatedFinancialItems).toHaveLength(0);
+    expect(statusLog).toMatchObject({
+      oldStatus: "on_the_way",
+      newStatus: "postpone",
+      changedBy: admin.id,
+    });
+  });
+
+  test("admin marks failed parcel for merchant return and rejects stale failure decisions", async () => {
+    const parcelSeed = await seedTestParcel(testDb.db, {
+      status: "on_the_way",
+      deliveryFailureNote: "Receiver refused the parcel.",
+    });
+    const riderSeed = await seedTestRider(testDb.db);
+    const admin = await seedTestUser(testDb.db, { role: "super_admin" });
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.userIds.push(
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+      riderSeed.user?.id ?? "",
+      admin.id,
+    );
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+    seededIds.townshipIds.push(parcelSeed.township.id, riderSeed.township.id);
+    seededIds.riderIds.push(riderSeed.rider.id);
+
+    await testDb.db
+      .update(parcels)
+      .set({ riderId: riderSeed.rider.id, assignedAt: new Date() })
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+
+    const { resolveFailedParcelByAdmin } = await import("@/features/parcels/server/dal");
+
+    await resolveFailedParcelByAdmin({
+      parcelId: parcelSeed.parcel.id,
+      targetStatus: "canceled_returned",
+      actorId: admin.id,
+      actorRole: "super_admin",
+    });
+
+    await expectPromiseToRejectWith(
+      resolveFailedParcelByAdmin({
+        parcelId: parcelSeed.parcel.id,
+        targetStatus: "postpone",
+        actorId: admin.id,
+        actorRole: "super_admin",
+      }),
+      "Only on-the-way failed parcels can be resolved.",
+    );
+
+    const [updatedParcel] = await testDb.db
+      .select()
+      .from(parcels)
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+    const relatedFinancialItems = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(eq(financialItems.parcelId, parcelSeed.parcel.id));
+
+    expect(updatedParcel).toMatchObject({
+      status: "canceled_returned",
+      riderId: null,
+      assignedAt: null,
+    });
     expect(relatedFinancialItems).toHaveLength(0);
   });
 

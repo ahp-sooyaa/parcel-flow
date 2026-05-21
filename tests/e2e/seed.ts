@@ -28,6 +28,7 @@ const townshipName = process.env.E2E_TOWNSHIP_NAME ?? "E2E Seed Township";
 const merchantShopName = process.env.E2E_MERCHANT_SHOP_NAME ?? "E2E Merchant Shop";
 const seedParcelCode = process.env.E2E_SEED_PARCEL_CODE ?? "PF-E2E-SEED-001";
 const assignedParcelCode = process.env.E2E_ASSIGNED_PARCEL_CODE ?? "PF-E2E-SEED-002";
+const failedParcelCode = process.env.E2E_FAILED_PARCEL_CODE ?? "PF-E2E-SEED-FAILED";
 
 assertRequiredEnv("DATABASE_URL");
 assertRequiredEnv("BETTER_AUTH_URL");
@@ -90,6 +91,16 @@ async function main() {
     createdBy: superAdmin.id,
     receiverName: "E2E Rider Receiver",
     riderId: rider.id,
+  });
+  await upsertSeedParcel({
+    parcelCode: failedParcelCode,
+    merchantId: merchant.id,
+    townshipId: township.id,
+    createdBy: superAdmin.id,
+    receiverName: "E2E Failed Receiver",
+    riderId: rider.id,
+    status: "on_the_way",
+    deliveryFailureNote: "Receiver asked admin to retry tomorrow.",
   });
 
   console.log("Seeded E2E users and baseline records.");
@@ -292,6 +303,8 @@ async function upsertSeedParcel(input: {
   createdBy: string;
   receiverName: string;
   riderId: string | null;
+  status?: string;
+  deliveryFailureNote?: string | null;
 }) {
   const values = {
     merchantId: input.merchantId,
@@ -304,7 +317,8 @@ async function upsertSeedParcel(input: {
     codAmount: 10_000,
     deliveryFee: 2_000,
     weightKg: "3",
-    status: "at_office",
+    status: input.status ?? "at_office",
+    deliveryFailureNote: input.deliveryFailureNote ?? null,
     codStatus: "pending",
     deliveryFeeStatus: "pending",
     isReceivedByOffice: false,

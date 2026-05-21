@@ -520,7 +520,8 @@ at_office -> on_the_way -> rider reports failure -> postpone -> canceled_returne
 Retry rule:
 
 - When admin changes a failed delivery to `postpone`, the rider assignment is cleared.
-- When the parcel is ready for retry, admin changes the status back to `at_office` and assigns a rider again.
+- When the parcel is ready for retry, admin assigns a rider again.
+- Assigning a `postpone` parcel automatically changes the status back to `at_office`.
 - The normal delivery flow then restarts from `at_office`.
 
 Return rule:
@@ -647,8 +648,8 @@ When admin changes an `on_the_way` parcel to `postpone` after reviewing a rider 
 
 When the parcel is ready for retry:
 
-- Admin changes `status` back to `at_office`
 - Admin assigns a rider again
+- Assignment automatically changes `status` back to `at_office`
 - The normal delivery flow restarts from `at_office`
 
 ---
@@ -699,13 +700,14 @@ Admin assigns parcels to riders when a rider needs to deliver, retry after the p
 
 Assignment does not mean the rider has started delivery.
 Assignment only links the parcel to a rider and sets assignment metadata.
-It must not change the parcel status.
+It must not change the parcel status except when assigning a `postpone` parcel for retry, which automatically resets the parcel to `at_office`.
 
 Allowed assignment statuses:
 
 | Status | Assignment purpose |
 |---|---|
 | `at_office` | Parcel is at office and ready for normal delivery or retry delivery |
+| `postpone` | Parcel is ready for retry; assignment automatically resets status to `at_office` |
 | `canceled_returned` | Parcel will not be retried and needs return handling back to merchant |
 
 Not assignable through the normal bulk assignment flow:
@@ -713,7 +715,6 @@ Not assignable through the normal bulk assignment flow:
 | Status | Reason |
 |---|---|
 | `on_the_way` | Rider has already started delivery |
-| `postpone` | Parcel is waiting for an admin retry decision; admin must move it back to `at_office` before normal delivery assignment |
 | `delivered` | Delivery is complete |
 | `returned_to_merchant` | Return is complete |
 
@@ -736,7 +737,7 @@ Steps:
 6. System displays selected parcel summary.
 7. System displays total collection amount for selected normal delivery parcels and selected return-ready parcel count.
 8. Admin confirms assignment.
-9. Parcel is assigned to rider, but its status remains unchanged.
+9. Parcel is assigned to rider; `postpone` parcels change to `at_office`, and other eligible statuses remain unchanged.
 10. Rider can now see assigned parcels.
 11. Rider later changes eligible **At Office** delivery parcels to **On The Way** when starting delivery.
 12. Assigned **Canceled / Returned** parcels remain `canceled_returned` because they are return work, not normal delivery work.
@@ -757,7 +758,7 @@ Rider current expected collection today: 300,000 MMK
 After assignment: 774,000 MMK
 ```
 
-Expected collection should include selected `at_office` parcels.
+Expected collection should include selected `at_office` parcels and selected `postpone` parcels that will become `at_office` on assignment.
 Selected `canceled_returned` parcels are return work and should be counted separately from expected cash collection.
 
 This helps admin avoid assigning too much cash collection or return workload to one rider.
@@ -1091,7 +1092,7 @@ When delivery fails:
 4. Rider assignment is cleared when status becomes `postpone` or `canceled_returned`.
 5. Rider expected collection amount reduces immediately.
 6. No delivery fee deduction happens while the parcel is only `postpone` or `canceled_returned`.
-7. If retrying, admin assigns a rider again, changes status to `at_office`, and the normal delivery flow restarts.
+7. If retrying, admin assigns a rider again, assignment changes status to `at_office`, and the normal delivery flow restarts.
 8. If returning, admin assigns a rider again while status remains `canceled_returned`.
 9. Admin changes status to `returned_to_merchant` after physical return.
 10. One `delivery_fee_deduction` financial item is created.

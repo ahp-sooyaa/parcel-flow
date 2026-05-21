@@ -100,6 +100,7 @@ export type ParcelListItemDto = {
   proofOfDeliveryImagesKeys: string[];
   riderName: string | null;
   status: ParcelStatus;
+  hasUnresolvedFailureReview: boolean;
   createdAt: string;
 };
 

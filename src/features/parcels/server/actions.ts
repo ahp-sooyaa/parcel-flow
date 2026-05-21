@@ -9,6 +9,7 @@ import {
   deleteDeliveryFailureForRiderParcel,
   markRiderParcelDelivered,
   reportDeliveryFailureForRiderParcel,
+  resolveFailedParcelByAdmin,
   startDeliveryForRiderParcels,
 } from "@/features/parcels/server/dal";
 import { createParcelFormInputSchema } from "@/features/parcels/server/dto";
@@ -34,6 +35,10 @@ const reportDeliveryFailureInputSchema = z.object({
 });
 
 const deleteDeliveryFailureInputSchema = z.object({
+  parcelId: z.uuid("Invalid parcel selection."),
+});
+
+const resolveFailedParcelInputSchema = z.object({
   parcelId: z.uuid("Invalid parcel selection."),
 });
 
@@ -115,7 +120,7 @@ export async function assignParcelsToRiderAction(input: unknown) {
   }
 
   try {
-    await assignParcelsToRider(parseResult.data);
+    await assignParcelsToRider({ ...parseResult.data, actorId: actor.id });
   } catch (error) {
     return {
       ok: false as const,
@@ -131,6 +136,63 @@ export async function assignParcelsToRiderAction(input: unknown) {
     ok: true as const,
     message: "Parcels assigned.",
   };
+}
+
+async function resolveFailedParcelAction(
+  input: unknown,
+  targetStatus: "postpone" | "canceled_returned",
+) {
+  const actor = await requireCurrentUser();
+  const parseResult = resolveFailedParcelInputSchema.safeParse(input);
+
+  if (!parseResult.success) {
+    return {
+      ok: false as const,
+      message: parseResult.error.issues[0]?.message ?? "Invalid failure resolution details.",
+    };
+  }
+
+  if (!canChangeParcelStatus(actor.role, "on_the_way", targetStatus)) {
+    return {
+      ok: false as const,
+      message: "You do not have permission to resolve failed parcels.",
+    };
+  }
+
+  try {
+    await resolveFailedParcelByAdmin({
+      parcelId: parseResult.data.parcelId,
+      targetStatus,
+      actorId: actor.id,
+      actorRole: actor.role,
+    });
+  } catch (error) {
+    return {
+      ok: false as const,
+      message: error instanceof Error ? error.message : "Unable to resolve failed parcel.",
+    };
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/parcels");
+  revalidatePath("/dashboard/riders");
+  revalidatePath("/dashboard/rider/parcels");
+
+  return {
+    ok: true as const,
+    message:
+      targetStatus === "postpone"
+        ? "Parcel postponed for retry."
+        : "Parcel marked for merchant return.",
+  };
+}
+
+export async function postponeFailedParcelAction(input: unknown) {
+  return resolveFailedParcelAction(input, "postpone");
+}
+
+export async function returnFailedParcelToMerchantAction(input: unknown) {
+  return resolveFailedParcelAction(input, "canceled_returned");
 }
 
 export async function startDeliveryForRiderParcelsAction(input: unknown) {

@@ -73,8 +73,10 @@ export function AssignRiderDialog({
     }
   }, [open, reset]);
 
-  const totalCodAmount = selectedParcels.reduce((sum, parcel) => sum + parcel.codAmount, 0);
-  const totalDeliveryFee = selectedParcels.reduce((sum, parcel) => sum + parcel.deliveryFee, 0);
+  const collectionParcels = selectedParcels.filter((parcel) => parcel.status !== "canceled_returned");
+  const returnReadyParcelCount = selectedParcels.length - collectionParcels.length;
+  const totalCodAmount = collectionParcels.reduce((sum, parcel) => sum + parcel.codAmount, 0);
+  const totalDeliveryFee = collectionParcels.reduce((sum, parcel) => sum + parcel.deliveryFee, 0);
   const totalExpectedCollection = totalCodAmount + totalDeliveryFee;
   const riderCurrentExpectedCollection = selectedRider?.expectedCollection ?? 0;
   const afterAssignmentExpectedCollection =
@@ -143,6 +145,7 @@ export function AssignRiderDialog({
               label="Rider current expected"
               value={`${formatMoney(riderCurrentExpectedCollection)} MMK`}
             />
+            <SummaryMetric label="Return-ready parcels" value={String(returnReadyParcelCount)} />
             <SummaryMetric
               label="After assignment"
               value={`${formatMoney(afterAssignmentExpectedCollection)} MMK`}
@@ -154,7 +157,7 @@ export function AssignRiderDialog({
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium text-foreground">Selected parcel summary</h3>
               <span className="text-xs text-muted-foreground">
-                Amount to collect = COD + delivery fee
+                Collection excludes return-ready parcels
               </span>
             </div>
 
@@ -176,7 +179,9 @@ export function AssignRiderDialog({
                       <div>{parcel.townshipName}</div>
                     </div>
                     <div className="text-left text-sm font-medium text-foreground sm:text-right">
-                      {formatMoney(parcel.codAmount + parcel.deliveryFee)} MMK
+                      {parcel.status === "canceled_returned"
+                        ? "Return"
+                        : `${formatMoney(parcel.codAmount + parcel.deliveryFee)} MMK`}
                     </div>
                   </div>
                 ))}

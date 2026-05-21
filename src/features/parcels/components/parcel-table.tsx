@@ -1,11 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { AlertCircle, MoreHorizontal } from "lucide-react";
 
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +28,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  postponeFailedParcelAction,
+  returnFailedParcelToMerchantAction,
+} from "@/features/parcels/server/actions";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
 import { parcelStatusLabels } from "@/lib/domain";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -45,6 +57,7 @@ export function ParcelTable({
   onView,
   onEdit,
   enableSelection = false,
+  enableFailureReview = false,
 }: Readonly<{
   parcels: ParcelListItemDto[];
   selectedParcelIds?: string[];
@@ -52,9 +65,15 @@ export function ParcelTable({
   onView?: (parcel: ParcelListItemDto) => void;
   onEdit?: (parcel: ParcelListItemDto) => void;
   enableSelection?: boolean;
+  enableFailureReview?: boolean;
 }>) {
   const hasActions = onView !== undefined || onEdit !== undefined;
   const [internalSelectedParcelIds, setInternalSelectedParcelIds] = useState<string[]>([]);
+  const [failureReviewParcel, setFailureReviewParcel] = useState<ParcelListItemDto | null>(null);
+  const [failureReviewError, setFailureReviewError] = useState<string | null>(null);
+  const [pendingFailureAction, setPendingFailureAction] = useState<
+    "postpone" | "return_merchant" | null
+  >(null);
   const selectableParcelIds = useMemo(
     () =>
       parcels
@@ -119,6 +138,29 @@ export function ParcelTable({
     handleSelectedParcelIdsChange(currentSelectedParcelIds.filter((id) => id !== parcelId));
   }
 
+  async function resolveFailure(action: "postpone" | "return_merchant") {
+    if (!failureReviewParcel) {
+      return;
+    }
+
+    setFailureReviewError(null);
+    setPendingFailureAction(action);
+
+    const result =
+      action === "postpone"
+        ? await postponeFailedParcelAction({ parcelId: failureReviewParcel.id })
+        : await returnFailedParcelToMerchantAction({ parcelId: failureReviewParcel.id });
+
+    setPendingFailureAction(null);
+
+    if (!result.ok) {
+      setFailureReviewError(result.message);
+      return;
+    }
+
+    setFailureReviewParcel(null);
+  }
+
   return (
     <div className="rounded-lg border bg-white">
       <Table>
@@ -175,7 +217,26 @@ export function ParcelTable({
                     />
                   ) : null}
                 </TableCell>
-                <TableCell className="font-medium">{parcel.parcelCode}</TableCell>
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-2">
+                    <span>{parcel.parcelCode}</span>
+                    {enableFailureReview && parcel.hasUnresolvedFailureReview ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        aria-label={`Review failure note for ${parcel.parcelCode}`}
+                        onClick={() => {
+                          setFailureReviewError(null);
+                          setFailureReviewParcel(parcel);
+                        }}
+                      >
+                        <AlertCircle className="size-4" />
+                      </Button>
+                    ) : null}
+                  </div>
+                </TableCell>
                 <TableCell>{parcel.merchantName}</TableCell>
                 <TableCell>
                   <div className="font-medium">{parcel.receiverName}</div>
@@ -218,6 +279,53 @@ export function ParcelTable({
           )}
         </TableBody>
       </Table>
+      <Dialog
+        open={failureReviewParcel !== null}
+        onOpenChange={(open) => {
+          if (!open && pendingFailureAction === null) {
+            setFailureReviewParcel(null);
+            setFailureReviewError(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delivery Failure</DialogTitle>
+            <DialogDescription>{failureReviewParcel?.parcelCode}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-foreground">Failure note</div>
+            <div className="min-h-20 rounded-lg border bg-secondary/40 p-3 text-sm text-foreground">
+              {failureReviewParcel?.deliveryFailureNote}
+            </div>
+            {failureReviewError ? (
+              <div className="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {failureReviewError}
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pendingFailureAction !== null}
+              onClick={() => void resolveFailure("postpone")}
+            >
+              {pendingFailureAction === "postpone" ? "Postponing..." : "Postpone"}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={pendingFailureAction !== null}
+              onClick={() => void resolveFailure("return_merchant")}
+            >
+              {pendingFailureAction === "return_merchant"
+                ? "Marking..."
+                : "Return Merchant"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -9,6 +9,7 @@ const startDeliveryForRiderParcelsMock = mock(async () => undefined);
 const reportDeliveryFailureForRiderParcelMock = mock(async () => undefined);
 const deleteDeliveryFailureForRiderParcelMock = mock(async () => undefined);
 const markRiderParcelDeliveredMock = mock(async () => undefined);
+const resolveFailedParcelByAdminMock = mock(async () => undefined);
 const uploadDeliveryProofImageMock = mock(
   async () => "parcels/parcel-id/proof-of-delivery/proof.jpg",
 );
@@ -24,6 +25,7 @@ void mock.module("@/features/parcels/server/dal", () => ({
   deleteDeliveryFailureForRiderParcel: deleteDeliveryFailureForRiderParcelMock,
   markRiderParcelDelivered: markRiderParcelDeliveredMock,
   reportDeliveryFailureForRiderParcel: reportDeliveryFailureForRiderParcelMock,
+  resolveFailedParcelByAdmin: resolveFailedParcelByAdminMock,
   startDeliveryForRiderParcels: startDeliveryForRiderParcelsMock,
 }));
 
@@ -41,7 +43,9 @@ describe("parcel server actions", async () => {
     createParcelAction,
     deleteDeliveryFailureForRiderParcelAction,
     markRiderParcelDeliveredAction,
+    postponeFailedParcelAction,
     reportDeliveryFailureForRiderParcelAction,
+    returnFailedParcelToMerchantAction,
   } = await import("@/features/parcels/server/actions");
 
   beforeEach(() => {
@@ -52,6 +56,7 @@ describe("parcel server actions", async () => {
     reportDeliveryFailureForRiderParcelMock.mockReset();
     deleteDeliveryFailureForRiderParcelMock.mockReset();
     markRiderParcelDeliveredMock.mockReset();
+    resolveFailedParcelByAdminMock.mockReset();
     uploadDeliveryProofImageMock.mockReset();
     revalidatePathMock.mockReset();
     requireCurrentUserMock.mockResolvedValue(
@@ -63,6 +68,7 @@ describe("parcel server actions", async () => {
     reportDeliveryFailureForRiderParcelMock.mockResolvedValue(undefined);
     deleteDeliveryFailureForRiderParcelMock.mockResolvedValue(undefined);
     markRiderParcelDeliveredMock.mockResolvedValue(undefined);
+    resolveFailedParcelByAdminMock.mockResolvedValue(undefined);
     uploadDeliveryProofImageMock.mockResolvedValue("parcels/parcel-id/proof-of-delivery/proof.jpg");
   });
 
@@ -140,6 +146,7 @@ describe("parcel server actions", async () => {
     expect(assignParcelsToRiderMock).toHaveBeenCalledWith({
       riderId: "rider-id",
       parcelIds: ["parcel-id"],
+      actorId: "actor-id",
     });
     expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/parcels");
     expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/riders");
@@ -159,6 +166,80 @@ describe("parcel server actions", async () => {
     expect(result).toEqual({
       ok: false,
       message: "Only unassigned at-office, postponed, or returned parcels can be assigned.",
+    });
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  test("postpones failed parcels and revalidates affected read models", async () => {
+    const result = await postponeFailedParcelAction({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Parcel postponed for retry.",
+    });
+    expect(resolveFailedParcelByAdminMock).toHaveBeenCalledWith({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+      targetStatus: "postpone",
+      actorId: "actor-id",
+      actorRole: "super_admin",
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/parcels");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/riders");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/rider/parcels");
+  });
+
+  test("marks failed parcels for merchant return and revalidates affected read models", async () => {
+    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ id: "admin-id", role: "office_admin" }));
+
+    const result = await returnFailedParcelToMerchantAction({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Parcel marked for merchant return.",
+    });
+    expect(resolveFailedParcelByAdminMock).toHaveBeenCalledWith({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+      targetStatus: "canceled_returned",
+      actorId: "admin-id",
+      actorRole: "office_admin",
+    });
+  });
+
+  test("rejects invalid failed parcel resolution input before persistence", async () => {
+    const result = await postponeFailedParcelAction({ parcelId: "" });
+
+    expect(result.ok).toBe(false);
+    expect(resolveFailedParcelByAdminMock).not.toHaveBeenCalled();
+  });
+
+  test("rejects failed parcel resolution from non-admin users", async () => {
+    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ role: "rider" }));
+
+    const result = await returnFailedParcelToMerchantAction({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message: "You do not have permission to resolve failed parcels.",
+    });
+    expect(resolveFailedParcelByAdminMock).not.toHaveBeenCalled();
+  });
+
+  test("returns stale failed parcel resolution errors to the caller", async () => {
+    resolveFailedParcelByAdminMock.mockRejectedValue(new Error("This failure report has already been handled."));
+
+    const result = await postponeFailedParcelAction({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message: "This failure report has already been handled.",
     });
     expect(revalidatePathMock).not.toHaveBeenCalled();
   });

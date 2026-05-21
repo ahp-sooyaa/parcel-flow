@@ -8,6 +8,7 @@ import {
   financialItems,
   merchants,
   parcels,
+  parcelStatusLogs,
   riders,
   riderServiceTownships,
   sessions,
@@ -29,6 +30,7 @@ export async function cleanupTestRecords(
 ) {
   if (ids.parcelIds?.length) {
     await db.delete(financialItems).where(inArray(financialItems.parcelId, ids.parcelIds));
+    await db.delete(parcelStatusLogs).where(inArray(parcelStatusLogs.parcelId, ids.parcelIds));
     await db.delete(parcels).where(inArray(parcels.id, ids.parcelIds));
   }
 

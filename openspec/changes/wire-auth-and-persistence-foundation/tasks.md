@@ -73,7 +73,7 @@
 ## 8. Rider Assignment Persistence
 
 - [x] 8.1 Add server action and DAL logic for assigning selected parcels to a rider in one transaction.
-- [x] 8.2 Validate assignment permissions, active rider existence, selected parcel existence, unassigned state, and eligible statuses `at_office` or `canceled_returned` before writing.
+- [x] 8.2 Validate assignment permissions, active rider existence, selected parcel existence, unassigned state, and eligible statuses `at_office`, `postpone`, or `canceled_returned` before writing.
 - [x] 8.3 Disable bulk assignment selection for already assigned parcels and reject assigned parcel IDs server-side if submitted.
 - [x] 8.4 Persist `rider_id` and `assigned_at` for selected parcels without changing parcel status or creating financial side effects.
 - [x] 8.5 Wire `AssignRiderDialog` confirm behavior to the persisted assignment action.

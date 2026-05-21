@@ -75,6 +75,7 @@ export function buildParcelListItem(overrides: Partial<ParcelListItemDto> = {}):
     proofOfDeliveryImagesKeys: overrides.proofOfDeliveryImagesKeys ?? [],
     status: overrides.status ?? "at_office",
     riderName: overrides.riderName ?? null,
+    hasUnresolvedFailureReview: overrides.hasUnresolvedFailureReview ?? false,
     createdAt: overrides.createdAt ?? "2026-01-01",
   };
 }

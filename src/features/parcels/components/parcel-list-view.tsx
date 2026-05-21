@@ -178,10 +178,9 @@ export function ParcelListView({
     () => parcels.filter((parcel) => selectedParcelIds.includes(parcel.id)),
     [parcels, selectedParcelIds],
   );
-  const selectedExpectedCollection = selectedParcels.reduce(
-    (sum, parcel) => sum + parcel.codAmount + parcel.deliveryFee,
-    0,
-  );
+  const selectedExpectedCollection = selectedParcels
+    .filter((parcel) => parcel.status !== "canceled_returned")
+    .reduce((sum, parcel) => sum + parcel.codAmount + parcel.deliveryFee, 0);
 
   const activeFilterCount = selectedStatuses.length + (selectedTownship === "all" ? 0 : 1);
 
@@ -392,6 +391,7 @@ export function ParcelListView({
         onView={handleViewParcel}
         onEdit={handleEditParcel}
         enableSelection
+        enableFailureReview
       />
 
       <AssignRiderDialog

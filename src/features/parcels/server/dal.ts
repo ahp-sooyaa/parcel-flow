@@ -2,7 +2,15 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
-import { appUsers, financialItems, merchants, parcels, riders, townships } from "@/db/schema";
+import {
+  appUsers,
+  financialItems,
+  merchants,
+  parcels,
+  parcelStatusLogs,
+  riders,
+  townships,
+} from "@/db/schema";
 import type {
   CreateParcelInputDto,
   ParcelListItemDto,
@@ -14,6 +22,7 @@ import {
   isActiveCollectionStatus,
 } from "@/features/parcels/server/utils";
 import { parcelStatuses } from "@/lib/domain";
+import type { ParcelStatus, UserRole } from "@/lib/domain";
 import { canChangeParcelStatus } from "@/lib/permissions";
 
 const parcelStatusSchema = z.enum(parcelStatuses);
@@ -32,6 +41,7 @@ function mapParcel(row: {
   codAmount: number;
   deliveryFee: number;
   proofOfDeliveryImagesKeys: string[] | null;
+  riderId: string | null;
   riderName: string | null;
   status: string;
   createdAt: Date;
@@ -51,6 +61,10 @@ function mapParcel(row: {
     proofOfDeliveryImagesKeys: row.proofOfDeliveryImagesKeys ?? [],
     riderName: row.riderName,
     status: parcelStatusSchema.parse(row.status),
+    hasUnresolvedFailureReview:
+      row.status === "on_the_way" &&
+      row.riderId !== null &&
+      (row.deliveryFailureNote?.trim().length ?? 0) > 0,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -85,6 +99,7 @@ async function listParcelsByScope(scope: {
       codAmount: parcels.codAmount,
       deliveryFee: parcels.deliveryFee,
       proofOfDeliveryImagesKeys: parcels.proofOfDeliveryImagesKeys,
+      riderId: parcels.riderId,
       riderName: appUsers.name,
       status: parcels.status,
       createdAt: parcels.createdAt,
@@ -216,7 +231,11 @@ export async function createParcel(input: CreateParcelInputDto & { createdBy: st
   throw new Error("Unable to generate a unique parcel code.");
 }
 
-export async function assignParcelsToRider(input: { parcelIds: string[]; riderId: string }) {
+export async function assignParcelsToRider(input: {
+  parcelIds: string[];
+  riderId: string;
+  actorId?: string;
+}) {
   await db.transaction(async (tx) => {
     const [rider] = await tx
       .select({ id: riders.id, userIsActive: appUsers.isActive })
@@ -248,14 +267,109 @@ export async function assignParcelsToRider(input: { parcelIds: string[]; riderId
       throw new Error("Only unassigned at-office, postponed, or returned parcels can be assigned.");
     }
 
-    await tx
+    const assignedAt = new Date();
+    const postponedParcelIds = selectedParcels
+      .filter((parcel) => parcel.status === "postpone")
+      .map((parcel) => parcel.id);
+    const nonPostponedParcelIds = selectedParcels
+      .filter((parcel) => parcel.status !== "postpone")
+      .map((parcel) => parcel.id);
+
+    if (nonPostponedParcelIds.length > 0) {
+      await tx
+        .update(parcels)
+        .set({
+          riderId: input.riderId,
+          assignedAt,
+          updatedAt: assignedAt,
+        })
+        .where(inArray(parcels.id, nonPostponedParcelIds));
+    }
+
+    if (postponedParcelIds.length > 0) {
+      await tx
+        .update(parcels)
+        .set({
+          riderId: input.riderId,
+          assignedAt,
+          status: "at_office",
+          updatedAt: assignedAt,
+        })
+        .where(inArray(parcels.id, postponedParcelIds));
+
+      await tx.insert(parcelStatusLogs).values(
+        postponedParcelIds.map((parcelId) => ({
+          parcelId,
+          oldStatus: "postpone",
+          newStatus: "at_office",
+          changedBy: input.actorId,
+        })),
+      );
+    }
+  });
+}
+
+export async function resolveFailedParcelByAdmin(input: {
+  parcelId: string;
+  targetStatus: Extract<ParcelStatus, "postpone" | "canceled_returned">;
+  actorId: string;
+  actorRole: UserRole;
+}) {
+  if (!canChangeParcelStatus(input.actorRole, "on_the_way", input.targetStatus)) {
+    throw new Error("You do not have permission to resolve failed parcels.");
+  }
+
+  await db.transaction(async (tx) => {
+    const [parcel] = await tx
+      .select({
+        id: parcels.id,
+        status: parcels.status,
+        riderId: parcels.riderId,
+        deliveryFailureNote: parcels.deliveryFailureNote,
+      })
+      .from(parcels)
+      .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
+      .limit(1);
+
+    if (!parcel) {
+      throw new Error("Parcel was not found.");
+    }
+
+    if (parcel.status !== "on_the_way") {
+      throw new Error("Only on-the-way failed parcels can be resolved.");
+    }
+
+    if (!parcel.deliveryFailureNote?.trim()) {
+      throw new Error("Failure note is required before resolving a failed parcel.");
+    }
+
+    if (parcel.riderId === null) {
+      throw new Error("This failure report has already been handled.");
+    }
+
+    const resolvedAt = new Date();
+
+    const [resolvedParcel] = await tx
       .update(parcels)
       .set({
-        riderId: input.riderId,
-        assignedAt: new Date(),
-        updatedAt: new Date(),
+        status: input.targetStatus,
+        riderId: null,
+        assignedAt: null,
+        updatedAt: resolvedAt,
       })
-      .where(inArray(parcels.id, input.parcelIds));
+      .where(and(eq(parcels.id, input.parcelId), eq(parcels.riderId, parcel.riderId)))
+      .returning({ id: parcels.id });
+
+    if (!resolvedParcel) {
+      throw new Error("This failure report has already been handled.");
+    }
+
+    await tx.insert(parcelStatusLogs).values({
+      parcelId: parcel.id,
+      oldStatus: "on_the_way",
+      newStatus: input.targetStatus,
+      changedBy: input.actorId,
+    });
   });
 }
 
