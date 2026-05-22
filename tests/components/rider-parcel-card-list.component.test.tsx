@@ -13,6 +13,10 @@ const reportDeliveryFailureForRiderParcelActionMock = mock(async () => ({
   ok: true,
   message: "Delivery failure reported.",
 }));
+const markRiderParcelReturnedToMerchantActionMock = mock(async () => ({
+  ok: true,
+  message: "Parcel returned to merchant.",
+}));
 let deliveredActionInput: unknown;
 const markRiderParcelDeliveredActionMock = mock(async (input: unknown) => {
   deliveredActionInput = input;
@@ -31,6 +35,7 @@ void mock.module("@/lib/client-navigation", () => ({
 
 void mock.module("@/features/parcels/server/actions", () => ({
   markRiderParcelDeliveredAction: markRiderParcelDeliveredActionMock,
+  markRiderParcelReturnedToMerchantAction: markRiderParcelReturnedToMerchantActionMock,
   reportDeliveryFailureForRiderParcelAction: reportDeliveryFailureForRiderParcelActionMock,
   startDeliveryForRiderParcelsAction: startDeliveryForRiderParcelsActionMock,
 }));
@@ -44,6 +49,7 @@ describe("RiderParcelCardList", async () => {
     startDeliveryForRiderParcelsActionMock.mockReset();
     reportDeliveryFailureForRiderParcelActionMock.mockReset();
     markRiderParcelDeliveredActionMock.mockReset();
+    markRiderParcelReturnedToMerchantActionMock.mockReset();
     deliveredActionInput = undefined;
     startDeliveryForRiderParcelsActionMock.mockResolvedValue({
       ok: true,
@@ -52,6 +58,10 @@ describe("RiderParcelCardList", async () => {
     reportDeliveryFailureForRiderParcelActionMock.mockResolvedValue({
       ok: true,
       message: "Delivery failure reported.",
+    });
+    markRiderParcelReturnedToMerchantActionMock.mockResolvedValue({
+      ok: true,
+      message: "Parcel returned to merchant.",
     });
     markRiderParcelDeliveredActionMock.mockImplementation(async (input: unknown) => {
       deliveredActionInput = input;
@@ -195,5 +205,56 @@ describe("RiderParcelCardList", async () => {
     expect(submittedProof.type).toBe("image/jpeg");
     expect(await screen.findByText("Parcel marked delivered.")).toBeTruthy();
     expect(refreshMock).toHaveBeenCalled();
+  });
+
+  test("shows return action for canceled-returned parcel and completes it", async () => {
+    const user = userEvent.setup();
+    render(
+      <RiderParcelCardList
+        parcels={[
+          buildParcelListItem({
+            id: "00000000-0000-4000-8000-000000000001",
+            parcelCode: "PF-RETURN",
+            status: "canceled_returned",
+          }),
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByText("Receiver"));
+    await user.click(screen.getByRole("button", { name: "Return to Merchant" }));
+
+    await waitFor(() => {
+      expect(markRiderParcelReturnedToMerchantActionMock).toHaveBeenCalledWith({
+        parcelId: "00000000-0000-4000-8000-000000000001",
+      });
+    });
+
+    expect(await screen.findByText("Parcel returned to merchant.")).toBeTruthy();
+    expect(refreshMock).toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Mark Delivered" })).toBeNull();
+  });
+
+  test("shows returned-to-merchant parcels in the returned tab", async () => {
+    const user = userEvent.setup();
+    render(
+      <RiderParcelCardList
+        parcels={[
+          buildParcelListItem({
+            id: "00000000-0000-4000-8000-000000000001",
+            parcelCode: "PF-RETURNED",
+            status: "returned_to_merchant",
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("tab", { name: /Returned 1/i })).toBeTruthy();
+    expect(screen.queryByText("PF-RETURNED")).toBeNull();
+
+    await user.click(screen.getByRole("tab", { name: /Returned 1/i }));
+
+    expect(screen.getByText("PF-RETURNED")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Return to Merchant" })).toBeNull();
   });
 });

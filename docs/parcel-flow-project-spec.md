@@ -545,18 +545,19 @@ Return rule:
 | `on_the_way -> canceled_returned` | Admin only, after reviewing rider failure note |
 | `postpone -> at_office` | Admin only, when the parcel is ready for retry |
 | `postpone -> canceled_returned` | Admin only, when retry is canceled |
-| `canceled_returned -> returned_to_merchant` | Admin only, after physical return to merchant |
+| `canceled_returned -> returned_to_merchant` | Rider for assigned return work, or admin for manual completion after physical return |
 | Manual correction | Super admin only |
 
-Rider can start delivery, mark an `on_the_way` parcel as delivered, or report delivery failure with a note.
+Rider can start delivery, mark an `on_the_way` parcel as delivered, report delivery failure with a note, or complete assigned `canceled_returned` return work.
 Reporting failure does not directly change parcel status.
 
 Rider should not directly update parcel to:
 
 - Postpone
 - Canceled / returned
-- Returned to merchant
 - At office
+
+Rider can update parcel to `returned_to_merchant` only when the parcel is already assigned to them for return handling and is currently `canceled_returned`.
 
 ---
 
@@ -678,9 +679,10 @@ Recommended updates:
 
 ### 12.7 When Parcel Is Returned to Merchant
 
-When admin changes parcel to `returned_to_merchant`:
+When rider completes assigned return work, or admin manually completes the physical return, and the parcel becomes `returned_to_merchant`:
 
 - Parcel is physically returned to merchant
+- `returned_to_merchant_at` is set
 - Delivery fee becomes deductible from merchant settlement
 - Create settlement financial item:
   - `item_type = delivery_fee_deduction`
@@ -1094,7 +1096,7 @@ When delivery fails:
 6. No delivery fee deduction happens while the parcel is only `postpone` or `canceled_returned`.
 7. If retrying, admin assigns a rider again, assignment changes status to `at_office`, and the normal delivery flow restarts.
 8. If returning, admin assigns a rider again while status remains `canceled_returned`.
-9. Admin changes status to `returned_to_merchant` after physical return.
+9. Assigned rider completes the physical return by changing status to `returned_to_merchant`, or admin does it manually if needed.
 10. One `delivery_fee_deduction` financial item is created.
 11. Delivery fee becomes eligible for deduction from merchant settlement.
 

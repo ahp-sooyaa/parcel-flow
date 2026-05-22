@@ -927,6 +927,150 @@ describe("persistence integration coverage", () => {
           eq(financialItems.parcelId, parcelSeed.parcel.id),
           eq(financialItems.status, "pending"),
         ),
+    );
+    expect(relatedFinancialItems).toHaveLength(0);
+  });
+
+  test("marks canceled-returned parcel returned to merchant and creates deduction item", async () => {
+    const parcelSeed = await seedTestParcel(testDb.db, {
+      status: "canceled_returned",
+      parcelType: "cod",
+      codAmount: 10_000,
+      deliveryFee: 2_000,
+    });
+    const riderSeed = await seedTestRider(testDb.db);
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.userIds.push(
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+      riderSeed.user?.id ?? "",
+    );
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+    seededIds.townshipIds.push(parcelSeed.township.id, riderSeed.township.id);
+    seededIds.riderIds.push(riderSeed.rider.id);
+
+    await testDb.db
+      .update(parcels)
+      .set({ riderId: riderSeed.rider.id })
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+
+    const { markRiderParcelReturnedToMerchant } = await import("@/features/parcels/server/dal");
+    await markRiderParcelReturnedToMerchant({
+      parcelId: parcelSeed.parcel.id,
+      riderUserId: riderSeed.user?.id ?? "",
+      actorRole: "rider",
+      createdBy: riderSeed.user?.id ?? "",
+    });
+
+    const [updatedParcel] = await testDb.db
+      .select()
+      .from(parcels)
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+    const items = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(eq(financialItems.parcelId, parcelSeed.parcel.id));
+
+    expect(updatedParcel).toMatchObject({
+      status: "returned_to_merchant",
+      riderId: riderSeed.rider.id,
+      deliveryFeeStatus: "deduct_from_merchant",
+      merchantSettlementStatus: "pending",
+    });
+    expect(updatedParcel.returnedToMerchantAt).toBeInstanceOf(Date);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      itemType: "delivery_fee_deduction",
+      amount: 2_000,
+      status: "pending",
+      merchantId: parcelSeed.merchantSeed?.merchant.id,
+      riderId: null,
+      parcelId: parcelSeed.parcel.id,
+    });
+  });
+
+  test("rejects return completion for inactive, unrelated, missing, or non-canceled-returned parcels", async () => {
+    const parcelSeed = await seedTestParcel(testDb.db, { status: "at_office" });
+    const assignedRiderSeed = await seedTestRider(testDb.db);
+    const otherRiderSeed = await seedTestRider(testDb.db);
+    const inactiveRiderUser = await seedTestUser(testDb.db, { role: "rider", isActive: false });
+    const inactiveRiderSeed = await seedTestRider(testDb.db, { userId: inactiveRiderUser.id });
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.userIds.push(
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+      assignedRiderSeed.user?.id ?? "",
+      otherRiderSeed.user?.id ?? "",
+      inactiveRiderUser.id,
+    );
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+    seededIds.townshipIds.push(
+      parcelSeed.township.id,
+      assignedRiderSeed.township.id,
+      otherRiderSeed.township.id,
+      inactiveRiderSeed.township.id,
+    );
+    seededIds.riderIds.push(
+      assignedRiderSeed.rider.id,
+      otherRiderSeed.rider.id,
+      inactiveRiderSeed.rider.id,
+    );
+
+    await testDb.db
+      .update(parcels)
+      .set({ riderId: assignedRiderSeed.rider.id })
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+
+    const { markRiderParcelReturnedToMerchant } = await import("@/features/parcels/server/dal");
+
+    await expectPromiseToRejectWith(
+      markRiderParcelReturnedToMerchant({
+        parcelId: parcelSeed.parcel.id,
+        riderUserId: inactiveRiderUser.id,
+        actorRole: "rider",
+        createdBy: inactiveRiderUser.id,
+      }),
+      "Active rider profile was not found.",
+    );
+
+    await expectPromiseToRejectWith(
+      markRiderParcelReturnedToMerchant({
+        parcelId: parcelSeed.parcel.id,
+        riderUserId: otherRiderSeed.user?.id ?? "",
+        actorRole: "rider",
+        createdBy: otherRiderSeed.user?.id ?? "",
+      }),
+      "You can only complete merchant returns for parcels assigned to your rider account.",
+    );
+
+    await expectPromiseToRejectWith(
+      markRiderParcelReturnedToMerchant({
+        parcelId: crypto.randomUUID(),
+        riderUserId: assignedRiderSeed.user?.id ?? "",
+        actorRole: "rider",
+        createdBy: assignedRiderSeed.user?.id ?? "",
+      }),
+      "Parcel was not found.",
+    );
+
+    await expectPromiseToRejectWith(
+      markRiderParcelReturnedToMerchant({
+        parcelId: parcelSeed.parcel.id,
+        riderUserId: assignedRiderSeed.user?.id ?? "",
+        actorRole: "rider",
+        createdBy: assignedRiderSeed.user?.id ?? "",
+      }),
+      "Only canceled-returned parcels can be completed as returned.",
+    );
+
+    const relatedFinancialItems = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(
+        and(
+          eq(financialItems.parcelId, parcelSeed.parcel.id),
+          eq(financialItems.status, "pending"),
+        ),
       );
     expect(relatedFinancialItems).toHaveLength(0);
   });

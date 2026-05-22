@@ -102,10 +102,7 @@ describe("login action", async () => {
     formData.set("username", "rider-user");
     formData.set("password", "password123");
 
-    const result = (await loginAction(
-      { username: "", message: null },
-      formData,
-    )) as unknown as string;
+    await loginAction({ username: "", message: null }, formData);
 
     expect(signInUsernameMock).toHaveBeenCalledWith({
       body: {
@@ -115,6 +112,5 @@ describe("login action", async () => {
       headers: expect.any(Headers),
     });
     expect(redirectMock).toHaveBeenCalledWith("/dashboard/rider/parcels");
-    expect(result).toBe("/dashboard/rider/parcels");
   });
 });

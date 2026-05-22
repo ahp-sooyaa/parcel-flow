@@ -4,6 +4,7 @@ type StatusTransition = `${ParcelStatus}->${ParcelStatus}`;
 
 const riderAllowedTransitions = new Set<StatusTransition>([
   "at_office->on_the_way",
+  "canceled_returned->returned_to_merchant",
   "on_the_way->delivered",
 ]);
 

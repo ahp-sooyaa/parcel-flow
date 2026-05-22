@@ -9,6 +9,7 @@ const startDeliveryForRiderParcelsMock = mock(async () => undefined);
 const reportDeliveryFailureForRiderParcelMock = mock(async () => undefined);
 const deleteDeliveryFailureForRiderParcelMock = mock(async () => undefined);
 const markRiderParcelDeliveredMock = mock(async () => undefined);
+const markRiderParcelReturnedToMerchantMock = mock(async () => undefined);
 const resolveFailedParcelByAdminMock = mock(async () => undefined);
 const uploadDeliveryProofImageMock = mock(
   async () => "parcels/parcel-id/proof-of-delivery/proof.jpg",
@@ -24,6 +25,7 @@ void mock.module("@/features/parcels/server/dal", () => ({
   createParcel: createParcelMock,
   deleteDeliveryFailureForRiderParcel: deleteDeliveryFailureForRiderParcelMock,
   markRiderParcelDelivered: markRiderParcelDeliveredMock,
+  markRiderParcelReturnedToMerchant: markRiderParcelReturnedToMerchantMock,
   reportDeliveryFailureForRiderParcel: reportDeliveryFailureForRiderParcelMock,
   resolveFailedParcelByAdmin: resolveFailedParcelByAdminMock,
   startDeliveryForRiderParcels: startDeliveryForRiderParcelsMock,
@@ -43,6 +45,7 @@ describe("parcel server actions", async () => {
     createParcelAction,
     deleteDeliveryFailureForRiderParcelAction,
     markRiderParcelDeliveredAction,
+    markRiderParcelReturnedToMerchantAction,
     postponeFailedParcelAction,
     reportDeliveryFailureForRiderParcelAction,
     returnFailedParcelToMerchantAction,
@@ -56,6 +59,7 @@ describe("parcel server actions", async () => {
     reportDeliveryFailureForRiderParcelMock.mockReset();
     deleteDeliveryFailureForRiderParcelMock.mockReset();
     markRiderParcelDeliveredMock.mockReset();
+    markRiderParcelReturnedToMerchantMock.mockReset();
     resolveFailedParcelByAdminMock.mockReset();
     uploadDeliveryProofImageMock.mockReset();
     revalidatePathMock.mockReset();
@@ -68,6 +72,7 @@ describe("parcel server actions", async () => {
     reportDeliveryFailureForRiderParcelMock.mockResolvedValue(undefined);
     deleteDeliveryFailureForRiderParcelMock.mockResolvedValue(undefined);
     markRiderParcelDeliveredMock.mockResolvedValue(undefined);
+    markRiderParcelReturnedToMerchantMock.mockResolvedValue(undefined);
     resolveFailedParcelByAdminMock.mockResolvedValue(undefined);
     uploadDeliveryProofImageMock.mockResolvedValue("parcels/parcel-id/proof-of-delivery/proof.jpg");
   });
@@ -409,6 +414,42 @@ describe("parcel server actions", async () => {
     });
     expect(uploadDeliveryProofImageMock).not.toHaveBeenCalled();
     expect(markRiderParcelDeliveredMock).not.toHaveBeenCalled();
+  });
+
+  test("marks canceled-returned parcel as returned to merchant", async () => {
+    requireCurrentUserMock.mockResolvedValue(
+      buildCurrentUser({ id: "rider-user-id", role: "rider" }),
+    );
+
+    const result = await markRiderParcelReturnedToMerchantAction({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Parcel returned to merchant.",
+    });
+    expect(markRiderParcelReturnedToMerchantMock).toHaveBeenCalledWith({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+      riderUserId: "rider-user-id",
+      actorRole: "rider",
+      createdBy: "rider-user-id",
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/rider/parcels");
+  });
+
+  test("rejects return completion from non-rider users", async () => {
+    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ role: "office_admin" }));
+
+    const result = await markRiderParcelReturnedToMerchantAction({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message: "You do not have permission to complete parcel returns.",
+    });
+    expect(markRiderParcelReturnedToMerchantMock).not.toHaveBeenCalled();
   });
 });
 

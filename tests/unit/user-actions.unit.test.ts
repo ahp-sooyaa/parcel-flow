@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 import { buildCreateUserInput, buildCurrentUser, buildUserListItem } from "../fixtures/builders";
+import type { BankAccountDto, UserListItemDto } from "@/features/users/server/dto";
 
 const requireCurrentUserMock = mock(async () => buildCurrentUser());
 const findUniqueUsernameMock = mock(async () => "test-user");
 const createRoleProfileMock = mock(async () => undefined);
-const getUserByIdMock = mock(async () => buildUserListItem({ role: "merchant" }));
+const getUserByIdMock = mock(
+  async (): Promise<UserListItemDto | null> => buildUserListItem({ role: "merchant" }),
+);
 const updateUserProfileMock = mock(async () => buildUserListItem({ role: "merchant" }));
 const createBankAccountForUserMock = mock(async () => ({
   id: "bank-account-id",
@@ -16,15 +19,17 @@ const createBankAccountForUserMock = mock(async () => ({
   isCompanyAccount: false,
   isPrimary: true,
 }));
-const updateBankAccountForUserMock = mock(async () => ({
-  id: "bank-account-id",
-  userId: "target-user-id",
-  bankName: "AYA Bank",
-  accountHolderName: "Updated Holder",
-  accountNumber: "987654321",
-  isCompanyAccount: false,
-  isPrimary: false,
-}));
+const updateBankAccountForUserMock = mock(
+  async (): Promise<BankAccountDto | null> => ({
+    id: "bank-account-id",
+    userId: "target-user-id",
+    bankName: "AYA Bank",
+    accountHolderName: "Updated Holder",
+    accountNumber: "987654321",
+    isCompanyAccount: false,
+    isPrimary: false,
+  }),
+);
 const createUserMock = mock(async () => ({ user: { id: "created-user-id" } }));
 const headersMock = mock(async () => new Headers());
 const revalidatePathMock = mock(() => undefined);
@@ -210,7 +215,7 @@ describe("user server actions", async () => {
   });
 
   test("returns not-found when updating a missing user", async () => {
-    getUserByIdMock.mockImplementation(async () => null as never);
+    getUserByIdMock.mockImplementation(async () => null);
 
     const result = await updateUserAction({
       ...buildCreateUserInput({ role: "merchant" }),
@@ -358,7 +363,7 @@ describe("user server actions", async () => {
   });
 
   test("returns not-found when editing a missing own bank account", async () => {
-    updateBankAccountForUserMock.mockImplementation(async () => null as never);
+    updateBankAccountForUserMock.mockImplementation(async () => null);
     requireCurrentUserMock.mockResolvedValue(
       buildCurrentUser({ id: "actor-id", role: "super_admin" }),
     );
@@ -375,7 +380,7 @@ describe("user server actions", async () => {
   });
 
   test("returns not-found when creating a bank account for a missing target user", async () => {
-    getUserByIdMock.mockImplementation(async () => null as never);
+    getUserByIdMock.mockImplementation(async () => null);
 
     const result = await createUserBankAccountAction({
       userId: "missing-user-id",

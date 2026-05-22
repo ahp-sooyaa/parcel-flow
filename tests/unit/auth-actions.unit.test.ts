@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 import { buildCurrentUser, buildUserListItem } from "../fixtures/builders";
+import type { UserListItemDto } from "@/features/users/server/dto";
 
 const requireCurrentUserMock = mock(async () =>
   buildCurrentUser({ id: "actor-id", role: "super_admin" }),
 );
-const getUserByIdMock = mock(async () =>
+const getUserByIdMock = mock(async (): Promise<UserListItemDto | null> =>
   buildUserListItem({ id: "target-user-id", role: "merchant" }),
 );
 const canRegeneratePasswordMock = mock(() => true);
@@ -56,6 +57,21 @@ void mock.module("@/db", () => ({
     update: dbUpdateMock,
   },
 }));
+
+async function expectPromiseToRejectWith<T>(promise: Promise<T>, message: string) {
+  try {
+    await promise;
+  } catch (error) {
+    if (error instanceof Error) {
+      expect(error.message).toBe(message);
+      return;
+    }
+
+    throw error;
+  }
+
+  throw new Error(`Expected promise to reject with "${message}".`);
+}
 
 describe("auth server actions", async () => {
   const { regeneratePasswordAction, updateOwnPasswordAction, updateOwnPasswordFormAction } =
@@ -154,16 +170,18 @@ describe("auth server actions", async () => {
   });
 
   test("rejects invalid password regeneration requests", async () => {
-    await expect(regeneratePasswordAction({ targetUserId: "" })).rejects.toThrow(
+    await expectPromiseToRejectWith(
+      regeneratePasswordAction({ targetUserId: "" }),
       "Too small: expected string to have >=1 characters",
     );
     expect(getUserByIdMock).not.toHaveBeenCalled();
   });
 
   test("rejects password regeneration for missing users", async () => {
-    getUserByIdMock.mockImplementation(async () => null as never);
+    getUserByIdMock.mockImplementation(async () => null);
 
-    await expect(regeneratePasswordAction({ targetUserId: "missing-user-id" })).rejects.toThrow(
+    await expectPromiseToRejectWith(
+      regeneratePasswordAction({ targetUserId: "missing-user-id" }),
       "User was not found.",
     );
     expect(setUserPasswordMock).not.toHaveBeenCalled();
@@ -172,7 +190,8 @@ describe("auth server actions", async () => {
   test("rejects password regeneration without permission", async () => {
     canRegeneratePasswordMock.mockReturnValue(false);
 
-    await expect(regeneratePasswordAction({ targetUserId: "target-user-id" })).rejects.toThrow(
+    await expectPromiseToRejectWith(
+      regeneratePasswordAction({ targetUserId: "target-user-id" }),
       "You do not have permission to regenerate this password.",
     );
     expect(setUserPasswordMock).not.toHaveBeenCalled();

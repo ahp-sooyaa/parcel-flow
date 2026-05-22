@@ -664,3 +664,83 @@ export async function markRiderParcelDelivered(input: {
     await tx.insert(financialItems).values(pendingFinancialItems);
   });
 }
+
+export async function markRiderParcelReturnedToMerchant(input: {
+  parcelId: string;
+  riderUserId: string;
+  actorRole: "rider";
+  createdBy: string;
+}) {
+  if (!canChangeParcelStatus(input.actorRole, "canceled_returned", "returned_to_merchant")) {
+    throw new Error("You do not have permission to complete parcel returns.");
+  }
+
+  await db.transaction(async (tx) => {
+    const [rider] = await tx
+      .select({ id: riders.id, userIsActive: appUsers.isActive })
+      .from(riders)
+      .innerJoin(appUsers, eq(appUsers.id, riders.userId))
+      .where(eq(riders.userId, input.riderUserId))
+      .limit(1);
+
+    if (!rider?.userIsActive) {
+      throw new Error("Active rider profile was not found.");
+    }
+
+    const [parcel] = await tx
+      .select({
+        id: parcels.id,
+        merchantId: parcels.merchantId,
+        riderId: parcels.riderId,
+        status: parcels.status,
+        deliveryFee: parcels.deliveryFee,
+      })
+      .from(parcels)
+      .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
+      .limit(1);
+
+    if (!parcel) {
+      throw new Error("Parcel was not found.");
+    }
+
+    if (parcel.riderId !== rider.id) {
+      throw new Error(
+        "You can only complete merchant returns for parcels assigned to your rider account.",
+      );
+    }
+
+    if (parcel.status !== "canceled_returned") {
+      throw new Error("Only canceled-returned parcels can be completed as returned.");
+    }
+
+    const returnedAt = new Date();
+
+    await tx
+      .update(parcels)
+      .set({
+        status: "returned_to_merchant",
+        returnedToMerchantAt: returnedAt,
+        deliveryFeeStatus: "deduct_from_merchant",
+        merchantSettlementStatus: "pending",
+        updatedAt: returnedAt,
+      })
+      .where(and(eq(parcels.id, input.parcelId), eq(parcels.riderId, rider.id)));
+
+    await tx.insert(parcelStatusLogs).values({
+      parcelId: parcel.id,
+      oldStatus: "canceled_returned",
+      newStatus: "returned_to_merchant",
+      changedBy: input.createdBy,
+    });
+
+    await tx.insert(financialItems).values({
+      parcelId: parcel.id,
+      merchantId: parcel.merchantId,
+      riderId: null,
+      itemType: "delivery_fee_deduction",
+      amount: parcel.deliveryFee,
+      status: "pending",
+      createdBy: input.createdBy,
+    });
+  });
+}

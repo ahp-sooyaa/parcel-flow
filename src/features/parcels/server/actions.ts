@@ -7,6 +7,7 @@ import {
   assignParcelsToRider,
   createParcel,
   deleteDeliveryFailureForRiderParcel,
+  markRiderParcelReturnedToMerchant,
   markRiderParcelDelivered,
   reportDeliveryFailureForRiderParcel,
   resolveFailedParcelByAdmin,
@@ -368,5 +369,50 @@ export async function markRiderParcelDeliveredAction(input: unknown) {
   return {
     ok: true as const,
     message: "Parcel marked delivered.",
+  };
+}
+
+export async function markRiderParcelReturnedToMerchantAction(input: unknown) {
+  const actor = await requireCurrentUser();
+  const parseResult = resolveFailedParcelInputSchema.safeParse(normalizeFormInput(input));
+
+  if (!parseResult.success) {
+    return {
+      ok: false as const,
+      message: parseResult.error.issues[0]?.message ?? "Invalid return completion details.",
+    };
+  }
+
+  if (
+    actor.role !== "rider" ||
+    !canChangeParcelStatus(actor.role, "canceled_returned", "returned_to_merchant")
+  ) {
+    return {
+      ok: false as const,
+      message: "You do not have permission to complete parcel returns.",
+    };
+  }
+
+  try {
+    await markRiderParcelReturnedToMerchant({
+      parcelId: parseResult.data.parcelId,
+      riderUserId: actor.id,
+      actorRole: actor.role,
+      createdBy: actor.id,
+    });
+  } catch (error) {
+    return {
+      ok: false as const,
+      message: error instanceof Error ? error.message : "Unable to complete parcel return.",
+    };
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/parcels");
+  revalidatePath("/dashboard/rider/parcels");
+
+  return {
+    ok: true as const,
+    message: "Parcel returned to merchant.",
   };
 }

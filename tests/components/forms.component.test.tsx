@@ -223,15 +223,6 @@ function getInput(label: string) {
   return element;
 }
 
-async function clearAndType(
-  user: ReturnType<typeof userEvent.setup>,
-  label: string,
-  value: string,
-) {
-  await user.clear(getInput(label));
-  await user.type(getInput(label), value);
-}
-
 async function chooseSelectOption(label: string, optionName: string) {
   const user = userEvent.setup();
   await user.click(screen.getByLabelText(label));

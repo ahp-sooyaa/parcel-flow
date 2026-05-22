@@ -12,13 +12,15 @@ describe("DashboardAccountMenu", async () => {
   const { DashboardAccountMenu } = await import("@/components/shared/dashboard-account-menu");
 
   test("shows account details and signs the user out from the menu", async () => {
+    const menuProps = {
+      name: "Daw Hnin",
+      role: "office_admin" as const,
+      userId: "user-1",
+      username: "daw-hnin",
+    };
+
     render(
-      <DashboardAccountMenu
-        name="Daw Hnin"
-        role="office_admin"
-        userId="user-1"
-        username="daw-hnin"
-      />,
+      <DashboardAccountMenu {...menuProps} />,
     );
     const user = userEvent.setup();
     const trigger = screen.getByRole("button", { name: "Open account menu" });

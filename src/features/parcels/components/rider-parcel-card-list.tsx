@@ -40,6 +40,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ParcelDetailSheet } from "@/features/parcels/components/parcel-detail-sheet";
 import {
+  markRiderParcelReturnedToMerchantAction,
   markRiderParcelDeliveredAction,
   reportDeliveryFailureForRiderParcelAction,
   startDeliveryForRiderParcelsAction,
@@ -50,18 +51,20 @@ import { parcelStatusLabels, parcelStatuses, type ParcelStatus } from "@/lib/dom
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-type RiderParcelTab = "to_deliver" | "delivered";
+type RiderParcelTab = "to_deliver" | "delivered" | "returned";
 type TownshipOption = { value: string; label: string };
 
 const riderTabLabels: Record<RiderParcelTab, string> = {
   to_deliver: "To Deliver",
   delivered: "Delivered",
+  returned: "Returned",
 };
 
-const riderTabs = ["to_deliver", "delivered"] as const;
+const riderTabs = ["to_deliver", "delivered", "returned"] as const;
 const pageSize = 12;
 const toDeliverStatuses: ParcelStatus[] = ["at_office", "on_the_way", "canceled_returned"];
 const deliveredStatuses: ParcelStatus[] = ["delivered"];
+const returnedStatuses: ParcelStatus[] = ["returned_to_merchant"];
 
 function getStatusVariant(status: ParcelStatus) {
   if (status === "delivered") {
@@ -80,11 +83,15 @@ function getTabStatuses(tab: RiderParcelTab) {
     return deliveredStatuses;
   }
 
+  if (tab === "returned") {
+    return returnedStatuses;
+  }
+
   return toDeliverStatuses;
 }
 
 function isRiderParcelTab(value: string): value is RiderParcelTab {
-  return value === "to_deliver" || value === "delivered";
+  return value === "to_deliver" || value === "delivered" || value === "returned";
 }
 
 export function RiderParcelCardList({
@@ -133,6 +140,8 @@ export function RiderParcelCardList({
       to_deliver: parcels.filter((parcel) => getTabStatuses("to_deliver").includes(parcel.status))
         .length,
       delivered: parcels.filter((parcel) => getTabStatuses("delivered").includes(parcel.status))
+        .length,
+      returned: parcels.filter((parcel) => getTabStatuses("returned").includes(parcel.status))
         .length,
     }),
     [parcels],
@@ -300,6 +309,25 @@ export function RiderParcelCardList({
     });
   }
 
+  function submitReturnToMerchant(parcelId: string) {
+    setSubmissionState(null);
+    startTransition(async () => {
+      const result = await markRiderParcelReturnedToMerchantAction({ parcelId });
+
+      setSubmissionState({
+        kind: result.ok ? "success" : "error",
+        message: result.message,
+      });
+
+      if (!result.ok) {
+        return;
+      }
+
+      setExpandedParcelId((current) => (current === parcelId ? null : current));
+      router.refresh();
+    });
+  }
+
   function openFailureDialog(parcel: ParcelListItemDto) {
     setSubmissionState(null);
     setFailureNotePendingAction(null);
@@ -430,6 +458,7 @@ export function RiderParcelCardList({
             const hasFailureNote = parcel.activeFailureNote !== null;
             const showDeliveryActions = parcel.status === "on_the_way" && !hasFailureNote;
             const showFailureNoteAction = parcel.status === "on_the_way" && hasFailureNote;
+            const showReturnAction = parcel.status === "canceled_returned";
 
             return (
               <Card
@@ -552,6 +581,18 @@ export function RiderParcelCardList({
                             onClick={() => openFailureDialog(parcel)}
                           >
                             View Failure Note
+                          </Button>
+                        ) : null}
+
+                        {showReturnAction ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={isPending}
+                            className="flex-1"
+                            onClick={() => submitReturnToMerchant(parcel.id)}
+                          >
+                            Return to Merchant
                           </Button>
                         ) : null}
                       </div>
