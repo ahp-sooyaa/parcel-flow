@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import type { ParcelFailureNoteEntry } from "@/features/parcels/server/failure-notes";
 import type { ParcelStatus, ParcelType } from "@/lib/domain";
 
 function isNonNegativeIntegerString(value: string) {
@@ -93,7 +94,8 @@ export type ParcelListItemDto = {
   receiverPhoneNumber: string;
   receiverAddress: string;
   specialNotes: string | null;
-  deliveryFailureNote: string | null;
+  failureNotes: ParcelFailureNoteEntry[];
+  activeFailureNote: ParcelFailureNoteEntry | null;
   townshipName: string;
   codAmount: number;
   deliveryFee: number;

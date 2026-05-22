@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { and, eq } from "drizzle-orm";
 
 import { financialItems, parcels, parcelStatusLogs } from "@/db/schema";
+import { appendActiveParcelFailureNote } from "@/features/parcels/server/failure-notes";
 import { cleanupTestRecords } from "../fixtures/cleanup";
 import { createTestDatabase } from "../fixtures/db";
 import {
@@ -255,7 +256,7 @@ describe("persistence integration coverage", () => {
 
     const { createParcel } = await import("@/features/parcels/server/dal");
 
-    await expect(
+    await expectPromiseToRejectWith(
       createParcel({
         merchantId: crypto.randomUUID(),
         townshipId: township.id,
@@ -269,7 +270,8 @@ describe("persistence integration coverage", () => {
         isLargeParcel: false,
         createdBy: creator.id,
       }),
-    ).rejects.toThrow("Merchant was not found.");
+      "Merchant was not found.",
+    );
   });
 
   test("rejects parcel creation when the township is inactive", async () => {
@@ -282,7 +284,7 @@ describe("persistence integration coverage", () => {
 
     const { createParcel } = await import("@/features/parcels/server/dal");
 
-    await expect(
+    await expectPromiseToRejectWith(
       createParcel({
         merchantId: merchantSeed.merchant.id,
         townshipId: township.id,
@@ -296,7 +298,8 @@ describe("persistence integration coverage", () => {
         isLargeParcel: false,
         createdBy: creator.id,
       }),
-    ).rejects.toThrow("Active township was not found.");
+      "Active township was not found.",
+    );
   });
 
   test("rejects parcel assignment when the rider is inactive", async () => {
@@ -315,12 +318,13 @@ describe("persistence integration coverage", () => {
 
     const { assignParcelsToRider } = await import("@/features/parcels/server/dal");
 
-    await expect(
+    await expectPromiseToRejectWith(
       assignParcelsToRider({
         riderId: inactiveRiderSeed.rider.id,
         parcelIds: [parcelSeed.parcel.id],
       }),
-    ).rejects.toThrow("Active rider was not found.");
+      "Active rider was not found.",
+    );
   });
 
   test("rejects parcel assignment when any selected parcel is missing or ineligible", async () => {
@@ -348,19 +352,21 @@ describe("persistence integration coverage", () => {
 
     const { assignParcelsToRider } = await import("@/features/parcels/server/dal");
 
-    await expect(
+    await expectPromiseToRejectWith(
       assignParcelsToRider({
         riderId: riderSeed.rider.id,
         parcelIds: [parcelSeed.parcel.id, crypto.randomUUID()],
       }),
-    ).rejects.toThrow("One or more selected parcels were not found.");
+      "One or more selected parcels were not found.",
+    );
 
-    await expect(
+    await expectPromiseToRejectWith(
       assignParcelsToRider({
         riderId: riderSeed.rider.id,
         parcelIds: [deliveredParcelSeed.parcel.id],
       }),
-    ).rejects.toThrow("Only unassigned at-office, postponed, or returned parcels can be assigned.");
+      "Only unassigned at-office, postponed, or returned parcels can be assigned.",
+    );
   });
 
   test("summarizes assigned active collections only", async () => {
@@ -472,11 +478,49 @@ describe("persistence integration coverage", () => {
     expect(updatedParcel).toMatchObject({
       status: "on_the_way",
       riderId: riderSeed.rider.id,
-      deliveryFailureNote: "Receiver was not available.",
+      deliveryFailureNote: appendActiveParcelFailureNote([], "Receiver was not available."),
       collectedAmount: 0,
     });
     expect(updatedParcel.deliveredAt).toBeNull();
     expect(relatedFinancialItems).toHaveLength(0);
+  });
+
+  test("rejects duplicate active rider failure notes for the same parcel", async () => {
+    const parcelSeed = await seedTestParcel(testDb.db, { status: "on_the_way" });
+    const riderSeed = await seedTestRider(testDb.db);
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.userIds.push(
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+      riderSeed.user?.id ?? "",
+    );
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+    seededIds.townshipIds.push(parcelSeed.township.id, riderSeed.township.id);
+    seededIds.riderIds.push(riderSeed.rider.id);
+
+    await testDb.db
+      .update(parcels)
+      .set({ riderId: riderSeed.rider.id })
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+
+    const { reportDeliveryFailureForRiderParcel } = await import("@/features/parcels/server/dal");
+
+    await reportDeliveryFailureForRiderParcel({
+      parcelId: parcelSeed.parcel.id,
+      note: "Receiver was not available.",
+      riderUserId: riderSeed.user?.id ?? "",
+      actorRole: "rider",
+    });
+
+    await expectPromiseToRejectWith(
+      reportDeliveryFailureForRiderParcel({
+        parcelId: parcelSeed.parcel.id,
+        note: "Receiver asked for tomorrow.",
+        riderUserId: riderSeed.user?.id ?? "",
+        actorRole: "rider",
+      }),
+      "This parcel already has an active failure note.",
+    );
   });
 
   test("admin postpones failed parcel and clears rider assignment without financial side effects", async () => {
@@ -531,6 +575,12 @@ describe("persistence integration coverage", () => {
       .where(eq(parcelStatusLogs.parcelId, parcelSeed.parcel.id));
 
     expect(updatedParcel).toMatchObject({
+      deliveryFailureNote: [
+        {
+          note: "Receiver asked to deliver tomorrow.",
+          status: "inactive",
+        },
+      ],
       status: "postpone",
       riderId: null,
       assignedAt: null,
@@ -597,6 +647,12 @@ describe("persistence integration coverage", () => {
       .where(eq(financialItems.parcelId, parcelSeed.parcel.id));
 
     expect(updatedParcel).toMatchObject({
+      deliveryFailureNote: [
+        {
+          note: "Receiver refused the parcel.",
+          status: "inactive",
+        },
+      ],
       status: "canceled_returned",
       riderId: null,
       assignedAt: null,
@@ -907,7 +963,7 @@ describe("persistence integration coverage", () => {
       serviceTownshipId: townshipB.id,
     });
     const riderRow = await testDb.db.query.riders.findFirst({
-      where: (riders, { eq }) => eq(riders.userId, user.id),
+      where: (riders, { eq: equals }) => equals(riders.userId, user.id),
     });
 
     if (riderRow) {

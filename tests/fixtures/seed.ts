@@ -1,6 +1,7 @@
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
 import * as schema from "@/db/schema";
+import { appendActiveParcelFailureNote } from "@/features/parcels/server/failure-notes";
 import {
   appUsers,
   bankAccounts,
@@ -116,7 +117,8 @@ export async function seedTestRider(
 
 export async function seedTestParcel(
   db: TestDb,
-  overrides: Partial<typeof parcels.$inferInsert> & {
+  overrides: Omit<Partial<typeof parcels.$inferInsert>, "deliveryFailureNote"> & {
+    deliveryFailureNote?: typeof parcels.$inferInsert.deliveryFailureNote | string | null;
     merchantId?: string;
     townshipId?: string;
     createdBy?: string;
@@ -149,7 +151,10 @@ export async function seedTestParcel(
       codAmount: overrides.codAmount ?? 10_000,
       deliveryFee: overrides.deliveryFee ?? 2_000,
       weightKg: overrides.weightKg ?? "3",
-      deliveryFailureNote: overrides.deliveryFailureNote,
+      deliveryFailureNote:
+        typeof overrides.deliveryFailureNote === "string"
+          ? appendActiveParcelFailureNote([], overrides.deliveryFailureNote)
+          : overrides.deliveryFailureNote,
       status: overrides.status ?? "at_office",
       createdBy,
     })

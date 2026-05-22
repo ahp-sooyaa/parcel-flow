@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { buildParcelListItem } from "../fixtures/builders";
+import { buildParcelFailureNoteEntry, buildParcelListItem } from "../fixtures/builders";
 
 const postponeFailedParcelActionMock = mock(async () => ({
   ok: true,
@@ -108,7 +108,7 @@ describe("ParcelTable", async () => {
       parcelCode: "PF-FAILED",
       status: "on_the_way",
       riderName: "Ko Rider",
-      deliveryFailureNote: "Receiver was not available.",
+      failureNotes: [buildParcelFailureNoteEntry({ note: "Receiver was not available." })],
       hasUnresolvedFailureReview: true,
     });
 
@@ -132,7 +132,7 @@ describe("ParcelTable", async () => {
             parcelCode: "PF-FAILED",
             status: "on_the_way",
             riderName: "Ko Rider",
-            deliveryFailureNote: "Receiver was not available.",
+            failureNotes: [buildParcelFailureNoteEntry({ note: "Receiver was not available." })],
             hasUnresolvedFailureReview: true,
           }),
         ]}
@@ -165,7 +165,7 @@ describe("ParcelTable", async () => {
             parcelCode: "PF-FAILED",
             status: "on_the_way",
             riderName: "Ko Rider",
-            deliveryFailureNote: "Receiver was not available.",
+            failureNotes: [buildParcelFailureNoteEntry({ note: "Receiver was not available." })],
             hasUnresolvedFailureReview: true,
           }),
         ]}

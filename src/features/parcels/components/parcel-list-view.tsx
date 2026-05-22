@@ -28,19 +28,25 @@ import { parcelStatusLabels, parcelStatuses, type ParcelStatus } from "@/lib/dom
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-type AssignmentFilter = "all" | "unassigned" | "assigned";
+type AssignmentFilter = "all" | "unassigned" | "assigned" | "need_review";
 type TownshipOption = { value: string; label: string };
 
 const assignmentFilterLabels: Record<AssignmentFilter, string> = {
   all: "All",
   unassigned: "Unassigned",
   assigned: "Assigned",
+  need_review: "Need review",
 };
 
-const assignmentFilters = ["all", "unassigned", "assigned"] as const;
+const assignmentFilters = ["all", "unassigned", "assigned", "need_review"] as const;
 
 function isAssignmentFilter(value: string): value is AssignmentFilter {
-  return value === "all" || value === "unassigned" || value === "assigned";
+  return (
+    value === "all" ||
+    value === "unassigned" ||
+    value === "assigned" ||
+    value === "need_review"
+  );
 }
 
 export function ParcelListView({
@@ -141,6 +147,7 @@ export function ParcelListView({
     all: parcels.length,
     unassigned: parcels.filter((parcel) => parcel.riderName === null).length,
     assigned: parcels.filter((parcel) => parcel.riderName !== null).length,
+    need_review: parcels.filter((parcel) => parcel.activeFailureNote !== null).length,
   };
 
   const normalizedSearchTerm = searchTerm.trim().toLowerCase();
@@ -151,6 +158,10 @@ export function ParcelListView({
     }
 
     if (assignmentFilter === "assigned" && parcel.riderName === null) {
+      return false;
+    }
+
+    if (assignmentFilter === "need_review" && parcel.activeFailureNote === null) {
       return false;
     }
 

@@ -1,6 +1,7 @@
 import type { CurrentUser } from "@/lib/session";
 import { userRoles } from "@/lib/domain";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
+import type { ParcelFailureNoteEntry } from "@/features/parcels/server/failure-notes";
 import type { RiderListItemDto } from "@/features/riders/server/dto";
 import type { UserListItemDto } from "@/features/users/server/dto";
 
@@ -60,6 +61,12 @@ export function buildUserListItem(overrides: Partial<UserListItemDto> = {}): Use
 }
 
 export function buildParcelListItem(overrides: Partial<ParcelListItemDto> = {}): ParcelListItemDto {
+  const failureNotes = overrides.failureNotes ?? [];
+  const activeFailureNote =
+    overrides.activeFailureNote ??
+    failureNotes.toReversed().find((note) => note.status === "active") ??
+    null;
+
   return {
     id: overrides.id ?? uniqueTestId("parcel"),
     parcelCode: overrides.parcelCode ?? "PF-000001-000001",
@@ -68,7 +75,8 @@ export function buildParcelListItem(overrides: Partial<ParcelListItemDto> = {}):
     receiverPhoneNumber: overrides.receiverPhoneNumber ?? "09123456789",
     receiverAddress: overrides.receiverAddress ?? "Receiver address",
     specialNotes: overrides.specialNotes ?? null,
-    deliveryFailureNote: overrides.deliveryFailureNote ?? null,
+    failureNotes,
+    activeFailureNote,
     townshipName: overrides.townshipName ?? "Test Township",
     codAmount: overrides.codAmount ?? 10_000,
     deliveryFee: overrides.deliveryFee ?? 2_000,
@@ -77,6 +85,15 @@ export function buildParcelListItem(overrides: Partial<ParcelListItemDto> = {}):
     riderName: overrides.riderName ?? null,
     hasUnresolvedFailureReview: overrides.hasUnresolvedFailureReview ?? false,
     createdAt: overrides.createdAt ?? "2026-01-01",
+  };
+}
+
+export function buildParcelFailureNoteEntry(
+  overrides: Partial<ParcelFailureNoteEntry> = {},
+): ParcelFailureNoteEntry {
+  return {
+    note: overrides.note ?? "Receiver was not available.",
+    status: overrides.status ?? "active",
   };
 }
 

@@ -184,7 +184,12 @@ export const parcels = pgTable(
     parcelHeightCm: numeric("parcel_height_cm", { precision: 10, scale: 2 }),
     parcelLengthCm: numeric("parcel_length_cm", { precision: 10, scale: 2 }),
     specialNotes: text("special_notes"),
-    deliveryFailureNote: text("delivery_failure_note"),
+    deliveryFailureNote: jsonb("delivery_failure_note").$type<
+      {
+        note: string;
+        status: "active" | "inactive";
+      }[]
+    >(),
     status: text("status").default("at_office").notNull(),
     collectedAmount: integer("collected_amount").default(0).notNull(),
     codStatus: text("cod_status").default("pending").notNull(),

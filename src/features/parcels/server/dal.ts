@@ -17,6 +17,13 @@ import type {
   ParcelSummaryDto,
 } from "@/features/parcels/server/dto";
 import {
+  appendActiveParcelFailureNote,
+  deactivateLatestActiveParcelFailureNote,
+  getActiveParcelFailureNote,
+  parseParcelFailureNotes,
+  removeLatestActiveParcelFailureNote,
+} from "@/features/parcels/server/failure-notes";
+import {
   calculateAmountToCollect,
   generateParcelCode,
   isActiveCollectionStatus,
@@ -36,7 +43,7 @@ function mapParcel(row: {
   receiverPhoneNumber: string;
   receiverAddress: string;
   specialNotes: string | null;
-  deliveryFailureNote: string | null;
+  deliveryFailureNote: unknown;
   townshipName: string;
   codAmount: number;
   deliveryFee: number;
@@ -46,6 +53,9 @@ function mapParcel(row: {
   status: string;
   createdAt: Date;
 }): ParcelListItemDto {
+  const failureNotes = parseParcelFailureNotes(row.deliveryFailureNote);
+  const activeFailureNote = getActiveParcelFailureNote(failureNotes);
+
   return {
     id: row.id,
     parcelCode: row.parcelCode,
@@ -54,17 +64,15 @@ function mapParcel(row: {
     receiverPhoneNumber: row.receiverPhoneNumber,
     receiverAddress: row.receiverAddress,
     specialNotes: row.specialNotes,
-    deliveryFailureNote: row.deliveryFailureNote,
+    failureNotes,
+    activeFailureNote,
     townshipName: row.townshipName,
     codAmount: row.codAmount,
     deliveryFee: row.deliveryFee,
     proofOfDeliveryImagesKeys: row.proofOfDeliveryImagesKeys ?? [],
     riderName: row.riderName,
     status: parcelStatusSchema.parse(row.status),
-    hasUnresolvedFailureReview:
-      row.status === "on_the_way" &&
-      row.riderId !== null &&
-      (row.deliveryFailureNote?.trim().length ?? 0) > 0,
+    hasUnresolvedFailureReview: row.status === "on_the_way" && row.riderId !== null && activeFailureNote !== null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -339,12 +347,15 @@ export async function resolveFailedParcelByAdmin(input: {
       throw new Error("Only on-the-way failed parcels can be resolved.");
     }
 
-    if (!parcel.deliveryFailureNote?.trim()) {
-      throw new Error("Failure note is required before resolving a failed parcel.");
-    }
-
     if (parcel.riderId === null) {
       throw new Error("This failure report has already been handled.");
+    }
+
+    const currentFailureNotes = parseParcelFailureNotes(parcel.deliveryFailureNote);
+    const nextFailureNotes = deactivateLatestActiveParcelFailureNote(currentFailureNotes);
+
+    if (!nextFailureNotes) {
+      throw new Error("Failure note is required before resolving a failed parcel.");
     }
 
     const resolvedAt = new Date();
@@ -352,6 +363,7 @@ export async function resolveFailedParcelByAdmin(input: {
     const [resolvedParcel] = await tx
       .update(parcels)
       .set({
+        deliveryFailureNote: nextFailureNotes,
         status: input.targetStatus,
         riderId: null,
         assignedAt: null,
@@ -399,6 +411,7 @@ export async function startDeliveryForRiderParcels(input: {
         id: parcels.id,
         status: parcels.status,
         riderId: parcels.riderId,
+        deliveryFailureNote: parcels.deliveryFailureNote,
       })
       .from(parcels)
       .where(and(inArray(parcels.id, input.parcelIds), isNull(parcels.deletedAt)));
@@ -456,6 +469,7 @@ export async function reportDeliveryFailureForRiderParcel(input: {
         id: parcels.id,
         status: parcels.status,
         riderId: parcels.riderId,
+        deliveryFailureNote: parcels.deliveryFailureNote,
       })
       .from(parcels)
       .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
@@ -473,10 +487,16 @@ export async function reportDeliveryFailureForRiderParcel(input: {
       throw new Error("Only on-the-way parcels can be reported as failed.");
     }
 
+    const currentFailureNotes = parseParcelFailureNotes(parcel.deliveryFailureNote);
+
+    if (getActiveParcelFailureNote(currentFailureNotes)) {
+      throw new Error("This parcel already has an active failure note.");
+    }
+
     await tx
       .update(parcels)
       .set({
-        deliveryFailureNote: input.note,
+        deliveryFailureNote: appendActiveParcelFailureNote(currentFailureNotes, input.note),
         updatedAt: new Date(),
       })
       .where(and(eq(parcels.id, input.parcelId), eq(parcels.riderId, rider.id)));
@@ -509,6 +529,7 @@ export async function deleteDeliveryFailureForRiderParcel(input: {
         id: parcels.id,
         status: parcels.status,
         riderId: parcels.riderId,
+        deliveryFailureNote: parcels.deliveryFailureNote,
       })
       .from(parcels)
       .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
@@ -528,10 +549,17 @@ export async function deleteDeliveryFailureForRiderParcel(input: {
       throw new Error("Only on-the-way parcel failure notes can be deleted.");
     }
 
+    const currentFailureNotes = parseParcelFailureNotes(parcel.deliveryFailureNote);
+    const nextFailureNotes = removeLatestActiveParcelFailureNote(currentFailureNotes);
+
+    if (!nextFailureNotes) {
+      throw new Error("No active failure note was found for this parcel.");
+    }
+
     await tx
       .update(parcels)
       .set({
-        deliveryFailureNote: null,
+        deliveryFailureNote: nextFailureNotes.length > 0 ? nextFailureNotes : null,
         updatedAt: new Date(),
       })
       .where(and(eq(parcels.id, input.parcelId), eq(parcels.riderId, rider.id)));

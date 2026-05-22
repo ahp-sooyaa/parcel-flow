@@ -296,7 +296,7 @@ export function ParcelTable({
           <div className="space-y-2">
             <div className="text-sm font-medium text-foreground">Failure note</div>
             <div className="min-h-20 rounded-lg border bg-secondary/40 p-3 text-sm text-foreground">
-              {failureReviewParcel?.deliveryFailureNote}
+              {failureReviewParcel?.activeFailureNote?.note}
             </div>
             {failureReviewError ? (
               <div className="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">

@@ -11,6 +11,7 @@ import {
   riderServiceTownships,
   townships,
 } from "@/db/schema";
+import { appendActiveParcelFailureNote } from "@/features/parcels/server/failure-notes";
 import { buildInternalEmail, normalizePhoneNumber } from "@/features/users/server/utils";
 import { auth } from "@/lib/auth";
 import type { UserRole } from "@/lib/domain";
@@ -318,7 +319,10 @@ async function upsertSeedParcel(input: {
     deliveryFee: 2_000,
     weightKg: "3",
     status: input.status ?? "at_office",
-    deliveryFailureNote: input.deliveryFailureNote ?? null,
+    deliveryFailureNote:
+      input.deliveryFailureNote === undefined || input.deliveryFailureNote === null
+        ? null
+        : appendActiveParcelFailureNote([], input.deliveryFailureNote),
     codStatus: "pending",
     deliveryFeeStatus: "pending",
     isReceivedByOffice: false,

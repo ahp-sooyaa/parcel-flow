@@ -70,6 +70,8 @@ test("assigns a parcel to a rider and keeps the assignment after refresh", async
 test("reviews a rider failure note and postpones the parcel", async ({ page }) => {
   await page.goto("/dashboard/parcels");
   await page.waitForLoadState("networkidle");
+  await page.getByRole("tab", { name: /need review/i }).click();
+  await expect(page.locator("tr", { hasText: "PF-E2E-SEED-FAILED" })).toBeVisible();
   await page.getByLabel("Review failure note for PF-E2E-SEED-FAILED").click();
 
   await expect(page.getByRole("heading", { name: "Delivery Failure" })).toBeVisible();
@@ -77,6 +79,8 @@ test("reviews a rider failure note and postpones the parcel", async ({ page }) =
 
   await page.getByRole("button", { name: "Postpone" }).click();
   await expect(page.getByRole("heading", { name: "Delivery Failure" })).toBeHidden();
+  await expect(page.locator("tr", { hasText: "PF-E2E-SEED-FAILED" })).toHaveCount(0);
+  await page.getByRole("tab", { name: /^all/i }).click();
   await page.reload();
 
   await expect(page.getByLabel("Review failure note for PF-E2E-SEED-FAILED")).toHaveCount(0);

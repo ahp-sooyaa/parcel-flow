@@ -40,7 +40,6 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ParcelDetailSheet } from "@/features/parcels/components/parcel-detail-sheet";
 import {
-  deleteDeliveryFailureForRiderParcelAction,
   markRiderParcelDeliveredAction,
   reportDeliveryFailureForRiderParcelAction,
   startDeliveryForRiderParcelsAction,
@@ -304,7 +303,7 @@ export function RiderParcelCardList({
   function openFailureDialog(parcel: ParcelListItemDto) {
     setSubmissionState(null);
     setFailureNotePendingAction(null);
-    setFailureNote(parcel.deliveryFailureNote ?? "");
+    setFailureNote(parcel.activeFailureNote?.note ?? "");
     setFailureParcel(parcel);
   }
 
@@ -337,34 +336,6 @@ export function RiderParcelCardList({
       const result = await reportDeliveryFailureForRiderParcelAction({
         parcelId: failureParcel.id,
         note: failureNote,
-      });
-
-      setSubmissionState({
-        kind: result.ok ? "success" : "error",
-        message: result.message,
-      });
-      setFailureNotePendingAction(null);
-
-      if (!result.ok) {
-        return;
-      }
-
-      setFailureParcel(null);
-      setFailureNote("");
-      router.refresh();
-    });
-  }
-
-  function deleteFailureReport() {
-    if (!failureParcel) {
-      return;
-    }
-
-    setSubmissionState(null);
-    setFailureNotePendingAction("delete");
-    startTransition(async () => {
-      const result = await deleteDeliveryFailureForRiderParcelAction({
-        parcelId: failureParcel.id,
       });
 
       setSubmissionState({
@@ -456,7 +427,7 @@ export function RiderParcelCardList({
             const isSelected = selectedParcelIds.includes(parcel.id);
             const isSelectable = parcel.status === "at_office";
             const amountToCollect = parcel.codAmount + parcel.deliveryFee;
-            const hasFailureNote = Boolean(parcel.deliveryFailureNote);
+            const hasFailureNote = parcel.activeFailureNote !== null;
             const showDeliveryActions = parcel.status === "on_the_way" && !hasFailureNote;
             const showFailureNoteAction = parcel.status === "on_the_way" && hasFailureNote;
 
@@ -826,10 +797,10 @@ export function RiderParcelCardList({
         }}
       >
         <DialogContent>
-          <form className="space-y-5" onSubmit={submitFailureReport}>
+              <form className="space-y-5" onSubmit={submitFailureReport}>
             <DialogHeader>
               <DialogTitle>
-                {failureParcel?.deliveryFailureNote ? "Failure Note" : "Report Failure"}
+                {failureParcel?.activeFailureNote ? "Failure Note" : "Report Failure"}
               </DialogTitle>
               <DialogDescription>
                 {failureParcel?.parcelCode} · {failureParcel?.receiverName}
@@ -840,33 +811,34 @@ export function RiderParcelCardList({
 
             <div className="space-y-2">
               <Label htmlFor={failureNoteId}>Failure note</Label>
-              <Textarea
-                id={failureNoteId}
-                value={failureNote}
-                onChange={(event) => setFailureNote(event.target.value)}
-                minLength={1}
-                required
-                disabled={isPending}
-                placeholder="Write what happened during delivery"
-                className="min-h-32"
-              />
+              {failureParcel?.activeFailureNote ? (
+                <div className="min-h-32 rounded-lg border bg-secondary/40 px-3 py-2 text-sm text-foreground">
+                  {failureNote}
+                </div>
+              ) : (
+                <Textarea
+                  id={failureNoteId}
+                  value={failureNote}
+                  onChange={(event) => setFailureNote(event.target.value)}
+                  minLength={1}
+                  required
+                  disabled={isPending}
+                  placeholder="Write what happened during delivery"
+                  className="min-h-32"
+                />
+              )}
             </div>
 
             <DialogFooter>
-              {failureParcel?.deliveryFailureNote ? (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  disabled={isPending}
-                  onClick={deleteFailureReport}
-                >
-                  {failureNotePendingAction === "delete" ? "Deleting..." : "Delete"}
+              {failureParcel?.activeFailureNote ? (
+                <Button type="button" onClick={() => setFailureParcel(null)}>
+                  Close
                 </Button>
-              ) : null}
-
-              <Button type="submit" disabled={isPending}>
-                {failureNotePendingAction === "save" ? "Saving..." : "Save"}
-              </Button>
+              ) : (
+                <Button type="submit" disabled={isPending}>
+                  {failureNotePendingAction === "save" ? "Saving..." : "Save"}
+                </Button>
+              )}
             </DialogFooter>
           </form>
         </DialogContent>

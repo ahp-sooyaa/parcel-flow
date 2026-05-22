@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { buildParcelListItem } from "../fixtures/builders";
+import { buildParcelFailureNoteEntry, buildParcelListItem } from "../fixtures/builders";
 
 const refreshMock = mock(() => undefined);
 const startDeliveryForRiderParcelsActionMock = mock(async () => ({
@@ -12,10 +12,6 @@ const startDeliveryForRiderParcelsActionMock = mock(async () => ({
 const reportDeliveryFailureForRiderParcelActionMock = mock(async () => ({
   ok: true,
   message: "Delivery failure reported.",
-}));
-const deleteDeliveryFailureForRiderParcelActionMock = mock(async () => ({
-  ok: true,
-  message: "Delivery failure note deleted.",
 }));
 let deliveredActionInput: unknown;
 const markRiderParcelDeliveredActionMock = mock(async (input: unknown) => {
@@ -34,7 +30,6 @@ void mock.module("@/lib/client-navigation", () => ({
 }));
 
 void mock.module("@/features/parcels/server/actions", () => ({
-  deleteDeliveryFailureForRiderParcelAction: deleteDeliveryFailureForRiderParcelActionMock,
   markRiderParcelDeliveredAction: markRiderParcelDeliveredActionMock,
   reportDeliveryFailureForRiderParcelAction: reportDeliveryFailureForRiderParcelActionMock,
   startDeliveryForRiderParcelsAction: startDeliveryForRiderParcelsActionMock,
@@ -48,7 +43,6 @@ describe("RiderParcelCardList", async () => {
     refreshMock.mockReset();
     startDeliveryForRiderParcelsActionMock.mockReset();
     reportDeliveryFailureForRiderParcelActionMock.mockReset();
-    deleteDeliveryFailureForRiderParcelActionMock.mockReset();
     markRiderParcelDeliveredActionMock.mockReset();
     deliveredActionInput = undefined;
     startDeliveryForRiderParcelsActionMock.mockResolvedValue({
@@ -58,10 +52,6 @@ describe("RiderParcelCardList", async () => {
     reportDeliveryFailureForRiderParcelActionMock.mockResolvedValue({
       ok: true,
       message: "Delivery failure reported.",
-    });
-    deleteDeliveryFailureForRiderParcelActionMock.mockResolvedValue({
-      ok: true,
-      message: "Delivery failure note deleted.",
     });
     markRiderParcelDeliveredActionMock.mockImplementation(async (input: unknown) => {
       deliveredActionInput = input;
@@ -113,7 +103,7 @@ describe("RiderParcelCardList", async () => {
             id: "00000000-0000-4000-8000-000000000001",
             parcelCode: "PF-NOTE",
             status: "on_the_way",
-            deliveryFailureNote: "Receiver asked to call tomorrow.",
+            failureNotes: [buildParcelFailureNoteEntry({ note: "Receiver asked to call tomorrow." })],
           }),
         ]}
       />,
@@ -126,10 +116,10 @@ describe("RiderParcelCardList", async () => {
 
     await user.click(screen.getByRole("button", { name: "View Failure Note" }));
     expect(screen.getByRole("heading", { name: "Failure Note" })).toBeTruthy();
-    expect(screen.getByDisplayValue("Receiver asked to call tomorrow.")).toBeTruthy();
+    expect(screen.getByText("Receiver asked to call tomorrow.")).toBeTruthy();
   });
 
-  test("edits and deletes an existing failure note", async () => {
+  test("shows existing active failure note in review mode without save controls", async () => {
     const user = userEvent.setup();
     render(
       <RiderParcelCardList
@@ -138,7 +128,7 @@ describe("RiderParcelCardList", async () => {
             id: "00000000-0000-4000-8000-000000000001",
             parcelCode: "PF-NOTE",
             status: "on_the_way",
-            deliveryFailureNote: "Receiver asked to call tomorrow.",
+            failureNotes: [buildParcelFailureNoteEntry({ note: "Receiver asked to call tomorrow." })],
           }),
         ]}
       />,
@@ -147,30 +137,10 @@ describe("RiderParcelCardList", async () => {
     await user.click(screen.getByText("Receiver"));
     await user.click(screen.getByRole("button", { name: "View Failure Note" }));
 
-    const noteInput = screen.getByLabelText("Failure note");
-
-    await user.clear(noteInput);
-    await user.type(noteInput, "Receiver is out of town.");
-    await user.click(screen.getByRole("button", { name: "Save" }));
-
-    await waitFor(() => {
-      expect(reportDeliveryFailureForRiderParcelActionMock).toHaveBeenCalledWith({
-        parcelId: "00000000-0000-4000-8000-000000000001",
-        note: "Receiver is out of town.",
-      });
-    });
-
-    expect(await screen.findByText("Delivery failure reported.")).toBeTruthy();
-
-    await user.click(screen.getByRole("button", { name: "View Failure Note" }));
-    await user.click(screen.getByRole("button", { name: "Delete" }));
-
-    await waitFor(() => {
-      expect(deleteDeliveryFailureForRiderParcelActionMock).toHaveBeenCalledWith({
-        parcelId: "00000000-0000-4000-8000-000000000001",
-      });
-    });
-    expect(await screen.findByText("Delivery failure note deleted.")).toBeTruthy();
+    expect(screen.getByText("Receiver asked to call tomorrow.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Close" }).length).toBeGreaterThan(0);
   });
 
   test("opens mark delivered dialog, previews proof, and submits form data", async () => {
