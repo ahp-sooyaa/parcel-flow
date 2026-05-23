@@ -12,7 +12,7 @@ const officeAdminAllowedTransitions = new Set<StatusTransition>([
   "on_the_way->delivered",
   "on_the_way->postpone",
   "on_the_way->canceled_returned",
-  "postpone->on_the_way",
+  "postpone->at_office",
   "postpone->canceled_returned",
   "canceled_returned->returned_to_merchant",
 ]);

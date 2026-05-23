@@ -15,6 +15,7 @@ import type {
   CreateParcelInputDto,
   ParcelListItemDto,
   ParcelSummaryDto,
+  UpdateParcelInputDto,
 } from "@/features/parcels/server/dto";
 import {
   appendActiveParcelFailureNote,
@@ -22,6 +23,7 @@ import {
   getActiveParcelFailureNote,
   parseParcelFailureNotes,
   removeLatestActiveParcelFailureNote,
+  updateLatestActiveParcelFailureNote,
 } from "@/features/parcels/server/failure-notes";
 import {
   calculateAmountToCollect,
@@ -38,15 +40,22 @@ const assignmentEligibleStatuses = ["at_office", "postpone", "canceled_returned"
 function mapParcel(row: {
   id: string;
   parcelCode: string;
+  merchantId: string;
   merchantName: string;
   receiverName: string;
   receiverPhoneNumber: string;
   receiverAddress: string;
   specialNotes: string | null;
   deliveryFailureNote: unknown;
+  townshipId: string;
   townshipName: string;
+  parcelType: string;
   codAmount: number;
   deliveryFee: number;
+  weightKg: string;
+  parcelWidthCm: string | null;
+  parcelHeightCm: string | null;
+  parcelLengthCm: string | null;
   proofOfDeliveryImagesKeys: string[] | null;
   riderId: string | null;
   riderName: string | null;
@@ -59,20 +68,29 @@ function mapParcel(row: {
   return {
     id: row.id,
     parcelCode: row.parcelCode,
+    merchantId: row.merchantId,
     merchantName: row.merchantName,
+    riderId: row.riderId,
     receiverName: row.receiverName,
     receiverPhoneNumber: row.receiverPhoneNumber,
     receiverAddress: row.receiverAddress,
     specialNotes: row.specialNotes,
     failureNotes,
     activeFailureNote,
+    townshipId: row.townshipId,
     townshipName: row.townshipName,
+    parcelType: row.parcelType === "non_cod" ? "non_cod" : "cod",
     codAmount: row.codAmount,
     deliveryFee: row.deliveryFee,
+    weightKg: Number(row.weightKg),
+    parcelWidthCm: row.parcelWidthCm === null ? null : Number(row.parcelWidthCm),
+    parcelHeightCm: row.parcelHeightCm === null ? null : Number(row.parcelHeightCm),
+    parcelLengthCm: row.parcelLengthCm === null ? null : Number(row.parcelLengthCm),
     proofOfDeliveryImagesKeys: row.proofOfDeliveryImagesKeys ?? [],
     riderName: row.riderName,
     status: parcelStatusSchema.parse(row.status),
-    hasUnresolvedFailureReview: row.status === "on_the_way" && row.riderId !== null && activeFailureNote !== null,
+    hasUnresolvedFailureReview:
+      row.status === "on_the_way" && row.riderId !== null && activeFailureNote !== null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -97,15 +115,22 @@ async function listParcelsByScope(scope: {
     .select({
       id: parcels.id,
       parcelCode: parcels.parcelCode,
+      merchantId: parcels.merchantId,
       merchantName: merchants.shopName,
       receiverName: parcels.receiverName,
       receiverPhoneNumber: parcels.receiverPhoneNumber,
       receiverAddress: parcels.receiverAddress,
       specialNotes: parcels.specialNotes,
       deliveryFailureNote: parcels.deliveryFailureNote,
+      townshipId: parcels.townshipId,
       townshipName: townships.name,
+      parcelType: parcels.parcelType,
       codAmount: parcels.codAmount,
       deliveryFee: parcels.deliveryFee,
+      weightKg: parcels.weightKg,
+      parcelWidthCm: parcels.parcelWidthCm,
+      parcelHeightCm: parcels.parcelHeightCm,
+      parcelLengthCm: parcels.parcelLengthCm,
       proofOfDeliveryImagesKeys: parcels.proofOfDeliveryImagesKeys,
       riderId: parcels.riderId,
       riderName: appUsers.name,
@@ -237,6 +262,69 @@ export async function createParcel(input: CreateParcelInputDto & { createdBy: st
   }
 
   throw new Error("Unable to generate a unique parcel code.");
+}
+
+export async function updateParcel(
+  input: UpdateParcelInputDto,
+) {
+  await db.transaction(async (tx) => {
+    const [existingParcel] = await tx
+      .select({
+        id: parcels.id,
+        status: parcels.status,
+        riderId: parcels.riderId,
+        assignedAt: parcels.assignedAt,
+        deliveryFailureNote: parcels.deliveryFailureNote,
+      })
+      .from(parcels)
+      .where(and(eq(parcels.id, input.id), isNull(parcels.deletedAt)))
+      .limit(1);
+
+    if (!existingParcel) {
+      throw new Error("Parcel was not found.");
+    }
+
+    const [merchant] = await tx
+      .select({ id: merchants.id })
+      .from(merchants)
+      .where(eq(merchants.id, input.merchantId))
+      .limit(1);
+
+    if (!merchant) {
+      throw new Error("Merchant was not found.");
+    }
+
+    const [township] = await tx
+      .select({ id: townships.id })
+      .from(townships)
+      .where(and(eq(townships.id, input.townshipId), eq(townships.isActive, true)))
+      .limit(1);
+
+    if (!township) {
+      throw new Error("Active township was not found.");
+    }
+
+    await tx
+      .update(parcels)
+      .set({
+        merchantId: input.merchantId,
+        townshipId: input.townshipId,
+        receiverName: input.receiverName,
+        receiverPhoneNumber: input.receiverPhoneNumber,
+        receiverAddress: input.receiverAddress,
+        specialNotes: input.specialNotes ?? null,
+        parcelType: input.parcelType,
+        codAmount: input.codAmount,
+        deliveryFee: input.deliveryFee,
+        weightKg: String(input.weightKg),
+        isLargeParcel: input.isLargeParcel,
+        parcelWidthCm: input.parcelWidthCm === undefined ? null : String(input.parcelWidthCm),
+        parcelHeightCm: input.parcelHeightCm === undefined ? null : String(input.parcelHeightCm),
+        parcelLengthCm: input.parcelLengthCm === undefined ? null : String(input.parcelLengthCm),
+        updatedAt: new Date(),
+      })
+      .where(eq(parcels.id, input.id));
+  });
 }
 
 export async function assignParcelsToRider(input: {
@@ -497,6 +585,68 @@ export async function reportDeliveryFailureForRiderParcel(input: {
       .update(parcels)
       .set({
         deliveryFailureNote: appendActiveParcelFailureNote(currentFailureNotes, input.note),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(parcels.id, input.parcelId), eq(parcels.riderId, rider.id)));
+  });
+}
+
+export async function updateDeliveryFailureForRiderParcel(input: {
+  parcelId: string;
+  note: string;
+  riderUserId: string;
+  actorRole: "rider";
+}) {
+  if (input.actorRole !== "rider") {
+    throw new Error("You do not have permission to update delivery failure notes.");
+  }
+
+  await db.transaction(async (tx) => {
+    const [rider] = await tx
+      .select({ id: riders.id, userIsActive: appUsers.isActive })
+      .from(riders)
+      .innerJoin(appUsers, eq(appUsers.id, riders.userId))
+      .where(eq(riders.userId, input.riderUserId))
+      .limit(1);
+
+    if (!rider?.userIsActive) {
+      throw new Error("Active rider profile was not found.");
+    }
+
+    const [parcel] = await tx
+      .select({
+        id: parcels.id,
+        status: parcels.status,
+        riderId: parcels.riderId,
+        deliveryFailureNote: parcels.deliveryFailureNote,
+      })
+      .from(parcels)
+      .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
+      .limit(1);
+
+    if (!parcel) {
+      throw new Error("Parcel was not found.");
+    }
+
+    if (parcel.riderId !== rider.id) {
+      throw new Error("You can only update failure notes for parcels assigned to your rider account.");
+    }
+
+    if (parcel.status !== "on_the_way") {
+      throw new Error("Only on-the-way parcel failure notes can be updated.");
+    }
+
+    const currentFailureNotes = parseParcelFailureNotes(parcel.deliveryFailureNote);
+    const nextFailureNotes = updateLatestActiveParcelFailureNote(currentFailureNotes, input.note);
+
+    if (!nextFailureNotes) {
+      throw new Error("No active failure note was found for this parcel.");
+    }
+
+    await tx
+      .update(parcels)
+      .set({
+        deliveryFailureNote: nextFailureNotes,
         updatedAt: new Date(),
       })
       .where(and(eq(parcels.id, input.parcelId), eq(parcels.riderId, rider.id)));

@@ -142,7 +142,7 @@ describe("ParcelTable", async () => {
     await user.click(screen.getByLabelText("Review failure note for PF-FAILED"));
 
     expect(screen.getByRole("heading", { name: "Delivery Failure" })).toBeTruthy();
-    expect(screen.getByText("Receiver was not available.")).toBeTruthy();
+    expect(screen.getByDisplayValue("Receiver was not available.")).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "Postpone" }));
 

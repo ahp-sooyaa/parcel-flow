@@ -1,6 +1,11 @@
 import { randomInt } from "node:crypto";
 
-import type { CreateParcelFormInputDto, CreateParcelInputDto } from "@/features/parcels/server/dto";
+import type {
+  CreateParcelFormInputDto,
+  CreateParcelInputDto,
+  UpdateParcelFormInputDto,
+  UpdateParcelInputDto,
+} from "@/features/parcels/server/dto";
 import type { ParcelStatus } from "@/lib/domain";
 
 function optionalNumberFromInput(value: string) {
@@ -9,8 +14,8 @@ function optionalNumberFromInput(value: string) {
   return trimmedValue.length > 0 ? Number(trimmedValue) : undefined;
 }
 
-export function mapCreateParcelFormInputToCreateParcelInput(
-  input: CreateParcelFormInputDto,
+function mapParcelFormInputToBaseParcelInput(
+  input: CreateParcelFormInputDto | UpdateParcelFormInputDto,
 ): CreateParcelInputDto {
   const parcelWidthCm = optionalNumberFromInput(input.dimensions.width);
   const parcelHeightCm = optionalNumberFromInput(input.dimensions.height);
@@ -33,6 +38,21 @@ export function mapCreateParcelFormInputToCreateParcelInput(
     ...(parcelWidthCm !== undefined ? { parcelWidthCm } : {}),
     ...(parcelHeightCm !== undefined ? { parcelHeightCm } : {}),
     ...(parcelLengthCm !== undefined ? { parcelLengthCm } : {}),
+  };
+}
+
+export function mapCreateParcelFormInputToCreateParcelInput(
+  input: CreateParcelFormInputDto,
+): CreateParcelInputDto {
+  return mapParcelFormInputToBaseParcelInput(input);
+}
+
+export function mapUpdateParcelFormInputToUpdateParcelInput(
+  input: UpdateParcelFormInputDto,
+): UpdateParcelInputDto {
+  return {
+    id: input.id,
+    ...mapParcelFormInputToBaseParcelInput(input),
   };
 }
 

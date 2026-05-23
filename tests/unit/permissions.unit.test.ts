@@ -63,7 +63,7 @@ describe("permission utilities", () => {
     expect(canChangeParcelStatus("super_admin", "delivered", "returned_to_merchant")).toBe(true);
     expect(canChangeParcelStatus("rider", "at_office", "on_the_way")).toBe(true);
     expect(canChangeParcelStatus("rider", "postpone", "on_the_way")).toBe(false);
-    expect(canChangeParcelStatus("office_admin", "postpone", "on_the_way")).toBe(true);
+    expect(canChangeParcelStatus("office_admin", "postpone", "at_office")).toBe(true);
     expect(canChangeParcelStatus("merchant", "at_office", "on_the_way")).toBe(false);
   });
 });

@@ -13,6 +13,14 @@ const reportDeliveryFailureForRiderParcelActionMock = mock(async () => ({
   ok: true,
   message: "Delivery failure reported.",
 }));
+const updateDeliveryFailureForRiderParcelActionMock = mock(async () => ({
+  ok: true,
+  message: "Delivery failure note updated.",
+}));
+const deleteDeliveryFailureForRiderParcelActionMock = mock(async () => ({
+  ok: true,
+  message: "Delivery failure note deleted.",
+}));
 const markRiderParcelReturnedToMerchantActionMock = mock(async () => ({
   ok: true,
   message: "Parcel returned to merchant.",
@@ -34,10 +42,12 @@ void mock.module("@/lib/client-navigation", () => ({
 }));
 
 void mock.module("@/features/parcels/server/actions", () => ({
+  deleteDeliveryFailureForRiderParcelAction: deleteDeliveryFailureForRiderParcelActionMock,
   markRiderParcelDeliveredAction: markRiderParcelDeliveredActionMock,
   markRiderParcelReturnedToMerchantAction: markRiderParcelReturnedToMerchantActionMock,
   reportDeliveryFailureForRiderParcelAction: reportDeliveryFailureForRiderParcelActionMock,
   startDeliveryForRiderParcelsAction: startDeliveryForRiderParcelsActionMock,
+  updateDeliveryFailureForRiderParcelAction: updateDeliveryFailureForRiderParcelActionMock,
 }));
 
 describe("RiderParcelCardList", async () => {
@@ -48,6 +58,8 @@ describe("RiderParcelCardList", async () => {
     refreshMock.mockReset();
     startDeliveryForRiderParcelsActionMock.mockReset();
     reportDeliveryFailureForRiderParcelActionMock.mockReset();
+    updateDeliveryFailureForRiderParcelActionMock.mockReset();
+    deleteDeliveryFailureForRiderParcelActionMock.mockReset();
     markRiderParcelDeliveredActionMock.mockReset();
     markRiderParcelReturnedToMerchantActionMock.mockReset();
     deliveredActionInput = undefined;
@@ -58,6 +70,14 @@ describe("RiderParcelCardList", async () => {
     reportDeliveryFailureForRiderParcelActionMock.mockResolvedValue({
       ok: true,
       message: "Delivery failure reported.",
+    });
+    updateDeliveryFailureForRiderParcelActionMock.mockResolvedValue({
+      ok: true,
+      message: "Delivery failure note updated.",
+    });
+    deleteDeliveryFailureForRiderParcelActionMock.mockResolvedValue({
+      ok: true,
+      message: "Delivery failure note deleted.",
     });
     markRiderParcelReturnedToMerchantActionMock.mockResolvedValue({
       ok: true,
@@ -89,7 +109,6 @@ describe("RiderParcelCardList", async () => {
       />,
     );
 
-    await user.click(screen.getByText("Receiver"));
     await user.click(screen.getByRole("button", { name: "Report Failure" }));
     await user.type(screen.getByLabelText("Failure note"), "Receiver was not available.");
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -119,17 +138,15 @@ describe("RiderParcelCardList", async () => {
       />,
     );
 
-    await user.click(screen.getByText("Receiver"));
-
     expect(screen.queryByRole("button", { name: "Report Failure" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Mark Delivered" })).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "View Failure Note" }));
     expect(screen.getByRole("heading", { name: "Failure Note" })).toBeTruthy();
-    expect(screen.getByText("Receiver asked to call tomorrow.")).toBeTruthy();
+    expect(screen.getByDisplayValue("Receiver asked to call tomorrow.")).toBeTruthy();
   });
 
-  test("shows existing active failure note in review mode without save controls", async () => {
+  test("allows riders to edit an existing active failure note", async () => {
     const user = userEvent.setup();
     render(
       <RiderParcelCardList
@@ -144,13 +161,19 @@ describe("RiderParcelCardList", async () => {
       />,
     );
 
-    await user.click(screen.getByText("Receiver"));
     await user.click(screen.getByRole("button", { name: "View Failure Note" }));
 
-    expect(screen.getByText("Receiver asked to call tomorrow.")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
-    expect(screen.getAllByRole("button", { name: "Close" }).length).toBeGreaterThan(0);
+    const noteField = screen.getByLabelText("Failure note");
+    await user.clear(noteField);
+    await user.type(noteField, "Updated note");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(updateDeliveryFailureForRiderParcelActionMock).toHaveBeenCalledWith({
+        parcelId: "00000000-0000-4000-8000-000000000001",
+        note: "Updated note",
+      });
+    });
   });
 
   test("opens mark delivered dialog, previews proof, and submits form data", async () => {
@@ -169,7 +192,6 @@ describe("RiderParcelCardList", async () => {
       />,
     );
 
-    await user.click(screen.getByText("Receiver"));
     await user.click(screen.getByRole("button", { name: "Mark Delivered" }));
     expect(screen.getAllByText("12,000 MMK").length).toBeGreaterThanOrEqual(1);
 
@@ -221,7 +243,6 @@ describe("RiderParcelCardList", async () => {
       />,
     );
 
-    await user.click(screen.getByText("Receiver"));
     await user.click(screen.getByRole("button", { name: "Return to Merchant" }));
 
     await waitFor(() => {
@@ -256,5 +277,23 @@ describe("RiderParcelCardList", async () => {
 
     expect(screen.getByText("PF-RETURNED")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Return to Merchant" })).toBeNull();
+  });
+
+  test("renders rider parcel cards expanded by default", () => {
+    render(
+      <RiderParcelCardList
+        parcels={[
+          buildParcelListItem({
+            parcelCode: "PF-EXPANDED",
+            receiverPhoneNumber: "09123456789",
+            receiverAddress: "Expanded address",
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("09123456789")).toBeTruthy();
+    expect(screen.getByText("Expanded address")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "View details" })).toBeTruthy();
   });
 });

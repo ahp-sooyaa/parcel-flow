@@ -24,7 +24,7 @@ import type { MerchantListItemDto } from "@/features/merchants/server/dto";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
 import type { RiderListItemDto } from "@/features/riders/server/dto";
 import type { TownshipListItemDto } from "@/features/townships/server/dto";
-import { parcelStatusLabels, parcelStatuses, type ParcelStatus } from "@/lib/domain";
+import { parcelStatusLabels, parcelStatuses, type ParcelStatus, type UserRole } from "@/lib/domain";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -50,11 +50,13 @@ function isAssignmentFilter(value: string): value is AssignmentFilter {
 }
 
 export function ParcelListView({
+  actorRole,
   parcels,
   merchants,
   riders,
   townships,
 }: Readonly<{
+  actorRole: UserRole;
   parcels: ParcelListItemDto[];
   merchants: MerchantListItemDto[];
   riders: RiderListItemDto[];
@@ -421,7 +423,7 @@ export function ParcelListView({
         }}
       >
         <SheetContent className="overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[720px] data-[side=right]:sm:max-w-[720px]">
-          {viewingParcel ? <ParcelDetailSheet parcel={viewingParcel} /> : null}
+          {viewingParcel ? <ParcelDetailSheet actorRole={actorRole} parcel={viewingParcel} /> : null}
         </SheetContent>
       </Sheet>
 
@@ -440,6 +442,7 @@ export function ParcelListView({
               parcel={editingParcel}
               merchants={merchants}
               townships={townships}
+              onSaved={() => setEditingParcel(null)}
             />
           ) : null}
         </SheetContent>

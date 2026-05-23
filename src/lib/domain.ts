@@ -48,7 +48,7 @@ export const parcelStatusLabels: Record<ParcelStatus, string> = {
   on_the_way: "On The Way",
   delivered: "Delivered",
   postpone: "Postpone",
-  canceled_returned: "Canceled / Returned",
+  canceled_returned: "Canceled",
   returned_to_merchant: "Returned to Merchant",
 };
 

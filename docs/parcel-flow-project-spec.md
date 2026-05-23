@@ -362,7 +362,7 @@ The system uses these parcel statuses:
 | `on_the_way` | On The Way | Rider has started delivery and parcel is out for delivery |
 | `delivered` | Delivered | Parcel was delivered successfully |
 | `postpone` | Postpone | Delivery failed or cannot be completed now, and admin has decided to retry later |
-| `canceled_returned` | Canceled / Returned | Delivery failed and admin has decided the parcel needs return handling |
+| `canceled_returned` | Canceled | Delivery failed and admin has decided the parcel needs return handling |
 | `returned_to_merchant` | Returned to Merchant | Parcel has been physically returned to merchant |
 
 ---
@@ -552,7 +552,7 @@ Reporting failure does not directly change parcel status.
 Rider should not directly update parcel to:
 
 - Postpone
-- Canceled / returned
+- Canceled
 - At office
 
 Rider can update parcel to `returned_to_merchant` only when the parcel is already assigned to them for return handling and is currently `canceled_returned`.
@@ -653,7 +653,7 @@ When the parcel is ready for retry:
 
 ---
 
-### 12.6 When Parcel Is Canceled / Returned
+### 12.6 When Parcel Is Canceled
 
 When admin changes parcel to `canceled_returned`:
 
@@ -724,7 +724,7 @@ Bulk assignment rules:
 - Bulk assignment only applies to unassigned parcels.
 - Assigned parcels should not be selectable in the bulk assignment UI.
 - If assigned parcel IDs are submitted to the bulk assignment action, the server must reject them.
-- Reassigning an already assigned parcel is handled from the edit parcel flow for now.
+- Reassigning an already assigned parcel is not supported from the parcel edit flow.
 - Future bulk reassignment, bulk delete, and related batch operations are separate future features.
 
 Steps:
@@ -735,12 +735,12 @@ Steps:
 4. Admin clicks **Assign Rider**.
 5. Admin selects rider.
 6. System displays selected parcel summary.
-7. System displays total collection amount for selected normal delivery parcels and selected return-ready parcel count.
+7. System displays expected-collection summary for the assignment, including total expected collection, rider current expected collection, and after-assignment expected collection.
 8. Admin confirms assignment.
 9. Parcel is assigned to rider; `postpone` parcels change to `at_office`, and other eligible statuses remain unchanged.
 10. Rider can now see assigned parcels.
 11. Rider later changes eligible **At Office** delivery parcels to **On The Way** when starting delivery.
-12. Assigned **Canceled / Returned** parcels remain `canceled_returned` because they are return work, not normal delivery work.
+12. Assigned **Canceled** parcels remain `canceled_returned` because they are return work, not normal delivery work.
 
 ---
 
@@ -749,19 +749,15 @@ Steps:
 Before confirming assignment, system should show:
 
 ```text
-Selected parcels: 12
-Total COD amount: 450,000 MMK
-Total delivery fee: 24,000 MMK
 Total expected collection: 474,000 MMK
-Return-ready parcels: 2
 Rider current expected collection today: 300,000 MMK
 After assignment: 774,000 MMK
 ```
 
 Expected collection should include selected `at_office` parcels and selected `postpone` parcels that will become `at_office` on assignment.
-Selected `canceled_returned` parcels are return work and should be counted separately from expected cash collection.
+Selected `canceled_returned` parcels are return work and are excluded from expected cash collection.
 
-This helps admin avoid assigning too much cash collection or return workload to one rider.
+This helps admin avoid assigning too much cash collection to one rider while keeping the assignment summary focused on the collection figures that affect cash handling.
 
 ---
 

@@ -73,11 +73,13 @@ export function AssignRiderDialog({
     }
   }, [open, reset]);
 
-  const collectionParcels = selectedParcels.filter((parcel) => parcel.status !== "canceled_returned");
-  const returnReadyParcelCount = selectedParcels.length - collectionParcels.length;
-  const totalCodAmount = collectionParcels.reduce((sum, parcel) => sum + parcel.codAmount, 0);
-  const totalDeliveryFee = collectionParcels.reduce((sum, parcel) => sum + parcel.deliveryFee, 0);
-  const totalExpectedCollection = totalCodAmount + totalDeliveryFee;
+  const collectionParcels = selectedParcels.filter(
+    (parcel) => parcel.status !== "canceled_returned",
+  );
+  const totalExpectedCollection = collectionParcels.reduce(
+    (sum, parcel) => sum + parcel.codAmount + parcel.deliveryFee,
+    0,
+  );
   const riderCurrentExpectedCollection = selectedRider?.expectedCollection ?? 0;
   const afterAssignmentExpectedCollection =
     riderCurrentExpectedCollection + totalExpectedCollection;
@@ -130,13 +132,7 @@ export function AssignRiderDialog({
             </Combobox>
           </div>
 
-          <div className="grid gap-3 rounded-xl border bg-[#fcfbf8] p-4 sm:grid-cols-3">
-            <SummaryMetric label="Selected parcels" value={String(selectedParcels.length)} />
-            <SummaryMetric label="Total COD amount" value={`${formatMoney(totalCodAmount)} MMK`} />
-            <SummaryMetric
-              label="Total delivery fee"
-              value={`${formatMoney(totalDeliveryFee)} MMK`}
-            />
+          <div className="grid gap-3 sm:grid-cols-3">
             <SummaryMetric
               label="Total expected collection"
               value={`${formatMoney(totalExpectedCollection)} MMK`}
@@ -145,7 +141,6 @@ export function AssignRiderDialog({
               label="Rider current expected"
               value={`${formatMoney(riderCurrentExpectedCollection)} MMK`}
             />
-            <SummaryMetric label="Return-ready parcels" value={String(returnReadyParcelCount)} />
             <SummaryMetric
               label="After assignment"
               value={`${formatMoney(afterAssignmentExpectedCollection)} MMK`}
@@ -189,7 +184,7 @@ export function AssignRiderDialog({
             </div>
           </div>
 
-          <DialogFooter className="border-t px-0 pt-1">
+          <DialogFooter className="border-t px-0 pt-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>

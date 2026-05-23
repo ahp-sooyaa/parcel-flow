@@ -12,9 +12,17 @@ import {
   reportDeliveryFailureForRiderParcel,
   resolveFailedParcelByAdmin,
   startDeliveryForRiderParcels,
+  updateDeliveryFailureForRiderParcel,
+  updateParcel,
 } from "@/features/parcels/server/dal";
-import { createParcelFormInputSchema } from "@/features/parcels/server/dto";
-import { mapCreateParcelFormInputToCreateParcelInput } from "@/features/parcels/server/utils";
+import {
+  createParcelFormInputSchema,
+  updateParcelFormInputSchema,
+} from "@/features/parcels/server/dto";
+import {
+  mapCreateParcelFormInputToCreateParcelInput,
+  mapUpdateParcelFormInputToUpdateParcelInput,
+} from "@/features/parcels/server/utils";
 import { canChangeParcelStatus, canCreateParcel } from "@/lib/permissions";
 import { requireCurrentUser } from "@/lib/session";
 
@@ -37,6 +45,11 @@ const reportDeliveryFailureInputSchema = z.object({
 
 const deleteDeliveryFailureInputSchema = z.object({
   parcelId: z.uuid("Invalid parcel selection."),
+});
+
+const updateDeliveryFailureInputSchema = z.object({
+  parcelId: z.uuid("Invalid parcel selection."),
+  note: z.string().trim().min(1, "Failure note is required."),
 });
 
 const resolveFailedParcelInputSchema = z.object({
@@ -99,6 +112,52 @@ export async function createParcelAction(input: unknown) {
       id: createdParcel.id,
       parcelCode: createdParcel.parcelCode,
     },
+  };
+}
+
+export async function updateParcelAction(input: unknown) {
+  const actor = await requireCurrentUser();
+  const parseResult = updateParcelFormInputSchema.safeParse(input);
+
+  if (!parseResult.success) {
+    return {
+      ok: false as const,
+      message: parseResult.error.issues[0]?.message ?? "Invalid parcel details.",
+    };
+  }
+
+  if (!canCreateParcel(actor.role)) {
+    return {
+      ok: false as const,
+      message: "You do not have permission to edit parcels.",
+    };
+  }
+
+  if (actor.role !== "super_admin" && actor.role !== "office_admin") {
+    return {
+      ok: false as const,
+      message: "You do not have permission to edit parcels.",
+    };
+  }
+
+  try {
+    await updateParcel(mapUpdateParcelFormInputToUpdateParcelInput(parseResult.data));
+  } catch (error) {
+    return {
+      ok: false as const,
+      message: error instanceof Error ? error.message : "Unable to update parcel.",
+    };
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/parcels");
+  revalidatePath("/dashboard/riders");
+  revalidatePath("/dashboard/merchant/parcels");
+  revalidatePath("/dashboard/rider/parcels");
+
+  return {
+    ok: true as const,
+    message: "Parcel updated.",
   };
 }
 
@@ -320,6 +379,48 @@ export async function deleteDeliveryFailureForRiderParcelAction(input: unknown) 
   return {
     ok: true as const,
     message: "Delivery failure note deleted.",
+  };
+}
+
+export async function updateDeliveryFailureForRiderParcelAction(input: unknown) {
+  const actor = await requireCurrentUser();
+  const parseResult = updateDeliveryFailureInputSchema.safeParse(normalizeFormInput(input));
+
+  if (!parseResult.success) {
+    return {
+      ok: false as const,
+      message: parseResult.error.issues[0]?.message ?? "Invalid failure note details.",
+    };
+  }
+
+  if (actor.role !== "rider") {
+    return {
+      ok: false as const,
+      message: "You do not have permission to update delivery failure notes.",
+    };
+  }
+
+  try {
+    await updateDeliveryFailureForRiderParcel({
+      parcelId: parseResult.data.parcelId,
+      note: parseResult.data.note,
+      riderUserId: actor.id,
+      actorRole: actor.role,
+    });
+  } catch (error) {
+    return {
+      ok: false as const,
+      message: error instanceof Error ? error.message : "Unable to update delivery failure note.",
+    };
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/parcels");
+  revalidatePath("/dashboard/rider/parcels");
+
+  return {
+    ok: true as const,
+    message: "Delivery failure note updated.",
   };
 }
 

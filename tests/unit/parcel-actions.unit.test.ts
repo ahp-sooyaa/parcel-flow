@@ -7,10 +7,12 @@ const createParcelMock = mock(async () => ({ id: "parcel-id", parcelCode: "PF-00
 const assignParcelsToRiderMock = mock(async () => undefined);
 const startDeliveryForRiderParcelsMock = mock(async () => undefined);
 const reportDeliveryFailureForRiderParcelMock = mock(async () => undefined);
+const updateDeliveryFailureForRiderParcelMock = mock(async () => undefined);
 const deleteDeliveryFailureForRiderParcelMock = mock(async () => undefined);
 const markRiderParcelDeliveredMock = mock(async () => undefined);
 const markRiderParcelReturnedToMerchantMock = mock(async () => undefined);
 const resolveFailedParcelByAdminMock = mock(async () => undefined);
+const updateParcelMock = mock(async () => undefined);
 const uploadDeliveryProofImageMock = mock(
   async () => "parcels/parcel-id/proof-of-delivery/proof.jpg",
 );
@@ -29,6 +31,8 @@ void mock.module("@/features/parcels/server/dal", () => ({
   reportDeliveryFailureForRiderParcel: reportDeliveryFailureForRiderParcelMock,
   resolveFailedParcelByAdmin: resolveFailedParcelByAdminMock,
   startDeliveryForRiderParcels: startDeliveryForRiderParcelsMock,
+  updateDeliveryFailureForRiderParcel: updateDeliveryFailureForRiderParcelMock,
+  updateParcel: updateParcelMock,
 }));
 
 void mock.module("@/features/parcels/server/upload", () => ({
@@ -49,6 +53,8 @@ describe("parcel server actions", async () => {
     postponeFailedParcelAction,
     reportDeliveryFailureForRiderParcelAction,
     returnFailedParcelToMerchantAction,
+    updateDeliveryFailureForRiderParcelAction,
+    updateParcelAction,
   } = await import("@/features/parcels/server/actions");
 
   beforeEach(() => {
@@ -57,10 +63,12 @@ describe("parcel server actions", async () => {
     assignParcelsToRiderMock.mockReset();
     startDeliveryForRiderParcelsMock.mockReset();
     reportDeliveryFailureForRiderParcelMock.mockReset();
+    updateDeliveryFailureForRiderParcelMock.mockReset();
     deleteDeliveryFailureForRiderParcelMock.mockReset();
     markRiderParcelDeliveredMock.mockReset();
     markRiderParcelReturnedToMerchantMock.mockReset();
     resolveFailedParcelByAdminMock.mockReset();
+    updateParcelMock.mockReset();
     uploadDeliveryProofImageMock.mockReset();
     revalidatePathMock.mockReset();
     requireCurrentUserMock.mockResolvedValue(
@@ -70,10 +78,12 @@ describe("parcel server actions", async () => {
     assignParcelsToRiderMock.mockResolvedValue(undefined);
     startDeliveryForRiderParcelsMock.mockResolvedValue(undefined);
     reportDeliveryFailureForRiderParcelMock.mockResolvedValue(undefined);
+    updateDeliveryFailureForRiderParcelMock.mockResolvedValue(undefined);
     deleteDeliveryFailureForRiderParcelMock.mockResolvedValue(undefined);
     markRiderParcelDeliveredMock.mockResolvedValue(undefined);
     markRiderParcelReturnedToMerchantMock.mockResolvedValue(undefined);
     resolveFailedParcelByAdminMock.mockResolvedValue(undefined);
+    updateParcelMock.mockResolvedValue(undefined);
     uploadDeliveryProofImageMock.mockResolvedValue("parcels/parcel-id/proof-of-delivery/proof.jpg");
   });
 
@@ -114,6 +124,50 @@ describe("parcel server actions", async () => {
       createdBy: "actor-id",
     });
     expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/parcels");
+  });
+
+  test("updates parcels and revalidates affected read models", async () => {
+    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ id: "admin-id", role: "office_admin" }));
+
+    const result = await updateParcelAction({
+      id: "00000000-0000-4000-8000-000000000001",
+      merchantId: "merchant-id",
+      receiverName: "Receiver",
+      receiverPhoneNumber: "09123456789",
+      receiverAddress: "Address",
+      specialNotes: "",
+      townshipId: "township-id",
+      deliveryFee: "2000",
+      hasCod: true,
+      codAmount: "10000",
+      dimensions: {
+        estimatedWeight: "3",
+        width: "",
+        height: "",
+        length: "",
+      },
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Parcel updated.",
+    });
+    expect(updateParcelMock).toHaveBeenCalledWith({
+      id: "00000000-0000-4000-8000-000000000001",
+      merchantId: "merchant-id",
+      receiverName: "Receiver",
+      receiverPhoneNumber: "09123456789",
+      receiverAddress: "Address",
+      townshipId: "township-id",
+      parcelType: "cod",
+      codAmount: 10000,
+      deliveryFee: 2000,
+      weightKg: 3,
+      isLargeParcel: false,
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/parcels");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/merchant/parcels");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/rider/parcels");
   });
 
   test("rejects invalid rider assignment input before persistence", async () => {
@@ -284,6 +338,28 @@ describe("parcel server actions", async () => {
 
     expect(result.ok).toBe(false);
     expect(reportDeliveryFailureForRiderParcelMock).not.toHaveBeenCalled();
+  });
+
+  test("updates rider delivery failure notes and revalidates affected read models", async () => {
+    requireCurrentUserMock.mockResolvedValue(
+      buildCurrentUser({ id: "rider-user-id", role: "rider" }),
+    );
+
+    const result = await updateDeliveryFailureForRiderParcelAction({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+      note: "Please call before delivery.",
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Delivery failure note updated.",
+    });
+    expect(updateDeliveryFailureForRiderParcelMock).toHaveBeenCalledWith({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+      note: "Please call before delivery.",
+      riderUserId: "rider-user-id",
+      actorRole: "rider",
+    });
   });
 
   test("rejects delivery failure reports from non-rider users", async () => {

@@ -1,14 +1,16 @@
 "use client";
 
-import { useId, useRef } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 
 import {
   FieldShell,
+  FormBanner,
   MoneyInput,
   groupedInputClassName,
   inputClassName,
   textareaClassName,
+  type FormMessageState,
 } from "@/components/shared/form-fields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,8 +35,10 @@ import {
   type ParcelDimensions,
   type TownshipOption,
 } from "@/features/parcels/components/parcel-form-support";
+import { updateParcelAction } from "@/features/parcels/server/actions";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
 import type { TownshipListItemDto } from "@/features/townships/server/dto";
+import { useAppRouter } from "@/lib/client-navigation";
 import { formatMoney } from "@/lib/format";
 
 type EditParcelFormValues = {
@@ -46,7 +50,7 @@ type EditParcelFormValues = {
   selectedTownship: TownshipOption | null;
   deliveryFee: string;
   hasCod: boolean;
-  codFee: string;
+  codAmount: string;
   dimensions: ParcelDimensions;
 };
 
@@ -54,12 +58,17 @@ export function EditParcelForm({
   parcel,
   merchants,
   townships,
+  onSaved,
 }: Readonly<{
   parcel: ParcelListItemDto;
   merchants: MerchantListItemDto[];
   townships: TownshipListItemDto[];
+  onSaved?: () => void;
 }>) {
+  const router = useAppRouter();
   const overlayContainerRef = useRef<HTMLFormElement>(null);
+  const [submissionState, setSubmissionState] = useState<FormMessageState | null>(null);
+  const [isPending, startTransition] = useTransition();
   const merchantId = useId();
   const receiverNameId = useId();
   const receiverPhoneId = useId();
@@ -67,16 +76,15 @@ export function EditParcelForm({
   const specialNotesId = useId();
   const townshipId = useId();
   const deliveryFeeId = useId();
-  const codFeeId = useId();
+  const codAmountId = useId();
   const codCheckboxId = useId();
   const parcelDimensionsId = useId();
-
   const merchantOptions = buildMerchantOptions(merchants);
   const townshipOptions = buildTownshipOptions(townships);
   const initialMerchant =
-    merchantOptions.find((option) => option.label === parcel.merchantName) ?? null;
+    merchantOptions.find((option) => option.value === parcel.merchantId) ?? null;
   const initialTownship =
-    townshipOptions.find((option) => option.label === parcel.townshipName) ?? null;
+    townshipOptions.find((option) => option.value === parcel.townshipId) ?? null;
 
   const { handleSubmit, setValue, watch } = useForm<EditParcelFormValues>({
     defaultValues: {
@@ -87,23 +95,58 @@ export function EditParcelForm({
       specialNotes: parcel.specialNotes ?? "",
       selectedTownship: initialTownship,
       deliveryFee: String(parcel.deliveryFee),
-      hasCod: parcel.codAmount > 0,
-      codFee: parcel.codAmount > 0 ? String(parcel.codAmount) : "",
+      hasCod: parcel.parcelType === "cod",
+      codAmount: parcel.parcelType === "cod" ? String(parcel.codAmount) : "",
       dimensions: {
-        estimatedWeight: "",
-        width: "",
-        height: "",
-        length: "",
+        estimatedWeight: String(parcel.weightKg),
+        width: parcel.parcelWidthCm === null ? "" : String(parcel.parcelWidthCm),
+        height: parcel.parcelHeightCm === null ? "" : String(parcel.parcelHeightCm),
+        length: parcel.parcelLengthCm === null ? "" : String(parcel.parcelLengthCm),
       },
     },
   });
   const values = watch();
 
+  function clearSubmissionState() {
+    setSubmissionState(null);
+  }
+
+  function submitForm(payload: EditParcelFormValues) {
+    clearSubmissionState();
+
+    startTransition(async () => {
+      const result = await updateParcelAction({
+        id: parcel.id,
+        merchantId: payload.selectedMerchant?.value ?? "",
+        receiverName: payload.receiverName,
+        receiverPhoneNumber: payload.receiverPhoneNumber,
+        receiverAddress: payload.receiverAddress,
+        specialNotes: payload.specialNotes,
+        townshipId: payload.selectedTownship?.value ?? "",
+        deliveryFee: payload.deliveryFee,
+        hasCod: payload.hasCod,
+        codAmount: payload.codAmount,
+        dimensions: payload.dimensions,
+      });
+
+      if (!result.ok) {
+        setSubmissionState({
+          kind: "error",
+          message: result.message,
+        });
+        return;
+      }
+
+      router.refresh();
+      onSaved?.();
+    });
+  }
+
   return (
     <form
       ref={overlayContainerRef}
       className="flex h-full flex-col bg-[#fcfbf8] text-[#292827]"
-      onSubmit={handleSubmit(() => undefined)}
+      onSubmit={handleSubmit(submitForm)}
     >
       <SheetHeader className="space-y-3 border-b border-[#e7dfd8] p-6 pb-4 text-left">
         <SheetTitle className="text-[2rem] font-semibold tracking-[-0.04em]">
@@ -113,13 +156,18 @@ export function EditParcelForm({
 
       <div className="flex-1 overflow-y-auto px-6 pt-6 pb-6">
         <div className="space-y-5">
+          {submissionState ? <FormBanner state={submissionState} /> : null}
+
           <Card className="border-[#e7dfd8] bg-white shadow-[0_20px_50px_rgba(27,25,56,0.06)]">
             <CardContent className="space-y-4">
               <FieldShell htmlFor={merchantId} label="Merchant">
                 <Combobox
                   items={merchantOptions}
                   value={values.selectedMerchant}
-                  onValueChange={(nextValue) => setValue("selectedMerchant", nextValue ?? null)}
+                  onValueChange={(nextValue) => {
+                    setValue("selectedMerchant", nextValue ?? null);
+                    clearSubmissionState();
+                  }}
                   itemToStringLabel={(option) => option.label}
                   isItemEqualToValue={(item, value) => item.value === value.value}
                 >
@@ -129,11 +177,12 @@ export function EditParcelForm({
                     placeholder="Search merchant by name"
                     showClear={values.selectedMerchant !== null}
                     className={groupedInputClassName}
+                    disabled={isPending}
                   />
                   <ComboboxContent className="z-50" portalContainer={overlayContainerRef}>
                     <ComboboxEmpty>No merchants found.</ComboboxEmpty>
                     <ComboboxCollection>
-                      {(option) => (
+                      {(option: MerchantOption) => (
                         <ComboboxItem key={option.value} value={option} className="py-3">
                           <div className="flex flex-col">
                             <span className="font-medium text-[#292827]">{option.label}</span>
@@ -152,8 +201,12 @@ export function EditParcelForm({
                     id={receiverNameId}
                     placeholder="Enter receiver name"
                     value={values.receiverName}
-                    onChange={(event) => setValue("receiverName", event.target.value)}
+                    onChange={(event) => {
+                      setValue("receiverName", event.target.value);
+                      clearSubmissionState();
+                    }}
                     className={inputClassName}
+                    disabled={isPending}
                   />
                 </FieldShell>
                 <FieldShell htmlFor={receiverPhoneId} label="Receiver phone number">
@@ -161,8 +214,12 @@ export function EditParcelForm({
                     id={receiverPhoneId}
                     placeholder="09xxxxxxxxx"
                     value={values.receiverPhoneNumber}
-                    onChange={(event) => setValue("receiverPhoneNumber", event.target.value)}
+                    onChange={(event) => {
+                      setValue("receiverPhoneNumber", event.target.value);
+                      clearSubmissionState();
+                    }}
                     className={inputClassName}
+                    disabled={isPending}
                   />
                 </FieldShell>
               </div>
@@ -172,8 +229,12 @@ export function EditParcelForm({
                   id={receiverAddressId}
                   placeholder="Street, ward, landmark, building"
                   value={values.receiverAddress}
-                  onChange={(event) => setValue("receiverAddress", event.target.value)}
+                  onChange={(event) => {
+                    setValue("receiverAddress", event.target.value);
+                    clearSubmissionState();
+                  }}
                   className={textareaClassName}
+                  disabled={isPending}
                 />
               </FieldShell>
 
@@ -182,8 +243,12 @@ export function EditParcelForm({
                   id={specialNotesId}
                   placeholder="Delivery instructions, gate code, landmark, or handling note"
                   value={values.specialNotes}
-                  onChange={(event) => setValue("specialNotes", event.target.value)}
+                  onChange={(event) => {
+                    setValue("specialNotes", event.target.value);
+                    clearSubmissionState();
+                  }}
                   className={textareaClassName}
+                  disabled={isPending}
                 />
               </FieldShell>
 
@@ -194,6 +259,7 @@ export function EditParcelForm({
                   onValueChange={(township = null) => {
                     setValue("selectedTownship", township);
                     setValue("deliveryFee", township ? String(township.baseFee) : "");
+                    clearSubmissionState();
                   }}
                   itemToStringLabel={(option) => option.label}
                   isItemEqualToValue={(item, value) => item.value === value.value}
@@ -204,11 +270,12 @@ export function EditParcelForm({
                     placeholder="Search township"
                     showClear={values.selectedTownship !== null}
                     className={groupedInputClassName}
+                    disabled={isPending}
                   />
                   <ComboboxContent className="z-50" portalContainer={overlayContainerRef}>
                     <ComboboxEmpty>No townships found.</ComboboxEmpty>
                     <ComboboxCollection>
-                      {(option) => (
+                      {(option: TownshipOption) => (
                         <ComboboxItem key={option.value} value={option} className="py-3">
                           <div className="flex flex-col">
                             <span className="font-medium text-[#292827]">{option.label}</span>
@@ -235,6 +302,7 @@ export function EditParcelForm({
                       ...values.dimensions,
                       [key]: value,
                     });
+                    clearSubmissionState();
                   }}
                 />
               </FieldShell>
@@ -243,17 +311,23 @@ export function EditParcelForm({
                 <MoneyInput
                   id={deliveryFeeId}
                   value={values.deliveryFee}
-                  onChange={(value) => setValue("deliveryFee", value)}
+                  onChange={(value) => {
+                    setValue("deliveryFee", value);
+                    clearSubmissionState();
+                  }}
                   placeholder="0"
                 />
               </FieldShell>
 
               {values.hasCod ? (
-                <FieldShell htmlFor={codFeeId} label="COD fee">
+                <FieldShell htmlFor={codAmountId} label="COD amount">
                   <MoneyInput
-                    id={codFeeId}
-                    value={values.codFee}
-                    onChange={(value) => setValue("codFee", value)}
+                    id={codAmountId}
+                    value={values.codAmount}
+                    onChange={(value) => {
+                      setValue("codAmount", value);
+                      clearSubmissionState();
+                    }}
                     placeholder="0"
                   />
                 </FieldShell>
@@ -261,7 +335,8 @@ export function EditParcelForm({
 
               <label
                 htmlFor={codCheckboxId}
-                className="flex cursor-pointer gap-3 transition-colors"
+                className="flex cursor-pointer gap-3 transition-colors data-[disabled=true]:cursor-not-allowed"
+                data-disabled={isPending ? "true" : "false"}
               >
                 <Checkbox
                   id={codCheckboxId}
@@ -272,9 +347,12 @@ export function EditParcelForm({
                     setValue("hasCod", enabled);
 
                     if (!enabled) {
-                      setValue("codFee", "");
+                      setValue("codAmount", "");
                     }
+
+                    clearSubmissionState();
                   }}
+                  disabled={isPending}
                   className="mt-0.5"
                 />
                 <p className="text-sm font-medium text-[#292827]">Cash on delivery</p>
@@ -287,12 +365,16 @@ export function EditParcelForm({
       <SheetFooter className="mt-0 justify-end border-t border-[#e7dfd8] bg-white px-6 py-4">
         <div className="flex items-center gap-2">
           <SheetClose asChild>
-            <Button type="button" variant="outline">
+            <Button type="button" variant="outline" disabled={isPending}>
               Cancel
             </Button>
           </SheetClose>
-          <Button type="submit" className="bg-[#1b1938] text-white hover:bg-[#0e0c1f]">
-            Save Changes
+          <Button
+            type="submit"
+            className="bg-[#1b1938] text-white hover:bg-[#0e0c1f]"
+            disabled={isPending}
+          >
+            {isPending ? "Saving..." : "Save Changes"}
           </Button>
         </div>
       </SheetFooter>

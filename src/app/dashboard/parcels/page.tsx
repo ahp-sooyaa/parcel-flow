@@ -46,6 +46,7 @@ export default async function ParcelsPage() {
         }
       />
       <ParcelListView
+        actorRole={currentUser.role}
         parcels={parcels}
         merchants={merchants}
         riders={riders}

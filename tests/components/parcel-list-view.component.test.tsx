@@ -1,20 +1,8 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { buildParcelFailureNoteEntry, buildParcelListItem } from "../fixtures/builders";
-
-void mock.module("@/features/parcels/components/assign-rider-dialog", () => ({
-  AssignRiderDialog: () => null,
-}));
-
-void mock.module("@/features/parcels/components/edit-parcel-form", () => ({
-  EditParcelForm: () => null,
-}));
-
-void mock.module("@/features/parcels/components/parcel-detail-sheet", () => ({
-  ParcelDetailSheet: () => null,
-}));
 
 describe("ParcelListView", async () => {
   const { ParcelListView } = await import("@/features/parcels/components/parcel-list-view");
@@ -28,6 +16,7 @@ describe("ParcelListView", async () => {
 
     render(
       <ParcelListView
+        actorRole="office_admin"
         parcels={[
           buildParcelListItem({
             id: "needs-review",

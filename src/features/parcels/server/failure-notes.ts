@@ -86,3 +86,27 @@ export function removeLatestActiveParcelFailureNote(
 
   return null;
 }
+
+export function updateLatestActiveParcelFailureNote(
+  notes: ParcelFailureNoteEntry[],
+  nextNote: string,
+): ParcelFailureNoteEntry[] | null {
+  for (let index = notes.length - 1; index >= 0; index -= 1) {
+    const note = notes[index];
+
+    if (note?.status !== "active") {
+      continue;
+    }
+
+    return notes.map((entry, entryIndex) =>
+      entryIndex === index
+        ? {
+            ...entry,
+            note: nextNote.trim(),
+          }
+        : entry,
+    );
+  }
+
+  return null;
+}

@@ -111,7 +111,7 @@ export function TownshipManagement({ townships, canManagePricing }: TownshipMana
           }
         }}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Township Details</DialogTitle>
             <DialogDescription>
@@ -120,42 +120,34 @@ export function TownshipManagement({ townships, canManagePricing }: TownshipMana
           </DialogHeader>
 
           {viewingTownship ? (
-            <div className="space-y-5">
-              <div className="flex items-center justify-between gap-3 rounded-lg border border-[#e7dfd8] bg-[#fcfbf8] px-4 py-3">
-                <div>
-                  <p className="text-sm text-[#73706d]">Township</p>
-                  <p className="text-base font-semibold text-[#292827]">{viewingTownship.name}</p>
-                </div>
-                <StatusBadge
-                  label={viewingTownship.isActive ? "Active" : "Inactive"}
-                  variant={viewingTownship.isActive ? "success" : "secondary"}
-                />
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <DetailCard
-                  label="Base fee"
-                  value={`${formatMoney(viewingTownship.baseFee)} MMK`}
-                />
-                <DetailCard label="Base weight" value={`${viewingTownship.baseWeightKg} kg`} />
-                <DetailCard
-                  label="Extra weight fee"
-                  value={`${formatMoney(viewingTownship.extraWeightFee)} MMK`}
-                />
-                <DetailCard
-                  label="Extra weight unit"
-                  value={`${viewingTownship.extraWeightUnitKg} kg`}
-                />
-                <DetailCard
-                  label="Volumetric divisor"
-                  value={String(viewingTownship.volumetricDivisor)}
-                />
-                <DetailCard label="COD fee percent" value={`${viewingTownship.codFeePercent}%`} />
-                <DetailCard
-                  label="Return fee percent"
-                  value={`${viewingTownship.returnFeePercent}%`}
-                />
-              </div>
+            <div className="space-y-4">
+              <DetailRow label="Township" value={viewingTownship.name} />
+              <DetailRow
+                label="Status"
+                value={viewingTownship.isActive ? "Active" : "Inactive"}
+              />
+              <DetailRow label="Base fee" value={`${formatMoney(viewingTownship.baseFee)} MMK`} />
+              <DetailRow label="Base weight" value={`${viewingTownship.baseWeightKg} kg`} />
+              <DetailRow
+                label="Extra weight fee"
+                value={`${formatMoney(viewingTownship.extraWeightFee)} MMK`}
+              />
+              <DetailRow
+                label="Extra weight unit"
+                value={`${viewingTownship.extraWeightUnitKg} kg`}
+              />
+              <DetailRow
+                label="Volumetric divisor"
+                value={String(viewingTownship.volumetricDivisor)}
+              />
+              <DetailRow
+                label="COD fee percent"
+                value={`${viewingTownship.codFeePercent}%`}
+              />
+              <DetailRow
+                label="Return fee percent"
+                value={`${viewingTownship.returnFeePercent}%`}
+              />
             </div>
           ) : null}
 
@@ -181,7 +173,7 @@ export function TownshipManagement({ townships, canManagePricing }: TownshipMana
   );
 }
 
-function DetailCard({
+function DetailRow({
   label,
   value,
 }: Readonly<{
@@ -189,11 +181,9 @@ function DetailCard({
   value: string;
 }>) {
   return (
-    <div className="rounded-xl border border-[#e7dfd8] bg-[#fcfbf8] px-4 py-3">
-      <div className="text-xs font-medium tracking-[0.16em] text-muted-foreground uppercase">
-        {label}
-      </div>
-      <div className="mt-2 text-sm font-semibold text-foreground">{value}</div>
+    <div className="flex items-start justify-between gap-4 border-b border-border pb-3 last:border-b-0 last:pb-0">
+      <div className="text-sm text-muted-foreground">{label}</div>
+      <div className="text-right text-sm font-medium text-foreground">{value}</div>
     </div>
   );
 }

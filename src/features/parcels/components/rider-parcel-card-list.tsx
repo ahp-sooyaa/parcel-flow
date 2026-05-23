@@ -40,10 +40,12 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ParcelDetailSheet } from "@/features/parcels/components/parcel-detail-sheet";
 import {
+  deleteDeliveryFailureForRiderParcelAction,
   markRiderParcelReturnedToMerchantAction,
   markRiderParcelDeliveredAction,
   reportDeliveryFailureForRiderParcelAction,
   startDeliveryForRiderParcelsAction,
+  updateDeliveryFailureForRiderParcelAction,
 } from "@/features/parcels/server/actions";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
 import { useAppRouter } from "@/lib/client-navigation";
@@ -110,7 +112,6 @@ export function RiderParcelCardList({
   const [selectedTownship, setSelectedTownship] = useState("all");
   const [selectedStatuses, setSelectedStatuses] = useState<ParcelStatus[]>([]);
   const [selectedParcelIds, setSelectedParcelIds] = useState<string[]>([]);
-  const [expandedParcelId, setExpandedParcelId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [viewingParcel, setViewingParcel] = useState<ParcelListItemDto | null>(null);
@@ -201,12 +202,6 @@ export function RiderParcelCardList({
   }, [activeTab, normalizedSearchTerm, selectedTownship, selectedStatuses]);
 
   useEffect(() => {
-    if (expandedParcelId && !parcels.some((parcel) => parcel.id === expandedParcelId)) {
-      setExpandedParcelId(null);
-    }
-  }, [expandedParcelId, parcels]);
-
-  useEffect(() => {
     if (!proofPreviewUrl) {
       return undefined;
     }
@@ -279,10 +274,6 @@ export function RiderParcelCardList({
     });
   }
 
-  function toggleExpansion(parcelId: string) {
-    setExpandedParcelId((current) => (current === parcelId ? null : parcelId));
-  }
-
   function submitStartDelivery(parcelIds: string[]) {
     if (parcelIds.length === 0) {
       return;
@@ -323,7 +314,6 @@ export function RiderParcelCardList({
         return;
       }
 
-      setExpandedParcelId((current) => (current === parcelId ? null : current));
       router.refresh();
     });
   }
@@ -361,9 +351,42 @@ export function RiderParcelCardList({
     setSubmissionState(null);
     setFailureNotePendingAction("save");
     startTransition(async () => {
-      const result = await reportDeliveryFailureForRiderParcelAction({
+      const result = failureParcel.activeFailureNote
+        ? await updateDeliveryFailureForRiderParcelAction({
+            parcelId: failureParcel.id,
+            note: failureNote,
+          })
+        : await reportDeliveryFailureForRiderParcelAction({
+            parcelId: failureParcel.id,
+            note: failureNote,
+          });
+
+      setSubmissionState({
+        kind: result.ok ? "success" : "error",
+        message: result.message,
+      });
+      setFailureNotePendingAction(null);
+
+      if (!result.ok) {
+        return;
+      }
+
+      setFailureParcel(null);
+      setFailureNote("");
+      router.refresh();
+    });
+  }
+
+  function submitDeleteFailureNote() {
+    if (!failureParcel?.activeFailureNote) {
+      return;
+    }
+
+    setSubmissionState(null);
+    setFailureNotePendingAction("delete");
+    startTransition(async () => {
+      const result = await deleteDeliveryFailureForRiderParcelAction({
         parcelId: failureParcel.id,
-        note: failureNote,
       });
 
       setSubmissionState({
@@ -417,7 +440,6 @@ export function RiderParcelCardList({
       setDeliveryParcel(null);
       setProofImage(null);
       setProofPreviewUrl(null);
-      setExpandedParcelId((current) => (current === deliveryParcel.id ? null : current));
       router.refresh();
     });
   }
@@ -451,7 +473,6 @@ export function RiderParcelCardList({
       <>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-4">
           {paginatedParcels.map((parcel) => {
-            const isExpanded = expandedParcelId === parcel.id;
             const isSelected = selectedParcelIds.includes(parcel.id);
             const isSelectable = parcel.status === "at_office";
             const amountToCollect = parcel.codAmount + parcel.deliveryFee;
@@ -484,20 +505,12 @@ export function RiderParcelCardList({
                       aria-label={`Select ${parcel.parcelCode}`}
                       checked={isSelected}
                       disabled={!isSelectable || isPending}
-                      onClick={(event) => event.stopPropagation()}
                       onCheckedChange={(checked) => toggleParcel(parcel.id, checked)}
-                      className={cn(
-                        "mt-1 rounded-[6px] shadow-sm",
-                        !isSelectable && "border-0 shadow-none",
-                      )}
+                      className="mt-1 rounded-[6px] shadow-sm"
                     />
                   </div>
 
-                  <button
-                    type="button"
-                    className="block w-full px-5 py-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                    onClick={() => toggleExpansion(parcel.id)}
-                  >
+                  <div className="px-5 py-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-md font-semibold text-foreground">
@@ -511,68 +524,45 @@ export function RiderParcelCardList({
                         className="shrink-0"
                       />
                     </div>
-                  </button>
+                  </div>
 
-                  {isExpanded ? (
-                    <div className="space-y-4 border-t border-dashed border-[#eadfd6] px-5 py-4">
-                      <div className="space-y-3 text-sm text-foreground">
-                        <div>
-                          <div className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-                            Phone
-                          </div>
-                          <div className="mt-1 leading-6">{parcel.receiverPhoneNumber}</div>
+                  <div className="space-y-4 border-t border-dashed border-[#eadfd6] px-5 py-4">
+                    <div className="space-y-3 text-sm text-foreground">
+                      <div>
+                        <div className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+                          Phone
                         </div>
-                        <div>
-                          <div className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-                            Address
-                          </div>
-                          <div className="mt-1 leading-6">{parcel.receiverAddress}</div>
+                        <div className="mt-1 leading-6">{parcel.receiverPhoneNumber}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+                          Address
                         </div>
-                        <div>
-                          <div className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-                            Amount to Collect
-                          </div>
-                          <div className="text-md mt-1 font-semibold text-foreground">
-                            {formatMoney(amountToCollect)} MMK
-                          </div>
+                        <div className="mt-1 leading-6">{parcel.receiverAddress}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+                          Amount to Collect
+                        </div>
+                        <div className="text-md mt-1 font-semibold text-foreground">
+                          {formatMoney(amountToCollect)} MMK
                         </div>
                       </div>
+                    </div>
 
-                      <div className="flex flex-wrap gap-2">
-                        {isSelectable ? (
-                          <Button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => submitStartDelivery([parcel.id])}
-                          >
-                            {isPending ? "Starting..." : "Start Delivery"}
-                          </Button>
-                        ) : null}
+                    <div className="flex flex-wrap gap-2">
+                      {isSelectable ? (
+                        <Button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => submitStartDelivery([parcel.id])}
+                        >
+                          {isPending ? "Starting..." : "Start Delivery"}
+                        </Button>
+                      ) : null}
 
-                        {showDeliveryActions ? (
-                          <>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              disabled={isPending}
-                              className="flex-1"
-                              onClick={() => openFailureDialog(parcel)}
-                            >
-                              Report Failure
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              disabled={isPending}
-                              className="flex-1"
-                              onClick={() => openDeliveryDialog(parcel)}
-                            >
-                              Mark Delivered
-                            </Button>
-                          </>
-                        ) : null}
-
-                        {showFailureNoteAction ? (
+                      {showDeliveryActions ? (
+                        <>
                           <Button
                             type="button"
                             variant="outline"
@@ -580,24 +570,45 @@ export function RiderParcelCardList({
                             className="flex-1"
                             onClick={() => openFailureDialog(parcel)}
                           >
-                            View Failure Note
+                            Report Failure
                           </Button>
-                        ) : null}
-
-                        {showReturnAction ? (
                           <Button
                             type="button"
                             variant="outline"
                             disabled={isPending}
                             className="flex-1"
-                            onClick={() => submitReturnToMerchant(parcel.id)}
+                            onClick={() => openDeliveryDialog(parcel)}
                           >
-                            Return to Merchant
+                            Mark Delivered
                           </Button>
-                        ) : null}
-                      </div>
+                        </>
+                      ) : null}
+
+                      {showFailureNoteAction ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={isPending}
+                          className="flex-1"
+                          onClick={() => openFailureDialog(parcel)}
+                        >
+                          View Failure Note
+                        </Button>
+                      ) : null}
+
+                      {showReturnAction ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={isPending}
+                          className="flex-1"
+                          onClick={() => submitReturnToMerchant(parcel.id)}
+                        >
+                          Return to Merchant
+                        </Button>
+                      ) : null}
                     </div>
-                  ) : null}
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -823,7 +834,7 @@ export function RiderParcelCardList({
         }}
       >
         <SheetContent className="overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[720px] data-[side=right]:sm:max-w-[720px]">
-          {viewingParcel ? <ParcelDetailSheet parcel={viewingParcel} /> : null}
+          {viewingParcel ? <ParcelDetailSheet actorRole="rider" parcel={viewingParcel} /> : null}
         </SheetContent>
       </Sheet>
 
@@ -838,7 +849,7 @@ export function RiderParcelCardList({
         }}
       >
         <DialogContent>
-              <form className="space-y-5" onSubmit={submitFailureReport}>
+          <form className="space-y-5" onSubmit={submitFailureReport}>
             <DialogHeader>
               <DialogTitle>
                 {failureParcel?.activeFailureNote ? "Failure Note" : "Report Failure"}
@@ -852,34 +863,32 @@ export function RiderParcelCardList({
 
             <div className="space-y-2">
               <Label htmlFor={failureNoteId}>Failure note</Label>
-              {failureParcel?.activeFailureNote ? (
-                <div className="min-h-32 rounded-lg border bg-secondary/40 px-3 py-2 text-sm text-foreground">
-                  {failureNote}
-                </div>
-              ) : (
-                <Textarea
-                  id={failureNoteId}
-                  value={failureNote}
-                  onChange={(event) => setFailureNote(event.target.value)}
-                  minLength={1}
-                  required
-                  disabled={isPending}
-                  placeholder="Write what happened during delivery"
-                  className="min-h-32"
-                />
-              )}
+              <Textarea
+                id={failureNoteId}
+                value={failureNote}
+                onChange={(event) => setFailureNote(event.target.value)}
+                minLength={1}
+                required
+                disabled={isPending}
+                placeholder="Write what happened during delivery"
+                className="min-h-32"
+              />
             </div>
 
             <DialogFooter>
               {failureParcel?.activeFailureNote ? (
-                <Button type="button" onClick={() => setFailureParcel(null)}>
-                  Close
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={submitDeleteFailureNote}
+                >
+                  {failureNotePendingAction === "delete" ? "Deleting..." : "Delete"}
                 </Button>
-              ) : (
-                <Button type="submit" disabled={isPending}>
-                  {failureNotePendingAction === "save" ? "Saving..." : "Save"}
-                </Button>
-              )}
+              ) : null}
+              <Button type="submit" disabled={isPending}>
+                {failureNotePendingAction === "save" ? "Saving..." : "Save"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

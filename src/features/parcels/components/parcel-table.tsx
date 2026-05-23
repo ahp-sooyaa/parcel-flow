@@ -20,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -173,7 +174,6 @@ export function ParcelTable({
                   checked={allVisibleSelected}
                   indeterminate={!allVisibleSelected && someVisibleSelected}
                   onCheckedChange={toggleAllParcels}
-                  className="rounded-[6px] shadow-sm"
                 />
               ) : null}
             </TableHead>
@@ -213,7 +213,6 @@ export function ParcelTable({
                       checked={currentSelectedParcelIds.includes(parcel.id)}
                       onCheckedChange={(checked) => toggleParcel(parcel.id, checked)}
                       disabled={!selectableParcelIds.includes(parcel.id)}
-                      className="rounded-[6px] shadow-sm"
                     />
                   ) : null}
                 </TableCell>
@@ -295,9 +294,11 @@ export function ParcelTable({
           </DialogHeader>
           <div className="space-y-2">
             <div className="text-sm font-medium text-foreground">Failure note</div>
-            <div className="min-h-20 rounded-lg border bg-secondary/40 p-3 text-sm text-foreground">
-              {failureReviewParcel?.activeFailureNote?.note}
-            </div>
+            <Textarea
+              value={failureReviewParcel?.activeFailureNote?.note ?? ""}
+              readOnly
+              className="min-h-28"
+            />
             {failureReviewError ? (
               <div className="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {failureReviewError}
@@ -319,9 +320,7 @@ export function ParcelTable({
               disabled={pendingFailureAction !== null}
               onClick={() => void resolveFailure("return_merchant")}
             >
-              {pendingFailureAction === "return_merchant"
-                ? "Marking..."
-                : "Return Merchant"}
+              {pendingFailureAction === "return_merchant" ? "Marking..." : "Return Merchant"}
             </Button>
           </DialogFooter>
         </DialogContent>

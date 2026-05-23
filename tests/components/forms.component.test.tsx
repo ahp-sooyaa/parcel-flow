@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { buildParcelListItem } from "../fixtures/builders";
+
 const createUserActionMock = mock(async () => ({
   ok: true,
   message: "User account created.",
@@ -30,6 +32,10 @@ const createParcelActionMock = mock(async () => ({
     receiverName: "Receiver",
   },
 }));
+const updateParcelActionMock = mock(async () => ({
+  ok: true,
+  message: "Parcel updated.",
+}));
 const assignParcelsToRiderActionMock = mock(async () => ({
   ok: true,
   message: "Parcels assigned.",
@@ -47,12 +53,20 @@ void mock.module("@/features/townships/server/actions", () => ({
 void mock.module("@/features/parcels/server/actions", () => ({
   assignParcelsToRiderAction: assignParcelsToRiderActionMock,
   createParcelAction: createParcelActionMock,
+  updateParcelAction: updateParcelActionMock,
+}));
+
+void mock.module("@/lib/client-navigation", () => ({
+  useAppRouter: () => ({
+    refresh: () => undefined,
+  }),
 }));
 
 describe("feature forms", async () => {
   const { CreateUserForm } = await import("@/features/users/components/create-user-form");
   const { TownshipForm } = await import("@/features/townships/components/township-form");
   const { CreateParcelForm } = await import("@/features/parcels/components/create-parcel-form");
+  const { EditParcelForm } = await import("@/features/parcels/components/edit-parcel-form");
   const { Sheet, SheetContent } = await import("@/components/ui/sheet");
 
   beforeEach(() => {
@@ -60,6 +74,7 @@ describe("feature forms", async () => {
     createTownshipActionMock.mockReset();
     updateTownshipActionMock.mockReset();
     createParcelActionMock.mockReset();
+    updateParcelActionMock.mockReset();
     createUserActionMock.mockResolvedValue({
       ok: true,
       message: "User account created.",
@@ -86,6 +101,10 @@ describe("feature forms", async () => {
         parcelCode: "PF-000001-000001",
         receiverName: "Receiver",
       },
+    });
+    updateParcelActionMock.mockResolvedValue({
+      ok: true,
+      message: "Parcel updated.",
     });
   });
 
@@ -188,6 +207,45 @@ describe("feature forms", async () => {
       dimensions: {
         estimatedWeight: "4",
         width: "12",
+        height: "",
+        length: "",
+      },
+    });
+  });
+
+  test("submits parcel edit updates without changing parcel workflow fields", async () => {
+    const user = userEvent.setup();
+    renderInSheet(
+      <EditParcelForm
+        parcel={buildParcelListItem({
+          id: "00000000-0000-4000-8000-000000000001",
+          merchantId: "merchant-id",
+          townshipId: "township-id",
+          parcelType: "cod",
+          status: "on_the_way",
+          weightKg: 3,
+        })}
+        merchants={[testMerchant()]}
+        townships={[testTownship()]}
+      />,
+    );
+
+    await user.click(getButton("Save Changes"));
+
+    expect(updateParcelActionMock).toHaveBeenCalledWith({
+      id: "00000000-0000-4000-8000-000000000001",
+      merchantId: "merchant-id",
+      receiverName: "Receiver",
+      receiverPhoneNumber: "09123456789",
+      receiverAddress: "Receiver address",
+      specialNotes: "",
+      townshipId: "township-id",
+      deliveryFee: "2000",
+      hasCod: true,
+      codAmount: "10000",
+      dimensions: {
+        estimatedWeight: "3",
+        width: "",
         height: "",
         length: "",
       },

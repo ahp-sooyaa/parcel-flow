@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useId, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Camera, FileText } from "lucide-react";
 
 import {
@@ -32,6 +31,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type { SettlementListItemDto } from "@/features/settlements/server/dto";
 import { resolveMerchantSettlementAction } from "@/features/settlements/server/actions";
+import { useAppRouter } from "@/lib/client-navigation";
 import type { UserRole } from "@/lib/domain";
 import { formatDate, formatMoney } from "@/lib/format";
 
@@ -63,46 +63,56 @@ export function SettlementsTable({ settlements, actorRole }: SettlementsTablePro
             </TableRow>
           </TableHeader>
           <TableBody>
-            {settlements.map((settlement) => (
-              <TableRow key={settlement.id}>
-                <TableCell className="font-medium">{settlement.settlementCode}</TableCell>
-                <TableCell>{settlement.merchantName}</TableCell>
-                <TableCell>
-                  <StatusBadge
-                    label={getSettlementStatusLabel(settlement.status)}
-                    variant={getSettlementStatusVariant(settlement.status)}
-                  />
-                </TableCell>
-                <TableCell>{settlement.bankAccountSummary ?? "No bank account on file"}</TableCell>
-                <TableCell className="text-right">
-                  {formatMoney(settlement.totalCodAmount)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatMoney(settlement.totalDeliveryFeeDeduction)}
-                </TableCell>
-                <TableCell className="text-right font-medium">
-                  {formatMoney(settlement.netPaymentAmount)} MMK
-                </TableCell>
-                <TableCell>{formatDate(settlement.createdAt)}</TableCell>
-                <TableCell className="text-right">
-                  {actorRole === "super_admin" && settlement.status === "pending" ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setSelectedSettlementId(settlement.id)}
-                    >
-                      Resolve
-                    </Button>
-                  ) : settlement.status === "settled" ? (
-                    <span className="text-sm text-muted-foreground">
-                      Paid {formatDate(settlement.paidAt)}
-                    </span>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">No action</span>
-                  )}
+            {settlements.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
+                  No settlements.
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              settlements.map((settlement) => (
+                <TableRow key={settlement.id}>
+                  <TableCell className="font-medium">{settlement.settlementCode}</TableCell>
+                  <TableCell>{settlement.merchantName}</TableCell>
+                  <TableCell>
+                    <StatusBadge
+                      label={getSettlementStatusLabel(settlement.status)}
+                      variant={getSettlementStatusVariant(settlement.status)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    {settlement.bankAccountSummary ?? "No bank account on file"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatMoney(settlement.totalCodAmount)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatMoney(settlement.totalDeliveryFeeDeduction)}
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatMoney(settlement.netPaymentAmount)} MMK
+                  </TableCell>
+                  <TableCell>{formatDate(settlement.createdAt)}</TableCell>
+                  <TableCell className="text-right">
+                    {actorRole === "super_admin" && settlement.status === "pending" ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSelectedSettlementId(settlement.id)}
+                      >
+                        Resolve
+                      </Button>
+                    ) : settlement.status === "settled" ? (
+                      <span className="text-sm text-muted-foreground">
+                        Paid {formatDate(settlement.paidAt)}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">No action</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>
@@ -132,7 +142,7 @@ function ResolveSettlementSheet({
   settlement: SettlementListItemDto;
   onClose: () => void;
 }>) {
-  const router = useRouter();
+  const router = useAppRouter();
   const [isPending, startTransition] = useTransition();
   const [submissionState, setSubmissionState] = useState<FormMessageState | null>(null);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);

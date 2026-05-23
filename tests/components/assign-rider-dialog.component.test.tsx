@@ -24,7 +24,7 @@ describe("AssignRiderDialog", async () => {
     });
   });
 
-  test("renders selected parcel and collection summary", () => {
+  test("renders selected parcel and expected collection summary", () => {
     render(
       <AssignRiderDialog
         open
@@ -43,8 +43,8 @@ describe("AssignRiderDialog", async () => {
 
     expect(screen.getByRole("heading", { name: "Assign Rider" })).toBeTruthy();
     expect(screen.getByText("PF-000001")).toBeTruthy();
-    expect(screen.getByText("Selected parcels")).toBeTruthy();
     expect(screen.getByText("Total expected collection")).toBeTruthy();
+    expect(screen.queryByText("Selected parcels")).toBeNull();
     expect(getButton("Assign Rider").disabled).toBe(true);
   });
 

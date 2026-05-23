@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
+import type { UserRole } from "@/lib/domain";
 import { parcelStatusLabels } from "@/lib/domain";
 import { formatDate, formatMoney } from "@/lib/format";
 
@@ -42,7 +43,13 @@ function StatCard({
   );
 }
 
-export function ParcelDetailSheet({ parcel }: Readonly<{ parcel: ParcelListItemDto }>) {
+export function ParcelDetailSheet({
+  actorRole,
+  parcel,
+}: Readonly<{
+  actorRole: UserRole;
+  parcel: ParcelListItemDto;
+}>) {
   const parcelType = parcel.codAmount > 0 ? "COD" : "Non-COD";
   const amountToCollect = parcel.codAmount + parcel.deliveryFee;
   let statusVariant: "success" | "secondary" | "warning" = "warning";
@@ -85,7 +92,9 @@ export function ParcelDetailSheet({ parcel }: Readonly<{ parcel: ParcelListItemD
 
           <CardContent className="space-y-5 pt-6">
             <dl className="space-y-4">
-              <DetailRow label="Merchant" value={parcel.merchantName} />
+              {actorRole !== "rider" ? (
+                <DetailRow label="Merchant" value={parcel.merchantName} />
+              ) : null}
               <DetailRow label="Receiver Name" value={parcel.receiverName} />
               <DetailRow label="Receiver Phone" value={parcel.receiverPhoneNumber} />
               <DetailRow label="Township" value={parcel.townshipName} />

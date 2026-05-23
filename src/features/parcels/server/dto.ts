@@ -31,43 +31,56 @@ const parcelDimensionsInputSchema = z.object({
   length: optionalPositiveNumberString,
 });
 
-export const createParcelFormInputSchema = z
-  .object({
-    merchantId: z.string().min(1, "Merchant is required."),
-    receiverName: z.string().trim().min(1, "Receiver name is required."),
-    receiverPhoneNumber: z.string().trim().min(5, "Receiver phone number is required."),
-    receiverAddress: z.string().trim().min(1, "Receiver address is required."),
-    specialNotes: z.string().trim().optional(),
-    townshipId: z.string().min(1, "Receiver township is required."),
-    deliveryFee: z
-      .string()
-      .trim()
-      .refine(isNonNegativeIntegerString, "Delivery fee must be 0 or greater."),
-    hasCod: z.boolean(),
-    codAmount: z
-      .string()
-      .trim()
-      .refine(
-        (value) => value.length === 0 || isNonNegativeIntegerString(value),
-        "COD amount must be 0 or greater.",
-      ),
-    dimensions: parcelDimensionsInputSchema,
-  })
-  .superRefine((value, ctx) => {
-    if (!value.hasCod) {
-      return;
-    }
+const baseParcelFormInputSchema = z.object({
+  merchantId: z.string().min(1, "Merchant is required."),
+  receiverName: z.string().trim().min(1, "Receiver name is required."),
+  receiverPhoneNumber: z.string().trim().min(5, "Receiver phone number is required."),
+  receiverAddress: z.string().trim().min(1, "Receiver address is required."),
+  specialNotes: z.string().trim().optional(),
+  townshipId: z.string().min(1, "Receiver township is required."),
+  deliveryFee: z
+    .string()
+    .trim()
+    .refine(isNonNegativeIntegerString, "Delivery fee must be 0 or greater."),
+  hasCod: z.boolean(),
+  codAmount: z
+    .string()
+    .trim()
+    .refine(
+      (value) => value.length === 0 || isNonNegativeIntegerString(value),
+      "COD amount must be 0 or greater.",
+    ),
+  dimensions: parcelDimensionsInputSchema,
+});
 
-    if (!isNonNegativeIntegerString(value.codAmount) || Number(value.codAmount) <= 0) {
-      ctx.addIssue({
-        code: "custom",
-        message: "COD amount is required for COD parcels.",
-        path: ["codAmount"],
-      });
-    }
-  });
+function refineParcelFormInput(
+  value: z.infer<typeof baseParcelFormInputSchema>,
+  ctx: z.RefinementCtx,
+) {
+  if (!value.hasCod) {
+    return;
+  }
+
+  if (!isNonNegativeIntegerString(value.codAmount) || Number(value.codAmount) <= 0) {
+    ctx.addIssue({
+      code: "custom",
+      message: "COD amount is required for COD parcels.",
+      path: ["codAmount"],
+    });
+  }
+}
+
+export const createParcelFormInputSchema = baseParcelFormInputSchema.superRefine(refineParcelFormInput);
 
 export type CreateParcelFormInputDto = z.infer<typeof createParcelFormInputSchema>;
+
+export const updateParcelFormInputSchema = baseParcelFormInputSchema
+  .extend({
+    id: z.uuid("Invalid parcel selection."),
+  })
+  .superRefine(refineParcelFormInput);
+
+export type UpdateParcelFormInputDto = z.infer<typeof updateParcelFormInputSchema>;
 
 export type CreateParcelInputDto = {
   merchantId: string;
@@ -86,19 +99,31 @@ export type CreateParcelInputDto = {
   parcelLengthCm?: number;
 };
 
+export type UpdateParcelInputDto = CreateParcelInputDto & {
+  id: string;
+};
+
 export type ParcelListItemDto = {
   id: string;
   parcelCode: string;
+  merchantId: string;
   merchantName: string;
+  riderId: string | null;
   receiverName: string;
   receiverPhoneNumber: string;
   receiverAddress: string;
   specialNotes: string | null;
   failureNotes: ParcelFailureNoteEntry[];
   activeFailureNote: ParcelFailureNoteEntry | null;
+  townshipId: string;
   townshipName: string;
+  parcelType: ParcelType;
   codAmount: number;
   deliveryFee: number;
+  weightKg: number;
+  parcelWidthCm: number | null;
+  parcelHeightCm: number | null;
+  parcelLengthCm: number | null;
   proofOfDeliveryImagesKeys: string[];
   riderName: string | null;
   status: ParcelStatus;

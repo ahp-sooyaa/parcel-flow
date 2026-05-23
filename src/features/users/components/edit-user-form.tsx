@@ -74,7 +74,7 @@ export function EditUserForm({
   initialBankAccounts: BankAccountDto[];
   townships: TownshipListItemDto[];
 }>) {
-  const overlayContainerRef = useRef<HTMLFormElement>(null);
+  const overlayContainerRef = useRef<HTMLDivElement>(null);
   const [isPending, startTransition] = useTransition();
   const [isPasswordResetPending, startPasswordResetTransition] = useTransition();
 
@@ -225,11 +225,7 @@ export function EditUserForm({
   }
 
   return (
-    <form
-      ref={overlayContainerRef}
-      className="flex h-full flex-col bg-[#fcfbf8] text-[#292827]"
-      onSubmit={handleSubmit(submitForm)}
-    >
+    <div ref={overlayContainerRef} className="flex h-full flex-col bg-[#fcfbf8] text-[#292827]">
       <SheetHeader className="space-y-3 border-b border-[#e7dfd8] p-6 pb-4 text-left">
         <SheetTitle className="text-[2rem] font-semibold tracking-[-0.04em]">Edit User</SheetTitle>
       </SheetHeader>
@@ -254,206 +250,206 @@ export function EditUserForm({
           <TabsContent value="account" className="space-y-5">
             {submissionState ? <FormBanner state={submissionState} /> : null}
 
-            <Card className="border-[#e7dfd8] bg-white shadow-[0_20px_50px_rgba(27,25,56,0.06)]">
-              <CardContent className="space-y-5">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <FieldShell htmlFor={nameId} label="Name">
-                    <Input
-                      id={nameId}
-                      value={values.name}
-                      onChange={(event) => {
-                        setValue("name", event.target.value);
-                        setSubmissionState(null);
-                      }}
-                      placeholder="Enter full name"
-                      className={inputClassName}
-                      disabled={isBusy}
-                    />
-                  </FieldShell>
-
-                  <FieldShell htmlFor={phoneNumberId} label="Phone number">
-                    <Input
-                      id={phoneNumberId}
-                      value={values.phoneNumber}
-                      onChange={(event) => {
-                        setValue("phoneNumber", event.target.value);
-                        setSubmissionState(null);
-                      }}
-                      placeholder="09xxxxxxxxx"
-                      className={inputClassName}
-                      disabled={isBusy}
-                    />
-                  </FieldShell>
-                </div>
-
-                <FieldShell htmlFor={addressId} label="Address">
-                  <Textarea
-                    id={addressId}
-                    value={values.address}
-                    onChange={(event) => {
-                      setValue("address", event.target.value);
-                      setSubmissionState(null);
-                    }}
-                    placeholder="Street, ward, township, landmark"
-                    className={textareaClassName}
-                    disabled={isBusy}
-                  />
-                </FieldShell>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <FieldShell htmlFor={ageId} label="Age (optional)">
-                    <Input
-                      id={ageId}
-                      type="number"
-                      min="1"
-                      inputMode="numeric"
-                      value={values.age}
-                      onChange={(event) => {
-                        setValue("age", event.target.value);
-                        setSubmissionState(null);
-                      }}
-                      placeholder="Optional"
-                      className={inputClassName}
-                      disabled={isBusy}
-                    />
-                  </FieldShell>
-
-                  <FieldShell htmlFor={roleId} label="Role">
-                    <UserRoleSelectField
-                      id={roleId}
-                      value={values.role}
-                      onChange={(nextRole) => {
-                        setValue("role", nextRole);
-                        setSubmissionState(null);
-
-                        if (nextRole !== "merchant") {
-                          setValue("shopName", "");
-                        }
-
-                        if (nextRole !== "rider") {
-                          setValue("selectedTownship", null);
-                        }
-                      }}
-                      disabled={isBusy}
-                      roles={userRoles}
-                    />
-                  </FieldShell>
-                </div>
-
-                <div className="grid gap-4 rounded-lg border border-dashed border-[#dcd4cd] bg-[#fcfbf8] p-4 sm:grid-cols-[1fr_auto] sm:items-center">
-                  <div className="space-y-1">
-                    <Label
-                      htmlFor="user-active-switch"
-                      className="text-sm font-medium text-[#292827]"
-                    >
-                      Active
-                    </Label>
-                    <p className="text-sm text-[#5f5b58]">
-                      Turn this off to prevent the user from accessing the app.
-                    </p>
-                  </div>
-                  <Switch
-                    id="user-active-switch"
-                    checked={values.isActive}
-                    onCheckedChange={(checked) => {
-                      setValue("isActive", checked);
-                      setSubmissionState(null);
-                    }}
-                    disabled={isBusy}
-                  />
-                </div>
-
-                {values.role === "merchant" ? (
-                  <FieldShell htmlFor={shopId} label="Shop">
-                    <Input
-                      id={shopId}
-                      value={values.shopName}
-                      onChange={(event) => {
-                        setValue("shopName", event.target.value);
-                        setSubmissionState(null);
-                      }}
-                      placeholder="Enter shop name"
-                      className={inputClassName}
-                      disabled={isBusy}
-                    />
-                  </FieldShell>
-                ) : null}
-
-                {values.role === "rider" ? (
-                  <FieldShell htmlFor={serviceTownshipId} label="Service township">
-                    <Combobox
-                      items={townshipOptions}
-                      value={values.selectedTownship}
-                      onValueChange={(township = null) => {
-                        setValue("selectedTownship", township);
-                        setSubmissionState(null);
-                      }}
-                      itemToStringLabel={(option) => option.label}
-                      isItemEqualToValue={(item, value) => item.value === value.value}
-                    >
-                      <ComboboxInput
-                        id={serviceTownshipId}
-                        aria-label="Select rider service township"
-                        placeholder="Search township"
-                        showClear={values.selectedTownship !== null}
-                        className={groupedInputClassName}
+            <form onSubmit={handleSubmit(submitForm)} className="space-y-5">
+              <Card className="border-[#e7dfd8] bg-white shadow-[0_20px_50px_rgba(27,25,56,0.06)]">
+                <CardContent className="space-y-5">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FieldShell htmlFor={nameId} label="Name">
+                      <Input
+                        id={nameId}
+                        value={values.name}
+                        onChange={(event) => {
+                          setValue("name", event.target.value);
+                          setSubmissionState(null);
+                        }}
+                        placeholder="Enter full name"
+                        className={inputClassName}
                         disabled={isBusy}
                       />
-                      <ComboboxContent className="z-50" portalContainer={overlayContainerRef}>
-                        <ComboboxEmpty>No townships found.</ComboboxEmpty>
-                        <ComboboxCollection>
-                          {(option: TownshipOption) => (
-                            <ComboboxItem key={option.value} value={option} className="py-3">
-                              <div className="flex flex-col">
-                                <span className="font-medium text-[#292827]">{option.label}</span>
-                                <span className="text-xs text-muted-foreground">
-                                  {option.helper}
-                                </span>
-                              </div>
-                            </ComboboxItem>
-                          )}
-                        </ComboboxCollection>
-                      </ComboboxContent>
-                    </Combobox>
-                  </FieldShell>
-                ) : null}
+                    </FieldShell>
 
-                <div className="flex flex-col gap-3 rounded-lg border border-dashed border-[#dcd4cd] bg-[#fcfbf8] p-4">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-[#292827]">Forgot password</p>
-                    <p className="text-sm text-[#5f5b58]">
-                      Generate a temporary password and require the user to reset it after login.
-                    </p>
+                    <FieldShell htmlFor={phoneNumberId} label="Phone number">
+                      <Input
+                        id={phoneNumberId}
+                        value={values.phoneNumber}
+                        onChange={(event) => {
+                          setValue("phoneNumber", event.target.value);
+                          setSubmissionState(null);
+                        }}
+                        placeholder="09xxxxxxxxx"
+                        className={inputClassName}
+                        disabled={isBusy}
+                      />
+                    </FieldShell>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={isBusy}
-                    onClick={handlePasswordReset}
-                  >
-                    <RefreshCw
-                      className={isPasswordResetPending ? "size-4 animate-spin" : "size-4"}
-                    />
-                    {isPasswordResetPending ? "Generating..." : "Regenerate Password"}
-                  </Button>
-                </div>
 
-                <div className="flex justify-end gap-2 border-t border-[#f0e7df] pt-5">
-                  <SheetClose asChild>
-                    <Button type="button" variant="outline" disabled={isBusy}>
-                      Cancel
+                  <FieldShell htmlFor={addressId} label="Address">
+                    <Textarea
+                      id={addressId}
+                      value={values.address}
+                      onChange={(event) => {
+                        setValue("address", event.target.value);
+                        setSubmissionState(null);
+                      }}
+                      placeholder="Street, ward, township, landmark"
+                      className={textareaClassName}
+                      disabled={isBusy}
+                    />
+                  </FieldShell>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FieldShell htmlFor={ageId} label="Age (optional)">
+                      <Input
+                        id={ageId}
+                        type="number"
+                        min="1"
+                        inputMode="numeric"
+                        value={values.age}
+                        onChange={(event) => {
+                          setValue("age", event.target.value);
+                          setSubmissionState(null);
+                        }}
+                        placeholder="Optional"
+                        className={inputClassName}
+                        disabled={isBusy}
+                      />
+                    </FieldShell>
+
+                    <FieldShell htmlFor={roleId} label="Role">
+                      <UserRoleSelectField
+                        id={roleId}
+                        value={values.role}
+                        onChange={(nextRole) => {
+                          setValue("role", nextRole);
+                          setSubmissionState(null);
+
+                          if (nextRole !== "merchant") {
+                            setValue("shopName", "");
+                          }
+
+                          if (nextRole !== "rider") {
+                            setValue("selectedTownship", null);
+                          }
+                        }}
+                        disabled={isBusy}
+                        roles={userRoles}
+                      />
+                    </FieldShell>
+                  </div>
+
+                  <div className="grid gap-4 rounded-lg border border-dashed border-[#dcd4cd] bg-[#fcfbf8] p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="user-active-switch"
+                        className="text-sm font-medium text-[#292827]"
+                      >
+                        Active
+                      </Label>
+                      <p className="text-sm text-[#5f5b58]">
+                        Turn this off to prevent the user from accessing the app.
+                      </p>
+                    </div>
+                    <Switch
+                      id="user-active-switch"
+                      checked={values.isActive}
+                      onCheckedChange={(checked) => {
+                        setValue("isActive", checked);
+                        setSubmissionState(null);
+                      }}
+                      disabled={isBusy}
+                    />
+                  </div>
+
+                  {values.role === "merchant" ? (
+                    <FieldShell htmlFor={shopId} label="Shop">
+                      <Input
+                        id={shopId}
+                        value={values.shopName}
+                        onChange={(event) => {
+                          setValue("shopName", event.target.value);
+                          setSubmissionState(null);
+                        }}
+                        placeholder="Enter shop name"
+                        className={inputClassName}
+                        disabled={isBusy}
+                      />
+                    </FieldShell>
+                  ) : null}
+
+                  {values.role === "rider" ? (
+                    <FieldShell htmlFor={serviceTownshipId} label="Service township">
+                      <Combobox
+                        items={townshipOptions}
+                        value={values.selectedTownship}
+                        onValueChange={(township = null) => {
+                          setValue("selectedTownship", township);
+                          setSubmissionState(null);
+                        }}
+                        itemToStringLabel={(option) => option.label}
+                        isItemEqualToValue={(item, value) => item.value === value.value}
+                      >
+                        <ComboboxInput
+                          id={serviceTownshipId}
+                          aria-label="Select rider service township"
+                          placeholder="Search township"
+                          showClear={values.selectedTownship !== null}
+                          className={groupedInputClassName}
+                          disabled={isBusy}
+                        />
+                        <ComboboxContent className="z-50" portalContainer={overlayContainerRef}>
+                          <ComboboxEmpty>No townships found.</ComboboxEmpty>
+                          <ComboboxCollection>
+                            {(option: TownshipOption) => (
+                              <ComboboxItem key={option.value} value={option} className="py-3">
+                                <div className="flex flex-col">
+                                  <span className="font-medium text-[#292827]">{option.label}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {option.helper}
+                                  </span>
+                                </div>
+                              </ComboboxItem>
+                            )}
+                          </ComboboxCollection>
+                        </ComboboxContent>
+                      </Combobox>
+                    </FieldShell>
+                  ) : null}
+
+                  <div className="flex justify-end gap-2 border-t border-[#f0e7df] pt-5">
+                    <SheetClose asChild>
+                      <Button type="button" variant="outline" disabled={isBusy}>
+                        Cancel
+                      </Button>
+                    </SheetClose>
+                    <Button
+                      type="submit"
+                      className="bg-[#1b1938] text-white hover:bg-[#0e0c1f]"
+                      disabled={isBusy}
+                    >
+                      {isPending ? "Saving..." : "Save Changes"}
                     </Button>
-                  </SheetClose>
-                  <Button
-                    type="submit"
-                    className="bg-[#1b1938] text-white hover:bg-[#0e0c1f]"
-                    disabled={isBusy}
-                  >
-                    {isPending ? "Saving..." : "Save Changes"}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                  </div>
+                </CardContent>
+              </Card>
+            </form>
+
+            <div className="flex flex-col gap-3 rounded-lg border border-dashed border-[#dcd4cd] bg-white p-4">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-[#292827]">Forgot password</p>
+                <p className="text-sm text-[#5f5b58]">
+                  Generate a temporary password and require the user to reset it after login.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isBusy}
+                onClick={handlePasswordReset}
+              >
+                <RefreshCw className={isPasswordResetPending ? "size-4 animate-spin" : "size-4"} />
+                {isPasswordResetPending ? "Generating..." : "Regenerate Password"}
+              </Button>
+            </div>
           </TabsContent>
 
           <TabsContent value="bank">
@@ -505,7 +501,7 @@ export function EditUserForm({
           </TabsContent>
         </Tabs>
       </div>
-    </form>
+    </div>
   );
 }
 
