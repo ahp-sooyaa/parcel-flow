@@ -112,7 +112,8 @@ describe("parcel validation and mapping", () => {
       calculateAmountToCollect({ codAmount: 10_000, deliveryFee: 2_000, parcelType: "non_cod" }),
     ).toBe(2_000);
     expect(isActiveCollectionStatus("at_office")).toBe(true);
-    expect(isActiveCollectionStatus("postpone")).toBe(true);
+    expect(isActiveCollectionStatus("on_the_way")).toBe(true);
+    expect(isActiveCollectionStatus("postpone")).toBe(false);
     expect(isActiveCollectionStatus("delivered")).toBe(false);
   });
 });

@@ -76,5 +76,5 @@ export function generateParcelCode() {
 }
 
 export function isActiveCollectionStatus(status: ParcelStatus) {
-  return status === "at_office" || status === "on_the_way" || status === "postpone";
+  return status === "at_office" || status === "on_the_way";
 }

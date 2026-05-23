@@ -3,9 +3,10 @@ import { eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { appUsers, parcels, riders, riderServiceTownships, townships } from "@/db/schema";
 import type { RiderListItemDto } from "@/features/riders/server/dto";
-import { calculateAmountToCollect } from "@/features/parcels/server/utils";
-
-const expectedCollectionStatuses = ["at_office", "on_the_way", "postpone"] as const;
+import {
+  calculateAmountToCollect,
+  isActiveCollectionStatus,
+} from "@/features/parcels/server/utils";
 
 export async function listRiders(): Promise<RiderListItemDto[]> {
   const rows = await db
@@ -54,7 +55,7 @@ export async function listRiders(): Promise<RiderListItemDto[]> {
         .filter((serviceTownship) => serviceTownship.riderId === rider.id)
         .map((serviceTownship) => serviceTownship.townshipName),
       expectedCollection: assignedParcels
-        .filter((parcel) => expectedCollectionStatuses.some((status) => status === parcel.status))
+        .filter((parcel) => isActiveCollectionStatus(parcel.status))
         .reduce(
           (total, parcel) =>
             total +
@@ -68,9 +69,8 @@ export async function listRiders(): Promise<RiderListItemDto[]> {
       actualCollection: assignedParcels
         .filter((parcel) => parcel.status === "delivered")
         .reduce((total, parcel) => total + parcel.collectedAmount, 0),
-      activeParcelCount: assignedParcels.filter((parcel) =>
-        expectedCollectionStatuses.some((status) => status === parcel.status),
-      ).length,
+      activeParcelCount: assignedParcels.filter((parcel) => isActiveCollectionStatus(parcel.status))
+        .length,
     };
   });
 }

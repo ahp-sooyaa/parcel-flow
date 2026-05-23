@@ -52,6 +52,7 @@ export async function getMerchantOverviewSummary(
         status: parcels.status,
         parcelType: parcels.parcelType,
         codAmount: parcels.codAmount,
+        isReceivedByOffice: parcels.isReceivedByOffice,
       })
       .from(parcels)
       .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
@@ -71,7 +72,11 @@ export async function getMerchantOverviewSummary(
     (summary, parcel) => ({
       totalCodCollected:
         summary.totalCodCollected +
-        (parcel.status === "delivered" && parcel.parcelType === "cod" ? parcel.codAmount : 0),
+        (parcel.status === "delivered" &&
+        parcel.parcelType === "cod" &&
+        parcel.isReceivedByOffice
+          ? parcel.codAmount
+          : 0),
       paidToYou: summary.paidToYou,
       totalParcels: summary.totalParcels + 1,
       onTheWayParcels: summary.onTheWayParcels + (parcel.status === "on_the_way" ? 1 : 0),

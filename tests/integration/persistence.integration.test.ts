@@ -784,6 +784,56 @@ describe("persistence integration coverage", () => {
     );
   });
 
+  test("merchant overview counts COD as collected only after office receipt confirmation", async () => {
+    const merchantSeed = await seedTestMerchant(testDb.db);
+    seededIds.userIds.push(merchantSeed.user?.id ?? "");
+    seededIds.merchantIds.push(merchantSeed.merchant.id);
+
+    const receivedCodParcel = await seedTestParcel(testDb.db, {
+      merchantId: merchantSeed.merchant.id,
+      status: "delivered",
+      parcelType: "cod",
+      codAmount: 10_000,
+      isReceivedByOffice: true,
+    });
+    const unreceivedCodParcel = await seedTestParcel(testDb.db, {
+      merchantId: merchantSeed.merchant.id,
+      status: "delivered",
+      parcelType: "cod",
+      codAmount: 8_000,
+      isReceivedByOffice: false,
+    });
+    const nonCodParcel = await seedTestParcel(testDb.db, {
+      merchantId: merchantSeed.merchant.id,
+      status: "delivered",
+      parcelType: "non_cod",
+      codAmount: 0,
+      isReceivedByOffice: true,
+    });
+
+    seededIds.parcelIds.push(
+      receivedCodParcel.parcel.id,
+      unreceivedCodParcel.parcel.id,
+      nonCodParcel.parcel.id,
+    );
+    seededIds.userIds.push(
+      receivedCodParcel.creator?.id ?? "",
+      unreceivedCodParcel.creator?.id ?? "",
+      nonCodParcel.creator?.id ?? "",
+    );
+    seededIds.townshipIds.push(
+      receivedCodParcel.township.id,
+      unreceivedCodParcel.township.id,
+      nonCodParcel.township.id,
+    );
+
+    const { getMerchantOverviewSummary } = await import("@/features/merchants/server/dal");
+    const summary = await getMerchantOverviewSummary(merchantSeed.user?.id ?? "");
+
+    expect(summary.totalCodCollected).toBe(10_000);
+    expect(summary.deliveredParcels).toBe(3);
+  });
+
   test("creates and resolves merchant settlements from eligible financial items", async () => {
     const merchantSeed = await seedTestMerchant(testDb.db);
     const creator = await seedTestUser(testDb.db, { role: "super_admin" });
