@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
-import { financialItems, parcels, parcelStatusLogs } from "@/db/schema";
+import { financialItems, merchantSettlements, parcels, parcelStatusLogs } from "@/db/schema";
 import { appendActiveParcelFailureNote } from "@/features/parcels/server/failure-notes";
 import { cleanupTestRecords } from "../fixtures/cleanup";
 import { createTestDatabase } from "../fixtures/db";
@@ -21,6 +21,7 @@ const seededIds = {
   townshipIds: [] as string[],
   parcelIds: [] as string[],
   bankAccountIds: [] as string[],
+  settlementIds: [] as string[],
 };
 
 describe("persistence integration coverage", () => {
@@ -34,6 +35,7 @@ describe("persistence integration coverage", () => {
     seededIds.townshipIds = [];
     seededIds.parcelIds = [];
     seededIds.bankAccountIds = [];
+    seededIds.settlementIds = [];
   });
 
   test("persists Better Auth user metadata and role-specific profiles", async () => {
@@ -780,6 +782,176 @@ describe("persistence integration coverage", () => {
         }),
       ]),
     );
+  });
+
+  test("creates and resolves merchant settlements from eligible financial items", async () => {
+    const merchantSeed = await seedTestMerchant(testDb.db);
+    const creator = await seedTestUser(testDb.db, { role: "super_admin" });
+    const bankAccount = await seedTestBankAccount(testDb.db, {
+      userId: merchantSeed.user?.id,
+      isPrimary: true,
+    });
+    const codParcelSeed = await seedTestParcel(testDb.db, {
+      merchantId: merchantSeed.merchant.id,
+      createdBy: creator.id,
+      status: "delivered",
+      parcelType: "cod",
+      codAmount: 25_000,
+      deliveryFee: 2_000,
+    });
+    const returnParcelSeed = await seedTestParcel(testDb.db, {
+      merchantId: merchantSeed.merchant.id,
+      createdBy: creator.id,
+      status: "returned_to_merchant",
+      parcelType: "cod",
+      codAmount: 8_000,
+      deliveryFee: 2_500,
+    });
+    seededIds.userIds.push(merchantSeed.user?.id ?? "", creator.id);
+    seededIds.merchantIds.push(merchantSeed.merchant.id);
+    seededIds.bankAccountIds.push(bankAccount.bankAccount.id);
+    seededIds.townshipIds.push(codParcelSeed.township.id, returnParcelSeed.township.id);
+    seededIds.parcelIds.push(codParcelSeed.parcel.id, returnParcelSeed.parcel.id);
+
+    const [codItem, deductionItem] = await testDb.db
+      .insert(financialItems)
+      .values([
+        {
+          parcelId: codParcelSeed.parcel.id,
+          merchantId: merchantSeed.merchant.id,
+          itemType: "cod_remit",
+          amount: 25_000,
+          status: "pending",
+          createdBy: creator.id,
+        },
+        {
+          parcelId: returnParcelSeed.parcel.id,
+          merchantId: merchantSeed.merchant.id,
+          itemType: "delivery_fee_deduction",
+          amount: 2_500,
+          status: "pending",
+          createdBy: creator.id,
+        },
+      ])
+      .returning();
+
+    const { createMerchantSettlement, resolveMerchantSettlement } =
+      await import("@/features/settlements/server/dal");
+    const createdSettlement = await createMerchantSettlement({
+      merchantId: merchantSeed.merchant.id,
+      financialItemIds: [codItem.id, deductionItem.id],
+      createdBy: creator.id,
+    });
+    seededIds.settlementIds.push(createdSettlement.id);
+
+    const [pendingSettlement] = await testDb.db
+      .select()
+      .from(merchantSettlements)
+      .where(eq(merchantSettlements.id, createdSettlement.id));
+    const reservedItems = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(eq(financialItems.merchantSettlementId, createdSettlement.id));
+
+    expect(pendingSettlement).toMatchObject({
+      id: createdSettlement.id,
+      status: "pending",
+      bankAccountId: bankAccount.bankAccount.id,
+      totalCodAmount: 25_000,
+      totalDeliveryFeeDeduction: 2_500,
+      netPaymentAmount: 22_500,
+    });
+    expect(reservedItems).toHaveLength(2);
+    expect(reservedItems.every((item) => item.status === "in_progress")).toBe(true);
+
+    await resolveMerchantSettlement({
+      settlementId: createdSettlement.id,
+      bankTransferReceiptKey: "settlements/test/receipt.pdf",
+      paymentNote: "KBZ transfer 5512",
+      paidBy: creator.id,
+    });
+
+    const [settledSettlement] = await testDb.db
+      .select()
+      .from(merchantSettlements)
+      .where(eq(merchantSettlements.id, createdSettlement.id));
+    const settledItems = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(eq(financialItems.merchantSettlementId, createdSettlement.id));
+    const settledParcels = await testDb.db
+      .select({
+        id: parcels.id,
+        merchantSettlementStatus: parcels.merchantSettlementStatus,
+      })
+      .from(parcels)
+      .where(and(eq(parcels.merchantId, merchantSeed.merchant.id), inArray(parcels.id, [codParcelSeed.parcel.id, returnParcelSeed.parcel.id])));
+
+    expect(settledSettlement).toMatchObject({
+      status: "settled",
+      paidBy: creator.id,
+      bankTransferReceiptKey: "settlements/test/receipt.pdf",
+      paymentNote: "KBZ transfer 5512",
+    });
+    expect(settledSettlement.paidAt).toBeInstanceOf(Date);
+    expect(settledSettlement.bankTransferReceiptUploadedAt).toBeInstanceOf(Date);
+    expect(settledItems.every((item) => item.status === "settled")).toBe(true);
+    expect(settledItems.every((item) => item.settledAt instanceof Date)).toBe(true);
+    expect(settledParcels.every((parcel) => parcel.merchantSettlementStatus === "settled")).toBe(
+      true,
+    );
+  });
+
+  test("rejects merchant settlement creation when deductions exceed selected COD", async () => {
+    const merchantSeed = await seedTestMerchant(testDb.db);
+    const creator = await seedTestUser(testDb.db, { role: "super_admin" });
+    const returnParcelSeed = await seedTestParcel(testDb.db, {
+      merchantId: merchantSeed.merchant.id,
+      createdBy: creator.id,
+      status: "returned_to_merchant",
+      parcelType: "cod",
+      codAmount: 8_000,
+      deliveryFee: 2_500,
+    });
+    seededIds.userIds.push(merchantSeed.user?.id ?? "", creator.id);
+    seededIds.merchantIds.push(merchantSeed.merchant.id);
+    seededIds.townshipIds.push(returnParcelSeed.township.id);
+    seededIds.parcelIds.push(returnParcelSeed.parcel.id);
+
+    const [deductionItem] = await testDb.db
+      .insert(financialItems)
+      .values({
+        parcelId: returnParcelSeed.parcel.id,
+        merchantId: merchantSeed.merchant.id,
+        itemType: "delivery_fee_deduction",
+        amount: 2_500,
+        status: "pending",
+        createdBy: creator.id,
+      })
+      .returning();
+
+    const { createMerchantSettlement } = await import("@/features/settlements/server/dal");
+
+    await expectPromiseToRejectWith(
+      createMerchantSettlement({
+        merchantId: merchantSeed.merchant.id,
+        financialItemIds: [deductionItem.id],
+        createdBy: creator.id,
+      }),
+      "Delivery fee deductions exceed the selected COD total.",
+    );
+
+    const settlements = await testDb.db.select().from(merchantSettlements);
+    const [unchangedItem] = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(eq(financialItems.id, deductionItem.id));
+
+    expect(settlements).toHaveLength(0);
+    expect(unchangedItem).toMatchObject({
+      status: "pending",
+      merchantSettlementId: null,
+    });
   });
 
   test("marks non-COD rider parcel delivered and creates only payout item", async () => {

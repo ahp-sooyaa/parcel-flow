@@ -250,13 +250,20 @@ export const merchantSettlements = pgTable(
     merchantId: uuid("merchant_id")
       .notNull()
       .references(() => merchants.id),
-    status: text("status").default("in_progress").notNull(),
+    status: text("status").default("pending").notNull(),
     totalCodAmount: integer("total_cod_amount").default(0).notNull(),
     totalDeliveryFeeDeduction: integer("total_delivery_fee_deduction").default(0).notNull(),
     netPaymentAmount: integer("net_payment_amount").default(0).notNull(),
     bankAccountId: uuid("bank_account_id").references(() => bankAccounts.id),
     createdBy: uuid("created_by").references(() => appUsers.id),
     paidBy: uuid("paid_by").references(() => appUsers.id),
+    bankTransferReceiptKey: text("bank_transfer_receipt_key"),
+    bankTransferReceiptUploadedAt: timestamp("bank_transfer_receipt_uploaded_at", {
+      withTimezone: true,
+    }),
+    bankTransferReceiptUploadedBy: uuid("bank_transfer_receipt_uploaded_by").references(
+      () => appUsers.id,
+    ),
     paidAt: timestamp("paid_at", { withTimezone: true }),
     paymentNote: text("payment_note"),
     ...timestamps,
@@ -322,4 +329,42 @@ export const parcelsRelations = relations(parcels, ({ many, one }) => ({
   township: one(townships, { fields: [parcels.townshipId], references: [townships.id] }),
   financialItems: many(financialItems),
   statusLogs: many(parcelStatusLogs),
+}));
+
+export const financialItemsRelations = relations(financialItems, ({ one }) => ({
+  parcel: one(parcels, { fields: [financialItems.parcelId], references: [parcels.id] }),
+  merchant: one(merchants, { fields: [financialItems.merchantId], references: [merchants.id] }),
+  rider: one(riders, { fields: [financialItems.riderId], references: [riders.id] }),
+  merchantSettlement: one(merchantSettlements, {
+    fields: [financialItems.merchantSettlementId],
+    references: [merchantSettlements.id],
+  }),
+  riderPayout: one(riderPayouts, {
+    fields: [financialItems.riderPayoutId],
+    references: [riderPayouts.id],
+  }),
+}));
+
+export const merchantSettlementsRelations = relations(merchantSettlements, ({ many, one }) => ({
+  merchant: one(merchants, {
+    fields: [merchantSettlements.merchantId],
+    references: [merchants.id],
+  }),
+  bankAccount: one(bankAccounts, {
+    fields: [merchantSettlements.bankAccountId],
+    references: [bankAccounts.id],
+  }),
+  createdByUser: one(appUsers, {
+    fields: [merchantSettlements.createdBy],
+    references: [appUsers.id],
+  }),
+  paidByUser: one(appUsers, {
+    fields: [merchantSettlements.paidBy],
+    references: [appUsers.id],
+  }),
+  receiptUploadedByUser: one(appUsers, {
+    fields: [merchantSettlements.bankTransferReceiptUploadedBy],
+    references: [appUsers.id],
+  }),
+  financialItems: many(financialItems),
 }));

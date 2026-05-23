@@ -136,6 +136,9 @@ text status
     uuid bank_account_id FK
     uuid created_by FK
     uuid paid_by FK
+    text bank_transfer_receipt_key
+    timestamp bank_transfer_receipt_uploaded_at
+    uuid bank_transfer_receipt_uploaded_by FK
 
     timestamp paid_at
     text payment_note
@@ -224,6 +227,7 @@ auth_users ||--o{ bank_accounts : "owns"
 
 auth_users ||--o{ merchant_settlements : "created by"
 auth_users ||--o{ merchant_settlements : "paid by"
+auth_users ||--o{ merchant_settlements : "receipt uploaded by"
 
 auth_users ||--o{ rider_payouts : "created by"
 auth_users ||--o{ rider_payouts : "paid by"

@@ -57,7 +57,7 @@ export function canManageRiderProfiles(role: UserRole) {
   return role === "super_admin";
 }
 
-export function canCreateSettlementDraft(role: UserRole) {
+export function canCreateMerchantSettlement(role: UserRole) {
   return role === "super_admin" || role === "office_admin";
 }
 
@@ -94,6 +94,6 @@ export function canChangeParcelStatus(role: UserRole, from: ParcelStatus, to: Pa
   return false;
 }
 
-export function canMarkPaymentPaid(role: UserRole) {
+export function canResolveMerchantSettlement(role: UserRole) {
   return role === "super_admin";
 }

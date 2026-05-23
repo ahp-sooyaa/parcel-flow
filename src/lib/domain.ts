@@ -23,13 +23,16 @@ export const deliveryFeeStatuses = [
   "deduct_from_merchant",
   "waived",
 ] as const;
-export const settlementStatuses = ["pending", "in_progress", "settled"] as const;
+export const settlementStatuses = ["pending", "settled", "void"] as const;
+export type SettlementStatus = (typeof settlementStatuses)[number];
 export const financialItemTypes = [
   "cod_remit",
   "delivery_fee_deduction",
   "rider_way_payout",
 ] as const;
+export type FinancialItemType = (typeof financialItemTypes)[number];
 export const financialItemStatuses = ["pending", "in_progress", "settled", "void"] as const;
+export type FinancialItemStatus = (typeof financialItemStatuses)[number];
 export const parcelTypes = ["cod", "non_cod"] as const;
 export type ParcelType = (typeof parcelTypes)[number];
 

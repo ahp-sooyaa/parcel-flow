@@ -28,8 +28,8 @@ Parcel Flow MVP includes:
 - COD and delivery fee collection tracking
 - Rider expected and actual collection tracking
 - Financial item generation for merchant settlement
-- Merchant settlement draft creation
-- Super admin payment confirmation
+- Merchant settlement creation from eligible financial items
+- Super admin settlement resolution with bank transfer receipt
 - Rider payout by delivered way count
 - Merchant received payment view
 
@@ -115,7 +115,7 @@ Can:
 - Edit delivery fee before rider assignment
 - Manage delivery pricing
 - Manage bank accounts
-- Create settlement drafts
+- Create pending settlements
 - Mark settlements as paid
 - Cancel settlements
 - Create rider payout drafts
@@ -139,7 +139,7 @@ Can:
 - View riders
 - View parcel lists
 - Track rider collection amounts
-- Create merchant settlement drafts
+- Create merchant settlements from eligible financial items
 - Create rider payout drafts
 - Regenerate user passwords, except super admin accounts
 
@@ -445,7 +445,6 @@ Allowed values:
 
 ```text
 pending
-in_progress
 settled
 ```
 
@@ -453,8 +452,7 @@ Meaning:
 
 | Status | Meaning |
 |---|---|
-| `pending` | Not yet included in paid settlement |
-| `in_progress` | Included in draft settlement |
+| `pending` | Settlement was created from selected financial items and is waiting for super admin payment resolution |
 | `settled` | Settlement was paid |
 
 ---
@@ -1266,90 +1264,69 @@ It is not automatic by date, week, or month.
 Office admin can:
 
 - View settlements
-- Create settlement draft
-- Edit draft settlement
+- Create merchant settlements from eligible financial items on the dashboard
 
 Super admin can:
 
 - View settlements
-- Create settlement draft
-- Edit draft settlement
+- Create merchant settlements from eligible financial items on the dashboard
 - Cancel settlement
 - Do actual bank transfer outside the system
-- Mark settlement as paid
+- Upload bank transfer receipt
+- Resolve pending settlement as paid
 
 ---
 
 ### 21.2 Settlement Status Flow
 
 ```text
-in_progress -> settled
-in_progress -> void
+pending -> settled
+pending -> void
 ```
 
 UI labels may display these as:
 
 ```text
-Draft -> Paid
-Draft -> Canceled
+Pending -> Paid
+Pending -> Canceled
 ```
 
 ---
 
-### 21.3 Draft Settlement Creation
+### 21.3 Settlement Creation
 
-Office admin or super admin can create settlement draft.
+Office admin or super admin can create settlement from the admin dashboard.
 
-Settlement draft can be created from two entry points:
-
-#### Option A: From merchant detail page
-
-Use shadcn right-side sheet UI.
+Settlement creation uses shadcn right-side sheet UI and starts from eligible merchants on the dashboard.
 
 Steps:
 
-1. Admin opens merchant parcel listing page.
-2. `Settle` button is always visible.
-3. Admin clicks `Settle`.
-4. System opens a shadcn right-side sheet.
-5. Sheet shows eligible financial items and settlement summary information.
-6. Admin selects eligible financial items.
-7. System calculates total COD amount.
-8. System calculates returned parcel delivery fee deduction.
-9. System calculates net merchant payment.
-10. Admin clicks `Create`.
-11. System creates settlement draft.
-
-#### Option B: From separate settlement page
-
-Use shadcn right-side sheet UI.
-
-Steps:
-
-1. Admin opens settlement listing page.
-2. Admin clicks `Create Settlement`.
-3. System opens a shadcn right-side sheet.
-4. Admin chooses merchant from combo box.
-5. Sheet shows eligible financial items and settlement summary information for the selected merchant.
-6. Admin selects eligible financial items.
-7. System calculates total COD amount.
-8. System calculates returned parcel delivery fee deduction.
-9. System calculates net merchant payment.
-10. Admin clicks `Create`.
-11. System creates settlement draft.
+1. Admin opens the main dashboard page.
+2. System shows a merchant settlement workspace instead of the current parcel table.
+3. System lists merchants that currently have eligible settlement financial items.
+4. Admin clicks an eligible merchant.
+5. System opens a shadcn right-side sheet.
+6. Sheet shows eligible financial items and settlement summary information for the selected merchant.
+7. Admin selects one or more eligible financial items.
+8. System calculates total COD amount.
+9. System calculates returned parcel delivery fee deduction.
+10. System calculates net merchant payment.
+11. If selected delivery fee deduction is greater than selected COD remit, system blocks settlement generation.
+12. Admin clicks `Generate Settlement`.
+13. System creates a pending settlement.
 
 ---
 
-### 21.4 Settlement Draft Effects
+### 21.4 Settlement Creation Effects
 
-When settlement draft is created:
+When settlement is created:
 
-- `merchant_settlements.status = in_progress`
+- `merchant_settlements.status = pending`
 - selected `financial_items.status = in_progress`
 - selected `financial_items.merchant_settlement_id = settlement.id`
 - related parcels get `merchant_settlement_status = in_progress`
 
-If draft is canceled:
+If pending settlement is canceled:
 
 - `merchant_settlements.status = void`
 - selected `financial_items.status = pending`
@@ -1360,16 +1337,17 @@ If draft is canceled:
 
 ### 21.5 Settlement Payment Confirmation
 
-Only super admin can mark settlement as paid.
+Only super admin can resolve a pending settlement as paid.
 
 Steps:
 
-1. Super admin opens settlement draft.
+1. Super admin opens a pending settlement from the settlement listing page.
 2. Super admin checks selected financial items and merchant bank account.
 3. Super admin transfers money manually outside the system.
-4. Super admin clicks **Mark as Paid**.
-5. System records payment confirmation.
-6. Merchant sees payment as **Received Payment**.
+4. Super admin uploads bank transfer receipt.
+5. Super admin clicks **Mark as Paid**.
+6. System records payment confirmation and receipt proof.
+7. Merchant sees payment as **Received Payment**.
 
 After settlement is marked as paid:
 
@@ -1401,6 +1379,11 @@ financial_items.status = pending
 financial_items.merchant_id = selected merchant
 ```
 
+General eligibility rule:
+
+- eligible financial items must not already be linked to another settlement
+- eligible financial items must belong to the selected merchant
+
 ---
 
 ### 21.7 Settlement Calculation
@@ -1415,13 +1398,25 @@ total delivery fee deduction = sum of selected delivery_fee_deduction financial 
 net merchant payment = total COD amount - total delivery fee deduction
 ```
 
-If net merchant payment becomes negative, system should block or warn.
+If net merchant payment becomes negative, system must block settlement generation.
+
+Invalid examples:
+
+```text
+selected COD remit = 0
+selected delivery fee deduction = 5,000
+-> block
+
+selected COD remit = 10,000
+selected delivery fee deduction = 12,000
+-> block
+```
 
 Recommended behavior:
 
 ```text
 Delivery fee deductions exceed selected COD amount.
-Add more COD remit items or handle remaining fee separately.
+Add more COD remit items or remove some delivery fee deductions.
 ```
 
 ---
@@ -1547,6 +1542,7 @@ Recommended routes and UI patterns:
 ```text
 /dashboard
   Main dashboard page.
+  Shows parcel summary cards and merchant settlement workspace.
 
 /dashboard/parcels
   Parcel listing page.
@@ -1564,7 +1560,7 @@ Recommended routes and UI patterns:
   Merchant listing page.
 
 /dashboard/merchants/[id]/parcels
-  Merchant parcel listing page which includes always-visible `Settle` button for settlement draft creation.
+  Merchant parcel listing page.
 
 /dashboard/riders
   Rider listing page.
@@ -1591,18 +1587,11 @@ Recommended routes and UI patterns:
 
 /dashboard/settlements
   Settlement listing page.
-  Includes `Create Settlement` button.
-
-/dashboard/settlements/create
-  Opens as shadcn right-side sheet from settlement listing page.
-  Sheet includes merchant combo box, eligible financial items, and settlement summary information.
+  Shows created settlements and super admin resolution actions for pending rows.
 
 /dashboard/settlements/[id]
   Settlement detail page.
-  Shows settlement financial items and action buttons such as edit, cancel, and mark paid.
-
-/dashboard/settlements/[id]/edit
-  Opens as shadcn right-side sheet for draft settlement editing.
+  Shows settlement financial items, receipt proof, and settlement status history.
 
 /dashboard/rider-payouts
   Rider payout listing page.
@@ -1703,8 +1692,8 @@ Recommended routes and UI patterns:
 - Rider parcel search and filter
 - Admin parcel search, filter, and batch assignment
 - Financial item generation from delivered / returned parcels
-- Merchant settlement draft creation from financial items
-- Super admin settlement payment confirmation
+- Merchant settlement creation from eligible dashboard financial items
+- Super admin settlement resolution with bank transfer receipt
 - Returned parcel delivery fee deduction
 - Rider payout by delivered way count
 - Status change logs
@@ -1721,7 +1710,6 @@ These features are not required in MVP:
 - Telegram integration inside app
 - Automatic pickup request creation
 - GPS rider tracking
-- Receipt upload
 - Mobile app
 - Advanced analytics
 - Multiple delivery attempts table
@@ -1757,8 +1745,8 @@ These features are not required in MVP:
 - Delivered COD parcel creates one `cod_remit` financial item.
 - Returned-to-merchant parcel creates one `delivery_fee_deduction` financial item.
 - Merchant settlement is created from selected financial items.
-- Office admin can create settlement draft.
-- Super admin performs actual bank transfer and marks settlement as paid.
+- Office admin can create pending settlement from eligible dashboard financial items.
+- Super admin performs actual bank transfer, uploads receipt proof, and marks settlement as paid.
 - Merchant sees paid COD settlement as **Received Payment**.
 - Rider payout is calculated by delivered way count and fee per way.
 - Rider payout uses selected `rider_way_payout` financial items.

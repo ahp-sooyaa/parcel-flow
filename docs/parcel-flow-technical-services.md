@@ -194,7 +194,7 @@ The project uses:
 - Tables for listing pages
 - Tabs for account and bank account settings
 - Combo boxes for selecting merchant, rider, and township
-- Financial-item-based draft creation for merchant settlements and rider payouts
+- Financial-item-based settlement creation and payout drafting
 
 ---
 
@@ -247,7 +247,8 @@ React Hook Form is used for complex forms such as:
 - Create/edit parcel
 - Assign rider
 - Township pricing
-- Settlement draft
+- Merchant settlement creation
+- Settlement receipt resolution
 - Rider payout draft
 
 Simple forms should use server action forms with `useActionState` instead. Examples include login, password change, and small text-only account detail forms.
@@ -349,7 +350,8 @@ Use Zod for important inputs such as:
 - User create/edit form
 - Rider create/edit form
 - Merchant create/edit form
-- Settlement draft creation
+- Merchant settlement creation from dashboard financial items
+- Super admin settlement resolution with bank transfer receipt
 - Rider payout creation
 - Password change
 - Password regeneration
@@ -372,7 +374,8 @@ Cloudflare R2 is used for:
 
 - Proof of delivery images
 - Pickup images
-- Future receipt or attachment storage
+- Bank transfer receipt storage
+- Future attachment storage
 
 ## Important Notes
 

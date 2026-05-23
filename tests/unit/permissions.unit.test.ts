@@ -4,14 +4,14 @@ import {
   canChangeParcelStatus,
   canCreateParcel,
   canCreateRiderPayoutDraft,
-  canCreateSettlementDraft,
+  canCreateMerchantSettlement,
   canCreateUser,
   canEditDeliveryFee,
   canManageMerchantProfiles,
   canManageRiderProfiles,
   canManageTownshipPricing,
   canManageUser,
-  canMarkPaymentPaid,
+  canResolveMerchantSettlement,
   canRegeneratePassword,
 } from "@/lib/permissions";
 
@@ -44,10 +44,10 @@ describe("permission utilities", () => {
     expect(canManageMerchantProfiles("super_admin")).toBe(true);
     expect(canManageMerchantProfiles("office_admin")).toBe(false);
     expect(canManageRiderProfiles("super_admin")).toBe(true);
-    expect(canCreateSettlementDraft("office_admin")).toBe(true);
+    expect(canCreateMerchantSettlement("office_admin")).toBe(true);
     expect(canCreateRiderPayoutDraft("office_admin")).toBe(true);
-    expect(canMarkPaymentPaid("office_admin")).toBe(false);
-    expect(canMarkPaymentPaid("super_admin")).toBe(true);
+    expect(canResolveMerchantSettlement("office_admin")).toBe(false);
+    expect(canResolveMerchantSettlement("super_admin")).toBe(true);
   });
 
   test("limits delivery fee edits to unassigned at-office parcels for super admins", () => {
