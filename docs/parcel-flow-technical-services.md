@@ -143,6 +143,7 @@ Next.js is used for:
 - App Router
 - Full-stack monolith application structure
 - Dashboard pages
+- Merchant overview and parcel listing pages
 - Server-side data loading
 - Server actions
 - Authentication-protected routes
@@ -315,6 +316,7 @@ Drizzle is used for:
 - Avoid manual database changes that are not reflected in Drizzle schema.
 - Server-side queries should enforce role and ownership rules.
 - Merchant queries must be scoped to the current merchant.
+- Merchant overview metrics, settlement history, and parcel list filters should be resolved server-side from validated query params.
 - Rider queries must be scoped to assigned rider parcels.
 - `financial_items` supports both merchant settlement and rider payout workflows.
 - `is_received_by_office` is modeled as a boolean field.
@@ -350,6 +352,8 @@ Use Zod for important inputs such as:
 - User create/edit form
 - Rider create/edit form
 - Merchant create/edit form
+- Merchant overview settlement-history search, date filter, and pagination params
+- Merchant parcel search, date filter, status tab, and pagination params
 - Merchant settlement creation from dashboard financial items
 - Super admin settlement resolution with bank transfer receipt
 - Rider payout creation

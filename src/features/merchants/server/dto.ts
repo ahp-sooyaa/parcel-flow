@@ -15,3 +15,11 @@ export type MerchantListItemDto = {
   pendingPayment: number;
   parcelCount: number;
 };
+
+export type MerchantOverviewSummaryDto = {
+  totalCodCollected: number;
+  paidToYou: number;
+  totalParcels: number;
+  onTheWayParcels: number;
+  deliveredParcels: number;
+};

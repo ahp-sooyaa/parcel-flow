@@ -1,16 +1,32 @@
 import { PageHeader } from "@/components/shared/page-header";
-import { ParcelTable } from "@/features/parcels/components/parcel-table";
-import { listParcelsForMerchantUser } from "@/features/parcels/server/dal";
+import { MerchantParcelBrowser } from "@/features/parcels/components/merchant-parcel-browser";
+import { listMerchantParcelsPageForUser } from "@/features/parcels/server/dal";
+import { parseMerchantParcelListFilters } from "@/features/parcels/server/dto";
 import { requireCurrentUser } from "@/lib/session";
 
-export default async function MerchantParcelsPage() {
+type MerchantParcelsPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function MerchantParcelsPage({
+  searchParams,
+}: Readonly<MerchantParcelsPageProps>) {
   const currentUser = await requireCurrentUser();
-  const parcels = await listParcelsForMerchantUser(currentUser.id);
+
+  if (currentUser.role !== "merchant") {
+    throw new Error("Merchant access required.");
+  }
+
+  const filters = parseMerchantParcelListFilters((await searchParams) ?? {});
+  const parcels = await listMerchantParcelsPageForUser(currentUser.id, filters);
 
   return (
     <>
-      <PageHeader title="My Parcels" description="Parcels owned by your merchant account." />
-      <ParcelTable parcels={parcels} />
+      <PageHeader
+        title="My Parcels"
+        description="Search and track parcel delivery progress for your merchant account."
+      />
+      <MerchantParcelBrowser result={parcels} filters={filters} />
     </>
   );
 }

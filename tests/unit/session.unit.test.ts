@@ -29,7 +29,7 @@ describe("session utilities", async () => {
   test("maps roles to landing paths", () => {
     expect(getRoleLandingPath("super_admin")).toBe("/dashboard");
     expect(getRoleLandingPath("office_admin")).toBe("/dashboard/parcels");
-    expect(getRoleLandingPath("merchant")).toBe("/dashboard/merchant/parcels");
+    expect(getRoleLandingPath("merchant")).toBe("/dashboard/merchant/overview");
     expect(getRoleLandingPath("rider")).toBe("/dashboard/rider/parcels");
   });
 

@@ -68,3 +68,76 @@ export type SettlementListItemDto = {
   paidAt: string | null;
   createdAt: string;
 };
+
+const merchantSettlementHistorySearchParamsSchema = z.object({
+  query: z.string().trim().max(100).optional().catch(""),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Date filter must use YYYY-MM-DD format.")
+    .optional()
+    .catch(undefined),
+  page: z.coerce.number().int().min(1).optional().catch(1),
+});
+
+export type MerchantSettlementHistoryFiltersDto = {
+  searchTerm: string;
+  createdOn: string | null;
+  page: number;
+  pageSize: number;
+};
+
+export type MerchantSettlementHistoryItemDto = {
+  id: string;
+  settlementCode: string;
+  status: SettlementStatus;
+  totalCodAmount: number;
+  totalDeliveryFeeDeduction: number;
+  netPaymentAmount: number;
+  paidAt: string | null;
+  createdAt: string;
+};
+
+export type MerchantSettlementHistoryPageDto = {
+  settlements: MerchantSettlementHistoryItemDto[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+  hasAnySettledSettlements: boolean;
+};
+
+export const merchantSettlementHistoryPageSize = 10;
+
+export function parseMerchantSettlementHistoryFilters(
+  input: Record<string, string | string[] | undefined>,
+) {
+  const parseResult = merchantSettlementHistorySearchParamsSchema.safeParse({
+    query: readSearchParam(input.query),
+    date: readSearchParam(input.date),
+    page: readSearchParam(input.page),
+  });
+
+  if (!parseResult.success) {
+    return {
+      searchTerm: "",
+      createdOn: null,
+      page: 1,
+      pageSize: merchantSettlementHistoryPageSize,
+    } satisfies MerchantSettlementHistoryFiltersDto;
+  }
+
+  return {
+    searchTerm: parseResult.data.query ?? "",
+    createdOn: parseResult.data.date ?? null,
+    page: parseResult.data.page ?? 1,
+    pageSize: merchantSettlementHistoryPageSize,
+  } satisfies MerchantSettlementHistoryFiltersDto;
+}
+
+function readSearchParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+
+  return value;
+}

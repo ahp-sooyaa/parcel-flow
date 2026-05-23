@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
@@ -13,6 +13,8 @@ import {
 } from "@/db/schema";
 import type {
   CreateParcelInputDto,
+  MerchantParcelListFiltersDto,
+  MerchantParcelListPageDto,
   ParcelListItemDto,
   ParcelSummaryDto,
   UpdateParcelInputDto,
@@ -103,6 +105,80 @@ export async function listParcelsForMerchantUser(userId: string): Promise<Parcel
   return listParcelsByScope({ merchantUserId: userId });
 }
 
+export async function listMerchantParcelsPageForUser(
+  userId: string,
+  filters: MerchantParcelListFiltersDto,
+): Promise<MerchantParcelListPageDto> {
+  const hasAnyParcelsWhere = and(isNull(parcels.deletedAt), eq(merchants.userId, userId));
+  const filteredWhere = buildMerchantParcelWhere(userId, filters);
+
+  const [hasAnyParcelsRow, totalCountRow] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(parcels)
+      .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
+      .where(hasAnyParcelsWhere)
+      .then((rows) => rows[0]),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(parcels)
+      .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
+      .where(filteredWhere)
+      .then((rows) => rows[0]),
+  ]);
+
+  const hasAnyParcels = (hasAnyParcelsRow?.count ?? 0) > 0;
+  const totalCount = totalCountRow?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / filters.pageSize));
+  const page = Math.min(filters.page, totalPages);
+  const offset = (page - 1) * filters.pageSize;
+
+  const rows = await db
+    .select({
+      id: parcels.id,
+      parcelCode: parcels.parcelCode,
+      merchantId: parcels.merchantId,
+      merchantName: merchants.shopName,
+      receiverName: parcels.receiverName,
+      receiverPhoneNumber: parcels.receiverPhoneNumber,
+      receiverAddress: parcels.receiverAddress,
+      specialNotes: parcels.specialNotes,
+      deliveryFailureNote: parcels.deliveryFailureNote,
+      townshipId: parcels.townshipId,
+      townshipName: townships.name,
+      parcelType: parcels.parcelType,
+      codAmount: parcels.codAmount,
+      deliveryFee: parcels.deliveryFee,
+      weightKg: parcels.weightKg,
+      parcelWidthCm: parcels.parcelWidthCm,
+      parcelHeightCm: parcels.parcelHeightCm,
+      parcelLengthCm: parcels.parcelLengthCm,
+      proofOfDeliveryImagesKeys: parcels.proofOfDeliveryImagesKeys,
+      riderId: parcels.riderId,
+      riderName: appUsers.name,
+      status: parcels.status,
+      createdAt: parcels.createdAt,
+    })
+    .from(parcels)
+    .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
+    .innerJoin(townships, eq(townships.id, parcels.townshipId))
+    .leftJoin(riders, eq(riders.id, parcels.riderId))
+    .leftJoin(appUsers, eq(appUsers.id, riders.userId))
+    .where(filteredWhere)
+    .orderBy(desc(parcels.createdAt), desc(parcels.parcelCode))
+    .limit(filters.pageSize)
+    .offset(offset);
+
+  return {
+    parcels: rows.map(mapParcel),
+    page,
+    pageSize: filters.pageSize,
+    totalCount,
+    totalPages,
+    hasAnyParcels,
+  };
+}
+
 export async function listParcelsForRiderUser(userId: string): Promise<ParcelListItemDto[]> {
   return listParcelsByScope({ riderUserId: userId });
 }
@@ -151,6 +227,36 @@ async function listParcelsByScope(scope: {
     );
 
   return rows.map(mapParcel);
+}
+
+function buildMerchantParcelWhere(userId: string, filters: MerchantParcelListFiltersDto) {
+  const createdAtRange = filters.createdOn ? getDayRange(filters.createdOn) : null;
+  const normalizedSearchTerm = filters.searchTerm.trim();
+
+  return and(
+    isNull(parcels.deletedAt),
+    eq(merchants.userId, userId),
+    filters.status === "on_the_way" || filters.status === "delivered"
+      ? eq(parcels.status, filters.status)
+      : undefined,
+    createdAtRange
+      ? and(gte(parcels.createdAt, createdAtRange.start), lt(parcels.createdAt, createdAtRange.end))
+      : undefined,
+    normalizedSearchTerm
+      ? or(
+          ilike(parcels.receiverName, `%${normalizedSearchTerm}%`),
+          ilike(parcels.receiverPhoneNumber, `%${normalizedSearchTerm}%`),
+        )
+      : undefined,
+  );
+}
+
+function getDayRange(day: string) {
+  const start = new Date(`${day}T00:00:00+07:00`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+
+  return { start, end };
 }
 
 export async function getParcelSummary(): Promise<ParcelSummaryDto> {

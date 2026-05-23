@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -9,6 +9,9 @@ import {
   parcels,
 } from "@/db/schema";
 import type {
+  MerchantSettlementHistoryFiltersDto,
+  MerchantSettlementHistoryItemDto,
+  MerchantSettlementHistoryPageDto,
   SettlementEligibleFinancialItemDto,
   SettlementEligibleMerchantDto,
   SettlementListItemDto,
@@ -167,6 +170,62 @@ export async function listSettlements(): Promise<SettlementListItemDto[]> {
     paidAt: row.paidAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
   }));
+}
+
+export async function listMerchantSettlementHistoryForUser(
+  userId: string,
+  filters: MerchantSettlementHistoryFiltersDto,
+): Promise<MerchantSettlementHistoryPageDto> {
+  const baseWhere = and(eq(merchants.userId, userId), eq(merchantSettlements.status, "settled"));
+  const filteredWhere = buildMerchantSettlementHistoryWhere(userId, filters);
+
+  const [hasAnySettledRow, totalCountRow] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(merchantSettlements)
+      .innerJoin(merchants, eq(merchants.id, merchantSettlements.merchantId))
+      .where(baseWhere)
+      .then((rows) => rows[0]),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(merchantSettlements)
+      .innerJoin(merchants, eq(merchants.id, merchantSettlements.merchantId))
+      .where(filteredWhere)
+      .then((rows) => rows[0]),
+  ]);
+
+  const hasAnySettledSettlements = (hasAnySettledRow?.count ?? 0) > 0;
+  const totalCount = totalCountRow?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / filters.pageSize));
+  const page = Math.min(filters.page, totalPages);
+  const offset = (page - 1) * filters.pageSize;
+
+  const rows = await db
+    .select({
+      id: merchantSettlements.id,
+      settlementCode: merchantSettlements.settlementCode,
+      status: merchantSettlements.status,
+      totalCodAmount: merchantSettlements.totalCodAmount,
+      totalDeliveryFeeDeduction: merchantSettlements.totalDeliveryFeeDeduction,
+      netPaymentAmount: merchantSettlements.netPaymentAmount,
+      paidAt: merchantSettlements.paidAt,
+      createdAt: merchantSettlements.createdAt,
+    })
+    .from(merchantSettlements)
+    .innerJoin(merchants, eq(merchants.id, merchantSettlements.merchantId))
+    .where(filteredWhere)
+    .orderBy(desc(merchantSettlements.createdAt), desc(merchantSettlements.settlementCode))
+    .limit(filters.pageSize)
+    .offset(offset);
+
+  return {
+    settlements: rows.map(mapMerchantSettlementHistoryItem),
+    page,
+    pageSize: filters.pageSize,
+    totalCount,
+    totalPages,
+    hasAnySettledSettlements,
+  };
 }
 
 export async function createMerchantSettlement(input: {
@@ -384,4 +443,56 @@ export async function resolveMerchantSettlement(input: {
         .where(inArray(parcels.id, parcelIds));
     }
   });
+}
+
+function buildMerchantSettlementHistoryWhere(
+  userId: string,
+  filters: MerchantSettlementHistoryFiltersDto,
+) {
+  const createdAtRange = filters.createdOn ? getDayRange(filters.createdOn) : null;
+  const normalizedSearchTerm = filters.searchTerm.trim();
+
+  return and(
+    eq(merchants.userId, userId),
+    eq(merchantSettlements.status, "settled"),
+    normalizedSearchTerm
+      ? ilike(merchantSettlements.settlementCode, `%${normalizedSearchTerm}%`)
+      : undefined,
+    createdAtRange
+      ? and(
+          gte(merchantSettlements.createdAt, createdAtRange.start),
+          lt(merchantSettlements.createdAt, createdAtRange.end),
+        )
+      : undefined,
+  );
+}
+
+function mapMerchantSettlementHistoryItem(row: {
+  id: string;
+  settlementCode: string;
+  status: string;
+  totalCodAmount: number;
+  totalDeliveryFeeDeduction: number;
+  netPaymentAmount: number;
+  paidAt: Date | null;
+  createdAt: Date;
+}): MerchantSettlementHistoryItemDto {
+  return {
+    id: row.id,
+    settlementCode: row.settlementCode,
+    status: row.status === "settled" ? "settled" : "pending",
+    totalCodAmount: row.totalCodAmount,
+    totalDeliveryFeeDeduction: row.totalDeliveryFeeDeduction,
+    netPaymentAmount: row.netPaymentAmount,
+    paidAt: row.paidAt?.toISOString() ?? null,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function getDayRange(day: string) {
+  const start = new Date(`${day}T00:00:00+07:00`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+
+  return { start, end };
 }

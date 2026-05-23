@@ -138,3 +138,71 @@ export type ParcelSummaryDto = {
   delivered: number;
   expectedCollection: number;
 };
+
+export const merchantParcelStatusFilters = ["all", "on_the_way", "delivered"] as const;
+export type MerchantParcelStatusFilter = (typeof merchantParcelStatusFilters)[number];
+
+const merchantParcelSearchParamsSchema = z.object({
+  query: z.string().trim().max(100).optional().catch(""),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Date filter must use YYYY-MM-DD format.")
+    .optional()
+    .catch(undefined),
+  status: z.enum(merchantParcelStatusFilters).optional().catch("all"),
+  page: z.coerce.number().int().min(1).optional().catch(1),
+});
+
+export type MerchantParcelListFiltersDto = {
+  searchTerm: string;
+  createdOn: string | null;
+  status: MerchantParcelStatusFilter;
+  page: number;
+  pageSize: number;
+};
+
+export type MerchantParcelListPageDto = {
+  parcels: ParcelListItemDto[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+  hasAnyParcels: boolean;
+};
+
+export const merchantParcelPageSize = 10;
+
+export function parseMerchantParcelListFilters(input: Record<string, string | string[] | undefined>) {
+  const parseResult = merchantParcelSearchParamsSchema.safeParse({
+    query: readSearchParam(input.query),
+    date: readSearchParam(input.date),
+    status: readSearchParam(input.status),
+    page: readSearchParam(input.page),
+  });
+
+  if (!parseResult.success) {
+    return {
+      searchTerm: "",
+      createdOn: null,
+      status: "all",
+      page: 1,
+      pageSize: merchantParcelPageSize,
+    } satisfies MerchantParcelListFiltersDto;
+  }
+
+  return {
+    searchTerm: parseResult.data.query ?? "",
+    createdOn: parseResult.data.date ?? null,
+    status: parseResult.data.status ?? "all",
+    page: parseResult.data.page ?? 1,
+    pageSize: merchantParcelPageSize,
+  } satisfies MerchantParcelListFiltersDto;
+}
+
+function readSearchParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+
+  return value;
+}

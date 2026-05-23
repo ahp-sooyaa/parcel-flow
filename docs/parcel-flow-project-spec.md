@@ -31,7 +31,8 @@ Parcel Flow MVP includes:
 - Merchant settlement creation from eligible financial items
 - Super admin settlement resolution with bank transfer receipt
 - Rider payout by delivered way count
-- Merchant received payment view
+- Merchant overview reporting
+- Merchant paid settlement history view
 
 ---
 
@@ -951,7 +952,38 @@ Merchant cannot:
 
 ---
 
-### 16.2 Merchant My Parcels Page
+### 16.2 Merchant Overview Page
+
+Merchant has an overview page for high-level parcel and remittance tracking.
+
+Overview route:
+
+```text
+/dashboard/merchant/overview
+```
+
+Overview shows summary cards for:
+
+| Card | Meaning |
+|---|---|
+| Total COD collected | Sum of COD amount from delivered parcels only; delivery fee is not included |
+| Paid to you | Sum of settled merchant settlement `net payment` already remitted to merchant |
+| Total Parcels | Total parcels owned by the merchant |
+| On the way parcels | Merchant parcels currently in `on_the_way` status |
+| Delivered Parcels | Merchant parcels currently in `delivered` status |
+
+Below the cards, the page shows merchant settlement history with:
+
+- Settlements with status `settled` only
+- Search by settlement code
+- Date filter
+- Pagination
+
+The settlement history is read-only for merchant users.
+
+---
+
+### 16.3 Merchant My Parcels Page
 
 Merchant parcel listing columns:
 
@@ -969,40 +1001,56 @@ Merchant parcel listing columns:
 
 ---
 
-### 16.3 Merchant Search and Filter
+### 16.4 Merchant Search and Filter
 
 Merchant should be able to:
 
+- Search parcels by receiver name
 - Search parcels by receiver phone number
 - Filter parcels by date
-- Filter parcels by status, recommended
+- Filter parcels by status using tabs:
+  - `All`
+  - `On the way`
+  - `Delivered`
+- Navigate paginated parcel results
 
 Search box should be separate from the filter panel.
 
 Recommended layout:
 
 ```text
-[Search by phone number] [Date range filter] [Status filter]
+[Search by recipient name or phone number] [Date filter] [Status tabs]
 ```
 
 ---
 
-### 16.4 Merchant Payment Stats
+### 16.5 Merchant Payment and Settlement History
 
-From merchant view, COD remittance should be displayed as:
+From merchant view, settled COD remittance should be displayed as:
 
 ```text
-Received Payment
+Paid to you
 ```
 
-Recommended merchant stats cards:
+Merchant payment history appears on the merchant overview page and shows only settled settlements.
 
-| Card | Meaning |
+Merchant settlement history supports:
+
+- Search by settlement code
+- Date filter
+- Pagination
+
+Recommended settlement table columns:
+
+| Column | Description |
 |---|---|
-| Total COD | Total COD from delivered parcels |
-| Received Payment | COD already paid to merchant |
-| Pending Payment | COD not yet paid to merchant |
-| Delivery Fee Deduction | Delivery fee deducted from returned parcels |
+| Settlement code | Unique settlement reference |
+| Status | Settlement status, limited to `settled` on merchant overview history |
+| COD total | Total COD amount included in the settlement |
+| Delivery fee deduction | Total deduction from returned parcels |
+| Net payment | Actual amount paid to merchant |
+| Created date | Settlement creation date |
+| Paid date | Settlement payment confirmation date |
 
 ---
 
@@ -1343,7 +1391,7 @@ Steps:
 4. Super admin uploads bank transfer receipt.
 5. Super admin clicks **Mark as Paid**.
 6. System records payment confirmation and receipt proof.
-7. Merchant sees payment as **Received Payment**.
+7. Merchant sees payment reflected under **Paid to you**.
 
 After settlement is marked as paid:
 
@@ -1353,7 +1401,7 @@ After settlement is marked as paid:
 - related parcels get `merchant_settlement_status = settled`
 - settlement is locked
 - selected financial items cannot be included in another settlement
-- payment appears in merchant payment history
+- payment appears in merchant overview settlement history
 
 ---
 
@@ -1633,8 +1681,8 @@ Recommended routes and UI patterns:
 /dashboard/merchant/parcels
   Merchant parcel listing page.
 
-/dashboard/merchant/payments
-  Merchant payment or settlement history page.
+/dashboard/merchant/overview
+  Merchant overview page with payment stats and settled settlement history.
 
 /dashboard/settings?tab=account
   Account settings page.
@@ -1684,6 +1732,7 @@ Recommended routes and UI patterns:
 - Rider expected collection amount
 - Rider actual collected amount
 - Office collection confirmation
+- Merchant overview reporting
 - Merchant parcel search and filter
 - Rider parcel search and filter
 - Admin parcel search, filter, and batch assignment
@@ -1743,6 +1792,6 @@ These features are not required in MVP:
 - Merchant settlement is created from selected financial items.
 - Office admin can create pending settlement from eligible dashboard financial items.
 - Super admin performs actual bank transfer, uploads receipt proof, and marks settlement as paid.
-- Merchant sees paid COD settlement as **Received Payment**.
+- Merchant sees paid COD settlement as **Paid to you**.
 - Rider payout is calculated by delivered way count and fee per way.
 - Rider payout uses selected `rider_way_payout` financial items.

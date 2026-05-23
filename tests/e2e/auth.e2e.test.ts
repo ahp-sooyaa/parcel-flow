@@ -22,8 +22,8 @@ test("redirects merchant users away from admin parcel management", async ({
 }) => {
   await signIn(page, seededUsers.merchant);
 
-  await expect(page).toHaveURL(/\/dashboard\/merchant\/parcels/);
+  await expect(page).toHaveURL(/\/dashboard\/merchant\/overview/);
 
   await page.goto("/dashboard/parcels");
-  await expect(page).toHaveURL(/\/dashboard\/merchant\/parcels/);
+  await expect(page).toHaveURL(/\/dashboard\/merchant\/overview/);
 });

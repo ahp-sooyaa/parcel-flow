@@ -7,7 +7,7 @@ test("merchant parcel page shows scoped data without admin-only controls", async
 }) => {
   await signIn(page, seededUsers.merchant);
 
-  await expect(page).toHaveURL(/\/dashboard\/merchant\/parcels/);
+  await expect(page).toHaveURL(/\/dashboard\/merchant\/overview/);
   await expect(page.getByRole("button", { name: /create parcel/i })).toHaveCount(0);
 });
 

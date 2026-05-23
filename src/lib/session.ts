@@ -83,7 +83,7 @@ export function getRoleLandingPath(role: UserRole) {
   }
 
   if (role === "merchant") {
-    return "/dashboard/merchant/parcels";
+    return "/dashboard/merchant/overview";
   }
 
   return "/dashboard/rider/parcels";

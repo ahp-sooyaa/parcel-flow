@@ -48,6 +48,12 @@ const navItems = [
     roles: ["super_admin", "office_admin"],
   },
   {
+    href: "/dashboard/merchant/overview",
+    label: "Overview",
+    icon: LayoutDashboard,
+    roles: ["merchant"],
+  },
+  {
     href: "/dashboard/merchant/parcels",
     label: "My Parcels",
     icon: Boxes,

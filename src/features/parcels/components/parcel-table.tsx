@@ -59,6 +59,8 @@ export function ParcelTable({
   onEdit,
   enableSelection = false,
   enableFailureReview = false,
+  showMerchantColumn = true,
+  showRiderColumn = true,
 }: Readonly<{
   parcels: ParcelListItemDto[];
   selectedParcelIds?: string[];
@@ -67,8 +69,22 @@ export function ParcelTable({
   onEdit?: (parcel: ParcelListItemDto) => void;
   enableSelection?: boolean;
   enableFailureReview?: boolean;
+  showMerchantColumn?: boolean;
+  showRiderColumn?: boolean;
 }>) {
   const hasActions = onView !== undefined || onEdit !== undefined;
+  const columnCount =
+    1 +
+    1 +
+    (showMerchantColumn ? 1 : 0) +
+    1 +
+    1 +
+    (showRiderColumn ? 1 : 0) +
+    1 +
+    1 +
+    1 +
+    1 +
+    (hasActions ? 1 : 0);
   const [internalSelectedParcelIds, setInternalSelectedParcelIds] = useState<string[]>([]);
   const [failureReviewParcel, setFailureReviewParcel] = useState<ParcelListItemDto | null>(null);
   const [failureReviewError, setFailureReviewError] = useState<string | null>(null);
@@ -178,10 +194,10 @@ export function ParcelTable({
               ) : null}
             </TableHead>
             <TableHead>Parcel</TableHead>
-            <TableHead>Merchant</TableHead>
+            {showMerchantColumn ? <TableHead>Merchant</TableHead> : null}
             <TableHead>Receiver</TableHead>
             <TableHead>Township</TableHead>
-            <TableHead>Rider</TableHead>
+            {showRiderColumn ? <TableHead>Rider</TableHead> : null}
             <TableHead className="text-right">COD</TableHead>
             <TableHead className="text-right">Fee</TableHead>
             <TableHead>Status</TableHead>
@@ -196,10 +212,7 @@ export function ParcelTable({
         <TableBody>
           {parcels.length === 0 ? (
             <TableRow>
-              <TableCell
-                colSpan={hasActions ? 11 : 10}
-                className="py-10 text-center text-sm text-muted-foreground"
-              >
+              <TableCell colSpan={columnCount} className="py-10 text-center text-sm text-muted-foreground">
                 No parcels match the current search and filters.
               </TableCell>
             </TableRow>
@@ -236,13 +249,13 @@ export function ParcelTable({
                     ) : null}
                   </div>
                 </TableCell>
-                <TableCell>{parcel.merchantName}</TableCell>
+                {showMerchantColumn ? <TableCell>{parcel.merchantName}</TableCell> : null}
                 <TableCell>
                   <div className="font-medium">{parcel.receiverName}</div>
                   <div className="text-xs text-muted-foreground">{parcel.receiverPhoneNumber}</div>
                 </TableCell>
                 <TableCell>{parcel.townshipName}</TableCell>
-                <TableCell>{parcel.riderName ?? "-"}</TableCell>
+                {showRiderColumn ? <TableCell>{parcel.riderName ?? "-"}</TableCell> : null}
                 <TableCell className="text-right">{formatMoney(parcel.codAmount)}</TableCell>
                 <TableCell className="text-right">{formatMoney(parcel.deliveryFee)}</TableCell>
                 <TableCell>
@@ -267,8 +280,12 @@ export function ParcelTable({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="min-w-[9rem]">
-                        <DropdownMenuItem onClick={() => onEdit?.(parcel)}>Edit</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onView?.(parcel)}>View</DropdownMenuItem>
+                        {onEdit ? (
+                          <DropdownMenuItem onClick={() => onEdit(parcel)}>Edit</DropdownMenuItem>
+                        ) : null}
+                        {onView ? (
+                          <DropdownMenuItem onClick={() => onView(parcel)}>View</DropdownMenuItem>
+                        ) : null}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
