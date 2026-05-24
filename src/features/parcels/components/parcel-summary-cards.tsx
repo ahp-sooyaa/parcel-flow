@@ -12,7 +12,7 @@ export function ParcelSummaryCards({ summary }: Readonly<{ summary: ParcelSummar
   ];
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+    <div className="grid gap-3 sm:grid-cols-3 sm:grid-rows-2">
       {cards.map((card) => (
         <Card key={card.label} className="gap-1">
           <CardHeader className="px-4">
