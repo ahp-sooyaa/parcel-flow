@@ -42,10 +42,7 @@ const assignmentFilters = ["all", "unassigned", "assigned", "need_review"] as co
 
 function isAssignmentFilter(value: string): value is AssignmentFilter {
   return (
-    value === "all" ||
-    value === "unassigned" ||
-    value === "assigned" ||
-    value === "need_review"
+    value === "all" || value === "unassigned" || value === "assigned" || value === "need_review"
   );
 }
 
@@ -296,7 +293,7 @@ export function ParcelListView({
             </Button>
 
             {isFilterOpen ? (
-              <div className="absolute top-full right-0 z-20 mt-2 w-[320px] rounded-xl border bg-white p-4 shadow-2xl">
+              <div className="absolute top-full left-0 sm:right-0 sm:left-auto z-20 mt-2 w-[320px] rounded-xl border bg-white p-4 shadow-2xl">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm font-semibold text-foreground">Filter parcels</div>
@@ -423,7 +420,9 @@ export function ParcelListView({
         }}
       >
         <SheetContent className="overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[720px] data-[side=right]:sm:max-w-[720px]">
-          {viewingParcel ? <ParcelDetailSheet actorRole={actorRole} parcel={viewingParcel} /> : null}
+          {viewingParcel ? (
+            <ParcelDetailSheet actorRole={actorRole} parcel={viewingParcel} />
+          ) : null}
         </SheetContent>
       </Sheet>
 

@@ -61,10 +61,10 @@ export function DashboardAccountMenu({
               <Facehash
                 name={avatarSeed}
                 size={36}
-                interactive={false}
-                enableBlink={false}
-                showInitial={false}
-                intensity3d="none"
+                interactive={true}
+                enableBlink={true}
+                showInitial={true}
+                intensity3d="dramatic"
               />
             </AvatarFallback>
           </Avatar>

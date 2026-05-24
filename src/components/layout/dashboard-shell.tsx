@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 
-import { AppNav } from "@/components/layout/app-nav";
+import { AppNav, MobileAppNav } from "@/components/layout/app-nav";
 import { DashboardAccountMenu } from "@/components/shared/dashboard-account-menu";
 import { getCurrentUser } from "@/lib/session";
 
@@ -16,7 +16,10 @@ export async function DashboardShell({ children }: Readonly<{ children: ReactNod
     <div className="flex min-h-svh bg-background">
       <AppNav role={user.role} />
       <div className="min-w-0 flex-1">
-        <header className="flex h-16 items-center justify-end border-b bg-white px-4 sm:px-6">
+        <header className="flex h-16 items-center justify-between border-b bg-white px-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <MobileAppNav role={user.role} />
+          </div>
           <div className="flex items-center gap-3">
             <DashboardAccountMenu
               name={user.name}
