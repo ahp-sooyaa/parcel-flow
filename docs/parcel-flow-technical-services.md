@@ -319,6 +319,7 @@ Drizzle is used for:
 - Merchant overview metrics, settlement history, and parcel list filters should be resolved server-side from validated query params.
 - Rider queries must be scoped to assigned rider parcels.
 - `financial_items` supports both merchant settlement and rider payout workflows.
+- `cod_remit` should be created only after office confirms rider cash handover for a delivered COD parcel.
 - `is_received_by_office` is modeled as a boolean field.
 - Rider delivery failure reports should use the parcel `delivery_failure_note` field, not `special_notes`.
 

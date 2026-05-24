@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 
-import { buildCreateUserInput, buildCurrentUser, buildUserListItem } from "../fixtures/builders";
+import {
+  buildCreateUserInput,
+  buildSessionUser,
+  buildUserListItem,
+} from "../fixtures/builders";
 import type { BankAccountDto, UserListItemDto } from "@/features/users/server/dto";
 
-const requireCurrentUserMock = mock(async () => buildCurrentUser());
+const getSessionMock = mock(async () => buildSessionUser());
 const findUniqueUsernameMock = mock(async () => "test-user");
 const createRoleProfileMock = mock(async () => undefined);
 const getUserByIdMock = mock(
@@ -37,10 +41,6 @@ const dbWhereMock = mock(async () => undefined);
 const dbSetMock = mock(() => ({ where: dbWhereMock }));
 const dbUpdateMock = mock(() => ({ set: dbSetMock }));
 
-void mock.module("@/lib/session", () => ({
-  requireCurrentUser: requireCurrentUserMock,
-}));
-
 void mock.module("@/features/users/server/dal", () => ({
   createBankAccountForUser: createBankAccountForUserMock,
   createRoleProfile: createRoleProfileMock,
@@ -53,6 +53,7 @@ void mock.module("@/features/users/server/dal", () => ({
 void mock.module("@/lib/auth", () => ({
   auth: {
     api: {
+      getSession: getSessionMock,
       createUser: createUserMock,
     },
   },
@@ -85,7 +86,7 @@ describe("user server actions", async () => {
   } = await import("@/features/users/server/actions");
 
   beforeEach(() => {
-    requireCurrentUserMock.mockReset();
+    getSessionMock.mockReset();
     findUniqueUsernameMock.mockReset();
     createRoleProfileMock.mockReset();
     getUserByIdMock.mockReset();
@@ -99,7 +100,7 @@ describe("user server actions", async () => {
     dbSetMock.mockReset();
     dbUpdateMock.mockReset();
 
-    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ role: "super_admin" }));
+    getSessionMock.mockResolvedValue(buildSessionUser({ role: "super_admin" }));
     findUniqueUsernameMock.mockResolvedValue("test-user");
     createUserMock.mockResolvedValue({ user: { id: "created-user-id" } });
     headersMock.mockResolvedValue(new Headers());
@@ -144,7 +145,7 @@ describe("user server actions", async () => {
   });
 
   test("rejects unauthorized create-user role combinations before persistence", async () => {
-    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ role: "office_admin" }));
+    getSessionMock.mockResolvedValue(buildSessionUser({ role: "office_admin" }));
 
     const result = await createUserAction(buildCreateUserInput({ role: "office_admin" }));
 
@@ -196,7 +197,7 @@ describe("user server actions", async () => {
   });
 
   test("rejects unauthorized target user edits before persistence", async () => {
-    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ role: "office_admin" }));
+    getSessionMock.mockResolvedValue(buildSessionUser({ role: "office_admin" }));
     getUserByIdMock.mockResolvedValue(
       buildUserListItem({ id: "target-user-id", role: "super_admin" }),
     );
@@ -266,8 +267,8 @@ describe("user server actions", async () => {
   });
 
   test("updates the current user's account details and normalizes phone numbers", async () => {
-    requireCurrentUserMock.mockResolvedValue(
-      buildCurrentUser({ id: "actor-id", role: "merchant" }),
+    getSessionMock.mockResolvedValue(
+      buildSessionUser({ id: "actor-id", role: "merchant" }),
     );
 
     const result = await updateOwnAccountAction({
@@ -319,7 +320,7 @@ describe("user server actions", async () => {
   });
 
   test("restricts own bank-account creation to super admins", async () => {
-    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ role: "office_admin" }));
+    getSessionMock.mockResolvedValue(buildSessionUser({ role: "office_admin" }));
 
     const result = await createOwnBankAccountAction(validBankAccountInput());
 
@@ -344,8 +345,8 @@ describe("user server actions", async () => {
   });
 
   test("creates a company bank account for the current super admin", async () => {
-    requireCurrentUserMock.mockResolvedValue(
-      buildCurrentUser({ id: "actor-id", role: "super_admin" }),
+    getSessionMock.mockResolvedValue(
+      buildSessionUser({ id: "actor-id", role: "super_admin" }),
     );
 
     const result = await createOwnBankAccountAction(validBankAccountInput());
@@ -364,8 +365,8 @@ describe("user server actions", async () => {
 
   test("returns not-found when editing a missing own bank account", async () => {
     updateBankAccountForUserMock.mockImplementation(async () => null);
-    requireCurrentUserMock.mockResolvedValue(
-      buildCurrentUser({ id: "actor-id", role: "super_admin" }),
+    getSessionMock.mockResolvedValue(
+      buildSessionUser({ id: "actor-id", role: "super_admin" }),
     );
 
     const result = await updateOwnBankAccountAction({
@@ -395,7 +396,7 @@ describe("user server actions", async () => {
   });
 
   test("rejects unauthorized managed bank-account updates", async () => {
-    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ role: "office_admin" }));
+    getSessionMock.mockResolvedValue(buildSessionUser({ role: "office_admin" }));
 
     const result = await updateUserBankAccountAction({
       id: "bank-account-id",

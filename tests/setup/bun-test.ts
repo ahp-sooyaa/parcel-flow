@@ -1,4 +1,4 @@
-import { afterEach, expect } from "bun:test";
+import { afterEach, expect, mock } from "bun:test";
 
 import * as matchers from "@testing-library/jest-dom/matchers";
 import { Window } from "happy-dom";
@@ -52,6 +52,7 @@ window.SyntaxError = SyntaxError;
 const { cleanup } = await import("@testing-library/react");
 
 afterEach(() => {
+  mock.restore();
   cleanup();
   window.document.body.innerHTML = "";
 });

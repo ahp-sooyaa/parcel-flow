@@ -369,7 +369,7 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
             className="bg-[#1b1938] text-white hover:bg-[#0e0c1f]"
             disabled={isPending}
           >
-            {isPending ? "Validating..." : "Create Parcel"}
+            {isPending ? "Creating..." : "Create Parcel"}
           </Button>
         </div>
       </SheetFooter>

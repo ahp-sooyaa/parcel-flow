@@ -609,14 +609,12 @@ For COD parcel:
 - `merchant_settlement_status = pending`
 - `rider_payout_status = pending`
 - `collected_amount = cod_amount + delivery_fee`
-- Create settlement financial item:
-  - `item_type = cod_remit`
-  - `amount = cod_amount`
-  - `status = pending`
 - Create rider payout financial item:
   - `item_type = rider_way_payout`
   - `amount = 1`
   - `status = pending`
+- Do not create `cod_remit` at delivery time
+- Create `cod_remit` only after office confirms rider cash handover
 
 For non-COD parcel:
 
@@ -1121,7 +1119,8 @@ When parcel is delivered:
 - Collected amount is recorded.
 - Collection status becomes received by rider.
 - Parcel becomes eligible for rider payout.
-- COD parcel creates one `cod_remit` financial item for merchant settlement.
+- COD parcel does not create `cod_remit` yet.
+- COD remit becomes eligible for merchant settlement only after office confirms rider cash handover.
 - Delivered parcel creates one `rider_way_payout` financial item for rider payout.
 
 ---
@@ -1237,7 +1236,7 @@ Purpose:
 
 Rules:
 
-- Delivered COD parcel creates one `cod_remit` item.
+- Office-confirmed delivered COD parcel creates one `cod_remit` item.
 - Returned-to-merchant parcel creates one `delivery_fee_deduction` item.
 - Delivered parcel creates one `rider_way_payout` item.
 - Non-COD delivered parcel does not create `cod_remit` item.
@@ -1414,6 +1413,8 @@ financial_items.item_type = cod_remit
 financial_items.status = pending
 financial_items.merchant_id = selected merchant
 ```
+
+These rows are created only after office confirms rider cash handover for delivered COD parcels.
 
 Delivery fee deduction items are eligible if:
 
@@ -1787,7 +1788,7 @@ These features are not required in MVP:
 - Parcel payment statuses are stored directly on `parcels`.
 - Rider expected collection amount reduces when parcel becomes `postpone` or `canceled_returned`.
 - Failed parcel delivery fee deduction happens only after `returned_to_merchant`.
-- Delivered COD parcel creates one `cod_remit` financial item.
+- Office-confirmed delivered COD parcel creates one `cod_remit` financial item.
 - Returned-to-merchant parcel creates one `delivery_fee_deduction` financial item.
 - Merchant settlement is created from selected financial items.
 - Office admin can create pending settlement from eligible dashboard financial items.

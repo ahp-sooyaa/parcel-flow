@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 
-import { buildCurrentUser } from "../fixtures/builders";
+import { buildSessionUser } from "../fixtures/builders";
 
-const requireCurrentUserMock = mock(async () => buildCurrentUser({ role: "super_admin" }));
+const getSessionMock = mock(async () => buildSessionUser({ role: "super_admin" }));
+const headersMock = mock(async () => new Headers());
 const createParcelMock = mock(async () => ({ id: "parcel-id", parcelCode: "PF-000001-000001" }));
 const assignParcelsToRiderMock = mock(async () => undefined);
 const startDeliveryForRiderParcelsMock = mock(async () => undefined);
@@ -18,8 +19,16 @@ const uploadDeliveryProofImageMock = mock(
 );
 const revalidatePathMock = mock(() => undefined);
 
-void mock.module("@/lib/session", () => ({
-  requireCurrentUser: requireCurrentUserMock,
+void mock.module("@/lib/auth", () => ({
+  auth: {
+    api: {
+      getSession: getSessionMock,
+    },
+  },
+}));
+
+void mock.module("next/headers", () => ({
+  headers: headersMock,
 }));
 
 void mock.module("@/features/parcels/server/dal", () => ({
@@ -58,7 +67,8 @@ describe("parcel server actions", async () => {
   } = await import("@/features/parcels/server/actions");
 
   beforeEach(() => {
-    requireCurrentUserMock.mockReset();
+    getSessionMock.mockReset();
+    headersMock.mockReset();
     createParcelMock.mockReset();
     assignParcelsToRiderMock.mockReset();
     startDeliveryForRiderParcelsMock.mockReset();
@@ -71,9 +81,8 @@ describe("parcel server actions", async () => {
     updateParcelMock.mockReset();
     uploadDeliveryProofImageMock.mockReset();
     revalidatePathMock.mockReset();
-    requireCurrentUserMock.mockResolvedValue(
-      buildCurrentUser({ id: "actor-id", role: "super_admin" }),
-    );
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "actor-id", role: "super_admin" }));
+    headersMock.mockResolvedValue(new Headers());
     createParcelMock.mockResolvedValue({ id: "parcel-id", parcelCode: "PF-000001-000001" });
     assignParcelsToRiderMock.mockResolvedValue(undefined);
     startDeliveryForRiderParcelsMock.mockResolvedValue(undefined);
@@ -95,7 +104,7 @@ describe("parcel server actions", async () => {
   });
 
   test("rejects parcel creation from merchant users", async () => {
-    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ role: "merchant" }));
+    getSessionMock.mockResolvedValue(buildSessionUser({ role: "merchant" }));
 
     const result = await createParcelAction(validParcelInput());
 
@@ -127,7 +136,9 @@ describe("parcel server actions", async () => {
   });
 
   test("updates parcels and revalidates affected read models", async () => {
-    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ id: "admin-id", role: "office_admin" }));
+    getSessionMock.mockResolvedValue(
+      buildSessionUser({ id: "admin-id", role: "office_admin" }),
+    );
 
     const result = await updateParcelAction({
       id: "00000000-0000-4000-8000-000000000001",
@@ -178,7 +189,7 @@ describe("parcel server actions", async () => {
   });
 
   test("rejects rider assignment from rider users", async () => {
-    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ role: "rider" }));
+    getSessionMock.mockResolvedValue(buildSessionUser({ role: "rider" }));
 
     const result = await assignParcelsToRiderAction({
       riderId: "rider-id",
@@ -250,7 +261,9 @@ describe("parcel server actions", async () => {
   });
 
   test("marks failed parcels for merchant return and revalidates affected read models", async () => {
-    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ id: "admin-id", role: "office_admin" }));
+    getSessionMock.mockResolvedValue(
+      buildSessionUser({ id: "admin-id", role: "office_admin" }),
+    );
 
     const result = await returnFailedParcelToMerchantAction({
       parcelId: "00000000-0000-4000-8000-000000000001",
@@ -276,7 +289,7 @@ describe("parcel server actions", async () => {
   });
 
   test("rejects failed parcel resolution from non-admin users", async () => {
-    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ role: "rider" }));
+    getSessionMock.mockResolvedValue(buildSessionUser({ role: "rider" }));
 
     const result = await returnFailedParcelToMerchantAction({
       parcelId: "00000000-0000-4000-8000-000000000001",
@@ -304,9 +317,7 @@ describe("parcel server actions", async () => {
   });
 
   test("reports rider delivery failure and revalidates affected read models", async () => {
-    requireCurrentUserMock.mockResolvedValue(
-      buildCurrentUser({ id: "rider-user-id", role: "rider" }),
-    );
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "rider-user-id", role: "rider" }));
 
     const result = await reportDeliveryFailureForRiderParcelAction({
       parcelId: "00000000-0000-4000-8000-000000000001",
@@ -327,9 +338,7 @@ describe("parcel server actions", async () => {
   });
 
   test("rejects invalid delivery failure reports before persistence", async () => {
-    requireCurrentUserMock.mockResolvedValue(
-      buildCurrentUser({ id: "rider-user-id", role: "rider" }),
-    );
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "rider-user-id", role: "rider" }));
 
     const result = await reportDeliveryFailureForRiderParcelAction({
       parcelId: "00000000-0000-4000-8000-000000000001",
@@ -341,9 +350,7 @@ describe("parcel server actions", async () => {
   });
 
   test("updates rider delivery failure notes and revalidates affected read models", async () => {
-    requireCurrentUserMock.mockResolvedValue(
-      buildCurrentUser({ id: "rider-user-id", role: "rider" }),
-    );
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "rider-user-id", role: "rider" }));
 
     const result = await updateDeliveryFailureForRiderParcelAction({
       parcelId: "00000000-0000-4000-8000-000000000001",
@@ -363,7 +370,7 @@ describe("parcel server actions", async () => {
   });
 
   test("rejects delivery failure reports from non-rider users", async () => {
-    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ role: "office_admin" }));
+    getSessionMock.mockResolvedValue(buildSessionUser({ role: "office_admin" }));
 
     const result = await reportDeliveryFailureForRiderParcelAction({
       parcelId: "00000000-0000-4000-8000-000000000001",
@@ -378,9 +385,7 @@ describe("parcel server actions", async () => {
   });
 
   test("deletes rider delivery failure notes and revalidates affected read models", async () => {
-    requireCurrentUserMock.mockResolvedValue(
-      buildCurrentUser({ id: "rider-user-id", role: "rider" }),
-    );
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "rider-user-id", role: "rider" }));
 
     const result = await deleteDeliveryFailureForRiderParcelAction({
       parcelId: "00000000-0000-4000-8000-000000000001",
@@ -399,7 +404,7 @@ describe("parcel server actions", async () => {
   });
 
   test("rejects delivery failure note deletion from non-rider users", async () => {
-    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ role: "office_admin" }));
+    getSessionMock.mockResolvedValue(buildSessionUser({ role: "office_admin" }));
 
     const result = await deleteDeliveryFailureForRiderParcelAction({
       parcelId: "00000000-0000-4000-8000-000000000001",
@@ -413,9 +418,7 @@ describe("parcel server actions", async () => {
   });
 
   test("marks rider parcel delivered with uploaded proof key", async () => {
-    requireCurrentUserMock.mockResolvedValue(
-      buildCurrentUser({ id: "rider-user-id", role: "rider" }),
-    );
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "rider-user-id", role: "rider" }));
     const formData = new FormData();
     const proofImage = new File(["proof"], "proof.jpg", { type: "image/jpeg" });
     formData.set("parcelId", "00000000-0000-4000-8000-000000000001");
@@ -442,9 +445,7 @@ describe("parcel server actions", async () => {
   });
 
   test("rejects mark delivered without proof before upload", async () => {
-    requireCurrentUserMock.mockResolvedValue(
-      buildCurrentUser({ id: "rider-user-id", role: "rider" }),
-    );
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "rider-user-id", role: "rider" }));
     const formData = new FormData();
     formData.set("parcelId", "00000000-0000-4000-8000-000000000001");
 
@@ -459,9 +460,7 @@ describe("parcel server actions", async () => {
   });
 
   test("rejects mark delivered with invalid proof before upload", async () => {
-    requireCurrentUserMock.mockResolvedValue(
-      buildCurrentUser({ id: "rider-user-id", role: "rider" }),
-    );
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "rider-user-id", role: "rider" }));
     const formData = new FormData();
     formData.set("parcelId", "00000000-0000-4000-8000-000000000001");
     formData.set("proofImage", new File(["not image"], "proof.txt", { type: "text/plain" }));
@@ -477,7 +476,7 @@ describe("parcel server actions", async () => {
   });
 
   test("rejects mark delivered from non-rider users", async () => {
-    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ role: "merchant" }));
+    getSessionMock.mockResolvedValue(buildSessionUser({ role: "merchant" }));
     const formData = new FormData();
     formData.set("parcelId", "00000000-0000-4000-8000-000000000001");
     formData.set("proofImage", new File(["proof"], "proof.jpg", { type: "image/jpeg" }));
@@ -493,9 +492,7 @@ describe("parcel server actions", async () => {
   });
 
   test("marks canceled-returned parcel as returned to merchant", async () => {
-    requireCurrentUserMock.mockResolvedValue(
-      buildCurrentUser({ id: "rider-user-id", role: "rider" }),
-    );
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "rider-user-id", role: "rider" }));
 
     const result = await markRiderParcelReturnedToMerchantAction({
       parcelId: "00000000-0000-4000-8000-000000000001",
@@ -515,7 +512,7 @@ describe("parcel server actions", async () => {
   });
 
   test("rejects return completion from non-rider users", async () => {
-    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ role: "office_admin" }));
+    getSessionMock.mockResolvedValue(buildSessionUser({ role: "office_admin" }));
 
     const result = await markRiderParcelReturnedToMerchantAction({
       parcelId: "00000000-0000-4000-8000-000000000001",

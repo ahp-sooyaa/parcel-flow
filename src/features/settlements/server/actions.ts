@@ -3,15 +3,18 @@
 import { revalidatePath } from "next/cache";
 
 import {
+  confirmRiderCashHandover,
   createMerchantSettlement,
   resolveMerchantSettlement,
 } from "@/features/settlements/server/dal";
 import {
+  confirmRiderCashHandoverInputSchema,
   createMerchantSettlementInputSchema,
   resolveMerchantSettlementInputSchema,
 } from "@/features/settlements/server/dto";
 import { uploadSettlementReceipt } from "@/features/settlements/server/upload";
 import {
+  canConfirmRiderCashHandover,
   canCreateMerchantSettlement,
   canResolveMerchantSettlement,
 } from "@/lib/permissions";
@@ -67,6 +70,46 @@ export async function createMerchantSettlementAction(input: unknown) {
     return {
       ok: false as const,
       message: error instanceof Error ? error.message : "Unable to create settlement.",
+    };
+  }
+}
+
+export async function confirmRiderCashHandoverAction(input: unknown) {
+  const actor = await requireCurrentUser();
+  const parseResult = confirmRiderCashHandoverInputSchema.safeParse(input);
+
+  if (!parseResult.success) {
+    return {
+      ok: false as const,
+      message: parseResult.error.issues[0]?.message ?? "Invalid rider handover details.",
+    };
+  }
+
+  if (!canConfirmRiderCashHandover(actor.role)) {
+    return {
+      ok: false as const,
+      message: "You do not have permission to confirm rider cash handover.",
+    };
+  }
+
+  try {
+    const result = await confirmRiderCashHandover({
+      ...parseResult.data,
+      confirmedBy: actor.id,
+    });
+
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/settlements");
+
+    return {
+      ok: true as const,
+      message: "Rider cash handover confirmed.",
+      result,
+    };
+  } catch (error) {
+    return {
+      ok: false as const,
+      message: error instanceof Error ? error.message : "Unable to confirm rider cash handover.",
     };
   }
 }

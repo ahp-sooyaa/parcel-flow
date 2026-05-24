@@ -143,6 +143,7 @@ export async function seedTestParcel(
       id: overrides.id ?? crypto.randomUUID(),
       parcelCode: overrides.parcelCode ?? uniqueTestId("PF").slice(0, 32),
       merchantId,
+      riderId: overrides.riderId,
       townshipId,
       receiverName: overrides.receiverName ?? "Receiver",
       receiverPhoneNumber: overrides.receiverPhoneNumber ?? uniquePhoneNumber(),
@@ -151,12 +152,31 @@ export async function seedTestParcel(
       codAmount: overrides.codAmount ?? 10_000,
       deliveryFee: overrides.deliveryFee ?? 2_000,
       weightKg: overrides.weightKg ?? "3",
+      isLargeParcel: overrides.isLargeParcel ?? false,
+      parcelWidthCm: overrides.parcelWidthCm ?? null,
+      parcelHeightCm: overrides.parcelHeightCm ?? null,
+      parcelLengthCm: overrides.parcelLengthCm ?? null,
+      specialNotes: overrides.specialNotes ?? null,
       deliveryFailureNote:
         typeof overrides.deliveryFailureNote === "string"
           ? appendActiveParcelFailureNote([], overrides.deliveryFailureNote)
           : overrides.deliveryFailureNote,
       status: overrides.status ?? "at_office",
+      collectedAmount: overrides.collectedAmount ?? 0,
+      codStatus: overrides.codStatus ?? "pending",
+      deliveryFeeStatus: overrides.deliveryFeeStatus ?? "pending",
+      isReceivedByOffice: overrides.isReceivedByOffice ?? false,
+      merchantSettlementStatus: overrides.merchantSettlementStatus ?? "pending",
+      riderPayoutStatus: overrides.riderPayoutStatus ?? "pending",
+      proofOfDeliveryImagesKeys: overrides.proofOfDeliveryImagesKeys,
+      pickupImagesKeys: overrides.pickupImagesKeys,
       createdBy,
+      collectionConfirmedBy: overrides.collectionConfirmedBy ?? null,
+      assignedAt: overrides.assignedAt ?? null,
+      deliveredAt: overrides.deliveredAt ?? null,
+      returnedToMerchantAt: overrides.returnedToMerchantAt ?? null,
+      collectedAt: overrides.collectedAt ?? null,
+      deletedAt: overrides.deletedAt ?? null,
     })
     .returning();
 

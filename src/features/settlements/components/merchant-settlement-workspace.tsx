@@ -1,8 +1,7 @@
 "use client";
 
 import { type ReactNode, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { Landmark, ReceiptText, WalletCards } from "lucide-react";
+import { Landmark, ReceiptText, Truck, WalletCards } from "lucide-react";
 
 import { FormBanner, type FormMessageState } from "@/components/shared/form-fields";
 import { Button } from "@/components/ui/button";
@@ -24,18 +23,32 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { SettlementEligibleMerchantDto } from "@/features/settlements/server/dto";
-import { createMerchantSettlementAction } from "@/features/settlements/server/actions";
+import type {
+  RiderCashHandoverListRowDto,
+  SettlementEligibleMerchantDto,
+} from "@/features/settlements/server/dto";
+import {
+  confirmRiderCashHandoverAction,
+  createMerchantSettlementAction,
+} from "@/features/settlements/server/actions";
+import { useAppRouter } from "@/lib/client-navigation";
 import { formatDate, formatMoney } from "@/lib/format";
 
 type MerchantSettlementWorkspaceProps = Readonly<{
   merchants: SettlementEligibleMerchantDto[];
+  riderHandovers: RiderCashHandoverListRowDto[];
 }>;
 
-export function MerchantSettlementWorkspace({ merchants }: MerchantSettlementWorkspaceProps) {
+export function MerchantSettlementWorkspace({
+  merchants,
+  riderHandovers,
+}: MerchantSettlementWorkspaceProps) {
   const [selectedMerchantId, setSelectedMerchantId] = useState<string | null>(null);
+  const [selectedRiderId, setSelectedRiderId] = useState<string | null>(null);
   const selectedMerchant =
     merchants.find((merchant) => merchant.merchantId === selectedMerchantId) ?? null;
+  const selectedRider =
+    riderHandovers.find((handover) => handover.riderId === selectedRiderId) ?? null;
 
   return (
     <Tabs defaultValue="merchant-settlements" className="space-y-4 gap-0">
@@ -46,6 +59,12 @@ export function MerchantSettlementWorkspace({ merchants }: MerchantSettlementWor
             className="rounded-md border-0 px-4 text-sm data-[state=active]:bg-white data-[state=active]:text-foreground"
           >
             Merchant Settlements
+          </TabsTrigger>
+          <TabsTrigger
+            value="rider-cash-handover"
+            className="rounded-md border-0 px-4 text-sm data-[state=active]:bg-white data-[state=active]:text-foreground"
+          >
+            Rider Cash Handover
           </TabsTrigger>
           <TabsTrigger value="rider-payouts" disabled className="border-0">
             Rider Payouts
@@ -116,6 +135,60 @@ export function MerchantSettlementWorkspace({ merchants }: MerchantSettlementWor
         </div>
       </TabsContent>
 
+      <TabsContent value="rider-cash-handover">
+        <div className="rounded-lg border bg-white">
+          <div>
+            {riderHandovers.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-3 px-6 py-14 text-center">
+                <Truck className="size-10 text-muted-foreground" />
+                <div>
+                  <p className="font-medium text-foreground">No rider cash handovers are pending.</p>
+                </div>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Rider</TableHead>
+                    <TableHead className="text-right">Parcels</TableHead>
+                    <TableHead className="text-right">Delivery Fees</TableHead>
+                    <TableHead className="text-right">COD</TableHead>
+                    <TableHead className="text-right">Total Handover</TableHead>
+                    <TableHead className="w-[160px] text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {riderHandovers.map((handover) => (
+                    <TableRow key={handover.riderId}>
+                      <TableCell className="font-medium">{handover.riderName}</TableCell>
+                      <TableCell className="text-right">{handover.pendingParcelCount}</TableCell>
+                      <TableCell className="text-right">
+                        {formatMoney(handover.totalDeliveryFeeAmount)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatMoney(handover.totalCodAmount)}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatMoney(handover.totalCollectedAmount)} MMK
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setSelectedRiderId(handover.riderId)}
+                        >
+                          Confirm Handover
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </div>
+      </TabsContent>
+
       <Sheet
         open={selectedMerchant !== null}
         onOpenChange={(open) => !open && setSelectedMerchantId(null)}
@@ -126,6 +199,18 @@ export function MerchantSettlementWorkspace({ merchants }: MerchantSettlementWor
               key={selectedMerchant.merchantId}
               merchant={selectedMerchant}
               onClose={() => setSelectedMerchantId(null)}
+            />
+          ) : null}
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={selectedRider !== null} onOpenChange={(open) => !open && setSelectedRiderId(null)}>
+        <SheetContent className="gap-0 overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[820px] data-[side=right]:sm:max-w-[820px]">
+          {selectedRider ? (
+            <RiderCashHandoverSheet
+              key={selectedRider.riderId}
+              riderHandover={selectedRider}
+              onClose={() => setSelectedRiderId(null)}
             />
           ) : null}
         </SheetContent>
@@ -141,7 +226,7 @@ function MerchantSettlementSheet({
   merchant: SettlementEligibleMerchantDto;
   onClose: () => void;
 }>) {
-  const router = useRouter();
+  const router = useAppRouter();
   const [isPending, startTransition] = useTransition();
   const [submissionState, setSubmissionState] = useState<FormMessageState | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>(
@@ -335,6 +420,211 @@ function MerchantSettlementSheet({
           onClick={submitSettlement}
         >
           {isPending ? "Generating..." : "Generate Settlement"}
+        </Button>
+      </SheetFooter>
+    </div>
+  );
+}
+
+function RiderCashHandoverSheet({
+  riderHandover,
+  onClose,
+}: Readonly<{
+  riderHandover: RiderCashHandoverListRowDto;
+  onClose: () => void;
+}>) {
+  const router = useAppRouter();
+  const [isPending, startTransition] = useTransition();
+  const [submissionState, setSubmissionState] = useState<FormMessageState | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>(
+    riderHandover.parcels.map((parcel) => parcel.id),
+  );
+
+  const selectedParcels = useMemo(
+    () => riderHandover.parcels.filter((parcel) => selectedIds.includes(parcel.id)),
+    [riderHandover.parcels, selectedIds],
+  );
+  const totals = useMemo(
+    () =>
+      selectedParcels.reduce(
+        (summary, parcel) => ({
+          totalCodAmount: summary.totalCodAmount + (parcel.parcelType === "cod" ? parcel.codAmount : 0),
+          totalDeliveryFeeAmount: summary.totalDeliveryFeeAmount + parcel.deliveryFee,
+          totalCollectedAmount: summary.totalCollectedAmount + parcel.collectedAmount,
+        }),
+        { totalCodAmount: 0, totalDeliveryFeeAmount: 0, totalCollectedAmount: 0 },
+      ),
+    [selectedParcels],
+  );
+  const hasSelectedParcels = selectedIds.length > 0;
+  const allVisibleSelected =
+    riderHandover.parcels.length > 0 &&
+    riderHandover.parcels.every((parcel) => selectedIds.includes(parcel.id));
+  const someVisibleSelected = riderHandover.parcels.some((parcel) => selectedIds.includes(parcel.id));
+
+  function toggleParcel(parcelId: string, checked: boolean) {
+    setSelectedIds((current) => {
+      if (checked) {
+        return current.includes(parcelId) ? current : [...current, parcelId];
+      }
+
+      return current.filter((id) => id !== parcelId);
+    });
+  }
+
+  function toggleAllParcels(checked: boolean) {
+    if (checked) {
+      setSelectedIds(riderHandover.parcels.map((parcel) => parcel.id));
+      return;
+    }
+
+    setSelectedIds([]);
+  }
+
+  function submitHandover() {
+    setSubmissionState(null);
+
+    startTransition(async () => {
+      const result = await confirmRiderCashHandoverAction({
+        riderId: riderHandover.riderId,
+        parcelIds: selectedIds,
+      });
+
+      if (!result.ok) {
+        setSubmissionState({
+          kind: "error",
+          message: result.message,
+        });
+        return;
+      }
+
+      setSubmissionState({
+        kind: "success",
+        message: `${result.result.confirmedParcelCount} parcel handover confirmed for ${riderHandover.riderName}.`,
+      });
+      router.refresh();
+      onClose();
+    });
+  }
+
+  return (
+    <div className="flex h-full flex-col bg-[#fcfbf8] text-[#292827]">
+      <SheetHeader className="border-b border-[#e7dfd8] p-6 pb-4 text-left">
+        <SheetTitle className="text-[2rem] font-semibold tracking-[-0.04em]">
+          Confirm Rider Handover
+        </SheetTitle>
+        <SheetDescription className="max-w-xl text-sm leading-6 text-[#73706d]">
+          Review delivered parcels still waiting for office receipt confirmation from {riderHandover.riderName}.
+        </SheetDescription>
+      </SheetHeader>
+
+      <div className="flex-1 space-y-5 overflow-y-auto px-6 py-6">
+        {submissionState ? <FormBanner state={submissionState} /> : null}
+        {!hasSelectedParcels ? (
+          <FormBanner
+            state={{
+              kind: "error",
+              message: "Select at least one parcel.",
+            }}
+          />
+        ) : null}
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <SummaryCard
+            icon={<Truck className="size-4" />}
+            label="Selected Parcels"
+            value={String(selectedParcels.length)}
+          />
+          <SummaryCard
+            icon={<ReceiptText className="size-4" />}
+            label="Collected COD"
+            value={`${formatMoney(totals.totalCodAmount)} MMK`}
+          />
+          <SummaryCard
+            icon={<WalletCards className="size-4" />}
+            label="Total Handover"
+            value={`${formatMoney(totals.totalCollectedAmount)} MMK`}
+          />
+        </div>
+
+        {riderHandover.parcels.length === 0 ? (
+          <div className="rounded-lg border bg-white px-6 py-14 text-center text-sm text-muted-foreground">
+            No eligible parcels remain for this rider.
+          </div>
+        ) : (
+          <div className="rounded-lg border bg-white">
+            <div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        aria-label="Select all rider handover parcels"
+                        checked={allVisibleSelected}
+                        indeterminate={!allVisibleSelected && someVisibleSelected}
+                        disabled={isPending}
+                        onCheckedChange={toggleAllParcels}
+                        className="rounded-[6px] shadow-sm"
+                      />
+                    </TableHead>
+                    <TableHead>Parcel</TableHead>
+                    <TableHead>Merchant</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="text-right">Delivery Fee</TableHead>
+                    <TableHead className="text-right">COD</TableHead>
+                    <TableHead className="text-right">Collected</TableHead>
+                    <TableHead>Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {riderHandover.parcels.map((parcel) => {
+                    const checked = selectedIds.includes(parcel.id);
+
+                    return (
+                      <TableRow key={parcel.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={checked}
+                            aria-label={`Select parcel ${parcel.parcelCode}`}
+                            disabled={isPending}
+                            onCheckedChange={(nextChecked) => toggleParcel(parcel.id, nextChecked)}
+                            className="rounded-[6px] shadow-sm"
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">{parcel.parcelCode}</TableCell>
+                        <TableCell>{parcel.merchantName}</TableCell>
+                        <TableCell>{parcel.parcelType === "cod" ? "COD" : "Non-COD"}</TableCell>
+                        <TableCell className="text-right">{formatMoney(parcel.deliveryFee)}</TableCell>
+                        <TableCell className="text-right">{formatMoney(parcel.codAmount)}</TableCell>
+                        <TableCell className="text-right">{formatMoney(parcel.collectedAmount)}</TableCell>
+                        <TableCell>{formatDate(parcel.deliveredAt)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
+
+        <div className="rounded-lg border bg-white p-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Metric
+              label="Delivery Fees"
+              value={`${formatMoney(totals.totalDeliveryFeeAmount)} MMK`}
+            />
+            <Metric label="COD" value={`${formatMoney(totals.totalCodAmount)} MMK`} />
+            <Metric label="Total Handover" value={`${formatMoney(totals.totalCollectedAmount)} MMK`} />
+          </div>
+        </div>
+      </div>
+
+      <SheetFooter className="border-t border-[#e7dfd8] bg-white px-6 py-4 sm:flex-row sm:justify-end">
+        <Button variant="ghost" disabled={isPending} onClick={onClose}>
+          Cancel
+        </Button>
+        <Button disabled={isPending || !hasSelectedParcels} onClick={submitHandover}>
+          {isPending ? "Confirming..." : "Confirm Handover"}
         </Button>
       </SheetFooter>
     </div>

@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 
-import { buildCurrentUser } from "../fixtures/builders";
+import { buildSessionUser } from "../fixtures/builders";
 
-const requireCurrentUserMock = mock(async () => buildCurrentUser({ role: "super_admin" }));
+const getSessionMock = mock(async () => buildSessionUser({ role: "super_admin" }));
+const headersMock = mock(async () => new Headers());
 const createTownshipMock = mock(async (input: unknown) => ({ id: "township-id", input }));
 const updateTownshipMock = mock(
   async (id: string, input: unknown): Promise<unknown> => ({
@@ -12,8 +13,16 @@ const updateTownshipMock = mock(
 );
 const revalidatePathMock = mock(() => undefined);
 
-void mock.module("@/lib/session", () => ({
-  requireCurrentUser: requireCurrentUserMock,
+void mock.module("@/lib/auth", () => ({
+  auth: {
+    api: {
+      getSession: getSessionMock,
+    },
+  },
+}));
+
+void mock.module("next/headers", () => ({
+  headers: headersMock,
 }));
 
 void mock.module("@/features/townships/server/dal", () => ({
@@ -30,11 +39,13 @@ describe("township server actions", async () => {
     await import("@/features/townships/server/actions");
 
   beforeEach(() => {
-    requireCurrentUserMock.mockReset();
+    getSessionMock.mockReset();
+    headersMock.mockReset();
     createTownshipMock.mockReset();
     updateTownshipMock.mockReset();
     revalidatePathMock.mockReset();
-    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ role: "super_admin" }));
+    getSessionMock.mockResolvedValue(buildSessionUser({ role: "super_admin" }));
+    headersMock.mockResolvedValue(new Headers());
     createTownshipMock.mockImplementation(async (input: unknown) => ({ id: "township-id", input }));
     updateTownshipMock.mockImplementation(async (id: string, input: unknown) => ({ id, input }));
   });
@@ -47,7 +58,7 @@ describe("township server actions", async () => {
   });
 
   test("rejects township writes from non-super-admin users", async () => {
-    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ role: "office_admin" }));
+    getSessionMock.mockResolvedValue(buildSessionUser({ role: "office_admin" }));
 
     const result = await createTownshipAction(validTownshipInput());
 
@@ -86,7 +97,7 @@ describe("township server actions", async () => {
   });
 
   test("rejects unauthorized township updates", async () => {
-    requireCurrentUserMock.mockResolvedValue(buildCurrentUser({ role: "office_admin" }));
+    getSessionMock.mockResolvedValue(buildSessionUser({ role: "office_admin" }));
 
     const result = await updateTownshipAction({ id: "township-id", ...validTownshipInput() });
 

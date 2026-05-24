@@ -1,14 +1,18 @@
-import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
+  appUsers,
   bankAccounts,
   financialItems,
   merchantSettlements,
   merchants,
   parcels,
+  riders,
 } from "@/db/schema";
 import type {
+  RiderCashHandoverListRowDto,
+  RiderCashHandoverParcelDto,
   MerchantSettlementHistoryFiltersDto,
   MerchantSettlementHistoryItemDto,
   MerchantSettlementHistoryPageDto,
@@ -38,6 +42,28 @@ function mapEligibleFinancialItem(row: {
     itemType: row.itemType,
     amount: row.amount,
     createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function mapRiderCashHandoverParcel(row: {
+  parcelId: string;
+  parcelCode: string;
+  merchantName: string;
+  parcelType: string;
+  codAmount: number;
+  deliveryFee: number;
+  collectedAmount: number;
+  deliveredAt: Date | null;
+}): RiderCashHandoverParcelDto {
+  return {
+    id: row.parcelId,
+    parcelCode: row.parcelCode,
+    merchantName: row.merchantName,
+    parcelType: row.parcelType === "non_cod" ? "non_cod" : "cod",
+    codAmount: row.codAmount,
+    deliveryFee: row.deliveryFee,
+    collectedAmount: row.collectedAmount,
+    deliveredAt: row.deliveredAt?.toISOString() ?? null,
   };
 }
 
@@ -71,6 +97,10 @@ export async function listEligibleSettlementMerchants(): Promise<SettlementEligi
         isNull(financialItems.merchantSettlementId),
         eq(financialItems.status, "pending"),
         inArray(financialItems.itemType, merchantSettlementEligibleItemTypes),
+        or(
+          eq(financialItems.itemType, "delivery_fee_deduction"),
+          and(eq(financialItems.itemType, "cod_remit"), eq(parcels.isReceivedByOffice, true)),
+        ),
       ),
     )
     .orderBy(asc(merchants.shopName), asc(financialItems.createdAt));
@@ -126,6 +156,62 @@ export async function listEligibleSettlementMerchants(): Promise<SettlementEligi
   }
 
   return Array.from(merchantMap.values()).filter((merchant) => merchant.totalCodAmount > 0);
+}
+
+export async function listPendingRiderCashHandovers(): Promise<RiderCashHandoverListRowDto[]> {
+  const rows = await db
+    .select({
+      riderId: riders.id,
+      riderName: appUsers.name,
+      parcelId: parcels.id,
+      parcelCode: parcels.parcelCode,
+      merchantName: merchants.shopName,
+      parcelType: parcels.parcelType,
+      codAmount: parcels.codAmount,
+      deliveryFee: parcels.deliveryFee,
+      collectedAmount: parcels.collectedAmount,
+      deliveredAt: parcels.deliveredAt,
+    })
+    .from(parcels)
+    .innerJoin(riders, eq(riders.id, parcels.riderId))
+    .innerJoin(appUsers, eq(appUsers.id, riders.userId))
+    .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
+    .where(
+      and(
+        isNull(parcels.deletedAt),
+        eq(parcels.status, "delivered"),
+        eq(parcels.isReceivedByOffice, false),
+      ),
+    )
+    .orderBy(asc(appUsers.name), asc(parcels.deliveredAt), asc(parcels.parcelCode));
+
+  const riderMap = new Map<string, RiderCashHandoverListRowDto>();
+
+  for (const row of rows) {
+    const parcel = mapRiderCashHandoverParcel(row);
+    const existing = riderMap.get(row.riderId);
+
+    if (!existing) {
+      riderMap.set(row.riderId, {
+        riderId: row.riderId,
+        riderName: row.riderName,
+        pendingParcelCount: 1,
+        totalCodAmount: parcel.parcelType === "cod" ? parcel.codAmount : 0,
+        totalDeliveryFeeAmount: parcel.deliveryFee,
+        totalCollectedAmount: parcel.collectedAmount,
+        parcels: [parcel],
+      });
+      continue;
+    }
+
+    existing.pendingParcelCount += 1;
+    existing.totalCodAmount += parcel.parcelType === "cod" ? parcel.codAmount : 0;
+    existing.totalDeliveryFeeAmount += parcel.deliveryFee;
+    existing.totalCollectedAmount += parcel.collectedAmount;
+    existing.parcels.push(parcel);
+  }
+
+  return Array.from(riderMap.values());
 }
 
 export async function listSettlements(): Promise<SettlementListItemDto[]> {
@@ -358,6 +444,110 @@ export async function createMerchantSettlement(input: {
     }
 
     return settlement;
+  });
+}
+
+export async function confirmRiderCashHandover(input: {
+  riderId: string;
+  parcelIds: string[];
+  confirmedBy: string;
+}) {
+  const uniqueParcelIds = Array.from(new Set(input.parcelIds));
+
+  return db.transaction(async (tx) => {
+    const eligibleParcels = await tx
+      .select({
+        id: parcels.id,
+        riderId: parcels.riderId,
+        merchantId: parcels.merchantId,
+        status: parcels.status,
+        isReceivedByOffice: parcels.isReceivedByOffice,
+        parcelType: parcels.parcelType,
+        codAmount: parcels.codAmount,
+      })
+      .from(parcels)
+      .where(and(inArray(parcels.id, uniqueParcelIds), isNull(parcels.deletedAt)));
+
+    if (eligibleParcels.length !== uniqueParcelIds.length) {
+      throw new Error("One or more selected parcels are no longer eligible for handover.");
+    }
+
+    const hasInvalidParcel = eligibleParcels.some(
+      (parcel) =>
+        parcel.riderId !== input.riderId ||
+        parcel.status !== "delivered" ||
+        parcel.isReceivedByOffice,
+    );
+
+    if (hasInvalidParcel) {
+      throw new Error("One or more selected parcels are no longer eligible for handover.");
+    }
+
+    const now = new Date();
+    const updatedParcels = await tx
+      .update(parcels)
+      .set({
+        isReceivedByOffice: true,
+        collectionConfirmedBy: input.confirmedBy,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          inArray(parcels.id, uniqueParcelIds),
+          eq(parcels.riderId, input.riderId),
+          eq(parcels.status, "delivered"),
+          eq(parcels.isReceivedByOffice, false),
+        ),
+      )
+      .returning({ id: parcels.id });
+
+    if (updatedParcels.length !== uniqueParcelIds.length) {
+      throw new Error("One or more selected parcels are no longer eligible for handover.");
+    }
+
+    const codParcelIds = eligibleParcels
+      .filter((parcel) => parcel.parcelType === "cod")
+      .map((parcel) => parcel.id);
+    const existingCodRemitItems =
+      codParcelIds.length > 0
+        ? await tx
+            .select({ parcelId: financialItems.parcelId })
+            .from(financialItems)
+            .where(
+              and(
+                inArray(financialItems.parcelId, codParcelIds),
+                eq(financialItems.itemType, "cod_remit"),
+              ),
+            )
+        : [];
+    const existingCodRemitParcelIds = new Set(
+      existingCodRemitItems
+        .map((item) => item.parcelId)
+        .filter((parcelId): parcelId is string => parcelId !== null),
+    );
+    const pendingCodRemitItems = eligibleParcels
+      .filter(
+        (parcel) => parcel.parcelType === "cod" && !existingCodRemitParcelIds.has(parcel.id),
+      )
+      .map((parcel) => ({
+        parcelId: parcel.id,
+        merchantId: parcel.merchantId,
+        riderId: null,
+        itemType: "cod_remit" as const,
+        amount: parcel.codAmount,
+        status: "pending" as const,
+        createdBy: input.confirmedBy,
+        updatedAt: now,
+      }));
+
+    if (pendingCodRemitItems.length > 0) {
+      await tx.insert(financialItems).values(pendingCodRemitItems);
+    }
+
+    return {
+      confirmedParcelCount: uniqueParcelIds.length,
+      createdCodRemitCount: pendingCodRemitItems.length,
+    };
   });
 }
 

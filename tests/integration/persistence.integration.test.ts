@@ -709,7 +709,7 @@ describe("persistence integration coverage", () => {
     );
   });
 
-  test("marks COD rider parcel delivered and creates settlement and payout items", async () => {
+  test("marks COD rider parcel delivered, keeps handover pending, and creates only payout items", async () => {
     const parcelSeed = await seedTestParcel(testDb.db, {
       status: "on_the_way",
       parcelType: "cod",
@@ -732,6 +732,10 @@ describe("persistence integration coverage", () => {
       .set({ riderId: riderSeed.rider.id })
       .where(eq(parcels.id, parcelSeed.parcel.id));
 
+    const {
+      listEligibleSettlementMerchants,
+      listPendingRiderCashHandovers,
+    } = await import("@/features/settlements/server/dal");
     const { markRiderParcelDelivered } = await import("@/features/parcels/server/dal");
     await markRiderParcelDelivered({
       parcelId: parcelSeed.parcel.id,
@@ -749,6 +753,8 @@ describe("persistence integration coverage", () => {
       .select()
       .from(financialItems)
       .where(eq(financialItems.parcelId, parcelSeed.parcel.id));
+    const riderHandovers = await listPendingRiderCashHandovers();
+    const eligibleMerchants = await listEligibleSettlementMerchants();
 
     expect(updatedParcel).toMatchObject({
       status: "delivered",
@@ -762,26 +768,26 @@ describe("persistence integration coverage", () => {
     });
     expect(updatedParcel.deliveredAt).toBeInstanceOf(Date);
     expect(updatedParcel.collectedAt).toBeInstanceOf(Date);
-    expect(items).toHaveLength(2);
-    expect(items).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          itemType: "cod_remit",
-          amount: 10_000,
-          status: "pending",
-          merchantId: parcelSeed.merchantSeed?.merchant.id,
-          parcelId: parcelSeed.parcel.id,
-        }),
-        expect.objectContaining({
-          itemType: "rider_way_payout",
-          amount: 1,
-          status: "pending",
-          merchantId: parcelSeed.merchantSeed?.merchant.id,
-          riderId: riderSeed.rider.id,
-          parcelId: parcelSeed.parcel.id,
-        }),
-      ]),
-    );
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      itemType: "rider_way_payout",
+      amount: 1,
+      status: "pending",
+      merchantId: parcelSeed.merchantSeed?.merchant.id,
+      riderId: riderSeed.rider.id,
+      parcelId: parcelSeed.parcel.id,
+    });
+    expect(riderHandovers).toEqual([
+      expect.objectContaining({
+        riderId: riderSeed.rider.id,
+        riderName: riderSeed.user?.name,
+        pendingParcelCount: 1,
+        totalCodAmount: 10_000,
+        totalDeliveryFeeAmount: 2_000,
+        totalCollectedAmount: 12_000,
+      }),
+    ]);
+    expect(eligibleMerchants).toHaveLength(0);
   });
 
   test("merchant overview counts COD as collected only after office receipt confirmation", async () => {
@@ -1061,6 +1067,245 @@ describe("persistence integration coverage", () => {
       riderId: riderSeed.rider.id,
       parcelId: parcelSeed.parcel.id,
     });
+  });
+
+  test("confirms rider cash handover atomically and creates deferred COD remit only for COD parcels", async () => {
+    const creator = await seedTestUser(testDb.db, { role: "super_admin" });
+    const riderSeed = await seedTestRider(testDb.db);
+    const codParcelSeed = await seedTestParcel(testDb.db, {
+      status: "delivered",
+      parcelType: "cod",
+      codAmount: 15_000,
+      deliveryFee: 2_000,
+      riderId: riderSeed.rider.id,
+      isReceivedByOffice: false,
+      collectedAmount: 17_000,
+      deliveredAt: new Date(),
+    });
+    const nonCodParcelSeed = await seedTestParcel(testDb.db, {
+      status: "delivered",
+      parcelType: "non_cod",
+      codAmount: 0,
+      deliveryFee: 1_500,
+      riderId: riderSeed.rider.id,
+      isReceivedByOffice: false,
+      collectedAmount: 1_500,
+      deliveredAt: new Date(),
+    });
+    seededIds.userIds.push(
+      creator.id,
+      riderSeed.user?.id ?? "",
+      codParcelSeed.merchantSeed?.user?.id ?? "",
+      codParcelSeed.creator?.id ?? "",
+      nonCodParcelSeed.merchantSeed?.user?.id ?? "",
+      nonCodParcelSeed.creator?.id ?? "",
+    );
+    seededIds.merchantIds.push(
+      codParcelSeed.merchantSeed?.merchant.id ?? "",
+      nonCodParcelSeed.merchantSeed?.merchant.id ?? "",
+    );
+    seededIds.townshipIds.push(
+      riderSeed.township.id,
+      codParcelSeed.township.id,
+      nonCodParcelSeed.township.id,
+    );
+    seededIds.riderIds.push(riderSeed.rider.id);
+    seededIds.parcelIds.push(codParcelSeed.parcel.id, nonCodParcelSeed.parcel.id);
+
+    const [codPayoutItem, nonCodPayoutItem] = await testDb.db
+      .insert(financialItems)
+      .values([
+        {
+          parcelId: codParcelSeed.parcel.id,
+          merchantId: codParcelSeed.parcel.merchantId,
+          riderId: riderSeed.rider.id,
+          itemType: "rider_way_payout",
+          amount: 1,
+          status: "pending",
+          createdBy: riderSeed.user?.id ?? "",
+        },
+        {
+          parcelId: nonCodParcelSeed.parcel.id,
+          merchantId: nonCodParcelSeed.parcel.merchantId,
+          riderId: riderSeed.rider.id,
+          itemType: "rider_way_payout",
+          amount: 1,
+          status: "pending",
+          createdBy: riderSeed.user?.id ?? "",
+        },
+      ])
+      .returning();
+
+    const {
+      confirmRiderCashHandover,
+      listEligibleSettlementMerchants,
+      listPendingRiderCashHandovers,
+    } = await import("@/features/settlements/server/dal");
+    const result = await confirmRiderCashHandover({
+      riderId: riderSeed.rider.id,
+      parcelIds: [codParcelSeed.parcel.id, nonCodParcelSeed.parcel.id],
+      confirmedBy: creator.id,
+    });
+
+    const confirmedParcels = await testDb.db
+      .select({
+        id: parcels.id,
+        isReceivedByOffice: parcels.isReceivedByOffice,
+        collectionConfirmedBy: parcels.collectionConfirmedBy,
+      })
+      .from(parcels)
+      .where(inArray(parcels.id, [codParcelSeed.parcel.id, nonCodParcelSeed.parcel.id]));
+    const linkedItems = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(inArray(financialItems.id, [codPayoutItem.id, nonCodPayoutItem.id]))
+      .then((items) => items);
+    const codRemitItems = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(
+        and(
+          eq(financialItems.parcelId, codParcelSeed.parcel.id),
+          eq(financialItems.itemType, "cod_remit"),
+        ),
+      );
+    const nonCodRemitItems = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(
+        and(
+          eq(financialItems.parcelId, nonCodParcelSeed.parcel.id),
+          eq(financialItems.itemType, "cod_remit"),
+        ),
+      );
+    const remainingHandovers = await listPendingRiderCashHandovers();
+    const eligibleMerchants = await listEligibleSettlementMerchants();
+
+    expect(result).toEqual({
+      confirmedParcelCount: 2,
+      createdCodRemitCount: 1,
+    });
+    expect(confirmedParcels).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: codParcelSeed.parcel.id,
+          isReceivedByOffice: true,
+          collectionConfirmedBy: creator.id,
+        }),
+        expect.objectContaining({
+          id: nonCodParcelSeed.parcel.id,
+          isReceivedByOffice: true,
+          collectionConfirmedBy: creator.id,
+        }),
+      ]),
+    );
+    expect(linkedItems).toHaveLength(2);
+    expect(codRemitItems).toHaveLength(1);
+    expect(codRemitItems[0]).toMatchObject({
+      itemType: "cod_remit",
+      amount: 15_000,
+      merchantId: codParcelSeed.parcel.merchantId,
+      parcelId: codParcelSeed.parcel.id,
+      createdBy: creator.id,
+      status: "pending",
+    });
+    expect(nonCodRemitItems).toHaveLength(0);
+    expect(remainingHandovers).toHaveLength(0);
+    expect(eligibleMerchants).toEqual([
+      expect.objectContaining({
+        merchantId: codParcelSeed.parcel.merchantId,
+        eligibleItemCount: 1,
+        totalCodAmount: 15_000,
+        totalDeliveryFeeDeduction: 0,
+        netPaymentAmount: 15_000,
+      }),
+    ]);
+  });
+
+  test("rejects stale or mixed-rider handover selections without partial updates", async () => {
+    const creator = await seedTestUser(testDb.db, { role: "super_admin" });
+    const firstRiderSeed = await seedTestRider(testDb.db);
+    const secondRiderSeed = await seedTestRider(testDb.db);
+    const firstParcelSeed = await seedTestParcel(testDb.db, {
+      status: "delivered",
+      riderId: firstRiderSeed.rider.id,
+      isReceivedByOffice: false,
+      collectedAmount: 12_000,
+      deliveredAt: new Date(),
+    });
+    const secondParcelSeed = await seedTestParcel(testDb.db, {
+      status: "delivered",
+      riderId: secondRiderSeed.rider.id,
+      isReceivedByOffice: false,
+      collectedAmount: 9_000,
+      deliveredAt: new Date(),
+    });
+    seededIds.userIds.push(
+      creator.id,
+      firstRiderSeed.user?.id ?? "",
+      secondRiderSeed.user?.id ?? "",
+      firstParcelSeed.merchantSeed?.user?.id ?? "",
+      firstParcelSeed.creator?.id ?? "",
+      secondParcelSeed.merchantSeed?.user?.id ?? "",
+      secondParcelSeed.creator?.id ?? "",
+    );
+    seededIds.merchantIds.push(
+      firstParcelSeed.parcel.merchantId,
+      secondParcelSeed.parcel.merchantId,
+    );
+    seededIds.townshipIds.push(
+      firstRiderSeed.township.id,
+      secondRiderSeed.township.id,
+      firstParcelSeed.township.id,
+      secondParcelSeed.township.id,
+    );
+    seededIds.riderIds.push(firstRiderSeed.rider.id, secondRiderSeed.rider.id);
+    seededIds.parcelIds.push(firstParcelSeed.parcel.id, secondParcelSeed.parcel.id);
+
+    const { confirmRiderCashHandover } = await import("@/features/settlements/server/dal");
+
+    await expectPromiseToRejectWith(
+      confirmRiderCashHandover({
+        riderId: firstRiderSeed.rider.id,
+        parcelIds: [firstParcelSeed.parcel.id, secondParcelSeed.parcel.id],
+        confirmedBy: creator.id,
+      }),
+      "One or more selected parcels are no longer eligible for handover.",
+    );
+
+    const updatedParcels = await testDb.db
+      .select({
+        id: parcels.id,
+        isReceivedByOffice: parcels.isReceivedByOffice,
+        collectionConfirmedBy: parcels.collectionConfirmedBy,
+      })
+      .from(parcels)
+      .where(inArray(parcels.id, [firstParcelSeed.parcel.id, secondParcelSeed.parcel.id]));
+    const createdCodRemitItems = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(
+        and(
+          inArray(financialItems.parcelId, [firstParcelSeed.parcel.id, secondParcelSeed.parcel.id]),
+          eq(financialItems.itemType, "cod_remit"),
+        ),
+      );
+
+    expect(updatedParcels).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: firstParcelSeed.parcel.id,
+          isReceivedByOffice: false,
+          collectionConfirmedBy: null,
+        }),
+        expect.objectContaining({
+          id: secondParcelSeed.parcel.id,
+          isReceivedByOffice: false,
+          collectionConfirmedBy: null,
+        }),
+      ]),
+    );
+    expect(createdCodRemitItems).toHaveLength(0);
   });
 
   test("rejects mark delivered for inactive, unrelated, missing, or non-on-the-way parcels", async () => {

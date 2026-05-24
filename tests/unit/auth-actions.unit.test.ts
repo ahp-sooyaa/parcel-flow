@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 
-import { buildCurrentUser, buildUserListItem } from "../fixtures/builders";
+import { buildSessionUser, buildUserListItem } from "../fixtures/builders";
 import type { UserListItemDto } from "@/features/users/server/dto";
 
-const requireCurrentUserMock = mock(async () =>
-  buildCurrentUser({ id: "actor-id", role: "super_admin" }),
+const getSessionMock = mock(async () =>
+  buildSessionUser({ id: "actor-id", role: "super_admin" }),
 );
 const getUserByIdMock = mock(async (): Promise<UserListItemDto | null> =>
   buildUserListItem({ id: "target-user-id", role: "merchant" }),
@@ -18,10 +18,6 @@ const revalidatePathMock = mock(() => undefined);
 const dbWhereMock = mock(async () => undefined);
 const dbSetMock = mock(() => ({ where: dbWhereMock }));
 const dbUpdateMock = mock(() => ({ set: dbSetMock }));
-
-void mock.module("@/lib/session", () => ({
-  requireCurrentUser: requireCurrentUserMock,
-}));
 
 void mock.module("@/features/users/server/dal", () => ({
   getUserById: getUserByIdMock,
@@ -38,6 +34,7 @@ void mock.module("@/lib/password", () => ({
 void mock.module("@/lib/auth", () => ({
   auth: {
     api: {
+      getSession: getSessionMock,
       changePassword: changePasswordMock,
       setUserPassword: setUserPasswordMock,
     },
@@ -78,7 +75,7 @@ describe("auth server actions", async () => {
     await import("@/features/auth/server/actions");
 
   beforeEach(() => {
-    requireCurrentUserMock.mockReset();
+    getSessionMock.mockReset();
     getUserByIdMock.mockReset();
     canRegeneratePasswordMock.mockReset();
     generateTemporaryPasswordMock.mockReset();
@@ -90,8 +87,8 @@ describe("auth server actions", async () => {
     dbSetMock.mockReset();
     dbUpdateMock.mockReset();
 
-    requireCurrentUserMock.mockResolvedValue(
-      buildCurrentUser({ id: "actor-id", role: "super_admin" }),
+    getSessionMock.mockResolvedValue(
+      buildSessionUser({ id: "actor-id", role: "super_admin" }),
     );
     getUserByIdMock.mockResolvedValue(
       buildUserListItem({ id: "target-user-id", role: "merchant" }),

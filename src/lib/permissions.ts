@@ -61,6 +61,10 @@ export function canCreateMerchantSettlement(role: UserRole) {
   return role === "super_admin" || role === "office_admin";
 }
 
+export function canConfirmRiderCashHandover(role: UserRole) {
+  return role === "super_admin" || role === "office_admin";
+}
+
 export function canCreateRiderPayoutDraft(role: UserRole) {
   return role === "super_admin" || role === "office_admin";
 }

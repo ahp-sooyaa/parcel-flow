@@ -7,6 +7,21 @@ import {
   calculateAmountToCollect,
   isActiveCollectionStatus,
 } from "@/features/parcels/server/utils";
+import type { ParcelStatus } from "@/lib/domain";
+
+function toParcelStatus(status: string): ParcelStatus | null {
+  switch (status) {
+    case "at_office":
+    case "on_the_way":
+    case "delivered":
+    case "postpone":
+    case "canceled_returned":
+    case "returned_to_merchant":
+      return status;
+    default:
+      return null;
+  }
+}
 
 export async function listRiders(): Promise<RiderListItemDto[]> {
   const rows = await db
@@ -48,14 +63,18 @@ export async function listRiders(): Promise<RiderListItemDto[]> {
 
   return rows.map((rider) => {
     const assignedParcels = parcelRows.filter((parcel) => parcel.riderId === rider.id);
+    const normalizedParcels = assignedParcels.map((parcel) => ({
+      ...parcel,
+      normalizedStatus: toParcelStatus(parcel.status),
+    }));
 
     return {
       ...rider,
       serviceTownships: serviceTownshipRows
         .filter((serviceTownship) => serviceTownship.riderId === rider.id)
         .map((serviceTownship) => serviceTownship.townshipName),
-      expectedCollection: assignedParcels
-        .filter((parcel) => isActiveCollectionStatus(parcel.status))
+      expectedCollection: normalizedParcels
+        .filter((parcel) => parcel.normalizedStatus && isActiveCollectionStatus(parcel.normalizedStatus))
         .reduce(
           (total, parcel) =>
             total +
@@ -69,8 +88,9 @@ export async function listRiders(): Promise<RiderListItemDto[]> {
       actualCollection: assignedParcels
         .filter((parcel) => parcel.status === "delivered")
         .reduce((total, parcel) => total + parcel.collectedAmount, 0),
-      activeParcelCount: assignedParcels.filter((parcel) => isActiveCollectionStatus(parcel.status))
-        .length,
+      activeParcelCount: normalizedParcels.filter(
+        (parcel) => parcel.normalizedStatus && isActiveCollectionStatus(parcel.normalizedStatus),
+      ).length,
     };
   });
 }

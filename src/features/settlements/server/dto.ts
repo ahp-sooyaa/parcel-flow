@@ -9,6 +9,11 @@ export const createMerchantSettlementInputSchema = z.object({
     .min(1, "Select at least one financial item."),
 });
 
+export const confirmRiderCashHandoverInputSchema = z.object({
+  riderId: z.uuid("Rider selection is invalid."),
+  parcelIds: z.array(z.uuid("Parcel selection is invalid.")).min(1, "Select at least one parcel."),
+});
+
 export const maxSettlementReceiptSize = 8 * 1024 * 1024;
 export const allowedSettlementReceiptTypes = [
   "application/pdf",
@@ -53,6 +58,31 @@ export type SettlementEligibleMerchantDto = {
   netPaymentAmount: number;
   financialItems: SettlementEligibleFinancialItemDto[];
 };
+
+export type RiderCashHandoverParcelDto = {
+  id: string;
+  parcelCode: string;
+  merchantName: string;
+  parcelType: "cod" | "non_cod";
+  codAmount: number;
+  deliveryFee: number;
+  collectedAmount: number;
+  deliveredAt: string | null;
+};
+
+export type RiderCashHandoverListRowDto = {
+  riderId: string;
+  riderName: string;
+  pendingParcelCount: number;
+  totalCodAmount: number;
+  totalDeliveryFeeAmount: number;
+  totalCollectedAmount: number;
+  parcels: RiderCashHandoverParcelDto[];
+};
+
+export type ConfirmRiderCashHandoverInputDto = z.infer<
+  typeof confirmRiderCashHandoverInputSchema
+>;
 
 export type SettlementListItemDto = {
   id: string;

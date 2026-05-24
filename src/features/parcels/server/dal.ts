@@ -893,19 +893,6 @@ export async function markRiderParcelDelivered(input: {
       .where(and(eq(parcels.id, input.parcelId), eq(parcels.riderId, rider.id)));
 
     const pendingFinancialItems = [
-      ...(isCodParcel
-        ? [
-            {
-              parcelId: parcel.id,
-              merchantId: parcel.merchantId,
-              riderId: null,
-              itemType: "cod_remit",
-              amount: parcel.codAmount,
-              status: "pending",
-              createdBy: input.createdBy,
-            },
-          ]
-        : []),
       {
         parcelId: parcel.id,
         merchantId: parcel.merchantId,
