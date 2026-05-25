@@ -27,11 +27,12 @@ import {
 } from "@/features/users/server/dto";
 import { buildInternalEmail, normalizePhoneNumber } from "@/features/users/server/utils";
 import { auth } from "@/lib/auth";
+import { getFormFieldErrors } from "@/lib/form-action-errors";
 import { canCreateUser, canManageUser } from "@/lib/permissions";
 import { requireCurrentUser } from "@/lib/session";
 
 type BankAccountActionResult =
-  | { ok: false; message: string }
+  | { ok: false; message: string; fieldErrors?: Partial<Record<string, string>> }
   | { ok: true; message: string; bankAccount: BankAccountDto };
 
 export type AccountSettingsFormState = {
@@ -53,6 +54,7 @@ export async function createUserAction(input: unknown) {
     return {
       ok: false as const,
       message: parseResult.error.issues[0]?.message ?? "Invalid user details.",
+      fieldErrors: getFormFieldErrors(parseResult.error),
     };
   }
 
@@ -119,6 +121,7 @@ export async function updateUserAction(input: unknown) {
     return {
       ok: false as const,
       message: parseResult.error.issues[0]?.message ?? "Invalid user details.",
+      fieldErrors: getFormFieldErrors(parseResult.error),
     };
   }
 
@@ -163,6 +166,7 @@ export async function updateOwnAccountAction(input: unknown) {
     return {
       ok: false as const,
       message: parseResult.error.issues[0]?.message ?? "Invalid account details.",
+      fieldErrors: getFormFieldErrors(parseResult.error),
     };
   }
 
@@ -221,6 +225,7 @@ export async function createOwnBankAccountAction(input: unknown): Promise<BankAc
     return {
       ok: false as const,
       message: parseResult.error.issues[0]?.message ?? "Invalid bank account details.",
+      fieldErrors: getFormFieldErrors(parseResult.error),
     };
   }
 
@@ -254,6 +259,7 @@ export async function updateOwnBankAccountAction(input: unknown): Promise<BankAc
     return {
       ok: false as const,
       message: parseResult.error.issues[0]?.message ?? "Invalid bank account details.",
+      fieldErrors: getFormFieldErrors(parseResult.error),
     };
   }
 
@@ -294,6 +300,7 @@ export async function createUserBankAccountAction(input: unknown) {
     return {
       ok: false as const,
       message: parseResult.error.issues[0]?.message ?? "Invalid bank account details.",
+      fieldErrors: getFormFieldErrors(parseResult.error),
     };
   }
 
@@ -336,6 +343,7 @@ export async function updateUserBankAccountAction(input: unknown) {
     return {
       ok: false as const,
       message: parseResult.error.issues[0]?.message ?? "Invalid bank account details.",
+      fieldErrors: getFormFieldErrors(parseResult.error),
     };
   }
 

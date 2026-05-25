@@ -7,6 +7,7 @@ This change needs to cover both COD and non-COD delivered parcels. COD parcels s
 ## Goals / Non-Goals
 
 **Goals:**
+
 - Reuse the existing admin settlement workspace structure by adding a `Rider Cash Handover` tab and right-side sheet flow.
 - Show riders with pending office handover work based on delivered parcels where `is_received_by_office = false`.
 - Let admins select multiple or all eligible parcels for one rider and confirm cash receipt in a single action.
@@ -14,6 +15,7 @@ This change needs to cover both COD and non-COD delivered parcels. COD parcels s
 - Create deferred `cod_remit` financial items for selected COD parcels during office handover confirmation.
 
 **Non-Goals:**
+
 - Creating rider payout drafting or payment workflows.
 - Redesigning the merchant settlement UI beyond the minimal shared workspace updates needed for the new tab.
 - Introducing a new backend service, new dependency, or a broad financial ledger redesign.
@@ -29,6 +31,7 @@ Alternative considered: a separate admin page or a riders page action. Rejected 
 ### 2. Drive eligibility from delivered parcels grouped by rider
 
 Eligible handover work should come from delivered parcels where the rider is assigned, the parcel is not soft-deleted, and `is_received_by_office = false`. The query should group those parcels by rider and compute row totals from parcel-level fields:
+
 - parcel count
 - COD amount total for COD parcels
 - delivery fee total for all delivered parcels
@@ -41,6 +44,7 @@ Alternative considered: driving the tab entirely from `financial_items`. Rejecte
 ### 3. Confirm handover as a parcel-based bulk mutation with deferred COD remit creation
 
 The sheet action should submit selected parcel ids for a single rider. The server mutation should:
+
 - validate the actor is an admin or superadmin
 - validate every selected parcel still belongs to the targeted rider
 - validate every selected parcel is delivered and still has `is_received_by_office = false`

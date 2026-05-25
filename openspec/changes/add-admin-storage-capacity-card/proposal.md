@@ -13,6 +13,7 @@ Super admins currently have no quick way to see current Supabase database usage 
 ## Capabilities
 
 ### New Capabilities
+
 - `admin-storage-capacity-monitoring`: Super-admin-only dashboard storage monitoring for Supabase database usage and Cloudflare R2 dashboard-style total storage with manual refresh.
 
 ### Modified Capabilities

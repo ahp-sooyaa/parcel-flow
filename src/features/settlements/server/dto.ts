@@ -80,9 +80,7 @@ export type RiderCashHandoverListRowDto = {
   parcels: RiderCashHandoverParcelDto[];
 };
 
-export type ConfirmRiderCashHandoverInputDto = z.infer<
-  typeof confirmRiderCashHandoverInputSchema
->;
+export type ConfirmRiderCashHandoverInputDto = z.infer<typeof confirmRiderCashHandoverInputSchema>;
 
 export type SettlementListItemDto = {
   id: string;

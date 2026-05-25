@@ -15,6 +15,7 @@ Assigned `canceled_returned` parcels already appear in the rider `To Deliver` li
 ## Capabilities
 
 ### New Capabilities
+
 - `canceled-parcel-return-completion`: Rider-completed return-to-merchant workflow, status transition, and financial-item side effects for assigned `canceled_returned` parcels.
 
 ### Modified Capabilities

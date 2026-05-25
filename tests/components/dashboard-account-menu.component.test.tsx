@@ -19,9 +19,7 @@ describe("DashboardAccountMenu", async () => {
       username: "daw-hnin",
     };
 
-    render(
-      <DashboardAccountMenu {...menuProps} />,
-    );
+    render(<DashboardAccountMenu {...menuProps} />);
     const user = userEvent.setup();
     const trigger = screen.getByRole("button", { name: "Open account menu" });
 

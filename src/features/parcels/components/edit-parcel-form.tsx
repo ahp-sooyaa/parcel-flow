@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 
 import {
   FieldShell,
+  type FormFieldErrors,
   FormBanner,
   MoneyInput,
   groupedInputClassName,
@@ -86,33 +87,77 @@ export function EditParcelForm({
   const initialTownship =
     townshipOptions.find((option) => option.value === parcel.townshipId) ?? null;
 
-  const { handleSubmit, setValue, watch } = useForm<EditParcelFormValues>({
-    defaultValues: {
-      selectedMerchant: initialMerchant,
-      receiverName: parcel.receiverName,
-      receiverPhoneNumber: parcel.receiverPhoneNumber,
-      receiverAddress: parcel.receiverAddress,
-      specialNotes: parcel.specialNotes ?? "",
-      selectedTownship: initialTownship,
-      deliveryFee: String(parcel.deliveryFee),
-      hasCod: parcel.parcelType === "cod",
-      codAmount: parcel.parcelType === "cod" ? String(parcel.codAmount) : "",
-      dimensions: {
-        estimatedWeight: String(parcel.weightKg),
-        width: parcel.parcelWidthCm === null ? "" : String(parcel.parcelWidthCm),
-        height: parcel.parcelHeightCm === null ? "" : String(parcel.parcelHeightCm),
-        length: parcel.parcelLengthCm === null ? "" : String(parcel.parcelLengthCm),
+  const { clearErrors, formState, handleSubmit, setError, setValue, watch } =
+    useForm<EditParcelFormValues>({
+      defaultValues: {
+        selectedMerchant: initialMerchant,
+        receiverName: parcel.receiverName,
+        receiverPhoneNumber: parcel.receiverPhoneNumber,
+        receiverAddress: parcel.receiverAddress,
+        specialNotes: parcel.specialNotes ?? "",
+        selectedTownship: initialTownship,
+        deliveryFee: String(parcel.deliveryFee),
+        hasCod: parcel.parcelType === "cod",
+        codAmount: parcel.parcelType === "cod" ? String(parcel.codAmount) : "",
+        dimensions: {
+          estimatedWeight: String(parcel.weightKg),
+          width: parcel.parcelWidthCm === null ? "" : String(parcel.parcelWidthCm),
+          height: parcel.parcelHeightCm === null ? "" : String(parcel.parcelHeightCm),
+          length: parcel.parcelLengthCm === null ? "" : String(parcel.parcelLengthCm),
+        },
       },
-    },
-  });
+    });
   const values = watch();
+  const errors = formState.errors;
 
   function clearSubmissionState() {
-    setSubmissionState(null);
+    if (submissionState?.kind === "error") {
+      setSubmissionState(null);
+    }
+  }
+
+  function clearFeedback(field?: keyof EditParcelFormValues) {
+    if (field) {
+      clearErrors(field);
+    }
+
+    clearSubmissionState();
+  }
+
+  function applyFieldErrors(fieldErrors?: FormFieldErrors) {
+    if (!fieldErrors) {
+      return false;
+    }
+
+    const mappings = [
+      ["merchantId", "selectedMerchant"],
+      ["receiverName", "receiverName"],
+      ["receiverPhoneNumber", "receiverPhoneNumber"],
+      ["receiverAddress", "receiverAddress"],
+      ["townshipId", "selectedTownship"],
+      ["deliveryFee", "deliveryFee"],
+      ["codAmount", "codAmount"],
+    ] as const;
+
+    let hasMappedError = false;
+
+    for (const [source, target] of mappings) {
+      const message = fieldErrors[source];
+
+      if (!message) {
+        continue;
+      }
+
+      hasMappedError = true;
+      setError(target, { type: "server", message });
+    }
+
+    return hasMappedError;
   }
 
   function submitForm(payload: EditParcelFormValues) {
     clearSubmissionState();
+    clearErrors();
 
     startTransition(async () => {
       const result = await updateParcelAction({
@@ -130,10 +175,14 @@ export function EditParcelForm({
       });
 
       if (!result.ok) {
-        setSubmissionState({
-          kind: "error",
-          message: result.message,
-        });
+        const hasMappedError = applyFieldErrors(result.fieldErrors);
+
+        if (!hasMappedError || !result.fieldErrors) {
+          setSubmissionState({
+            kind: "error",
+            message: result.message,
+          });
+        }
         return;
       }
 
@@ -160,21 +209,27 @@ export function EditParcelForm({
 
           <Card className="border-[#e7dfd8] bg-white shadow-[0_20px_50px_rgba(27,25,56,0.06)]">
             <CardContent className="space-y-4">
-              <FieldShell htmlFor={merchantId} label="Merchant">
+              <FieldShell
+                htmlFor={merchantId}
+                label="Merchant"
+                required
+                error={errors.selectedMerchant?.message}
+              >
                 <Combobox
                   items={merchantOptions}
                   value={values.selectedMerchant}
                   onValueChange={(nextValue) => {
                     setValue("selectedMerchant", nextValue ?? null);
-                    clearSubmissionState();
+                    clearFeedback("selectedMerchant");
                   }}
-                  itemToStringLabel={(option) => option.label}
-                  isItemEqualToValue={(item, value) => item.value === value.value}
+                  itemToStringLabel={(option) => option?.label ?? ""}
+                  isItemEqualToValue={(item, value) => item?.value === value?.value}
                 >
                   <ComboboxInput
                     id={merchantId}
                     aria-label="Select merchant"
                     placeholder="Search merchant by name"
+                    aria-invalid={Boolean(errors.selectedMerchant)}
                     showClear={values.selectedMerchant !== null}
                     className={groupedInputClassName}
                     disabled={isPending}
@@ -196,27 +251,39 @@ export function EditParcelForm({
               </FieldShell>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <FieldShell htmlFor={receiverNameId} label="Receiver name">
+                <FieldShell
+                  htmlFor={receiverNameId}
+                  label="Receiver name"
+                  required
+                  error={errors.receiverName?.message}
+                >
                   <Input
                     id={receiverNameId}
                     placeholder="Enter receiver name"
+                    aria-invalid={Boolean(errors.receiverName)}
                     value={values.receiverName}
                     onChange={(event) => {
                       setValue("receiverName", event.target.value);
-                      clearSubmissionState();
+                      clearFeedback("receiverName");
                     }}
                     className={inputClassName}
                     disabled={isPending}
                   />
                 </FieldShell>
-                <FieldShell htmlFor={receiverPhoneId} label="Receiver phone number">
+                <FieldShell
+                  htmlFor={receiverPhoneId}
+                  label="Receiver phone number"
+                  required
+                  error={errors.receiverPhoneNumber?.message}
+                >
                   <Input
                     id={receiverPhoneId}
                     placeholder="09xxxxxxxxx"
+                    aria-invalid={Boolean(errors.receiverPhoneNumber)}
                     value={values.receiverPhoneNumber}
                     onChange={(event) => {
                       setValue("receiverPhoneNumber", event.target.value);
-                      clearSubmissionState();
+                      clearFeedback("receiverPhoneNumber");
                     }}
                     className={inputClassName}
                     disabled={isPending}
@@ -224,14 +291,20 @@ export function EditParcelForm({
                 </FieldShell>
               </div>
 
-              <FieldShell htmlFor={receiverAddressId} label="Receiver address">
+              <FieldShell
+                htmlFor={receiverAddressId}
+                label="Receiver address"
+                required
+                error={errors.receiverAddress?.message}
+              >
                 <Textarea
                   id={receiverAddressId}
                   placeholder="Street, ward, landmark, building"
+                  aria-invalid={Boolean(errors.receiverAddress)}
                   value={values.receiverAddress}
                   onChange={(event) => {
                     setValue("receiverAddress", event.target.value);
-                    clearSubmissionState();
+                    clearFeedback("receiverAddress");
                   }}
                   className={textareaClassName}
                   disabled={isPending}
@@ -245,29 +318,36 @@ export function EditParcelForm({
                   value={values.specialNotes}
                   onChange={(event) => {
                     setValue("specialNotes", event.target.value);
-                    clearSubmissionState();
+                    clearFeedback("specialNotes");
                   }}
                   className={textareaClassName}
                   disabled={isPending}
                 />
               </FieldShell>
 
-              <FieldShell htmlFor={townshipId} label="Receiver township">
+              <FieldShell
+                htmlFor={townshipId}
+                label="Receiver township"
+                required
+                error={errors.selectedTownship?.message}
+              >
                 <Combobox
                   items={townshipOptions}
                   value={values.selectedTownship}
                   onValueChange={(township = null) => {
                     setValue("selectedTownship", township);
                     setValue("deliveryFee", township ? String(township.baseFee) : "");
-                    clearSubmissionState();
+                    clearFeedback("selectedTownship");
+                    clearErrors("deliveryFee");
                   }}
-                  itemToStringLabel={(option) => option.label}
-                  isItemEqualToValue={(item, value) => item.value === value.value}
+                  itemToStringLabel={(option) => option?.label ?? ""}
+                  isItemEqualToValue={(item, value) => item?.value === value?.value}
                 >
                   <ComboboxInput
                     id={townshipId}
                     aria-label="Select receiver township"
                     placeholder="Search township"
+                    aria-invalid={Boolean(errors.selectedTownship)}
                     showClear={values.selectedTownship !== null}
                     className={groupedInputClassName}
                     disabled={isPending}
@@ -307,26 +387,36 @@ export function EditParcelForm({
                 />
               </FieldShell>
 
-              <FieldShell htmlFor={deliveryFeeId} label="Delivery fee">
+              <FieldShell
+                htmlFor={deliveryFeeId}
+                label="Delivery fee"
+                required
+                error={errors.deliveryFee?.message}
+              >
                 <MoneyInput
                   id={deliveryFeeId}
                   value={values.deliveryFee}
                   onChange={(value) => {
                     setValue("deliveryFee", value);
-                    clearSubmissionState();
+                    clearFeedback("deliveryFee");
                   }}
                   placeholder="0"
                 />
               </FieldShell>
 
               {values.hasCod ? (
-                <FieldShell htmlFor={codAmountId} label="COD amount">
+                <FieldShell
+                  htmlFor={codAmountId}
+                  label="COD amount"
+                  required
+                  error={errors.codAmount?.message}
+                >
                   <MoneyInput
                     id={codAmountId}
                     value={values.codAmount}
                     onChange={(value) => {
                       setValue("codAmount", value);
-                      clearSubmissionState();
+                      clearFeedback("codAmount");
                     }}
                     placeholder="0"
                   />
@@ -348,9 +438,10 @@ export function EditParcelForm({
 
                     if (!enabled) {
                       setValue("codAmount", "");
+                      clearErrors("codAmount");
                     }
 
-                    clearSubmissionState();
+                    clearFeedback("hasCod");
                   }}
                   disabled={isPending}
                   className="mt-0.5"

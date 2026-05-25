@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import { render, screen } from "@testing-library/react";
+import { cloneElement, type ReactElement, useState } from "react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { buildParcelListItem, buildRiderListItem } from "../fixtures/builders";
 
+const toastSuccessMock = mock(() => undefined);
+const toastErrorMock = mock(() => undefined);
 const assignParcelsToRiderActionMock = mock(async () => ({
   ok: true,
   message: "Parcels assigned.",
@@ -13,10 +16,19 @@ void mock.module("@/features/parcels/server/actions", () => ({
   assignParcelsToRiderAction: assignParcelsToRiderActionMock,
 }));
 
+void mock.module("sonner", () => ({
+  toast: {
+    success: toastSuccessMock,
+    error: toastErrorMock,
+  },
+}));
+
 describe("AssignRiderDialog", async () => {
   const { AssignRiderDialog } = await import("@/features/parcels/components/assign-rider-dialog");
 
   beforeEach(() => {
+    toastSuccessMock.mockReset();
+    toastErrorMock.mockReset();
     assignParcelsToRiderActionMock.mockReset();
     assignParcelsToRiderActionMock.mockResolvedValue({
       ok: true,
@@ -52,7 +64,7 @@ describe("AssignRiderDialog", async () => {
     const user = userEvent.setup();
     const onOpenChange = mock(() => undefined);
 
-    render(
+    renderWithControlledOpen(
       <AssignRiderDialog
         open
         onOpenChange={onOpenChange}
@@ -78,11 +90,18 @@ describe("AssignRiderDialog", async () => {
     await user.click(screen.getByRole("option", { name: /ko rider/i }));
     await user.click(getButton("Assign Rider"));
 
-    expect(assignParcelsToRiderActionMock).toHaveBeenCalledWith({
-      riderId: "rider-1",
-      parcelIds: ["parcel-1", "parcel-2"],
+    await waitFor(() => {
+      expect(assignParcelsToRiderActionMock).toHaveBeenCalledWith({
+        riderId: "rider-1",
+        parcelIds: ["parcel-1", "parcel-2"],
+      });
     });
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    await waitFor(() => {
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "Assign Rider" })).toBeNull();
+    });
   });
 
   test("shows action errors instead of closing the dialog", async () => {
@@ -106,7 +125,11 @@ describe("AssignRiderDialog", async () => {
     await user.click(screen.getByRole("option", { name: /ko rider/i }));
     await user.click(getButton("Assign Rider"));
 
-    expect(screen.getByText("Active rider was not found.")).toBeTruthy();
+    expect(toastErrorMock).toHaveBeenCalledWith("Active rider was not found.", {
+      description: undefined,
+      id: "error:Active rider was not found.:",
+      position: "top-center",
+    });
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 });
@@ -119,4 +142,23 @@ function getButton(name: string) {
   }
 
   return element;
+}
+
+function renderWithControlledOpen(
+  dialog: ReactElement<{ open: boolean; onOpenChange: (open: boolean) => void }>,
+) {
+  function ControlledDialogHost() {
+    const [open, setOpen] = useState(true);
+
+    return cloneElement(dialog, {
+      ...dialog.props,
+      open,
+      onOpenChange: (nextOpen: boolean) => {
+        dialog.props.onOpenChange(nextOpen);
+        setOpen(nextOpen);
+      },
+    });
+  }
+
+  return render(<ControlledDialogHost />);
 }

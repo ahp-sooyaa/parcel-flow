@@ -14,9 +14,11 @@ Riders can mark parcels delivered before the office physically receives the coll
 ## Capabilities
 
 ### New Capabilities
+
 - `admin-rider-cash-handover`: Admin review and confirmation flow for rider-delivered parcel cash handovers using pending delivered parcels and office receipt confirmation.
 
 ### Modified Capabilities
+
 - `rider-delivery-actions`: Delivered COD parcels defer `cod_remit` financial item creation until office cash handover confirmation.
 
 ## Impact

@@ -15,13 +15,7 @@ function getVisiblePages(page: number, totalPages: number) {
   }
 
   if (page >= totalPages - 2) {
-    return [
-      totalPages - 4,
-      totalPages - 3,
-      totalPages - 2,
-      totalPages - 1,
-      totalPages,
-    ];
+    return [totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
   }
 
   return [page - 2, page - 1, page, page + 1, page + 2];
@@ -45,7 +39,12 @@ export function PaginationControls({
   const visiblePages = getVisiblePages(page, totalPages);
 
   return (
-    <div className={cn("flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between", className)}>
+    <div
+      className={cn(
+        "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
+        className,
+      )}
+    >
       <div className="text-sm text-muted-foreground">
         Page {page} of {totalPages}
       </div>

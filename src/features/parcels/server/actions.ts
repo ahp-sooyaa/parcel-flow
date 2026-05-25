@@ -23,6 +23,7 @@ import {
   mapCreateParcelFormInputToCreateParcelInput,
   mapUpdateParcelFormInputToUpdateParcelInput,
 } from "@/features/parcels/server/utils";
+import { getFormFieldErrors } from "@/lib/form-action-errors";
 import { canChangeParcelStatus, canCreateParcel } from "@/lib/permissions";
 import { requireCurrentUser } from "@/lib/session";
 
@@ -85,6 +86,7 @@ export async function createParcelAction(input: unknown) {
     return {
       ok: false as const,
       message: parseResult.error.issues[0]?.message ?? "Invalid parcel details.",
+      fieldErrors: getFormFieldErrors(parseResult.error),
     };
   }
 
@@ -123,6 +125,7 @@ export async function updateParcelAction(input: unknown) {
     return {
       ok: false as const,
       message: parseResult.error.issues[0]?.message ?? "Invalid parcel details.",
+      fieldErrors: getFormFieldErrors(parseResult.error),
     };
   }
 

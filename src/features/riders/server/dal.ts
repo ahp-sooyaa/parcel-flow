@@ -74,7 +74,9 @@ export async function listRiders(): Promise<RiderListItemDto[]> {
         .filter((serviceTownship) => serviceTownship.riderId === rider.id)
         .map((serviceTownship) => serviceTownship.townshipName),
       expectedCollection: normalizedParcels
-        .filter((parcel) => parcel.normalizedStatus && isActiveCollectionStatus(parcel.normalizedStatus))
+        .filter(
+          (parcel) => parcel.normalizedStatus && isActiveCollectionStatus(parcel.normalizedStatus),
+        )
         .reduce(
           (total, parcel) =>
             total +

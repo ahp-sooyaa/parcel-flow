@@ -96,10 +96,7 @@ describe("settlement server actions", async () => {
   test("confirms rider handover with the acting admin and revalidates settlement views", async () => {
     const result = await confirmRiderCashHandoverAction({
       riderId: "00000000-0000-4000-8000-000000000010",
-      parcelIds: [
-        "00000000-0000-4000-8000-000000000011",
-        "00000000-0000-4000-8000-000000000012",
-      ],
+      parcelIds: ["00000000-0000-4000-8000-000000000011", "00000000-0000-4000-8000-000000000012"],
     });
 
     expect(result).toEqual({
@@ -112,10 +109,7 @@ describe("settlement server actions", async () => {
     });
     expect(confirmRiderCashHandoverMock).toHaveBeenCalledWith({
       riderId: "00000000-0000-4000-8000-000000000010",
-      parcelIds: [
-        "00000000-0000-4000-8000-000000000011",
-        "00000000-0000-4000-8000-000000000012",
-      ],
+      parcelIds: ["00000000-0000-4000-8000-000000000011", "00000000-0000-4000-8000-000000000012"],
       confirmedBy: "actor-id",
     });
     expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard");

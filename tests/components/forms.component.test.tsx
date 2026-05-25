@@ -5,6 +5,8 @@ import userEvent from "@testing-library/user-event";
 
 import { buildParcelListItem } from "../fixtures/builders";
 
+const toastSuccessMock = mock(() => undefined);
+const toastErrorMock = mock(() => undefined);
 const createUserActionMock = mock(async () => ({
   ok: true,
   message: "User account created.",
@@ -56,6 +58,13 @@ void mock.module("@/features/parcels/server/actions", () => ({
   updateParcelAction: updateParcelActionMock,
 }));
 
+void mock.module("sonner", () => ({
+  toast: {
+    success: toastSuccessMock,
+    error: toastErrorMock,
+  },
+}));
+
 void mock.module("@/lib/client-navigation", () => ({
   useAppRouter: () => ({
     refresh: () => undefined,
@@ -70,6 +79,8 @@ describe("feature forms", async () => {
   const { Sheet, SheetContent } = await import("@/components/ui/sheet");
 
   beforeEach(() => {
+    toastSuccessMock.mockReset();
+    toastErrorMock.mockReset();
     createUserActionMock.mockReset();
     createTownshipActionMock.mockReset();
     updateTownshipActionMock.mockReset();
@@ -111,9 +122,9 @@ describe("feature forms", async () => {
   test("renders user create form with role-specific controls", () => {
     renderInSheet(<CreateUserForm townships={[testTownship()]} />);
 
-    expect(screen.getByLabelText("Name")).toBeTruthy();
-    expect(screen.getByLabelText("Phone number")).toBeTruthy();
-    expect(screen.getByLabelText("Role")).toBeTruthy();
+    expect(getInputByLabel("Name")).toBeTruthy();
+    expect(getInputByLabel("Phone number")).toBeTruthy();
+    expect(screen.getByLabelText(/Role\s*\*/i)).toBeTruthy();
     expect(getButton("Create User").disabled).toBe(false);
   });
 
@@ -121,17 +132,22 @@ describe("feature forms", async () => {
     const user = userEvent.setup();
     renderInSheet(<CreateUserForm townships={[testTownship()]} />);
 
-    const passwordInput = getInput("Generated password");
+    const passwordInput = getInputByLabel("Generated password");
     await user.click(getButton("Regenerate"));
     expect(passwordInput.value.length).toBeGreaterThanOrEqual(12);
+    const submittedPassword = passwordInput.value;
 
     await chooseSelectOption("Role", "Merchant");
-    await user.type(screen.getByLabelText("Name"), "Merchant User");
-    await user.type(screen.getByLabelText("Phone number"), "09999999999");
-    await user.type(screen.getByLabelText("Address"), "Merchant address");
-    await user.type(screen.getByLabelText("Shop"), "Merchant Shop");
+    await user.type(getInputByLabel("Name"), "Merchant User");
+    await user.type(getInputByLabel("Phone number"), "09999999999");
+    await user.type(getInputByLabel("Address"), "Merchant address");
+    await user.type(getInputByLabel("Shop"), "Merchant Shop");
     await user.click(getButton("Create User"));
-    await screen.findByText("Merchant account is ready to hand off.");
+    expect(toastSuccessMock).toHaveBeenCalledWith("Merchant account is ready to hand off.", {
+      description: "Password to share: TempPassword123!",
+      id: "success:Merchant account is ready to hand off.:Password to share: TempPassword123!",
+      position: "top-center",
+    });
 
     expect(createUserActionMock).toHaveBeenCalledWith({
       name: "Merchant User",
@@ -140,7 +156,7 @@ describe("feature forms", async () => {
       age: "",
       isActive: true,
       role: "merchant",
-      password: passwordInput.value,
+      password: submittedPassword,
       shopName: "Merchant Shop",
       serviceTownshipId: undefined,
     });
@@ -152,7 +168,11 @@ describe("feature forms", async () => {
 
     expect(screen.getByRole("heading", { name: "Edit Township" })).toBeTruthy();
     await user.click(getButton("Save Changes"));
-    await screen.findByText("Yangon pricing is ready to save.");
+    expect(toastSuccessMock).toHaveBeenCalledWith("Yangon pricing is ready to save.", {
+      description: "This mock flow validates township pricing without persistence yet.",
+      id: "success:Yangon pricing is ready to save.:This mock flow validates township pricing without persistence yet.",
+      position: "top-center",
+    });
 
     expect(updateTownshipActionMock).toHaveBeenCalledWith({
       id: "township-id",
@@ -172,27 +192,31 @@ describe("feature forms", async () => {
     const user = userEvent.setup();
     renderInSheet(<CreateParcelForm merchants={[testMerchant()]} townships={[testTownship()]} />);
 
-    expect(screen.getByLabelText("Merchant")).toBeTruthy();
-    expect(screen.getByLabelText("Receiver name")).toBeTruthy();
-    expect(screen.getByLabelText("Receiver township")).toBeTruthy();
-    expect(screen.getByLabelText("Delivery fee")).toBeTruthy();
+    expect(getInputByLabel("Merchant")).toBeTruthy();
+    expect(getInputByLabel("Receiver name")).toBeTruthy();
+    expect(getInputByLabel("Receiver township")).toBeTruthy();
+    expect(getInputByLabel("Delivery fee")).toBeTruthy();
     expect(screen.getByRole("checkbox", { name: "Cash on delivery" })).toBeTruthy();
     expect(getButton("Create Parcel").disabled).toBe(false);
 
     await chooseComboboxOption("Select merchant", "Test Shop");
-    await user.type(screen.getByLabelText("Receiver name"), "Receiver");
-    await user.type(screen.getByLabelText("Receiver phone number"), "09123456789");
-    await user.type(screen.getByLabelText("Receiver address"), "Receiver address");
+    await user.type(getInputByLabel("Receiver name"), "Receiver");
+    await user.type(getInputByLabel("Receiver phone number"), "09123456789");
+    await user.type(getInputByLabel("Receiver address"), "Receiver address");
     await chooseComboboxOption("Select receiver township", "Yangon");
-    expect(getInput("Delivery fee").value).toBe("2000");
+    expect(getInputByLabel("Delivery fee").value).toBe("2000");
 
     await user.click(screen.getByRole("checkbox", { name: "Cash on delivery" }));
-    await user.type(screen.getByLabelText("COD amount"), "10000");
+    await user.type(getInputByLabel("COD amount"), "10000");
     await user.click(screen.getByRole("button", { name: "Parcel dimensions" }));
     await user.type(screen.getByLabelText("Estimated weight"), "4");
     await user.type(screen.getByLabelText("Width"), "12");
     await user.click(getButton("Create Parcel"));
-    await screen.findByText("Receiver's parcel has been created.");
+    expect(toastSuccessMock).toHaveBeenCalledWith("Receiver's parcel has been created.", {
+      description: "Parcel code: PF-000001-000001",
+      id: "success:Receiver's parcel has been created.:Parcel code: PF-000001-000001",
+      position: "top-center",
+    });
 
     expect(createParcelActionMock).toHaveBeenCalledWith({
       merchantId: "merchant-id",
@@ -271,19 +295,23 @@ function getButton(name: string) {
   return element;
 }
 
-function getInput(label: string) {
+function getInput(label: string | RegExp) {
   const element = screen.getByLabelText(label);
 
   if (!(element instanceof HTMLInputElement) && !(element instanceof HTMLTextAreaElement)) {
-    throw new Error(`${label} is not an input.`);
+    throw new Error(`${String(label)} is not an input.`);
   }
 
   return element;
 }
 
+function getInputByLabel(label: string) {
+  return getInput(new RegExp(`${escapeRegExp(label)}\\s*\\*?`, "i"));
+}
+
 async function chooseSelectOption(label: string, optionName: string) {
   const user = userEvent.setup();
-  await user.click(screen.getByLabelText(label));
+  await user.click(screen.getByLabelText(new RegExp(`${escapeRegExp(label)}\\s*\\*?`, "i")));
   await user.click(screen.getByRole("option", { name: optionName }));
 }
 
@@ -291,6 +319,10 @@ async function chooseComboboxOption(label: string, optionName: string) {
   const user = userEvent.setup();
   await user.type(screen.getByLabelText(label), optionName);
   await user.click(screen.getByRole("option", { name: new RegExp(optionName, "i") }));
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function testTownship() {

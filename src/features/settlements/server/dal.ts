@@ -361,7 +361,9 @@ export async function createMerchantSettlement(input: {
     }
 
     const typedEligibleItems = eligibleItems.filter(
-      (item): item is typeof item & {
+      (
+        item,
+      ): item is typeof item & {
         itemType: "cod_remit" | "delivery_fee_deduction";
       } => item.itemType === "cod_remit" || item.itemType === "delivery_fee_deduction",
     );
@@ -526,9 +528,7 @@ export async function confirmRiderCashHandover(input: {
         .filter((parcelId): parcelId is string => parcelId !== null),
     );
     const pendingCodRemitItems = eligibleParcels
-      .filter(
-        (parcel) => parcel.parcelType === "cod" && !existingCodRemitParcelIds.has(parcel.id),
-      )
+      .filter((parcel) => parcel.parcelType === "cod" && !existingCodRemitParcelIds.has(parcel.id))
       .map((parcel) => ({
         parcelId: parcel.id,
         merchantId: parcel.merchantId,
@@ -602,7 +602,10 @@ export async function resolveMerchantSettlement(input: {
         updatedAt: now,
       })
       .where(
-        and(eq(merchantSettlements.id, input.settlementId), eq(merchantSettlements.status, "pending")),
+        and(
+          eq(merchantSettlements.id, input.settlementId),
+          eq(merchantSettlements.status, "pending"),
+        ),
       )
       .returning({ id: merchantSettlements.id });
 

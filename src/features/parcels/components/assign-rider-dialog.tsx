@@ -86,105 +86,107 @@ export function AssignRiderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[680px] gap-5 p-0 sm:max-w-[680px]">
-        <div ref={overlayContainerRef} className="space-y-5 p-6">
-          <DialogHeader className="space-y-2">
-            <DialogTitle className="text-xl">Assign Rider</DialogTitle>
-            <DialogDescription>
-              Select a rider and review the cash collection summary for the currently selected
-              parcels.
-            </DialogDescription>
-          </DialogHeader>
+      <DialogContent className="flex max-h-[calc(100svh-2rem)] max-w-[680px] flex-col gap-0 overflow-hidden p-0 sm:max-h-[min(720px,calc(100svh-4rem))] sm:max-w-[680px]">
+        <div ref={overlayContainerRef} className="flex min-h-0 flex-1 flex-col">
+          <div className="flex-1 space-y-5 overflow-y-auto p-6">
+            <DialogHeader className="space-y-2">
+              <DialogTitle className="text-xl">Assign Rider</DialogTitle>
+              <DialogDescription>
+                Select a rider and review the cash collection summary for the currently selected
+                parcels.
+              </DialogDescription>
+            </DialogHeader>
 
-          {submissionState ? <FormBanner state={submissionState} /> : null}
+            {submissionState ? <FormBanner state={submissionState} /> : null}
 
-          <div className="space-y-3">
-            <label htmlFor={riderInputId} className="text-sm font-medium text-foreground">
-              Rider
-            </label>
-            <Combobox
-              items={riderOptions}
-              value={selectedRider}
-              onValueChange={(nextValue) => setValue("selectedRider", nextValue ?? null)}
-              itemToStringLabel={(option) => `${option.label} ${option.helper}`}
-              isItemEqualToValue={(item, value) => item.value === value.value}
-            >
-              <ComboboxInput
-                id={riderInputId}
-                aria-label="Search rider"
-                placeholder="Search rider by name or phone number"
-                showClear={selectedRider !== null}
-                className="h-11 w-full rounded-md text-sm"
-              />
-              <ComboboxContent className="z-50" portalContainer={overlayContainerRef}>
-                <ComboboxEmpty>No riders found.</ComboboxEmpty>
-                <ComboboxCollection>
-                  {(option: RiderOption) => (
-                    <ComboboxItem key={option.value} value={option} className="py-3">
-                      <div className="flex flex-col">
-                        <span className="font-medium text-foreground">{option.label}</span>
-                        <span className="text-xs text-muted-foreground">{option.helper}</span>
-                      </div>
-                    </ComboboxItem>
-                  )}
-                </ComboboxCollection>
-              </ComboboxContent>
-            </Combobox>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <SummaryMetric
-              label="Total expected collection"
-              value={`${formatMoney(totalExpectedCollection)} MMK`}
-            />
-            <SummaryMetric
-              label="Rider current expected"
-              value={`${formatMoney(riderCurrentExpectedCollection)} MMK`}
-            />
-            <SummaryMetric
-              label="After assignment"
-              value={`${formatMoney(afterAssignmentExpectedCollection)} MMK`}
-              emphasized
-            />
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-foreground">Selected parcel summary</h3>
-              <span className="text-xs text-muted-foreground">
-                Collection excludes return-ready parcels
-              </span>
+            <div className="space-y-3">
+              <label htmlFor={riderInputId} className="text-sm font-medium text-foreground">
+                Rider
+              </label>
+              <Combobox
+                items={riderOptions}
+                value={selectedRider}
+                onValueChange={(nextValue) => setValue("selectedRider", nextValue ?? null)}
+                itemToStringLabel={(option) => `${option.label} ${option.helper}`}
+                isItemEqualToValue={(item, value) => item.value === value.value}
+              >
+                <ComboboxInput
+                  id={riderInputId}
+                  aria-label="Search rider"
+                  placeholder="Search rider by name or phone number"
+                  showClear={selectedRider !== null}
+                  className="h-11 w-full rounded-md text-sm"
+                />
+                <ComboboxContent className="z-50" portalContainer={overlayContainerRef}>
+                  <ComboboxEmpty>No riders found.</ComboboxEmpty>
+                  <ComboboxCollection>
+                    {(option: RiderOption) => (
+                      <ComboboxItem key={option.value} value={option} className="py-3">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-foreground">{option.label}</span>
+                          <span className="text-xs text-muted-foreground">{option.helper}</span>
+                        </div>
+                      </ComboboxItem>
+                    )}
+                  </ComboboxCollection>
+                </ComboboxContent>
+              </Combobox>
             </div>
 
-            <div className="max-h-[240px] overflow-y-auto rounded-xl border">
-              <div className="divide-y">
-                {selectedParcels.map((parcel) => (
-                  <div
-                    key={parcel.id}
-                    className="grid gap-3 px-4 py-3 sm:grid-cols-[1.3fr_1fr_auto] sm:items-center"
-                  >
-                    <div className="min-w-0">
-                      <div className="font-medium text-foreground">{parcel.parcelCode}</div>
-                      <div className="truncate text-xs text-muted-foreground">
-                        {parcel.receiverName} • {parcel.receiverPhoneNumber}
+            <div className="grid gap-3 sm:grid-cols-3">
+              <SummaryMetric
+                label="Total expected collection"
+                value={`${formatMoney(totalExpectedCollection)} MMK`}
+              />
+              <SummaryMetric
+                label="Rider current expected"
+                value={`${formatMoney(riderCurrentExpectedCollection)} MMK`}
+              />
+              <SummaryMetric
+                label="After assignment"
+                value={`${formatMoney(afterAssignmentExpectedCollection)} MMK`}
+                emphasized
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-foreground">Selected parcel summary</h3>
+                <span className="text-xs text-muted-foreground">
+                  Collection excludes return-ready parcels
+                </span>
+              </div>
+
+              <div className="max-h-[240px] overflow-y-auto rounded-xl border">
+                <div className="divide-y">
+                  {selectedParcels.map((parcel) => (
+                    <div
+                      key={parcel.id}
+                      className="grid gap-3 px-4 py-3 sm:grid-cols-[1.3fr_1fr_auto] sm:items-center"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-medium text-foreground">{parcel.parcelCode}</div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {parcel.receiverName} • {parcel.receiverPhoneNumber}
+                        </div>
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        <div>{parcel.merchantName}</div>
+                        <div>{parcel.townshipName}</div>
+                      </div>
+                      <div className="text-left text-sm font-medium text-foreground sm:text-right">
+                        {parcel.status === "canceled_returned"
+                          ? "Return"
+                          : `${formatMoney(parcel.codAmount + parcel.deliveryFee)} MMK`}
                       </div>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      <div>{parcel.merchantName}</div>
-                      <div>{parcel.townshipName}</div>
-                    </div>
-                    <div className="text-left text-sm font-medium text-foreground sm:text-right">
-                      {parcel.status === "canceled_returned"
-                        ? "Return"
-                        : `${formatMoney(parcel.codAmount + parcel.deliveryFee)} MMK`}
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
-          <DialogFooter className="border-t px-0 pt-4">
+          <DialogFooter className="border-t bg-white px-6 py-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>

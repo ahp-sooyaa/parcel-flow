@@ -84,7 +84,9 @@ test("reviews a rider failure note and postpones the parcel", async ({ page }) =
   await page.reload();
 
   await expect(page.getByLabel("Review failure note for PF-E2E-SEED-FAILED")).toHaveCount(0);
-  await expect(page.locator("tr", { hasText: "PF-E2E-SEED-FAILED" }).getByText("Postpone")).toBeVisible();
+  await expect(
+    page.locator("tr", { hasText: "PF-E2E-SEED-FAILED" }).getByText("Postpone"),
+  ).toBeVisible();
 });
 
 async function selectComboboxOption(

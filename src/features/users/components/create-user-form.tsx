@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   FieldShell,
+  type FormFieldErrors,
   FormBanner,
   groupedInputClassName,
   inputClassName,
@@ -31,7 +32,6 @@ import {
 import { Input } from "@/components/ui/input";
 import {
   SheetClose,
-  SheetDescription,
   SheetFooter,
   SheetHeader,
   SheetTitle,
@@ -78,22 +78,65 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
   const [submissionState, setSubmissionState] = useState<FormMessageState | null>(null);
 
   const townshipOptions = buildTownshipOptions(townships);
-  const { handleSubmit, setValue, watch } = useForm<CreateUserFormValues>({
-    defaultValues: {
-      name: "",
-      phoneNumber: "",
-      address: "",
-      age: "",
-      role: "office_admin",
-      password: generateTemporaryPassword(),
-      shopName: "",
-      selectedTownship: null,
-    },
-  });
+  const { clearErrors, formState, handleSubmit, reset, setError, setValue, watch } =
+    useForm<CreateUserFormValues>({
+      defaultValues: {
+        name: "",
+        phoneNumber: "",
+        address: "",
+        age: "",
+        role: "office_admin",
+        password: generateTemporaryPassword(),
+        shopName: "",
+        selectedTownship: null,
+      },
+    });
   const values = watch();
+  const errors = formState.errors;
+
+  function clearFeedback(field?: keyof CreateUserFormValues) {
+    if (field) {
+      clearErrors(field);
+    }
+
+    if (submissionState?.kind === "error") {
+      setSubmissionState(null);
+    }
+  }
+
+  function applyFieldErrors(fieldErrors?: FormFieldErrors) {
+    if (!fieldErrors) {
+      return false;
+    }
+
+    const mappings = [
+      ["name", "name"],
+      ["phoneNumber", "phoneNumber"],
+      ["address", "address"],
+      ["age", "age"],
+      ["shopName", "shopName"],
+      ["serviceTownshipId", "selectedTownship"],
+    ] as const;
+
+    let hasMappedError = false;
+
+    for (const [source, target] of mappings) {
+      const message = fieldErrors[source];
+
+      if (!message) {
+        continue;
+      }
+
+      hasMappedError = true;
+      setError(target, { type: "server", message });
+    }
+
+    return hasMappedError;
+  }
 
   function submitForm(formValues: CreateUserFormValues) {
     setSubmissionState(null);
+    clearErrors();
 
     startTransition(async () => {
       const result = await createUserAction({
@@ -110,14 +153,30 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
       });
 
       if (!result.ok) {
-        setSubmissionState({
-          kind: "error",
-          message: result.message,
-        });
+        const hasMappedError = applyFieldErrors(result.fieldErrors);
+
+        if (!hasMappedError || !result.fieldErrors) {
+          setSubmissionState({
+            kind: "error",
+            message: result.message,
+          });
+        }
 
         return;
       }
 
+      reset({
+        ...values,
+        name: "",
+        phoneNumber: "",
+        address: "",
+        age: "",
+        role: "office_admin",
+        password: generateTemporaryPassword(),
+        shopName: "",
+        selectedTownship: null,
+      });
+      clearErrors();
       setSubmissionState({
         kind: "success",
         message: `${roleLabels[formValues.role]} account is ready to hand off.`,
@@ -136,10 +195,6 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
         <SheetTitle className="text-[2rem] font-semibold tracking-[-0.04em]">
           Create User
         </SheetTitle>
-        <SheetDescription className="max-w-md text-sm leading-6 text-[#73706d]">
-          Create office admin, merchant, or rider accounts with a generated password and
-          role-specific profile details.
-        </SheetDescription>
       </SheetHeader>
 
       <div className="flex-1 overflow-y-auto px-6 pt-6 pb-6">
@@ -149,62 +204,87 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
           <Card className="border-[#e7dfd8] bg-white shadow-[0_20px_50px_rgba(27,25,56,0.06)]">
             <CardContent className="space-y-5">
               <div className="grid gap-4 sm:grid-cols-2">
-                <FieldShell htmlFor={nameId} label="Name">
+                <FieldShell htmlFor={nameId} label="Name" required error={errors.name?.message}>
                   <Input
                     id={nameId}
                     value={values.name}
-                    onChange={(event) => setValue("name", event.target.value)}
+                    onChange={(event) => {
+                      setValue("name", event.target.value);
+                      clearFeedback("name");
+                    }}
                     placeholder="Enter full name"
+                    aria-invalid={Boolean(errors.name)}
                     className={inputClassName}
                     disabled={isPending}
                   />
                 </FieldShell>
 
-                <FieldShell htmlFor={phoneNumberId} label="Phone number">
+                <FieldShell
+                  htmlFor={phoneNumberId}
+                  label="Phone number"
+                  required
+                  error={errors.phoneNumber?.message}
+                >
                   <Input
                     id={phoneNumberId}
                     value={values.phoneNumber}
-                    onChange={(event) => setValue("phoneNumber", event.target.value)}
+                    onChange={(event) => {
+                      setValue("phoneNumber", event.target.value);
+                      clearFeedback("phoneNumber");
+                    }}
                     placeholder="09xxxxxxxxx"
+                    aria-invalid={Boolean(errors.phoneNumber)}
                     className={inputClassName}
                     disabled={isPending}
                   />
                 </FieldShell>
               </div>
 
-              <FieldShell htmlFor={addressId} label="Address">
+              <FieldShell
+                htmlFor={addressId}
+                label="Address"
+                required
+                error={errors.address?.message}
+              >
                 <Textarea
                   id={addressId}
                   value={values.address}
-                  onChange={(event) => setValue("address", event.target.value)}
+                  onChange={(event) => {
+                    setValue("address", event.target.value);
+                    clearFeedback("address");
+                  }}
                   placeholder="Street, ward, township, landmark"
+                  aria-invalid={Boolean(errors.address)}
                   className={textareaClassName}
                   disabled={isPending}
                 />
               </FieldShell>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <FieldShell htmlFor={ageId} label="Age (optional)">
+                <FieldShell htmlFor={ageId} label="Age (optional)" error={errors.age?.message}>
                   <Input
                     id={ageId}
                     type="number"
                     min="1"
                     inputMode="numeric"
                     value={values.age}
-                    onChange={(event) => setValue("age", event.target.value)}
+                    onChange={(event) => {
+                      setValue("age", event.target.value);
+                      clearFeedback("age");
+                    }}
                     placeholder="Optional"
                     className={inputClassName}
                     disabled={isPending}
                   />
                 </FieldShell>
 
-                <FieldShell htmlFor={roleId} label="Role">
+                <FieldShell htmlFor={roleId} label="Role" required>
                   <UserRoleSelectField
                     id={roleId}
                     value={values.role}
                     onChange={(nextRole) => {
                       setValue("role", nextRole);
-                      setSubmissionState(null);
+                      clearFeedback("role");
                     }}
                     disabled={isPending}
                     roles={creatableUserRoles}
@@ -212,7 +292,7 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
                 </FieldShell>
               </div>
 
-              <FieldShell htmlFor={passwordId} label="Generated password">
+              <FieldShell htmlFor={passwordId} label="Generated password" required>
                 <InputGroup className={groupedInputClassName}>
                   <InputGroupInput
                     id={passwordId}
@@ -227,7 +307,7 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
                       disabled={isPending}
                       onClick={() => {
                         setValue("password", generateTemporaryPassword());
-                        setSubmissionState(null);
+                        clearFeedback("password");
                       }}
                     >
                       <RefreshCw className="size-3.5" />
@@ -241,12 +321,16 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
               </FieldShell>
 
               {values.role === "merchant" ? (
-                <FieldShell htmlFor={shopId} label="Shop">
+                <FieldShell htmlFor={shopId} label="Shop" required error={errors.shopName?.message}>
                   <Input
                     id={shopId}
                     value={values.shopName}
-                    onChange={(event) => setValue("shopName", event.target.value)}
+                    onChange={(event) => {
+                      setValue("shopName", event.target.value);
+                      clearFeedback("shopName");
+                    }}
                     placeholder="Enter shop name"
+                    aria-invalid={Boolean(errors.shopName)}
                     className={inputClassName}
                     disabled={isPending}
                   />
@@ -254,13 +338,18 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
               ) : null}
 
               {values.role === "rider" ? (
-                <FieldShell htmlFor={serviceTownshipId} label="Service township">
+                <FieldShell
+                  htmlFor={serviceTownshipId}
+                  label="Service township"
+                  required
+                  error={errors.selectedTownship?.message}
+                >
                   <Combobox
                     items={townshipOptions}
                     value={values.selectedTownship}
                     onValueChange={(nextValue) => {
                       setValue("selectedTownship", nextValue ?? null);
-                      setSubmissionState(null);
+                      clearFeedback("selectedTownship");
                     }}
                     itemToStringLabel={(option) => option.label}
                     isItemEqualToValue={(item, value) => item.value === value.value}
@@ -269,6 +358,7 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
                       id={serviceTownshipId}
                       aria-label="Select rider service township"
                       placeholder="Search township"
+                      aria-invalid={Boolean(errors.selectedTownship)}
                       showClear={values.selectedTownship !== null}
                       className={groupedInputClassName}
                       disabled={isPending}

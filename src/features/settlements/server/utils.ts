@@ -38,7 +38,9 @@ export function formatBankAccountSummary(input: {
   return `${input.bankName} • ${input.accountNumber}`;
 }
 
-export async function generateUniqueSettlementCode(dbLike: { select: typeof import("@/db").db.select }) {
+export async function generateUniqueSettlementCode(dbLike: {
+  select: typeof import("@/db").db.select;
+}) {
   const datePart = new Intl.DateTimeFormat("en-CA", {
     year: "numeric",
     month: "2-digit",

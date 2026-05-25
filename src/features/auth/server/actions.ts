@@ -9,6 +9,7 @@ import { db } from "@/db";
 import { appUsers } from "@/db/schema";
 import { getUserById } from "@/features/users/server/dal";
 import { auth } from "@/lib/auth";
+import { getFormFieldErrors } from "@/lib/form-action-errors";
 import { canRegeneratePassword } from "@/lib/permissions";
 import { generateTemporaryPassword } from "@/lib/password";
 import { requireCurrentUser } from "@/lib/session";
@@ -36,6 +37,7 @@ const regeneratePasswordSchema = z.object({
 export type PasswordSettingsFormState = {
   ok: boolean;
   message: string | null;
+  fieldErrors?: Partial<Record<"currentPassword" | "newPassword", string>>;
 };
 
 export async function updateOwnPasswordAction(input: unknown) {
@@ -46,17 +48,27 @@ export async function updateOwnPasswordAction(input: unknown) {
     return {
       ok: false as const,
       message: parsedInput.error.issues[0]?.message ?? "Invalid password details.",
+      fieldErrors: getFormFieldErrors(parsedInput.error) as Partial<
+        Record<"currentPassword" | "newPassword", string>
+      >,
     };
   }
 
-  await auth.api.changePassword({
-    body: {
-      currentPassword: parsedInput.data.currentPassword,
-      newPassword: parsedInput.data.newPassword,
-      revokeOtherSessions: true,
-    },
-    headers: await headers(),
-  });
+  try {
+    await auth.api.changePassword({
+      body: {
+        currentPassword: parsedInput.data.currentPassword,
+        newPassword: parsedInput.data.newPassword,
+        revokeOtherSessions: true,
+      },
+      headers: await headers(),
+    });
+  } catch (error) {
+    return {
+      ok: false as const,
+      message: error instanceof Error ? error.message : "Unable to update password right now.",
+    };
+  }
 
   await db
     .update(appUsers)
@@ -83,6 +95,7 @@ export async function updateOwnPasswordFormAction(
   return {
     ok: result.ok,
     message: result.message,
+    fieldErrors: result.fieldErrors,
   };
 }
 

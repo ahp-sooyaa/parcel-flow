@@ -12,6 +12,7 @@ Merchant users currently lack a dedicated overview page and can only see an unfi
 ## Capabilities
 
 ### New Capabilities
+
 - `merchant-overview-reporting`: Merchant dashboard overview metrics and settled-settlement history browsing.
 - `merchant-parcel-browsing`: Merchant parcel list search, status filtering, date filtering, and pagination.
 

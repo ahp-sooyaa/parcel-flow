@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   FieldShell,
+  type FormFieldErrors,
   FormBanner,
   inputClassName,
   type FormMessageState,
@@ -221,12 +222,13 @@ function BankAccountDialog({
   const accountNumberId = useId();
   const primaryAccountId = useId();
 
-  const { handleSubmit, reset, setValue, watch } = useForm<
+  const { clearErrors, formState, handleSubmit, reset, setError, setValue, watch } = useForm<
     ReturnType<typeof getBankAccountFormState>
   >({
     defaultValues: initialFormState,
   });
   const values = watch();
+  const errors = formState.errors;
 
   useEffect(() => {
     if (!open) {
@@ -234,11 +236,13 @@ function BankAccountDialog({
     }
 
     reset(getBankAccountFormState(initialValue));
+    clearErrors();
     setSubmissionState(null);
-  }, [initialValue, open, reset]);
+  }, [clearErrors, initialValue, open, reset]);
 
   function syncFormState(bankAccount: BankAccountDto | null) {
     reset(getBankAccountFormState(bankAccount));
+    clearErrors();
     setSubmissionState(null);
   }
 
@@ -251,6 +255,7 @@ function BankAccountDialog({
 
   function submitForm(payload: ReturnType<typeof getBankAccountFormState>) {
     setSubmissionState(null);
+    clearErrors();
 
     startTransition(async () => {
       const result =
@@ -262,10 +267,14 @@ function BankAccountDialog({
             });
 
       if (!result.ok) {
-        setSubmissionState({
-          kind: "error",
-          message: result.message,
-        });
+        const hasMappedError = applyFieldErrors(result.fieldErrors, setError);
+
+        if (!hasMappedError || !result.fieldErrors) {
+          setSubmissionState({
+            kind: "error",
+            message: result.message,
+          });
+        }
         return;
       }
 
@@ -292,44 +301,65 @@ function BankAccountDialog({
           {submissionState ? <FormBanner state={submissionState} /> : null}
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <FieldShell htmlFor={bankNameId} label="Bank name">
+            <FieldShell
+              htmlFor={bankNameId}
+              label="Bank name"
+              required
+              error={errors.bankName?.message}
+            >
               <Input
                 id={bankNameId}
                 value={values.bankName}
                 onChange={(event) => {
                   setValue("bankName", event.target.value);
+                  clearErrors("bankName");
                   setSubmissionState(null);
                 }}
                 placeholder="KBZ Bank"
+                aria-invalid={Boolean(errors.bankName)}
                 className={inputClassName}
                 disabled={isPending}
               />
             </FieldShell>
 
-            <FieldShell htmlFor={accountHolderNameId} label="Account holder name">
+            <FieldShell
+              htmlFor={accountHolderNameId}
+              label="Account holder name"
+              required
+              error={errors.accountHolderName?.message}
+            >
               <Input
                 id={accountHolderNameId}
                 value={values.accountHolderName}
                 onChange={(event) => {
                   setValue("accountHolderName", event.target.value);
+                  clearErrors("accountHolderName");
                   setSubmissionState(null);
                 }}
                 placeholder="Account holder name"
+                aria-invalid={Boolean(errors.accountHolderName)}
                 className={inputClassName}
                 disabled={isPending}
               />
             </FieldShell>
           </div>
 
-          <FieldShell htmlFor={accountNumberId} label="Account number">
+          <FieldShell
+            htmlFor={accountNumberId}
+            label="Account number"
+            required
+            error={errors.accountNumber?.message}
+          >
             <Input
               id={accountNumberId}
               value={values.accountNumber}
               onChange={(event) => {
                 setValue("accountNumber", event.target.value);
+                clearErrors("accountNumber");
                 setSubmissionState(null);
               }}
               placeholder="Enter account number"
+              aria-invalid={Boolean(errors.accountNumber)}
               className={inputClassName}
               disabled={isPending}
             />
@@ -427,4 +457,36 @@ function getBankAccountFormState(bankAccount: BankAccountDto | null) {
     accountNumber: bankAccount?.accountNumber ?? "",
     isPrimary: bankAccount?.isPrimary ?? false,
   };
+}
+
+function applyFieldErrors(
+  fieldErrors: FormFieldErrors | undefined,
+  setError: ReturnType<typeof useForm<ReturnType<typeof getBankAccountFormState>>>["setError"],
+) {
+  if (!fieldErrors) {
+    return false;
+  }
+
+  const fieldKeys: (keyof ReturnType<typeof getBankAccountFormState>)[] = [
+    "bankName",
+    "accountHolderName",
+    "accountNumber",
+  ];
+  let hasMappedError = false;
+
+  for (const key of fieldKeys) {
+    const message = fieldErrors[key];
+
+    if (!message) {
+      continue;
+    }
+
+    hasMappedError = true;
+    setError(key, {
+      type: "server",
+      message,
+    });
+  }
+
+  return hasMappedError;
 }

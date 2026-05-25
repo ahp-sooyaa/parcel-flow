@@ -18,6 +18,7 @@ The rider parcel card view now exposes `Report Failure` and `Mark Delivered`, bu
 ## Capabilities
 
 ### New Capabilities
+
 - `rider-delivery-actions`: Rider-facing delivery failure reporting and successful delivery completion from assigned parcel cards.
 
 ### Modified Capabilities

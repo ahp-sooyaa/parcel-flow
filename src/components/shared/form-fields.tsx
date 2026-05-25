@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import type { ReactNode } from "react";
+import { toast } from "sonner";
 
 import {
   InputGroup,
@@ -17,6 +19,8 @@ export type FormMessageState = {
   detail?: string;
 };
 
+export type FormFieldErrors = Partial<Record<string, string>>;
+
 export const inputClassName =
   "h-10 rounded-md border-[#dcd4cd] bg-[#fcfbf8] text-sm text-[#292827] shadow-none placeholder:text-sm placeholder:text-[#9a9794] focus-visible:border-[#1b1938] focus-visible:ring-[#c9b4fa]";
 
@@ -29,18 +33,24 @@ export const textareaClassName =
 export function FieldShell({
   htmlFor,
   label,
+  required = false,
+  error,
   children,
 }: Readonly<{
   htmlFor: string;
   label: string;
+  required?: boolean;
+  error?: string;
   children: ReactNode;
 }>) {
   return (
     <div className="space-y-2.5">
       <Label htmlFor={htmlFor} className="text-sm font-medium text-[#292827]">
         {label}
+        {required ? <span className="text-rose-700"> *</span> : null}
       </Label>
       <div>{children}</div>
+      {error ? <p className="text-sm text-rose-700">{error}</p> : null}
     </div>
   );
 }
@@ -50,20 +60,18 @@ export function FormBanner({
 }: Readonly<{
   state: FormMessageState;
 }>) {
-  const isSuccess = state.kind === "success";
+  useEffect(() => {
+    const showToast = state.kind === "success" ? toast.success : toast.error;
+    const toastId = `${state.kind}:${state.message}:${state.detail ?? ""}`;
 
-  return (
-    <div
-      className={
-        isSuccess
-          ? "rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
-          : "rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900"
-      }
-    >
-      <p className="font-medium">{state.message}</p>
-      {state.detail ? <p className="mt-1 text-xs">{state.detail}</p> : null}
-    </div>
-  );
+    showToast(state.message, {
+      id: toastId,
+      description: state.detail,
+      position: "top-center",
+    });
+  }, [state.detail, state.kind, state.message]);
+
+  return null;
 }
 
 export function MoneyInput({

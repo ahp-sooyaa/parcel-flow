@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 
 import {
   FieldShell,
+  type FormFieldErrors,
   FormBanner,
   MoneyInput,
   groupedInputClassName,
@@ -45,6 +46,19 @@ type CreateParcelFormProps = Readonly<{
   townships: TownshipListItemDto[];
 }>;
 
+type CreateParcelFormValues = {
+  selectedMerchant: MerchantOption | null;
+  receiverName: string;
+  receiverPhoneNumber: string;
+  receiverAddress: string;
+  specialNotes: string;
+  selectedTownship: TownshipOption | null;
+  deliveryFee: string;
+  hasCod: boolean;
+  codAmount: string;
+  dimensions: ParcelDimensions;
+};
+
 export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps) {
   const overlayContainerRef = useRef<HTMLFormElement>(null);
   const merchantId = useId();
@@ -62,47 +76,75 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
   const merchantOptions = buildMerchantOptions(merchants);
   const townshipOptions = buildTownshipOptions(townships);
 
-  const { handleSubmit, setValue, watch } = useForm<{
-    selectedMerchant: MerchantOption | null;
-    receiverName: string;
-    receiverPhoneNumber: string;
-    receiverAddress: string;
-    specialNotes: string;
-    selectedTownship: TownshipOption | null;
-    deliveryFee: string;
-    hasCod: boolean;
-    codAmount: string;
-    dimensions: ParcelDimensions;
-  }>({
-    defaultValues: {
-      selectedMerchant: null,
-      receiverName: "",
-      receiverPhoneNumber: "",
-      receiverAddress: "",
-      specialNotes: "",
-      selectedTownship: null,
-      deliveryFee: "",
-      hasCod: false,
-      codAmount: "",
-      dimensions: {
-        estimatedWeight: "",
-        width: "",
-        height: "",
-        length: "",
-      },
+  const initialValues: CreateParcelFormValues = {
+    selectedMerchant: null,
+    receiverName: "",
+    receiverPhoneNumber: "",
+    receiverAddress: "",
+    specialNotes: "",
+    selectedTownship: null,
+    deliveryFee: "",
+    hasCod: false,
+    codAmount: "",
+    dimensions: {
+      estimatedWeight: "",
+      width: "",
+      height: "",
+      length: "",
     },
-  });
+  };
+  const { clearErrors, formState, handleSubmit, reset, setError, setValue, watch } =
+    useForm<CreateParcelFormValues>({
+      defaultValues: initialValues,
+    });
   const values = watch();
+  const errors = formState.errors;
   const [submissionState, setSubmissionState] = useState<FormMessageState | null>(null);
 
-  function clearBanner() {
-    if (submissionState) {
+  function clearFeedback(field?: keyof CreateParcelFormValues) {
+    if (field) {
+      clearErrors(field);
+    }
+
+    if (submissionState?.kind === "error") {
       setSubmissionState(null);
     }
   }
 
+  function applyFieldErrors(fieldErrors?: FormFieldErrors) {
+    if (!fieldErrors) {
+      return false;
+    }
+
+    const mappings = [
+      ["merchantId", "selectedMerchant"],
+      ["receiverName", "receiverName"],
+      ["receiverPhoneNumber", "receiverPhoneNumber"],
+      ["receiverAddress", "receiverAddress"],
+      ["townshipId", "selectedTownship"],
+      ["deliveryFee", "deliveryFee"],
+      ["codAmount", "codAmount"],
+    ] as const;
+
+    let hasMappedError = false;
+
+    for (const [source, target] of mappings) {
+      const message = fieldErrors[source];
+
+      if (!message) {
+        continue;
+      }
+
+      hasMappedError = true;
+      setError(target, { type: "server", message });
+    }
+
+    return hasMappedError;
+  }
+
   function submitForm(formValues: typeof values) {
     setSubmissionState(null);
+    clearErrors();
 
     const formInput: CreateParcelFormInputDto = {
       merchantId: formValues.selectedMerchant?.value ?? "",
@@ -121,14 +163,20 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
       const result = await createParcelAction(formInput);
 
       if (!result.ok) {
-        setSubmissionState({
-          kind: "error",
-          message: result.message,
-        });
+        const hasMappedError = applyFieldErrors(result.fieldErrors);
+
+        if (!hasMappedError || !result.fieldErrors) {
+          setSubmissionState({
+            kind: "error",
+            message: result.message,
+          });
+        }
 
         return;
       }
 
+      reset(initialValues);
+      clearErrors();
       setSubmissionState({
         kind: "success",
         message: `${result.parcel.receiverName}'s parcel has been created.`,
@@ -155,21 +203,27 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
 
           <Card className="border-[#e7dfd8] bg-white shadow-[0_20px_50px_rgba(27,25,56,0.06)]">
             <CardContent className="space-y-4">
-              <FieldShell htmlFor={merchantId} label="Merchant">
+              <FieldShell
+                htmlFor={merchantId}
+                label="Merchant"
+                required
+                error={errors.selectedMerchant?.message}
+              >
                 <Combobox
                   items={merchantOptions}
                   value={values.selectedMerchant}
                   onValueChange={(nextValue) => {
                     setValue("selectedMerchant", nextValue ?? null);
-                    clearBanner();
+                    clearFeedback("selectedMerchant");
                   }}
-                  itemToStringLabel={(option) => option.label}
-                  isItemEqualToValue={(item, value) => item.value === value.value}
+                  itemToStringLabel={(option) => option?.label ?? ""}
+                  isItemEqualToValue={(item, value) => item?.value === value?.value}
                 >
                   <ComboboxInput
                     id={merchantId}
                     aria-label="Select merchant"
                     placeholder="Search merchant by name"
+                    aria-invalid={Boolean(errors.selectedMerchant)}
                     showClear={values.selectedMerchant !== null}
                     className={groupedInputClassName}
                     disabled={isPending}
@@ -191,27 +245,39 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
               </FieldShell>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <FieldShell htmlFor={receiverNameId} label="Receiver name">
+                <FieldShell
+                  htmlFor={receiverNameId}
+                  label="Receiver name"
+                  required
+                  error={errors.receiverName?.message}
+                >
                   <Input
                     id={receiverNameId}
                     placeholder="Enter receiver name"
+                    aria-invalid={Boolean(errors.receiverName)}
                     value={values.receiverName}
                     onChange={(event) => {
                       setValue("receiverName", event.target.value);
-                      clearBanner();
+                      clearFeedback("receiverName");
                     }}
                     className={inputClassName}
                     disabled={isPending}
                   />
                 </FieldShell>
-                <FieldShell htmlFor={receiverPhoneId} label="Receiver phone number">
+                <FieldShell
+                  htmlFor={receiverPhoneId}
+                  label="Receiver phone number"
+                  required
+                  error={errors.receiverPhoneNumber?.message}
+                >
                   <Input
                     id={receiverPhoneId}
                     placeholder="09xxxxxxxxx"
+                    aria-invalid={Boolean(errors.receiverPhoneNumber)}
                     value={values.receiverPhoneNumber}
                     onChange={(event) => {
                       setValue("receiverPhoneNumber", event.target.value);
-                      clearBanner();
+                      clearFeedback("receiverPhoneNumber");
                     }}
                     className={inputClassName}
                     disabled={isPending}
@@ -219,14 +285,20 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
                 </FieldShell>
               </div>
 
-              <FieldShell htmlFor={receiverAddressId} label="Receiver address">
+              <FieldShell
+                htmlFor={receiverAddressId}
+                label="Receiver address"
+                required
+                error={errors.receiverAddress?.message}
+              >
                 <Textarea
                   id={receiverAddressId}
                   placeholder="Street, ward, landmark, building"
+                  aria-invalid={Boolean(errors.receiverAddress)}
                   value={values.receiverAddress}
                   onChange={(event) => {
                     setValue("receiverAddress", event.target.value);
-                    clearBanner();
+                    clearFeedback("receiverAddress");
                   }}
                   className={textareaClassName}
                   disabled={isPending}
@@ -240,29 +312,36 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
                   value={values.specialNotes}
                   onChange={(event) => {
                     setValue("specialNotes", event.target.value);
-                    clearBanner();
+                    clearFeedback("specialNotes");
                   }}
                   className={textareaClassName}
                   disabled={isPending}
                 />
               </FieldShell>
 
-              <FieldShell htmlFor={townshipId} label="Receiver township">
+              <FieldShell
+                htmlFor={townshipId}
+                label="Receiver township"
+                required
+                error={errors.selectedTownship?.message}
+              >
                 <Combobox
                   items={townshipOptions}
                   value={values.selectedTownship}
                   onValueChange={(township = null) => {
                     setValue("selectedTownship", township);
                     setValue("deliveryFee", township ? String(township.baseFee) : "");
-                    clearBanner();
+                    clearFeedback("selectedTownship");
+                    clearErrors("deliveryFee");
                   }}
-                  itemToStringLabel={(option) => option.label}
-                  isItemEqualToValue={(item, value) => item.value === value.value}
+                  itemToStringLabel={(option) => option?.label ?? ""}
+                  isItemEqualToValue={(item, value) => item?.value === value?.value}
                 >
                   <ComboboxInput
                     id={townshipId}
                     aria-label="Select receiver township"
                     placeholder="Search township"
+                    aria-invalid={Boolean(errors.selectedTownship)}
                     showClear={values.selectedTownship !== null}
                     className={groupedInputClassName}
                     disabled={isPending}
@@ -297,18 +376,23 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
                       ...values.dimensions,
                       [key]: value,
                     });
-                    clearBanner();
+                    clearFeedback("dimensions");
                   }}
                 />
               </FieldShell>
 
-              <FieldShell htmlFor={deliveryFeeId} label="Delivery fee">
+              <FieldShell
+                htmlFor={deliveryFeeId}
+                label="Delivery fee"
+                required
+                error={errors.deliveryFee?.message}
+              >
                 <MoneyInput
                   id={deliveryFeeId}
                   value={values.deliveryFee}
                   onChange={(value) => {
                     setValue("deliveryFee", value);
-                    clearBanner();
+                    clearFeedback("deliveryFee");
                   }}
                   placeholder="0"
                   disabled={isPending}
@@ -316,13 +400,18 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
               </FieldShell>
 
               {values.hasCod ? (
-                <FieldShell htmlFor={codAmountId} label="COD amount">
+                <FieldShell
+                  htmlFor={codAmountId}
+                  label="COD amount"
+                  required
+                  error={errors.codAmount?.message}
+                >
                   <MoneyInput
                     id={codAmountId}
                     value={values.codAmount}
                     onChange={(value) => {
                       setValue("codAmount", value);
-                      clearBanner();
+                      clearFeedback("codAmount");
                     }}
                     placeholder="0"
                     disabled={isPending}
@@ -341,10 +430,11 @@ export function CreateParcelForm({ merchants, townships }: CreateParcelFormProps
                     const enabled = checked;
 
                     setValue("hasCod", enabled);
-                    clearBanner();
+                    clearFeedback("hasCod");
 
                     if (!enabled) {
                       setValue("codAmount", "");
+                      clearErrors("codAmount");
                     }
                   }}
                   className="mt-0.5"

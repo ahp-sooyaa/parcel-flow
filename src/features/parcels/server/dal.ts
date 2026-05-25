@@ -370,9 +370,7 @@ export async function createParcel(input: CreateParcelInputDto & { createdBy: st
   throw new Error("Unable to generate a unique parcel code.");
 }
 
-export async function updateParcel(
-  input: UpdateParcelInputDto,
-) {
+export async function updateParcel(input: UpdateParcelInputDto) {
   await db.transaction(async (tx) => {
     const [existingParcel] = await tx
       .select({
@@ -735,7 +733,9 @@ export async function updateDeliveryFailureForRiderParcel(input: {
     }
 
     if (parcel.riderId !== rider.id) {
-      throw new Error("You can only update failure notes for parcels assigned to your rider account.");
+      throw new Error(
+        "You can only update failure notes for parcels assigned to your rider account.",
+      );
     }
 
     if (parcel.status !== "on_the_way") {

@@ -14,9 +14,11 @@ The app already creates `financial_items` for delivered COD remits and returned-
 ## Capabilities
 
 ### New Capabilities
+
 - `merchant-settlement-management`: Admin settlement drafting from eligible merchant financial items, pending settlement listing, and superadmin settlement resolution with bank transfer receipt upload.
 
 ### Modified Capabilities
+
 - None.
 
 ## Impact

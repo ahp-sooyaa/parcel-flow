@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import {
   Camera,
@@ -124,7 +124,10 @@ export function RiderParcelCardList({
   const [proofImage, setProofImage] = useState<File | null>(null);
   const [proofPreviewUrl, setProofPreviewUrl] = useState<string | null>(null);
   const [submissionState, setSubmissionState] = useState<FormMessageState | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [bulkStartPending, setBulkStartPending] = useState(false);
+  const [pendingStartParcelIds, setPendingStartParcelIds] = useState<string[]>([]);
+  const [pendingReturnParcelIds, setPendingReturnParcelIds] = useState<string[]>([]);
+  const [deliveryPending, setDeliveryPending] = useState(false);
 
   const townshipOptions = useMemo<TownshipOption[]>(
     () =>
@@ -279,9 +282,31 @@ export function RiderParcelCardList({
       return;
     }
 
+    const isBulkAction = parcelIds.length > 1;
     setSubmissionState(null);
-    startTransition(async () => {
+
+    if (isBulkAction) {
+      setBulkStartPending(true);
+    } else {
+      const parcelId = parcelIds[0];
+
+      if (!parcelId) {
+        return;
+      }
+
+      setPendingStartParcelIds((current) =>
+        current.includes(parcelId) ? current : [...current, parcelId],
+      );
+    }
+
+    void (async () => {
       const result = await startDeliveryForRiderParcelsAction({ parcelIds });
+
+      if (isBulkAction) {
+        setBulkStartPending(false);
+      } else {
+        setPendingStartParcelIds((current) => current.filter((id) => !parcelIds.includes(id)));
+      }
 
       if (!result.ok) {
         setSubmissionState({
@@ -297,13 +322,20 @@ export function RiderParcelCardList({
       });
       setSelectedParcelIds((current) => current.filter((id) => !parcelIds.includes(id)));
       router.refresh();
-    });
+    })();
   }
 
   function submitReturnToMerchant(parcelId: string) {
     setSubmissionState(null);
-    startTransition(async () => {
+
+    setPendingReturnParcelIds((current) =>
+      current.includes(parcelId) ? current : [...current, parcelId],
+    );
+
+    void (async () => {
       const result = await markRiderParcelReturnedToMerchantAction({ parcelId });
+
+      setPendingReturnParcelIds((current) => current.filter((id) => id !== parcelId));
 
       setSubmissionState({
         kind: result.ok ? "success" : "error",
@@ -315,7 +347,7 @@ export function RiderParcelCardList({
       }
 
       router.refresh();
-    });
+    })();
   }
 
   function openFailureDialog(parcel: ParcelListItemDto) {
@@ -350,7 +382,7 @@ export function RiderParcelCardList({
 
     setSubmissionState(null);
     setFailureNotePendingAction("save");
-    startTransition(async () => {
+    void (async () => {
       const result = failureParcel.activeFailureNote
         ? await updateDeliveryFailureForRiderParcelAction({
             parcelId: failureParcel.id,
@@ -374,7 +406,7 @@ export function RiderParcelCardList({
       setFailureParcel(null);
       setFailureNote("");
       router.refresh();
-    });
+    })();
   }
 
   function submitDeleteFailureNote() {
@@ -384,7 +416,7 @@ export function RiderParcelCardList({
 
     setSubmissionState(null);
     setFailureNotePendingAction("delete");
-    startTransition(async () => {
+    void (async () => {
       const result = await deleteDeliveryFailureForRiderParcelAction({
         parcelId: failureParcel.id,
       });
@@ -402,7 +434,7 @@ export function RiderParcelCardList({
       setFailureParcel(null);
       setFailureNote("");
       router.refresh();
-    });
+    })();
   }
 
   function submitDelivered(event: { preventDefault: () => void }) {
@@ -425,8 +457,12 @@ export function RiderParcelCardList({
     formData.set("proofImage", proofImage);
 
     setSubmissionState(null);
-    startTransition(async () => {
+    setDeliveryPending(true);
+
+    void (async () => {
       const result = await markRiderParcelDeliveredAction(formData);
+
+      setDeliveryPending(false);
 
       setSubmissionState({
         kind: result.ok ? "success" : "error",
@@ -441,7 +477,7 @@ export function RiderParcelCardList({
       setProofImage(null);
       setProofPreviewUrl(null);
       router.refresh();
-    });
+    })();
   }
 
   function renderParcelContent() {
@@ -480,6 +516,8 @@ export function RiderParcelCardList({
             const showDeliveryActions = parcel.status === "on_the_way" && !hasFailureNote;
             const showFailureNoteAction = parcel.status === "on_the_way" && hasFailureNote;
             const showReturnAction = parcel.status === "canceled_returned";
+            const isStartPending = pendingStartParcelIds.includes(parcel.id);
+            const isReturnPending = pendingReturnParcelIds.includes(parcel.id);
 
             return (
               <Card
@@ -495,7 +533,7 @@ export function RiderParcelCardList({
                       <Button
                         type="button"
                         variant="link"
-                        className="h-auto border-0 px-0 text-sm underline"
+                        className="h-auto cursor-pointer border-0 px-0 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                         onClick={() => setViewingParcel(parcel)}
                       >
                         View details
@@ -504,7 +542,7 @@ export function RiderParcelCardList({
                     <Checkbox
                       aria-label={`Select ${parcel.parcelCode}`}
                       checked={isSelected}
-                      disabled={!isSelectable || isPending}
+                      disabled={!isSelectable || isStartPending || bulkStartPending}
                       onCheckedChange={(checked) => toggleParcel(parcel.id, checked)}
                       className="mt-1 rounded-[6px] shadow-sm"
                     />
@@ -554,10 +592,10 @@ export function RiderParcelCardList({
                       {isSelectable ? (
                         <Button
                           type="button"
-                          disabled={isPending}
+                          disabled={isStartPending || bulkStartPending}
                           onClick={() => submitStartDelivery([parcel.id])}
                         >
-                          {isPending ? "Starting..." : "Start Delivery"}
+                          {isStartPending ? "Starting..." : "Start Delivery"}
                         </Button>
                       ) : null}
 
@@ -566,7 +604,7 @@ export function RiderParcelCardList({
                           <Button
                             type="button"
                             variant="outline"
-                            disabled={isPending}
+                            disabled={false}
                             className="flex-1"
                             onClick={() => openFailureDialog(parcel)}
                           >
@@ -575,7 +613,7 @@ export function RiderParcelCardList({
                           <Button
                             type="button"
                             variant="outline"
-                            disabled={isPending}
+                            disabled={false}
                             className="flex-1"
                             onClick={() => openDeliveryDialog(parcel)}
                           >
@@ -588,7 +626,7 @@ export function RiderParcelCardList({
                         <Button
                           type="button"
                           variant="outline"
-                          disabled={isPending}
+                          disabled={false}
                           className="flex-1"
                           onClick={() => openFailureDialog(parcel)}
                         >
@@ -600,11 +638,11 @@ export function RiderParcelCardList({
                         <Button
                           type="button"
                           variant="outline"
-                          disabled={isPending}
+                          disabled={isReturnPending}
                           className="flex-1"
                           onClick={() => submitReturnToMerchant(parcel.id)}
                         >
-                          Return to Merchant
+                          {isReturnPending ? "Returning..." : "Return to Merchant"}
                         </Button>
                       ) : null}
                     </div>
@@ -815,10 +853,10 @@ export function RiderParcelCardList({
           </div>
           <Button
             type="button"
-            disabled={isPending}
+            disabled={bulkStartPending}
             onClick={() => submitStartDelivery(selectedParcelIds)}
           >
-            {isPending ? "Starting..." : "Start Delivery for Selected"}
+            {bulkStartPending ? "Starting..." : "Start Delivery for Selected"}
           </Button>
         </div>
       ) : null}
@@ -869,7 +907,7 @@ export function RiderParcelCardList({
                 onChange={(event) => setFailureNote(event.target.value)}
                 minLength={1}
                 required
-                disabled={isPending}
+                disabled={failureNotePendingAction !== null}
                 placeholder="Write what happened during delivery"
                 className="min-h-32"
               />
@@ -880,13 +918,13 @@ export function RiderParcelCardList({
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={isPending}
+                  disabled={failureNotePendingAction !== null}
                   onClick={submitDeleteFailureNote}
                 >
                   {failureNotePendingAction === "delete" ? "Deleting..." : "Delete"}
                 </Button>
               ) : null}
-              <Button type="submit" disabled={isPending}>
+              <Button type="submit" disabled={failureNotePendingAction !== null}>
                 {failureNotePendingAction === "save" ? "Saving..." : "Save"}
               </Button>
             </DialogFooter>
@@ -936,7 +974,7 @@ export function RiderParcelCardList({
                 accept="image/*"
                 capture="environment"
                 required
-                disabled={isPending}
+                disabled={deliveryPending}
                 className="sr-only"
                 onChange={handleProofImageChange}
               />
@@ -966,7 +1004,7 @@ export function RiderParcelCardList({
               <Button
                 type="button"
                 variant="outline"
-                disabled={isPending}
+                disabled={deliveryPending}
                 onClick={() => {
                   setDeliveryParcel(null);
                   setProofImage(null);
@@ -975,8 +1013,8 @@ export function RiderParcelCardList({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isPending}>
-                {isPending ? "Saving..." : "Save Delivery"}
+              <Button type="submit" disabled={deliveryPending}>
+                {deliveryPending ? "Saving..." : "Save Delivery"}
               </Button>
             </DialogFooter>
           </form>

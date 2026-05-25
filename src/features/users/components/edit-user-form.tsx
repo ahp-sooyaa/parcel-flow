@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   FieldShell,
+  type FormFieldErrors,
   FormBanner,
   groupedInputClassName,
   inputClassName,
@@ -93,19 +94,21 @@ export function EditUserForm({
     user.serviceTownshipName,
   );
 
-  const { handleSubmit, setValue, watch } = useForm<EditUserFormValues>({
-    defaultValues: {
-      name: user.name,
-      phoneNumber: user.phoneNumber,
-      address: user.address,
-      age: user.age ? String(user.age) : "",
-      isActive: user.isActive,
-      role: user.role,
-      shopName: user.shopName ?? "",
-      selectedTownship: initialTownship,
-    },
-  });
+  const { clearErrors, formState, handleSubmit, setError, setValue, watch } =
+    useForm<EditUserFormValues>({
+      defaultValues: {
+        name: user.name,
+        phoneNumber: user.phoneNumber,
+        address: user.address,
+        age: user.age ? String(user.age) : "",
+        isActive: user.isActive,
+        role: user.role,
+        shopName: user.shopName ?? "",
+        selectedTownship: initialTownship,
+      },
+    });
   const values = watch();
+  const errors = formState.errors;
   const [bankAccounts, setBankAccounts] = useState(initialBankAccounts);
   const [bankAccountFormMode, setBankAccountFormMode] = useState<BankAccountFormMode | null>(null);
   const [editingBankAccountId, setEditingBankAccountId] = useState<string | null>(null);
@@ -120,6 +123,46 @@ export function EditUserForm({
       ),
     [bankAccounts],
   );
+
+  function clearFeedback(field?: keyof EditUserFormValues) {
+    if (field) {
+      clearErrors(field);
+    }
+
+    if (submissionState?.kind === "error") {
+      setSubmissionState(null);
+    }
+  }
+
+  function applyFieldErrors(fieldErrors?: FormFieldErrors) {
+    if (!fieldErrors) {
+      return false;
+    }
+
+    const mappings = [
+      ["name", "name"],
+      ["phoneNumber", "phoneNumber"],
+      ["address", "address"],
+      ["age", "age"],
+      ["shopName", "shopName"],
+      ["serviceTownshipId", "selectedTownship"],
+    ] as const;
+
+    let hasMappedError = false;
+
+    for (const [source, target] of mappings) {
+      const message = fieldErrors[source];
+
+      if (!message) {
+        continue;
+      }
+
+      hasMappedError = true;
+      setError(target, { type: "server", message });
+    }
+
+    return hasMappedError;
+  }
 
   function handlePasswordReset() {
     setSubmissionState(null);
@@ -193,6 +236,7 @@ export function EditUserForm({
 
   function submitForm(payload: EditUserFormValues) {
     setSubmissionState(null);
+    clearErrors();
 
     startTransition(async () => {
       const result = await updateUserAction({
@@ -208,10 +252,14 @@ export function EditUserForm({
       });
 
       if (!result.ok) {
-        setSubmissionState({
-          kind: "error",
-          message: result.message,
-        });
+        const hasMappedError = applyFieldErrors(result.fieldErrors);
+
+        if (!hasMappedError || !result.fieldErrors) {
+          setSubmissionState({
+            kind: "error",
+            message: result.message,
+          });
+        }
 
         return;
       }
@@ -254,51 +302,64 @@ export function EditUserForm({
               <Card className="border-[#e7dfd8] bg-white shadow-[0_20px_50px_rgba(27,25,56,0.06)]">
                 <CardContent className="space-y-5">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <FieldShell htmlFor={nameId} label="Name">
+                    <FieldShell htmlFor={nameId} label="Name" required error={errors.name?.message}>
                       <Input
                         id={nameId}
                         value={values.name}
                         onChange={(event) => {
                           setValue("name", event.target.value);
-                          setSubmissionState(null);
+                          clearFeedback("name");
                         }}
                         placeholder="Enter full name"
+                        aria-invalid={Boolean(errors.name)}
                         className={inputClassName}
                         disabled={isBusy}
                       />
                     </FieldShell>
 
-                    <FieldShell htmlFor={phoneNumberId} label="Phone number">
+                    <FieldShell
+                      htmlFor={phoneNumberId}
+                      label="Phone number"
+                      required
+                      error={errors.phoneNumber?.message}
+                    >
                       <Input
                         id={phoneNumberId}
                         value={values.phoneNumber}
                         onChange={(event) => {
                           setValue("phoneNumber", event.target.value);
-                          setSubmissionState(null);
+                          clearFeedback("phoneNumber");
                         }}
                         placeholder="09xxxxxxxxx"
+                        aria-invalid={Boolean(errors.phoneNumber)}
                         className={inputClassName}
                         disabled={isBusy}
                       />
                     </FieldShell>
                   </div>
 
-                  <FieldShell htmlFor={addressId} label="Address">
+                  <FieldShell
+                    htmlFor={addressId}
+                    label="Address"
+                    required
+                    error={errors.address?.message}
+                  >
                     <Textarea
                       id={addressId}
                       value={values.address}
                       onChange={(event) => {
                         setValue("address", event.target.value);
-                        setSubmissionState(null);
+                        clearFeedback("address");
                       }}
                       placeholder="Street, ward, township, landmark"
+                      aria-invalid={Boolean(errors.address)}
                       className={textareaClassName}
                       disabled={isBusy}
                     />
                   </FieldShell>
 
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <FieldShell htmlFor={ageId} label="Age (optional)">
+                    <FieldShell htmlFor={ageId} label="Age (optional)" error={errors.age?.message}>
                       <Input
                         id={ageId}
                         type="number"
@@ -307,7 +368,7 @@ export function EditUserForm({
                         value={values.age}
                         onChange={(event) => {
                           setValue("age", event.target.value);
-                          setSubmissionState(null);
+                          clearFeedback("age");
                         }}
                         placeholder="Optional"
                         className={inputClassName}
@@ -315,20 +376,22 @@ export function EditUserForm({
                       />
                     </FieldShell>
 
-                    <FieldShell htmlFor={roleId} label="Role">
+                    <FieldShell htmlFor={roleId} label="Role" required>
                       <UserRoleSelectField
                         id={roleId}
                         value={values.role}
                         onChange={(nextRole) => {
                           setValue("role", nextRole);
-                          setSubmissionState(null);
+                          clearFeedback("role");
 
                           if (nextRole !== "merchant") {
                             setValue("shopName", "");
+                            clearErrors("shopName");
                           }
 
                           if (nextRole !== "rider") {
                             setValue("selectedTownship", null);
+                            clearErrors("selectedTownship");
                           }
                         }}
                         disabled={isBusy}
@@ -354,22 +417,28 @@ export function EditUserForm({
                       checked={values.isActive}
                       onCheckedChange={(checked) => {
                         setValue("isActive", checked);
-                        setSubmissionState(null);
+                        clearFeedback("isActive");
                       }}
                       disabled={isBusy}
                     />
                   </div>
 
                   {values.role === "merchant" ? (
-                    <FieldShell htmlFor={shopId} label="Shop">
+                    <FieldShell
+                      htmlFor={shopId}
+                      label="Shop"
+                      required
+                      error={errors.shopName?.message}
+                    >
                       <Input
                         id={shopId}
                         value={values.shopName}
                         onChange={(event) => {
                           setValue("shopName", event.target.value);
-                          setSubmissionState(null);
+                          clearFeedback("shopName");
                         }}
                         placeholder="Enter shop name"
+                        aria-invalid={Boolean(errors.shopName)}
                         className={inputClassName}
                         disabled={isBusy}
                       />
@@ -377,13 +446,18 @@ export function EditUserForm({
                   ) : null}
 
                   {values.role === "rider" ? (
-                    <FieldShell htmlFor={serviceTownshipId} label="Service township">
+                    <FieldShell
+                      htmlFor={serviceTownshipId}
+                      label="Service township"
+                      required
+                      error={errors.selectedTownship?.message}
+                    >
                       <Combobox
                         items={townshipOptions}
                         value={values.selectedTownship}
                         onValueChange={(township = null) => {
                           setValue("selectedTownship", township);
-                          setSubmissionState(null);
+                          clearFeedback("selectedTownship");
                         }}
                         itemToStringLabel={(option) => option.label}
                         isItemEqualToValue={(item, value) => item.value === value.value}
@@ -392,6 +466,7 @@ export function EditUserForm({
                           id={serviceTownshipId}
                           aria-label="Select rider service township"
                           placeholder="Search township"
+                          aria-invalid={Boolean(errors.selectedTownship)}
                           showClear={values.selectedTownship !== null}
                           className={groupedInputClassName}
                           disabled={isBusy}

@@ -122,10 +122,7 @@ export function TownshipManagement({ townships, canManagePricing }: TownshipMana
           {viewingTownship ? (
             <div className="space-y-4">
               <DetailRow label="Township" value={viewingTownship.name} />
-              <DetailRow
-                label="Status"
-                value={viewingTownship.isActive ? "Active" : "Inactive"}
-              />
+              <DetailRow label="Status" value={viewingTownship.isActive ? "Active" : "Inactive"} />
               <DetailRow label="Base fee" value={`${formatMoney(viewingTownship.baseFee)} MMK`} />
               <DetailRow label="Base weight" value={`${viewingTownship.baseWeightKg} kg`} />
               <DetailRow
@@ -140,10 +137,7 @@ export function TownshipManagement({ townships, canManagePricing }: TownshipMana
                 label="Volumetric divisor"
                 value={String(viewingTownship.volumetricDivisor)}
               />
-              <DetailRow
-                label="COD fee percent"
-                value={`${viewingTownship.codFeePercent}%`}
-              />
+              <DetailRow label="COD fee percent" value={`${viewingTownship.codFeePercent}%`} />
               <DetailRow
                 label="Return fee percent"
                 value={`${viewingTownship.returnFeePercent}%`}

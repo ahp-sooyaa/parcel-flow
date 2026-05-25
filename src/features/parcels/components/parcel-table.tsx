@@ -212,7 +212,10 @@ export function ParcelTable({
         <TableBody>
           {parcels.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={columnCount} className="py-10 text-center text-sm text-muted-foreground">
+              <TableCell
+                colSpan={columnCount}
+                className="py-10 text-center text-sm text-muted-foreground"
+              >
                 No parcels match the current search and filters.
               </TableCell>
             </TableRow>

@@ -136,9 +136,7 @@ describe("parcel server actions", async () => {
   });
 
   test("updates parcels and revalidates affected read models", async () => {
-    getSessionMock.mockResolvedValue(
-      buildSessionUser({ id: "admin-id", role: "office_admin" }),
-    );
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "admin-id", role: "office_admin" }));
 
     const result = await updateParcelAction({
       id: "00000000-0000-4000-8000-000000000001",
@@ -261,9 +259,7 @@ describe("parcel server actions", async () => {
   });
 
   test("marks failed parcels for merchant return and revalidates affected read models", async () => {
-    getSessionMock.mockResolvedValue(
-      buildSessionUser({ id: "admin-id", role: "office_admin" }),
-    );
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "admin-id", role: "office_admin" }));
 
     const result = await returnFailedParcelToMerchantAction({
       parcelId: "00000000-0000-4000-8000-000000000001",
@@ -303,7 +299,9 @@ describe("parcel server actions", async () => {
   });
 
   test("returns stale failed parcel resolution errors to the caller", async () => {
-    resolveFailedParcelByAdminMock.mockRejectedValue(new Error("This failure report has already been handled."));
+    resolveFailedParcelByAdminMock.mockRejectedValue(
+      new Error("This failure report has already been handled."),
+    );
 
     const result = await postponeFailedParcelAction({
       parcelId: "00000000-0000-4000-8000-000000000001",

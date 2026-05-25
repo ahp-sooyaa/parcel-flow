@@ -14,9 +14,11 @@ The current `delivery_failure_note` field only stores a single text value, so th
 ## Capabilities
 
 ### New Capabilities
+
 - `parcel-failure-note-lifecycle`: Structured parcel failure note history, unresolved-note state, rider action gating, and admin review filtering for failed delivery workflows.
 
 ### Modified Capabilities
+
 - None.
 
 ## Impact

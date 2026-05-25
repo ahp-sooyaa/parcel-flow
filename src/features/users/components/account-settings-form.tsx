@@ -176,36 +176,55 @@ export function AccountSettingsForm({ user }: Readonly<{ user: UserListItemDto }
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          {passwordState.message ? (
+          {passwordState.ok && passwordState.message ? (
             <FormBanner
               state={{
-                kind: passwordState.ok ? "success" : "error",
+                kind: "success",
                 message: passwordState.message,
-                detail: passwordState.ok
-                  ? "Use the new password the next time you sign in."
-                  : undefined,
+                detail: "Use the new password the next time you sign in.",
+              }}
+            />
+          ) : null}
+
+          {!passwordState.ok && passwordState.message && !passwordState.fieldErrors ? (
+            <FormBanner
+              state={{
+                kind: "error",
+                message: passwordState.message,
               }}
             />
           ) : null}
 
           <form action={passwordFormAction} className="space-y-5">
-            <FieldShell htmlFor={currentPasswordId} label="Current password">
+            <FieldShell
+              htmlFor={currentPasswordId}
+              label="Current password"
+              required
+              error={passwordState.fieldErrors?.currentPassword}
+            >
               <Input
                 id={currentPasswordId}
                 name="currentPassword"
                 type="password"
                 placeholder="Enter current password"
+                aria-invalid={Boolean(passwordState.fieldErrors?.currentPassword)}
                 className={inputClassName}
                 disabled={isPasswordPending}
               />
             </FieldShell>
 
-            <FieldShell htmlFor={newPasswordId} label="New password">
+            <FieldShell
+              htmlFor={newPasswordId}
+              label="New password"
+              required
+              error={passwordState.fieldErrors?.newPassword}
+            >
               <Input
                 id={newPasswordId}
                 name="newPassword"
                 type="password"
                 placeholder="Enter new password"
+                aria-invalid={Boolean(passwordState.fieldErrors?.newPassword)}
                 className={inputClassName}
                 disabled={isPasswordPending}
               />

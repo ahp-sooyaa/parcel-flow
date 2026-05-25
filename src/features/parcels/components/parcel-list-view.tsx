@@ -217,7 +217,7 @@ export function ParcelListView({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
         <Tabs
           value={assignmentFilter}
           onValueChange={(value) => {
@@ -293,7 +293,7 @@ export function ParcelListView({
             </Button>
 
             {isFilterOpen ? (
-              <div className="absolute top-full left-0 sm:right-0 sm:left-auto z-20 mt-2 w-[320px] rounded-xl border bg-white p-4 shadow-2xl">
+              <div className="absolute top-full left-0 z-20 mt-2 w-[320px] rounded-xl border bg-white p-4 shadow-2xl sm:right-0 sm:left-auto">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm font-semibold text-foreground">Filter parcels</div>

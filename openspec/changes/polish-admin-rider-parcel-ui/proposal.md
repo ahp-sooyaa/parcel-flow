@@ -19,6 +19,7 @@ Several parcel and admin workflows have small but high-friction UI gaps that now
 ## Capabilities
 
 ### New Capabilities
+
 - `admin-rider-ui-polish`: Parcel edit reliability, failure-note presentation cleanup, rider parcel-card simplification, and admin dialog/table consistency improvements across shared parcel workflows.
 
 ### Modified Capabilities

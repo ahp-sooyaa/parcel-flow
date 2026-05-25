@@ -7,6 +7,8 @@ import type {
   StorageStatsCardDto,
 } from "@/features/dashboard/server/dto";
 
+const toastSuccessMock = mock(() => undefined);
+const toastErrorMock = mock(() => undefined);
 const refreshMock = mock(() => undefined);
 const refreshStorageStatsActionMock = mock(
   async (): Promise<RefreshStorageStatsActionResult> => ({
@@ -49,11 +51,20 @@ void mock.module("@/features/dashboard/server/actions", () => ({
   refreshStorageStatsAction: refreshStorageStatsActionMock,
 }));
 
+void mock.module("sonner", () => ({
+  toast: {
+    success: toastSuccessMock,
+    error: toastErrorMock,
+  },
+}));
+
 describe("StorageCapacityCard", async () => {
   const { StorageCapacityCard } =
     await import("@/features/dashboard/components/storage-capacity-card");
 
   beforeEach(() => {
+    toastSuccessMock.mockReset();
+    toastErrorMock.mockReset();
     refreshMock.mockReset();
     refreshStorageStatsActionMock.mockReset();
     refreshStorageStatsActionMock.mockResolvedValue({
@@ -102,7 +113,11 @@ describe("StorageCapacityCard", async () => {
     await waitFor(() => {
       expect(refreshStorageStatsActionMock).toHaveBeenCalledTimes(1);
     });
-    expect(await screen.findByText("Storage stats refreshed.")).toBeTruthy();
+    expect(toastSuccessMock).toHaveBeenCalledWith("Storage stats refreshed.", {
+      description: undefined,
+      id: "success:Storage stats refreshed.:",
+      position: "top-center",
+    });
     expect(refreshMock).toHaveBeenCalledTimes(1);
   });
 
@@ -141,7 +156,11 @@ describe("StorageCapacityCard", async () => {
 
     await user.click(screen.getByRole("button", { name: "Refresh storage stats" }));
 
-    expect(await screen.findByText("Cloudflare R2 could not be refreshed.")).toBeTruthy();
+    expect(toastErrorMock).toHaveBeenCalledWith("Cloudflare R2 could not be refreshed.", {
+      description: undefined,
+      id: "error:Cloudflare R2 could not be refreshed.:",
+      position: "top-center",
+    });
     expect(await screen.findByText("Unavailable")).toBeTruthy();
     expect(refreshMock).not.toHaveBeenCalled();
   });

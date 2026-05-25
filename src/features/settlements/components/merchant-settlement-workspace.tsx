@@ -51,7 +51,7 @@ export function MerchantSettlementWorkspace({
     riderHandovers.find((handover) => handover.riderId === selectedRiderId) ?? null;
 
   return (
-    <Tabs defaultValue="merchant-settlements" className="space-y-4 gap-0">
+    <Tabs defaultValue="merchant-settlements" className="gap-0 space-y-4">
       <div className="flex items-center justify-between">
         <TabsList className="rounded-lg border border-border bg-[#f3f2ef] p-1">
           <TabsTrigger
@@ -70,7 +70,7 @@ export function MerchantSettlementWorkspace({
             Rider Payouts
           </TabsTrigger>
         </TabsList>
-        <p className="text-sm text-muted-foreground hidden">
+        <p className="hidden text-sm text-muted-foreground">
           Rider payouts will be added in a later change.
         </p>
       </div>
@@ -142,7 +142,9 @@ export function MerchantSettlementWorkspace({
               <div className="flex flex-col items-center justify-center gap-3 px-6 py-14 text-center">
                 <Truck className="size-10 text-muted-foreground" />
                 <div>
-                  <p className="font-medium text-foreground">No rider cash handovers are pending.</p>
+                  <p className="font-medium text-foreground">
+                    No rider cash handovers are pending.
+                  </p>
                 </div>
               </div>
             ) : (
@@ -204,7 +206,10 @@ export function MerchantSettlementWorkspace({
         </SheetContent>
       </Sheet>
 
-      <Sheet open={selectedRider !== null} onOpenChange={(open) => !open && setSelectedRiderId(null)}>
+      <Sheet
+        open={selectedRider !== null}
+        onOpenChange={(open) => !open && setSelectedRiderId(null)}
+      >
         <SheetContent className="gap-0 overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[820px] data-[side=right]:sm:max-w-[820px]">
           {selectedRider ? (
             <RiderCashHandoverSheet
@@ -448,7 +453,8 @@ function RiderCashHandoverSheet({
     () =>
       selectedParcels.reduce(
         (summary, parcel) => ({
-          totalCodAmount: summary.totalCodAmount + (parcel.parcelType === "cod" ? parcel.codAmount : 0),
+          totalCodAmount:
+            summary.totalCodAmount + (parcel.parcelType === "cod" ? parcel.codAmount : 0),
           totalDeliveryFeeAmount: summary.totalDeliveryFeeAmount + parcel.deliveryFee,
           totalCollectedAmount: summary.totalCollectedAmount + parcel.collectedAmount,
         }),
@@ -460,7 +466,9 @@ function RiderCashHandoverSheet({
   const allVisibleSelected =
     riderHandover.parcels.length > 0 &&
     riderHandover.parcels.every((parcel) => selectedIds.includes(parcel.id));
-  const someVisibleSelected = riderHandover.parcels.some((parcel) => selectedIds.includes(parcel.id));
+  const someVisibleSelected = riderHandover.parcels.some((parcel) =>
+    selectedIds.includes(parcel.id),
+  );
 
   function toggleParcel(parcelId: string, checked: boolean) {
     setSelectedIds((current) => {
@@ -514,7 +522,8 @@ function RiderCashHandoverSheet({
           Confirm Rider Handover
         </SheetTitle>
         <SheetDescription className="max-w-xl text-sm leading-6 text-[#73706d]">
-          Review delivered parcels still waiting for office receipt confirmation from {riderHandover.riderName}.
+          Review delivered parcels still waiting for office receipt confirmation from{" "}
+          {riderHandover.riderName}.
         </SheetDescription>
       </SheetHeader>
 
@@ -594,9 +603,15 @@ function RiderCashHandoverSheet({
                         <TableCell className="font-medium">{parcel.parcelCode}</TableCell>
                         <TableCell>{parcel.merchantName}</TableCell>
                         <TableCell>{parcel.parcelType === "cod" ? "COD" : "Non-COD"}</TableCell>
-                        <TableCell className="text-right">{formatMoney(parcel.deliveryFee)}</TableCell>
-                        <TableCell className="text-right">{formatMoney(parcel.codAmount)}</TableCell>
-                        <TableCell className="text-right">{formatMoney(parcel.collectedAmount)}</TableCell>
+                        <TableCell className="text-right">
+                          {formatMoney(parcel.deliveryFee)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatMoney(parcel.codAmount)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatMoney(parcel.collectedAmount)}
+                        </TableCell>
                         <TableCell>{formatDate(parcel.deliveredAt)}</TableCell>
                       </TableRow>
                     );
@@ -614,7 +629,10 @@ function RiderCashHandoverSheet({
               value={`${formatMoney(totals.totalDeliveryFeeAmount)} MMK`}
             />
             <Metric label="COD" value={`${formatMoney(totals.totalCodAmount)} MMK`} />
-            <Metric label="Total Handover" value={`${formatMoney(totals.totalCollectedAmount)} MMK`} />
+            <Metric
+              label="Total Handover"
+              value={`${formatMoney(totals.totalCollectedAmount)} MMK`}
+            />
           </div>
         </div>
       </div>

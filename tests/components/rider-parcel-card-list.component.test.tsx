@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 
 import { buildParcelFailureNoteEntry, buildParcelListItem } from "../fixtures/builders";
 
+const toastSuccessMock = mock(() => undefined);
+const toastErrorMock = mock(() => undefined);
 const refreshMock = mock(() => undefined);
 const startDeliveryForRiderParcelsActionMock = mock(async () => ({
   ok: true,
@@ -50,11 +52,20 @@ void mock.module("@/features/parcels/server/actions", () => ({
   updateDeliveryFailureForRiderParcelAction: updateDeliveryFailureForRiderParcelActionMock,
 }));
 
+void mock.module("sonner", () => ({
+  toast: {
+    success: toastSuccessMock,
+    error: toastErrorMock,
+  },
+}));
+
 describe("RiderParcelCardList", async () => {
   const { RiderParcelCardList } =
     await import("@/features/parcels/components/rider-parcel-card-list");
 
   beforeEach(() => {
+    toastSuccessMock.mockReset();
+    toastErrorMock.mockReset();
     refreshMock.mockReset();
     startDeliveryForRiderParcelsActionMock.mockReset();
     reportDeliveryFailureForRiderParcelActionMock.mockReset();
@@ -119,7 +130,11 @@ describe("RiderParcelCardList", async () => {
         note: "Receiver was not available.",
       });
     });
-    expect(await screen.findByText("Delivery failure reported.")).toBeTruthy();
+    expect(toastSuccessMock).toHaveBeenCalledWith("Delivery failure reported.", {
+      description: undefined,
+      id: "success:Delivery failure reported.:",
+      position: "top-center",
+    });
     expect(refreshMock).toHaveBeenCalled();
   });
 
@@ -132,7 +147,9 @@ describe("RiderParcelCardList", async () => {
             id: "00000000-0000-4000-8000-000000000001",
             parcelCode: "PF-NOTE",
             status: "on_the_way",
-            failureNotes: [buildParcelFailureNoteEntry({ note: "Receiver asked to call tomorrow." })],
+            failureNotes: [
+              buildParcelFailureNoteEntry({ note: "Receiver asked to call tomorrow." }),
+            ],
           }),
         ]}
       />,
@@ -155,7 +172,9 @@ describe("RiderParcelCardList", async () => {
             id: "00000000-0000-4000-8000-000000000001",
             parcelCode: "PF-NOTE",
             status: "on_the_way",
-            failureNotes: [buildParcelFailureNoteEntry({ note: "Receiver asked to call tomorrow." })],
+            failureNotes: [
+              buildParcelFailureNoteEntry({ note: "Receiver asked to call tomorrow." }),
+            ],
           }),
         ]}
       />,
@@ -225,7 +244,11 @@ describe("RiderParcelCardList", async () => {
 
     expect(submittedProof.name).toBe("proof.jpg");
     expect(submittedProof.type).toBe("image/jpeg");
-    expect(await screen.findByText("Parcel marked delivered.")).toBeTruthy();
+    expect(toastSuccessMock).toHaveBeenCalledWith("Parcel marked delivered.", {
+      description: undefined,
+      id: "success:Parcel marked delivered.:",
+      position: "top-center",
+    });
     expect(refreshMock).toHaveBeenCalled();
   });
 
@@ -251,7 +274,11 @@ describe("RiderParcelCardList", async () => {
       });
     });
 
-    expect(await screen.findByText("Parcel returned to merchant.")).toBeTruthy();
+    expect(toastSuccessMock).toHaveBeenCalledWith("Parcel returned to merchant.", {
+      description: undefined,
+      id: "success:Parcel returned to merchant.:",
+      position: "top-center",
+    });
     expect(refreshMock).toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "Mark Delivered" })).toBeNull();
   });

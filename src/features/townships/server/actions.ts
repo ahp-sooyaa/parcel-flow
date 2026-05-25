@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createTownship, updateTownship } from "@/features/townships/server/dal";
 import { townshipInputSchema, updateTownshipInputSchema } from "@/features/townships/server/dto";
+import { getFormFieldErrors } from "@/lib/form-action-errors";
 import { canManageTownshipPricing } from "@/lib/permissions";
 import { requireCurrentUser } from "@/lib/session";
 
@@ -15,6 +16,7 @@ export async function createTownshipAction(input: unknown) {
     return {
       ok: false as const,
       message: parseResult.error.issues[0]?.message ?? "Invalid township pricing details.",
+      fieldErrors: getFormFieldErrors(parseResult.error),
     };
   }
 
@@ -47,6 +49,7 @@ export async function updateTownshipAction(input: unknown) {
     return {
       ok: false as const,
       message: parseResult.error.issues[0]?.message ?? "Invalid township pricing details.",
+      fieldErrors: getFormFieldErrors(parseResult.error),
     };
   }
 

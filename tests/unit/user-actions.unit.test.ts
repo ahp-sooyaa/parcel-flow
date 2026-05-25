@@ -1,10 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 
-import {
-  buildCreateUserInput,
-  buildSessionUser,
-  buildUserListItem,
-} from "../fixtures/builders";
+import { buildCreateUserInput, buildSessionUser, buildUserListItem } from "../fixtures/builders";
 import type { BankAccountDto, UserListItemDto } from "@/features/users/server/dto";
 
 const getSessionMock = mock(async () => buildSessionUser());
@@ -267,9 +263,7 @@ describe("user server actions", async () => {
   });
 
   test("updates the current user's account details and normalizes phone numbers", async () => {
-    getSessionMock.mockResolvedValue(
-      buildSessionUser({ id: "actor-id", role: "merchant" }),
-    );
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "actor-id", role: "merchant" }));
 
     const result = await updateOwnAccountAction({
       name: "Updated Name",
@@ -345,9 +339,7 @@ describe("user server actions", async () => {
   });
 
   test("creates a company bank account for the current super admin", async () => {
-    getSessionMock.mockResolvedValue(
-      buildSessionUser({ id: "actor-id", role: "super_admin" }),
-    );
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "actor-id", role: "super_admin" }));
 
     const result = await createOwnBankAccountAction(validBankAccountInput());
 
@@ -365,9 +357,7 @@ describe("user server actions", async () => {
 
   test("returns not-found when editing a missing own bank account", async () => {
     updateBankAccountForUserMock.mockImplementation(async () => null);
-    getSessionMock.mockResolvedValue(
-      buildSessionUser({ id: "actor-id", role: "super_admin" }),
-    );
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "actor-id", role: "super_admin" }));
 
     const result = await updateOwnBankAccountAction({
       id: "missing-bank-account-id",

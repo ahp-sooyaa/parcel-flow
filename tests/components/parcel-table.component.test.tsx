@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { buildParcelFailureNoteEntry, buildParcelListItem } from "../fixtures/builders";
@@ -146,7 +146,12 @@ describe("ParcelTable", async () => {
 
     await user.click(screen.getByRole("button", { name: "Postpone" }));
 
-    expect(postponeFailedParcelActionMock).toHaveBeenCalledWith({ parcelId: "parcel-1" });
+    await waitFor(() => {
+      expect(postponeFailedParcelActionMock).toHaveBeenCalledWith({ parcelId: "parcel-1" });
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "Delivery Failure" })).toBeNull();
+    });
   });
 
   test("submits return merchant action and keeps dialog open on errors", async () => {
@@ -175,7 +180,9 @@ describe("ParcelTable", async () => {
     await user.click(screen.getByLabelText("Review failure note for PF-FAILED"));
     await user.click(screen.getByRole("button", { name: "Return Merchant" }));
 
-    expect(returnFailedParcelToMerchantActionMock).toHaveBeenCalledWith({ parcelId: "parcel-1" });
-    expect(screen.getByText("This failure report has already been handled.")).toBeTruthy();
+    await waitFor(() => {
+      expect(returnFailedParcelToMerchantActionMock).toHaveBeenCalledWith({ parcelId: "parcel-1" });
+    });
+    expect(await screen.findByText("This failure report has already been handled.")).toBeTruthy();
   });
 });

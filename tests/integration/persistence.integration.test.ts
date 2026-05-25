@@ -732,10 +732,8 @@ describe("persistence integration coverage", () => {
       .set({ riderId: riderSeed.rider.id })
       .where(eq(parcels.id, parcelSeed.parcel.id));
 
-    const {
-      listEligibleSettlementMerchants,
-      listPendingRiderCashHandovers,
-    } = await import("@/features/settlements/server/dal");
+    const { listEligibleSettlementMerchants, listPendingRiderCashHandovers } =
+      await import("@/features/settlements/server/dal");
     const { markRiderParcelDelivered } = await import("@/features/parcels/server/dal");
     await markRiderParcelDelivered({
       parcelId: parcelSeed.parcel.id,
@@ -941,7 +939,12 @@ describe("persistence integration coverage", () => {
         merchantSettlementStatus: parcels.merchantSettlementStatus,
       })
       .from(parcels)
-      .where(and(eq(parcels.merchantId, merchantSeed.merchant.id), inArray(parcels.id, [codParcelSeed.parcel.id, returnParcelSeed.parcel.id])));
+      .where(
+        and(
+          eq(parcels.merchantId, merchantSeed.merchant.id),
+          inArray(parcels.id, [codParcelSeed.parcel.id, returnParcelSeed.parcel.id]),
+        ),
+      );
 
     expect(settledSettlement).toMatchObject({
       status: "settled",
@@ -1394,7 +1397,7 @@ describe("persistence integration coverage", () => {
           eq(financialItems.parcelId, parcelSeed.parcel.id),
           eq(financialItems.status, "pending"),
         ),
-    );
+      );
     expect(relatedFinancialItems).toHaveLength(0);
   });
 

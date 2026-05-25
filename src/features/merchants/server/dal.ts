@@ -63,18 +63,14 @@ export async function getMerchantOverviewSummary(
       })
       .from(merchantSettlements)
       .innerJoin(merchants, eq(merchants.id, merchantSettlements.merchantId))
-      .where(
-        and(eq(merchants.userId, merchantUserId), eq(merchantSettlements.status, "settled")),
-      ),
+      .where(and(eq(merchants.userId, merchantUserId), eq(merchantSettlements.status, "settled"))),
   ]);
 
   return parcelRows.reduce<MerchantOverviewSummaryDto>(
     (summary, parcel) => ({
       totalCodCollected:
         summary.totalCodCollected +
-        (parcel.status === "delivered" &&
-        parcel.parcelType === "cod" &&
-        parcel.isReceivedByOffice
+        (parcel.status === "delivered" && parcel.parcelType === "cod" && parcel.isReceivedByOffice
           ? parcel.codAmount
           : 0),
       paidToYou: summary.paidToYou,

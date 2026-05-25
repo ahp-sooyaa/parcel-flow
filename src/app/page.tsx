@@ -24,11 +24,10 @@ export default function HomePage() {
           <div className="grid flex-1 items-center gap-12 py-20 lg:grid-cols-[1fr_420px]">
             <div className="max-w-3xl">
               <h1 className="text-5xl leading-[0.96] font-semibold tracking-normal sm:text-6xl">
-                Parcel operations after parcels reach the office.
+                Manage parcel operations.
               </h1>
-              <p className="mt-6 max-w-2xl text-lg leading-7 text-[#bcbac9]">
-                Manage parcel creation, rider assignment, COD collection, merchant settlements, and
-                rider payouts in one internal Next.js system.
+              <p className="mt-6 max-w-xl text-lg leading-7 text-[#bcbac9]">
+                Create parcels, assign riders, track COD, and generate merchant settlements.
               </p>
               <Button
                 asChild

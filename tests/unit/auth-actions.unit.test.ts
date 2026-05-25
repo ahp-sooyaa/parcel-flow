@@ -3,11 +3,10 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { buildSessionUser, buildUserListItem } from "../fixtures/builders";
 import type { UserListItemDto } from "@/features/users/server/dto";
 
-const getSessionMock = mock(async () =>
-  buildSessionUser({ id: "actor-id", role: "super_admin" }),
-);
-const getUserByIdMock = mock(async (): Promise<UserListItemDto | null> =>
-  buildUserListItem({ id: "target-user-id", role: "merchant" }),
+const getSessionMock = mock(async () => buildSessionUser({ id: "actor-id", role: "super_admin" }));
+const getUserByIdMock = mock(
+  async (): Promise<UserListItemDto | null> =>
+    buildUserListItem({ id: "target-user-id", role: "merchant" }),
 );
 const canRegeneratePasswordMock = mock(() => true);
 const generateTemporaryPasswordMock = mock(() => "TempPassword123!");
@@ -87,9 +86,7 @@ describe("auth server actions", async () => {
     dbSetMock.mockReset();
     dbUpdateMock.mockReset();
 
-    getSessionMock.mockResolvedValue(
-      buildSessionUser({ id: "actor-id", role: "super_admin" }),
-    );
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "actor-id", role: "super_admin" }));
     getUserByIdMock.mockResolvedValue(
       buildUserListItem({ id: "target-user-id", role: "merchant" }),
     );
@@ -112,6 +109,9 @@ describe("auth server actions", async () => {
     expect(result).toEqual({
       ok: false,
       message: "New password must be at least 8 characters.",
+      fieldErrors: {
+        newPassword: "New password must be at least 8 characters.",
+      },
     });
     expect(changePasswordMock).not.toHaveBeenCalled();
     expect(dbUpdateMock).not.toHaveBeenCalled();
@@ -126,6 +126,9 @@ describe("auth server actions", async () => {
     expect(result).toEqual({
       ok: false,
       message: "New password must be different from current password.",
+      fieldErrors: {
+        newPassword: "New password must be different from current password.",
+      },
     });
     expect(changePasswordMock).not.toHaveBeenCalled();
   });

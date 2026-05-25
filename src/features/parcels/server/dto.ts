@@ -70,7 +70,8 @@ function refineParcelFormInput(
   }
 }
 
-export const createParcelFormInputSchema = baseParcelFormInputSchema.superRefine(refineParcelFormInput);
+export const createParcelFormInputSchema =
+  baseParcelFormInputSchema.superRefine(refineParcelFormInput);
 
 export type CreateParcelFormInputDto = z.infer<typeof createParcelFormInputSchema>;
 
@@ -172,7 +173,9 @@ export type MerchantParcelListPageDto = {
 
 export const merchantParcelPageSize = 10;
 
-export function parseMerchantParcelListFilters(input: Record<string, string | string[] | undefined>) {
+export function parseMerchantParcelListFilters(
+  input: Record<string, string | string[] | undefined>,
+) {
   const parseResult = merchantParcelSearchParamsSchema.safeParse({
     query: readSearchParam(input.query),
     date: readSearchParam(input.date),

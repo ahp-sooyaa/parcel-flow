@@ -14,9 +14,11 @@ Riders can report delivery failures, but super admins and office admins need a c
 ## Capabilities
 
 ### New Capabilities
+
 - `admin-failure-parcel-management`: Admin review and resolution of rider-reported failed delivery parcels, including warning indicators, failure-note review, failure status actions, assignment clearing, and readiness for later re-assignment.
 
 ### Modified Capabilities
+
 - None.
 
 ## Impact
