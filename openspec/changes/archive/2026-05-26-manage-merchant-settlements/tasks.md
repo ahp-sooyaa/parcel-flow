@@ -26,7 +26,7 @@
 ## 5. Verification
 
 - [x] 5.1 Verify only authorized admins can create settlements and only superadmins can resolve pending settlements.
-- [ ] 5.2 Verify a newly created settlement appears in the listing with `pending` status and selected financial items cannot be reused in another settlement.
-- [ ] 5.3 Verify successful resolution stores bank transfer receipt proof and marks both the settlement and linked financial items as settled.
+- [x] 5.2 Verify a newly created settlement appears in the listing with `pending` status and selected financial items cannot be reused in another settlement.
+- [x] 5.3 Verify successful resolution stores bank transfer receipt proof and marks both the settlement and linked financial items as settled.
 - [x] 5.4 Run lint after implementation.
 - [x] 5.5 Run typecheck after implementation.

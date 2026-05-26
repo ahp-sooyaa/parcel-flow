@@ -33,6 +33,8 @@ Parcel Flow MVP includes:
 - Rider payout by delivered way count
 - Merchant overview reporting
 - Merchant paid settlement history view
+- Realtime parcel synchronization across admin, merchant, and rider parcel views
+- Realtime refresh for in-scope parcel summary cards after relevant parcel changes
 
 ---
 
@@ -979,6 +981,12 @@ Below the cards, the page shows merchant settlement history with:
 
 The settlement history is read-only for merchant users.
 
+Realtime behavior:
+
+- Merchant overview summary cards should refresh without manual reload when one of the current merchant's parcels changes assignment or delivery state in a way that affects the displayed totals.
+- Realtime refresh must stay scoped to the authenticated merchant only.
+- Card calculations must continue using the same server-side business rules as the normal page load.
+
 ---
 
 ### 16.3 Merchant My Parcels Page
@@ -996,6 +1004,11 @@ Merchant parcel listing columns:
 | Delivery fee | Delivery fee |
 | Status | Parcel status |
 | Created date | Parcel creation date |
+
+Realtime behavior:
+
+- Merchant parcel rows should refresh without manual reload when one of the merchant's parcels is assigned to a rider, reassigned, marked delivered, or updated with delivery failure state.
+- Merchant parcel realtime updates must not expose parcel rows from other merchants.
 
 ---
 
@@ -1019,6 +1032,31 @@ Recommended layout:
 ```text
 [Search by recipient name or phone number] [Date filter] [Status tabs]
 ```
+
+Realtime updates should preserve the current merchant search, filter, and pagination behavior. Live parcel changes may refresh the current page state, but they must not break merchant scoping or change the server-side filtering rules.
+
+---
+
+### 16.6 Realtime Parcel and Dashboard Freshness
+
+The system should keep the in-scope parcel surfaces fresh without requiring manual reload after assignment and delivery updates.
+
+Affected surfaces:
+
+- Admin parcel listing page
+- Rider assigned parcel page
+- Merchant parcel listing page
+- Admin dashboard parcel summary cards
+- Merchant overview summary cards
+
+Required behavior:
+
+- Admin rider assignment changes should appear on subscribed admin, rider, and merchant parcel views without manual reload.
+- Rider delivery completion and rider delivery failure note changes should appear on subscribed admin, rider, and merchant parcel views without manual reload.
+- Admin dashboard parcel summary cards should refresh after relevant parcel changes without reimplementing parcel summary calculations in the client.
+- Merchant overview summary cards should refresh after relevant parcel changes without reimplementing merchant summary calculations in the client.
+- Realtime freshness must be additive only. Existing assignment logic, rider delivery logic, settlement logic, payout logic, permissions, and status rules must stay unchanged.
+- Realtime parcel visibility must remain role-scoped. Riders only receive assigned parcel updates, merchants only receive their own parcel updates, and admins only receive the operational parcel updates they are already allowed to view.
 
 ---
 
@@ -1588,9 +1626,11 @@ Recommended routes and UI patterns:
 /dashboard
   Main dashboard page.
   Shows parcel summary cards and merchant settlement workspace.
+  Parcel summary cards should refresh after relevant realtime parcel updates.
 
 /dashboard/parcels
   Parcel listing page.
+  Shows live parcel assignment and delivery-state updates without manual reload.
 
 /dashboard/parcels/create
   Opens as shadcn right-side sheet from parcel listing page.
@@ -1681,9 +1721,11 @@ Recommended routes and UI patterns:
 ```text
 /dashboard/merchant/parcels
   Merchant parcel listing page.
+  Shows live merchant-scoped parcel updates without manual reload.
 
 /dashboard/merchant/overview
   Merchant overview page with payment stats and settled settlement history.
+  Summary cards should refresh after relevant merchant-scoped realtime parcel updates.
 
 /dashboard/settings?tab=account
   Account settings page.
@@ -1699,6 +1741,7 @@ Recommended routes and UI patterns:
 ```text
 /dashboard/rider/parcels
   Rider parcel listing page.
+  Shows live rider-scoped parcel assignment, delivery, and failure-note updates without manual reload.
 
 /dashboard/rider/payments
   Rider payout history page.

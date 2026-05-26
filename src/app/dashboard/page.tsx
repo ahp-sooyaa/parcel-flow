@@ -1,7 +1,7 @@
 import { PageHeader } from "@/components/shared/page-header";
 import { StorageCapacityCard } from "@/features/dashboard/components/storage-capacity-card";
 import { getStorageStats } from "@/features/dashboard/server/dal";
-import { ParcelSummaryCards } from "@/features/parcels/components/parcel-summary-cards";
+import { RealtimeParcelSummaryCards } from "@/features/parcels/components/realtime-parcel-summary-cards";
 import { getParcelSummary } from "@/features/parcels/server/dal";
 import { MerchantSettlementWorkspace } from "@/features/settlements/components/merchant-settlement-workspace";
 import {
@@ -29,10 +29,10 @@ export default async function DashboardPage() {
         {storageStats ? (
           <div className="grid gap-3 xl:grid-cols-[minmax(320px,1.6fr)_minmax(0,5fr)]">
             <StorageCapacityCard initialStats={storageStats} />
-            <ParcelSummaryCards summary={summary} />
+            <RealtimeParcelSummaryCards summary={summary} />
           </div>
         ) : (
-          <ParcelSummaryCards summary={summary} />
+          <RealtimeParcelSummaryCards summary={summary} />
         )}
         <MerchantSettlementWorkspace merchants={merchants} riderHandovers={riderHandovers} />
       </div>

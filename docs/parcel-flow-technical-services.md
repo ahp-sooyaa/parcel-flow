@@ -75,7 +75,8 @@ Supabase is used for:
 - Storing Parcel Flow domain tables
 - Storing Better Auth tables in the same database as the domain tables
 - Database migrations through Drizzle
-- Optional Row Level Security if needed later
+- Supabase Realtime publication for the `parcels` table
+- Row Level Security policies that scope authenticated parcel visibility for admin, merchant, and rider realtime access
 
 ## Important Notes
 
@@ -84,6 +85,10 @@ Supabase is used for:
 - The app uses username and password login through Better Auth.
 - Database access from the app should go through controlled server-side logic.
 - Sensitive queries should not be exposed directly from the client.
+- Parcel realtime delivery is driven from Supabase `postgres_changes` on `public.parcels`.
+- Realtime publication is intentionally limited to `parcels` for the current scope.
+- `public.parcels` must remain in the `supabase_realtime` publication.
+- `public.parcels` RLS must remain enabled so authenticated realtime access stays aligned with role scope.
 
 ---
 

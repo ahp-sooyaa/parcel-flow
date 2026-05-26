@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/shared/page-header";
-import { MerchantParcelBrowser } from "@/features/parcels/components/merchant-parcel-browser";
+import { RealtimeMerchantParcelBrowser } from "@/features/parcels/components/realtime-merchant-parcel-browser";
 import { listMerchantParcelsPageForUser } from "@/features/parcels/server/dal";
 import { parseMerchantParcelListFilters } from "@/features/parcels/server/dto";
 import { requireCurrentUser } from "@/lib/session";
@@ -26,7 +26,7 @@ export default async function MerchantParcelsPage({
         title="My Parcels"
         description="Search and track parcel delivery progress for your merchant account."
       />
-      <MerchantParcelBrowser result={parcels} filters={filters} />
+      <RealtimeMerchantParcelBrowser result={parcels} filters={filters} />
     </>
   );
 }

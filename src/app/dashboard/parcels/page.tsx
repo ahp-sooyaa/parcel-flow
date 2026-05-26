@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { listMerchants } from "@/features/merchants/server/dal";
 import { CreateParcelForm } from "@/features/parcels/components/create-parcel-form";
-import { ParcelListView } from "@/features/parcels/components/parcel-list-view";
+import { RealtimeParcelListView } from "@/features/parcels/components/realtime-parcel-list-view";
 import { listParcels } from "@/features/parcels/server/dal";
 import { listRiders } from "@/features/riders/server/dal";
 import { listTownships } from "@/features/townships/server/dal";
@@ -45,7 +45,7 @@ export default async function ParcelsPage() {
           </Sheet>
         }
       />
-      <ParcelListView
+      <RealtimeParcelListView
         actorRole={currentUser.role}
         parcels={parcels}
         merchants={merchants}

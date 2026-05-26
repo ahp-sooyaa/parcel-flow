@@ -3,10 +3,11 @@ import { expect } from "@playwright/test";
 
 export async function signIn(page: Page, user: { username: string; password: string }) {
   await page.goto("/login");
-  await page.waitForLoadState("networkidle");
 
   const usernameInput = page.getByLabel("Username");
   const passwordInput = page.getByLabel("Password");
+  await expect(usernameInput).toBeVisible();
+  await expect(passwordInput).toBeVisible();
 
   await usernameInput.fill(user.username);
   await passwordInput.fill(user.password);

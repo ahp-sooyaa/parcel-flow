@@ -29,6 +29,13 @@
       "when": 1779500000000,
       "tag": "0003_wise_brother_voodoo",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780050000000,
+      "tag": "0004_green_future_fund",
+      "breakpoints": true
     }
   ]
 }

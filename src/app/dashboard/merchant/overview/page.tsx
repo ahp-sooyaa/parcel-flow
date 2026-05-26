@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/shared/page-header";
-import { MerchantOverviewSummaryCards } from "@/features/merchants/components/merchant-overview-summary-cards";
+import { RealtimeMerchantOverviewSummaryCards } from "@/features/merchants/components/realtime-merchant-overview-summary-cards";
 import { getMerchantOverviewSummary } from "@/features/merchants/server/dal";
 import { MerchantSettlementHistoryTable } from "@/features/settlements/components/merchant-settlement-history-table";
 import { listMerchantSettlementHistoryForUser } from "@/features/settlements/server/dal";
@@ -32,7 +32,7 @@ export default async function MerchantOverviewPage({
         description="Track COD performance, paid remittances, and settled settlement history for your merchant account."
       />
       <div className="space-y-6">
-        <MerchantOverviewSummaryCards summary={summary} />
+        <RealtimeMerchantOverviewSummaryCards summary={summary} />
         <MerchantSettlementHistoryTable history={history} filters={filters} />
       </div>
     </>

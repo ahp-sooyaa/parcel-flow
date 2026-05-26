@@ -36,5 +36,5 @@
 
 - [x] 6.1 Run lint after implementation.
 - [x] 6.2 Run typecheck after implementation.
-- [ ] 6.3 Manually verify admin parcel edit, edit-user password reset, township details, assign rider dialog, and settlements empty-state behavior.
-- [ ] 6.4 Manually verify rider parcel cards, failure-note editing, rider parcel detail sheet, and `Canceled` status badge presentation.
+- [x] 6.3 Manually verify admin parcel edit, edit-user password reset, township details, assign rider dialog, and settlements empty-state behavior.
+- [x] 6.4 Manually verify rider parcel cards, failure-note editing, rider parcel detail sheet, and `Canceled` status badge presentation.

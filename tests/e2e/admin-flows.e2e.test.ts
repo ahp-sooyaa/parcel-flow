@@ -10,7 +10,7 @@ test("creates a user and shows the persisted row", async ({ page }) => {
   const userName = `E2E Merchant ${Date.now()}`;
 
   await page.goto("/dashboard/users");
-  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("button", { name: /create user/i })).toBeVisible();
   await page.getByRole("button", { name: /create user/i }).click();
   await expect(page.getByRole("heading", { name: "Create User" })).toBeVisible();
   await page.getByLabel("Name").fill(userName);
@@ -25,7 +25,7 @@ test("creates or updates township pricing and exposes it in the UI", async ({ pa
   const townshipName = `E2E Township ${Date.now()}`;
 
   await page.goto("/dashboard/townships");
-  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("button", { name: /create township/i })).toBeVisible();
   await page.getByRole("button", { name: /create township/i }).click();
   await expect(page.getByRole("heading", { name: "Create Township" })).toBeVisible();
   await page.getByLabel("Township name").fill(townshipName);
@@ -39,7 +39,7 @@ test("creates a parcel and persists it in the parcel list", async ({ page }) => 
   const receiverName = `E2E Receiver ${Date.now()}`;
 
   await page.goto("/dashboard/parcels");
-  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("button", { name: /create parcel/i })).toBeVisible();
   await page.getByRole("button", { name: /create parcel/i }).click();
   await expect(page.getByRole("heading", { name: "Create Parcel" })).toBeVisible();
   await selectComboboxOption(page, "Select merchant", "E2E Merchant Shop");
@@ -55,7 +55,7 @@ test("creates a parcel and persists it in the parcel list", async ({ page }) => 
 
 test("assigns a parcel to a rider and keeps the assignment after refresh", async ({ page }) => {
   await page.goto("/dashboard/parcels");
-  await page.waitForLoadState("networkidle");
+  await expect(page.getByLabel("Select PF-E2E-SEED-001")).toBeVisible();
   await page.getByLabel("Select PF-E2E-SEED-001").check();
   await page.getByRole("button", { name: /assign rider/i }).click();
   await expect(page.getByRole("heading", { name: "Assign Rider" })).toBeVisible();
@@ -69,7 +69,7 @@ test("assigns a parcel to a rider and keeps the assignment after refresh", async
 
 test("reviews a rider failure note and postpones the parcel", async ({ page }) => {
   await page.goto("/dashboard/parcels");
-  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("tab", { name: /need review/i })).toBeVisible();
   await page.getByRole("tab", { name: /need review/i }).click();
   await expect(page.locator("tr", { hasText: "PF-E2E-SEED-FAILED" })).toBeVisible();
   await page.getByLabel("Review failure note for PF-E2E-SEED-FAILED").click();

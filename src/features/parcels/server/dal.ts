@@ -97,6 +97,11 @@ function mapParcel(row: {
   };
 }
 
+export type ParcelRealtimeViewerScope =
+  | { role: "super_admin" | "office_admin" }
+  | { role: "merchant"; userId: string }
+  | { role: "rider"; userId: string };
+
 export async function listParcels(): Promise<ParcelListItemDto[]> {
   return listParcelsByScope({});
 }
@@ -181,6 +186,54 @@ export async function listMerchantParcelsPageForUser(
 
 export async function listParcelsForRiderUser(userId: string): Promise<ParcelListItemDto[]> {
   return listParcelsByScope({ riderUserId: userId });
+}
+
+export async function getParcelByIdForRealtimeScope(
+  parcelId: string,
+  scope: ParcelRealtimeViewerScope,
+): Promise<ParcelListItemDto | null> {
+  const [row] = await db
+    .select({
+      id: parcels.id,
+      parcelCode: parcels.parcelCode,
+      merchantId: parcels.merchantId,
+      merchantName: merchants.shopName,
+      receiverName: parcels.receiverName,
+      receiverPhoneNumber: parcels.receiverPhoneNumber,
+      receiverAddress: parcels.receiverAddress,
+      specialNotes: parcels.specialNotes,
+      deliveryFailureNote: parcels.deliveryFailureNote,
+      townshipId: parcels.townshipId,
+      townshipName: townships.name,
+      parcelType: parcels.parcelType,
+      codAmount: parcels.codAmount,
+      deliveryFee: parcels.deliveryFee,
+      weightKg: parcels.weightKg,
+      parcelWidthCm: parcels.parcelWidthCm,
+      parcelHeightCm: parcels.parcelHeightCm,
+      parcelLengthCm: parcels.parcelLengthCm,
+      proofOfDeliveryImagesKeys: parcels.proofOfDeliveryImagesKeys,
+      riderId: parcels.riderId,
+      riderName: appUsers.name,
+      status: parcels.status,
+      createdAt: parcels.createdAt,
+    })
+    .from(parcels)
+    .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
+    .innerJoin(townships, eq(townships.id, parcels.townshipId))
+    .leftJoin(riders, eq(riders.id, parcels.riderId))
+    .leftJoin(appUsers, eq(appUsers.id, riders.userId))
+    .where(
+      and(
+        isNull(parcels.deletedAt),
+        eq(parcels.id, parcelId),
+        scope.role === "merchant" ? eq(merchants.userId, scope.userId) : undefined,
+        scope.role === "rider" ? eq(riders.userId, scope.userId) : undefined,
+      ),
+    )
+    .limit(1);
+
+  return row ? mapParcel(row) : null;
 }
 
 async function listParcelsByScope(scope: {

@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/shared/page-header";
-import { RiderParcelCardList } from "@/features/parcels/components/rider-parcel-card-list";
+import { RealtimeRiderParcelCardList } from "@/features/parcels/components/realtime-rider-parcel-card-list";
 import { listParcelsForRiderUser } from "@/features/parcels/server/dal";
 import { requireCurrentUser } from "@/lib/session";
 
@@ -18,7 +18,7 @@ export default async function RiderParcelsPage() {
         title="Assigned Parcels"
         description="Parcels currently assigned to your rider account."
       />
-      <RiderParcelCardList parcels={parcels} />
+      <RealtimeRiderParcelCardList parcels={parcels} />
     </>
   );
 }
