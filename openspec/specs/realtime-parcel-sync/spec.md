@@ -1,8 +1,11 @@
 # realtime-parcel-sync Specification
 
 ## Purpose
+
 TBD - created by archiving change add-realtime-parcel-updates-and-stats. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Rider assignment changes sync to affected dashboards in realtime
 
 The system SHALL reflect parcel rider-assignment changes on subscribed rider, admin, and merchant parcel views without requiring a manual page reload.
@@ -105,4 +108,3 @@ The system SHALL add realtime freshness without changing the existing business b
 
 - **WHEN** realtime synchronization is enabled for rider delivery actions
 - **THEN** rider delivery completion and failure-report actions keep the same validation, side effects, and persisted parcel state they had before realtime was added
-

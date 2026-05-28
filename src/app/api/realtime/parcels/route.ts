@@ -1,8 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import { REALTIME_SUBSCRIBE_STATES } from "@supabase/realtime-js";
 import { NextResponse } from "next/server";
 
-import { buildParcelRealtimeEventForScope, isParcelRealtimeSurface, loadParcelRealtimeScopeContext, type ParcelRealtimeRow } from "@/features/parcels/server/realtime";
+import {
+  buildParcelRealtimeEventForScope,
+  isParcelRealtimeSurface,
+  loadParcelRealtimeScopeContext,
+  type ParcelRealtimeRow,
+} from "@/features/parcels/server/realtime";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireCurrentUser } from "@/lib/session";
 
@@ -17,12 +23,17 @@ export async function GET(request: Request) {
   const surface = searchParams.get("surface");
 
   if (!surface || !isParcelRealtimeSurface(surface)) {
-    return NextResponse.json({ message: "A valid realtime parcel surface is required." }, { status: 400 });
+    return NextResponse.json(
+      { message: "A valid realtime parcel surface is required." },
+      { status: 400 },
+    );
   }
 
   const scope = await loadParcelRealtimeScopeContext(currentUser);
   const supabase = getSupabaseAdminClient();
-  const channel = supabase.channel(`parcel-flow:parcels:${surface}:${currentUser.id}:${randomUUID()}`);
+  const channel = supabase.channel(
+    `parcel-flow:parcels:${surface}:${currentUser.id}:${randomUUID()}`,
+  );
 
   let closed = false;
   let heartbeat: ReturnType<typeof setInterval> | null = null;
@@ -80,24 +91,28 @@ export async function GET(request: Request) {
 
             send(event.type, event);
           })().catch((error: unknown) => {
-            const message = error instanceof Error ? error.message : "Realtime parcel stream failed.";
+            const message =
+              error instanceof Error ? error.message : "Realtime parcel stream failed.";
             send("stream-error", { message });
           });
         },
       );
 
       channel.subscribe((status, error) => {
-        if (String(status) === "SUBSCRIBED") {
+        if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
           send("ready", { surface });
         }
 
-        if (String(status) === "CHANNEL_ERROR" || String(status) === "TIMED_OUT") {
+        if (
+          status === REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR ||
+          status === REALTIME_SUBSCRIBE_STATES.TIMED_OUT
+        ) {
           send("stream-error", {
             message: error?.message ?? "Realtime parcel subscription could not be established.",
           });
         }
 
-        if (String(status) === "CLOSED") {
+        if (status === REALTIME_SUBSCRIBE_STATES.CLOSED) {
           cleanup();
         }
       });

@@ -1,8 +1,11 @@
 # rider-parcel-card-workflow Specification
 
 ## Purpose
+
 TBD - created by archiving change rider-parcels-card-view. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Rider parcel page uses card list
 
 The system SHALL render `/dashboard/rider/parcels` with a rider-specific parcel card list instead of the shared parcel table.
@@ -174,4 +177,3 @@ The system SHALL open parcel details from a lightweight card detail link in a fu
 
 - **WHEN** a rider views an expanded parcel card
 - **THEN** the detail control appears as a lightweight underlined text link rather than a large button
-

@@ -10,13 +10,9 @@ const startDeliveryForRiderParcelsMock = mock(async () => undefined);
 const reportDeliveryFailureForRiderParcelMock = mock(async () => undefined);
 const updateDeliveryFailureForRiderParcelMock = mock(async () => undefined);
 const deleteDeliveryFailureForRiderParcelMock = mock(async () => undefined);
-const markRiderParcelDeliveredMock = mock(async () => undefined);
 const markRiderParcelReturnedToMerchantMock = mock(async () => undefined);
 const resolveFailedParcelByAdminMock = mock(async () => undefined);
 const updateParcelMock = mock(async () => undefined);
-const uploadDeliveryProofImageMock = mock(
-  async () => "parcels/parcel-id/proof-of-delivery/proof.jpg",
-);
 const revalidatePathMock = mock(() => undefined);
 
 void mock.module("@/lib/auth", () => ({
@@ -35,17 +31,12 @@ void mock.module("@/features/parcels/server/dal", () => ({
   assignParcelsToRider: assignParcelsToRiderMock,
   createParcel: createParcelMock,
   deleteDeliveryFailureForRiderParcel: deleteDeliveryFailureForRiderParcelMock,
-  markRiderParcelDelivered: markRiderParcelDeliveredMock,
   markRiderParcelReturnedToMerchant: markRiderParcelReturnedToMerchantMock,
   reportDeliveryFailureForRiderParcel: reportDeliveryFailureForRiderParcelMock,
   resolveFailedParcelByAdmin: resolveFailedParcelByAdminMock,
   startDeliveryForRiderParcels: startDeliveryForRiderParcelsMock,
   updateDeliveryFailureForRiderParcel: updateDeliveryFailureForRiderParcelMock,
   updateParcel: updateParcelMock,
-}));
-
-void mock.module("@/features/parcels/server/upload", () => ({
-  uploadDeliveryProofImage: uploadDeliveryProofImageMock,
 }));
 
 void mock.module("next/cache", () => ({
@@ -57,7 +48,6 @@ describe("parcel server actions", async () => {
     assignParcelsToRiderAction,
     createParcelAction,
     deleteDeliveryFailureForRiderParcelAction,
-    markRiderParcelDeliveredAction,
     markRiderParcelReturnedToMerchantAction,
     postponeFailedParcelAction,
     reportDeliveryFailureForRiderParcelAction,
@@ -75,11 +65,9 @@ describe("parcel server actions", async () => {
     reportDeliveryFailureForRiderParcelMock.mockReset();
     updateDeliveryFailureForRiderParcelMock.mockReset();
     deleteDeliveryFailureForRiderParcelMock.mockReset();
-    markRiderParcelDeliveredMock.mockReset();
     markRiderParcelReturnedToMerchantMock.mockReset();
     resolveFailedParcelByAdminMock.mockReset();
     updateParcelMock.mockReset();
-    uploadDeliveryProofImageMock.mockReset();
     revalidatePathMock.mockReset();
     getSessionMock.mockResolvedValue(buildSessionUser({ id: "actor-id", role: "super_admin" }));
     headersMock.mockResolvedValue(new Headers());
@@ -89,11 +77,9 @@ describe("parcel server actions", async () => {
     reportDeliveryFailureForRiderParcelMock.mockResolvedValue(undefined);
     updateDeliveryFailureForRiderParcelMock.mockResolvedValue(undefined);
     deleteDeliveryFailureForRiderParcelMock.mockResolvedValue(undefined);
-    markRiderParcelDeliveredMock.mockResolvedValue(undefined);
     markRiderParcelReturnedToMerchantMock.mockResolvedValue(undefined);
     resolveFailedParcelByAdminMock.mockResolvedValue(undefined);
     updateParcelMock.mockResolvedValue(undefined);
-    uploadDeliveryProofImageMock.mockResolvedValue("parcels/parcel-id/proof-of-delivery/proof.jpg");
   });
 
   test("rejects invalid parcel creation input before persistence", async () => {
@@ -413,80 +399,6 @@ describe("parcel server actions", async () => {
       message: "You do not have permission to delete delivery failure notes.",
     });
     expect(deleteDeliveryFailureForRiderParcelMock).not.toHaveBeenCalled();
-  });
-
-  test("marks rider parcel delivered with uploaded proof key", async () => {
-    getSessionMock.mockResolvedValue(buildSessionUser({ id: "rider-user-id", role: "rider" }));
-    const formData = new FormData();
-    const proofImage = new File(["proof"], "proof.jpg", { type: "image/jpeg" });
-    formData.set("parcelId", "00000000-0000-4000-8000-000000000001");
-    formData.set("proofImage", proofImage);
-
-    const result = await markRiderParcelDeliveredAction(formData);
-
-    expect(result).toEqual({
-      ok: true,
-      message: "Parcel marked delivered.",
-    });
-    expect(uploadDeliveryProofImageMock).toHaveBeenCalledWith({
-      parcelId: "00000000-0000-4000-8000-000000000001",
-      file: proofImage,
-    });
-    expect(markRiderParcelDeliveredMock).toHaveBeenCalledWith({
-      parcelId: "00000000-0000-4000-8000-000000000001",
-      proofImageKey: "parcels/parcel-id/proof-of-delivery/proof.jpg",
-      riderUserId: "rider-user-id",
-      actorRole: "rider",
-      createdBy: "rider-user-id",
-    });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/rider/parcels");
-  });
-
-  test("rejects mark delivered without proof before upload", async () => {
-    getSessionMock.mockResolvedValue(buildSessionUser({ id: "rider-user-id", role: "rider" }));
-    const formData = new FormData();
-    formData.set("parcelId", "00000000-0000-4000-8000-000000000001");
-
-    const result = await markRiderParcelDeliveredAction(formData);
-
-    expect(result).toEqual({
-      ok: false,
-      message: "Delivery proof photo is required.",
-    });
-    expect(uploadDeliveryProofImageMock).not.toHaveBeenCalled();
-    expect(markRiderParcelDeliveredMock).not.toHaveBeenCalled();
-  });
-
-  test("rejects mark delivered with invalid proof before upload", async () => {
-    getSessionMock.mockResolvedValue(buildSessionUser({ id: "rider-user-id", role: "rider" }));
-    const formData = new FormData();
-    formData.set("parcelId", "00000000-0000-4000-8000-000000000001");
-    formData.set("proofImage", new File(["not image"], "proof.txt", { type: "text/plain" }));
-
-    const result = await markRiderParcelDeliveredAction(formData);
-
-    expect(result).toEqual({
-      ok: false,
-      message: "Delivery proof photo must be a JPG, PNG, or WebP image.",
-    });
-    expect(uploadDeliveryProofImageMock).not.toHaveBeenCalled();
-    expect(markRiderParcelDeliveredMock).not.toHaveBeenCalled();
-  });
-
-  test("rejects mark delivered from non-rider users", async () => {
-    getSessionMock.mockResolvedValue(buildSessionUser({ role: "merchant" }));
-    const formData = new FormData();
-    formData.set("parcelId", "00000000-0000-4000-8000-000000000001");
-    formData.set("proofImage", new File(["proof"], "proof.jpg", { type: "image/jpeg" }));
-
-    const result = await markRiderParcelDeliveredAction(formData);
-
-    expect(result).toEqual({
-      ok: false,
-      message: "You do not have permission to mark parcels delivered.",
-    });
-    expect(uploadDeliveryProofImageMock).not.toHaveBeenCalled();
-    expect(markRiderParcelDeliveredMock).not.toHaveBeenCalled();
   });
 
   test("marks canceled-returned parcel as returned to merchant", async () => {

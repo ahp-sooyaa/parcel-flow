@@ -40,9 +40,8 @@ void mock.module("@/features/merchants/components/merchant-overview-summary-card
 }));
 
 describe("RealtimeMerchantOverviewSummaryCards", async () => {
-  const { RealtimeMerchantOverviewSummaryCards } = await import(
-    "@/features/merchants/components/realtime-merchant-overview-summary-cards"
-  );
+  const { RealtimeMerchantOverviewSummaryCards } =
+    await import("@/features/merchants/components/realtime-merchant-overview-summary-cards");
 
   beforeEach(() => {
     refreshMock.mockReset();

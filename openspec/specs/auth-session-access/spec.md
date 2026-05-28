@@ -1,8 +1,11 @@
 # auth-session-access Specification
 
 ## Purpose
+
 TBD - created by archiving change wire-auth-and-persistence-foundation. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Canonical Better Auth user model
 
 The system SHALL use the Better Auth user model as the canonical user record for Parcel Flow authentication and user metadata, and MUST NOT create or depend on a separate `app_users` domain table.
@@ -186,4 +189,3 @@ The system SHALL present authenticated dashboard account controls through an ava
 
 - **WHEN** the authenticated user opens the avatar menu
 - **THEN** the menu shows the user's name, role, and a logout action that signs the user out of the current session
-

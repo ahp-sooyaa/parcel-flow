@@ -10,13 +10,15 @@ import type { RiderListItemDto } from "@/features/riders/server/dto";
 import type { TownshipListItemDto } from "@/features/townships/server/dto";
 import type { UserRole } from "@/lib/domain";
 
-export function RealtimeParcelListView(props: Readonly<{
-  actorRole: UserRole;
-  parcels: ParcelListItemDto[];
-  merchants: MerchantListItemDto[];
-  riders: RiderListItemDto[];
-  townships: TownshipListItemDto[];
-}>) {
+export function RealtimeParcelListView(
+  props: Readonly<{
+    actorRole: UserRole;
+    parcels: ParcelListItemDto[];
+    merchants: MerchantListItemDto[];
+    riders: RiderListItemDto[];
+    townships: TownshipListItemDto[];
+  }>,
+) {
   const [liveParcels, setLiveParcels] = useState(props.parcels);
 
   useEffect(() => {

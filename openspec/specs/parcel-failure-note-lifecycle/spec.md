@@ -1,8 +1,11 @@
 # parcel-failure-note-lifecycle Specification
 
 ## Purpose
+
 TBD - created by archiving change delivery-failure-notes-jsonb. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Parcel failure notes are stored as status-tracked history
 
 The system SHALL store parcel delivery failure notes in `parcels.delivery_failure_note` as a JSONB collection of note entries so the application can preserve multiple rider failure reports and track whether each entry is still active.
@@ -88,4 +91,3 @@ The system SHALL provide an admin parcel-list filter for parcels that currently 
 
 - **WHEN** a rider or merchant opens a parcel listing surface
 - **THEN** the system does not expose the admin `Need review` tab
-

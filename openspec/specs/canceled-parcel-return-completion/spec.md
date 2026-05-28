@@ -1,8 +1,11 @@
 # canceled-parcel-return-completion Specification
 
 ## Purpose
+
 TBD - created by archiving change rider-completes-canceled-return. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Rider can complete assigned canceled-return parcels
 
 The system SHALL allow an active rider to complete merchant return work for a parcel assigned to their rider profile when the parcel status is `canceled_returned`.
@@ -58,4 +61,3 @@ The system SHALL generate the merchant delivery-fee deduction financial item onl
 - **WHEN** any required parcel update or financial item creation fails during rider return completion
 - **THEN** the system does not persist a partially returned parcel state
 - **AND** the system does not persist partial financial item rows
-

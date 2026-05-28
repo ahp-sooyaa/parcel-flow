@@ -27,14 +27,15 @@ const markRiderParcelReturnedToMerchantActionMock = mock(async () => ({
   ok: true,
   message: "Parcel returned to merchant.",
 }));
-let deliveredActionInput: unknown;
-const markRiderParcelDeliveredActionMock = mock(async (input: unknown) => {
-  deliveredActionInput = input;
+let deliveredRequestInput: BodyInit | null | undefined;
+const fetchMock: typeof fetch = mock(async (_input: RequestInfo | URL, init?: RequestInit) => {
+  deliveredRequestInput = init?.body;
 
-  return {
-    ok: true,
-    message: "Parcel marked delivered.",
-  };
+  return new Response(JSON.stringify({ ok: true, message: "Parcel marked delivered." }), {
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
 });
 
 void mock.module("@/lib/client-navigation", () => ({
@@ -45,7 +46,6 @@ void mock.module("@/lib/client-navigation", () => ({
 
 void mock.module("@/features/parcels/server/actions", () => ({
   deleteDeliveryFailureForRiderParcelAction: deleteDeliveryFailureForRiderParcelActionMock,
-  markRiderParcelDeliveredAction: markRiderParcelDeliveredActionMock,
   markRiderParcelReturnedToMerchantAction: markRiderParcelReturnedToMerchantActionMock,
   reportDeliveryFailureForRiderParcelAction: reportDeliveryFailureForRiderParcelActionMock,
   startDeliveryForRiderParcelsAction: startDeliveryForRiderParcelsActionMock,
@@ -71,9 +71,9 @@ describe("RiderParcelCardList", async () => {
     reportDeliveryFailureForRiderParcelActionMock.mockReset();
     updateDeliveryFailureForRiderParcelActionMock.mockReset();
     deleteDeliveryFailureForRiderParcelActionMock.mockReset();
-    markRiderParcelDeliveredActionMock.mockReset();
     markRiderParcelReturnedToMerchantActionMock.mockReset();
-    deliveredActionInput = undefined;
+    fetchMock.mockReset();
+    deliveredRequestInput = undefined;
     startDeliveryForRiderParcelsActionMock.mockResolvedValue({
       ok: true,
       message: "Parcel moved to on the way.",
@@ -94,14 +94,16 @@ describe("RiderParcelCardList", async () => {
       ok: true,
       message: "Parcel returned to merchant.",
     });
-    markRiderParcelDeliveredActionMock.mockImplementation(async (input: unknown) => {
-      deliveredActionInput = input;
+    fetchMock.mockImplementation(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      deliveredRequestInput = init?.body;
 
-      return {
-        ok: true,
-        message: "Parcel marked delivered.",
-      };
+      return new Response(JSON.stringify({ ok: true, message: "Parcel marked delivered." }), {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
     });
+    globalThis.fetch = fetchMock;
     globalThis.URL.createObjectURL = mock(() => "blob:proof-preview") as typeof URL.createObjectURL;
     globalThis.URL.revokeObjectURL = mock(() => undefined) as typeof URL.revokeObjectURL;
   });
@@ -227,15 +229,15 @@ describe("RiderParcelCardList", async () => {
     await user.click(screen.getByRole("button", { name: "Save Delivery" }));
 
     await waitFor(() => {
-      expect(markRiderParcelDeliveredActionMock).toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalled();
     });
 
-    if (!(deliveredActionInput instanceof FormData)) {
-      throw new Error("Mark delivered action was not called with form data.");
+    if (!(deliveredRequestInput instanceof FormData)) {
+      throw new Error("Mark delivered request was not called with form data.");
     }
 
-    const submittedProof = deliveredActionInput.get("proofImage");
-    expect(deliveredActionInput.get("parcelId")).toBe("00000000-0000-4000-8000-000000000001");
+    const submittedProof = deliveredRequestInput.get("proofImage");
+    expect(deliveredRequestInput.get("parcelId")).toBe("00000000-0000-4000-8000-000000000001");
     expect(submittedProof).toBeInstanceOf(File);
 
     if (!(submittedProof instanceof File)) {
@@ -244,10 +246,8 @@ describe("RiderParcelCardList", async () => {
 
     expect(submittedProof.name).toBe("proof.jpg");
     expect(submittedProof.type).toBe("image/jpeg");
-    expect(toastSuccessMock).toHaveBeenCalledWith("Parcel marked delivered.", {
-      description: undefined,
-      id: "success:Parcel marked delivered.:",
-      position: "top-center",
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Save Delivery" })).toBeNull();
     });
     expect(refreshMock).toHaveBeenCalled();
   });

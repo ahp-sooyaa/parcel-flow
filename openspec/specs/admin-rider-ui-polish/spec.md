@@ -1,8 +1,11 @@
 # admin-rider-ui-polish Specification
 
 ## Purpose
+
 TBD - created by archiving change polish-admin-rider-parcel-ui. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Admin parcel editing SHALL support saving parcel detail fields
 
 The system SHALL let an admin submit parcel edits successfully from the parcel edit sheet for the parcel detail fields already owned by that form, without introducing parcel status or rider-assignment controls into the edit surface.
@@ -88,4 +91,3 @@ The system SHALL provide the requested UI consistency changes across settlements
 
 - **WHEN** an admin opens the assign rider dialog
 - **THEN** the dialog still shows total expected collection, rider current expected collection, and after-assignment expected collection
-

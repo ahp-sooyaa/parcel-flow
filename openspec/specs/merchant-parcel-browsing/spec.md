@@ -1,8 +1,11 @@
 # merchant-parcel-browsing Specification
 
 ## Purpose
+
 TBD - created by archiving change add-merchant-overview-and-parcel-filters. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Merchant parcels page supports merchant-scoped search
 
 The system SHALL let a merchant search their parcels from `dashboard/merchant/parcels` by recipient name or recipient phone number.
@@ -64,4 +67,3 @@ The system SHALL paginate the merchant parcel list.
 
 - **WHEN** the merchant applies search, date, or status filters that match no parcels
 - **THEN** the system shows an empty state in the parcel list area
-

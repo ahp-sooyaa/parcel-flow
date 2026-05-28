@@ -13,15 +13,10 @@ class SentryExampleFrontendError extends Error {
 
 export default function Page() {
   const [hasSentError, setHasSentError] = useState(false);
-  const [isConnected, setIsConnected] = useState(true);
+  const [isConnected] = useState(true);
 
   useEffect(() => {
     Sentry.logger.info("Sentry example page loaded");
-    async function checkConnectivity() {
-      const result = await Sentry.diagnoseSdkConnectivity();
-      setIsConnected(result !== "sentry-unreachable");
-    }
-    checkConnectivity();
   }, []);
 
   return (
@@ -98,9 +93,8 @@ export default function Page() {
         ) : !isConnected ? (
           <div className="connectivity-error">
             <p>
-              It looks like network requests to Sentry are being blocked, which
-              will prevent errors from being captured. Try disabling your
-              ad-blocker to complete the test.
+              It looks like network requests to Sentry are being blocked, which will prevent errors
+              from being captured. Try disabling your ad-blocker to complete the test.
             </p>
           </div>
         ) : (
@@ -176,14 +170,14 @@ export default function Page() {
           }
 
           &:disabled {
-	            cursor: not-allowed;
-	            opacity: 0.6;
+            cursor: not-allowed;
+            opacity: 0.6;
 
-	            & > span {
-	              transform: translateY(0);
-	              border: none
-	            }
-	          }
+            & > span {
+              transform: translateY(0);
+              border: none;
+            }
+          }
         }
 
         .description {

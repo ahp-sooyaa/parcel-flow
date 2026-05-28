@@ -1,8 +1,11 @@
 # auth-persistence-regression-testing Specification
 
 ## Purpose
+
 TBD - created by archiving change add-auth-persistence-regression-tests. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Bun test runner configuration
 
 The system SHALL provide Bun-based unit and integration test scripts that can run TypeScript tests without requiring a separate JavaScript test runner.
@@ -164,4 +167,3 @@ The system SHALL prevent automated persistence tests from mutating non-test data
 
 - **WHEN** integration or E2E tests need authenticated users or domain records
 - **THEN** the test harness creates deterministic test data with unique identifiers and cleans up records it owns where practical
-

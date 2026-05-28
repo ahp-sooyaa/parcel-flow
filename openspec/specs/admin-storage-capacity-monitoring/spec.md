@@ -1,8 +1,11 @@
 # admin-storage-capacity-monitoring Specification
 
 ## Purpose
+
 TBD - created by archiving change add-admin-storage-capacity-card. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Admin overview shows combined storage capacity card
 
 The system SHALL show a storage capacity card on the admin overview page only for super admins, summarizing Supabase database usage and Cloudflare R2 total storage usage in one card.
@@ -83,4 +86,3 @@ The system SHALL protect storage capacity loading on the server and keep the adm
 - **WHEN** the server cannot fetch Supabase database usage data, Cloudflare R2 usage data, or both
 - **THEN** the dashboard still renders the storage capacity card shell
 - **AND** the affected storage row shows an unavailable or failed-to-refresh state instead of stale success data
-

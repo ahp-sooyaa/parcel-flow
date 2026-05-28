@@ -8,7 +8,6 @@ import {
   createParcel,
   deleteDeliveryFailureForRiderParcel,
   markRiderParcelReturnedToMerchant,
-  markRiderParcelDelivered,
   reportDeliveryFailureForRiderParcel,
   resolveFailedParcelByAdmin,
   startDeliveryForRiderParcels,
@@ -26,9 +25,6 @@ import {
 import { getFormFieldErrors } from "@/lib/form-action-errors";
 import { canChangeParcelStatus, canCreateParcel } from "@/lib/permissions";
 import { requireCurrentUser } from "@/lib/session";
-
-const maxProofImageSize = 5 * 1024 * 1024;
-const allowedProofImageTypes = ["image/jpeg", "image/png", "image/webp"];
 
 const assignParcelsInputSchema = z.object({
   parcelIds: z.array(z.string().min(1)).min(1, "Select at least one parcel."),
@@ -55,15 +51,6 @@ const updateDeliveryFailureInputSchema = z.object({
 
 const resolveFailedParcelInputSchema = z.object({
   parcelId: z.uuid("Invalid parcel selection."),
-});
-
-const markDeliveredInputSchema = z.object({
-  parcelId: z.uuid("Invalid parcel selection."),
-  proofImage: z
-    .file("Delivery proof photo is required.")
-    .min(1, "Delivery proof photo is required.")
-    .max(maxProofImageSize, "Delivery proof photo must be 5MB or smaller.")
-    .mime(allowedProofImageTypes, "Delivery proof photo must be a JPG, PNG, or WebP image."),
 });
 
 function normalizeFormInput(input: unknown) {
@@ -424,55 +411,6 @@ export async function updateDeliveryFailureForRiderParcelAction(input: unknown) 
   return {
     ok: true as const,
     message: "Delivery failure note updated.",
-  };
-}
-
-export async function markRiderParcelDeliveredAction(input: unknown) {
-  const actor = await requireCurrentUser();
-  const parseResult = markDeliveredInputSchema.safeParse(normalizeFormInput(input));
-
-  if (!parseResult.success) {
-    return {
-      ok: false as const,
-      message: parseResult.error.issues[0]?.message ?? "Invalid delivery confirmation details.",
-    };
-  }
-
-  if (actor.role !== "rider" || !canChangeParcelStatus(actor.role, "on_the_way", "delivered")) {
-    return {
-      ok: false as const,
-      message: "You do not have permission to mark parcels delivered.",
-    };
-  }
-
-  try {
-    const { uploadDeliveryProofImage } = await import("@/features/parcels/server/upload");
-    const proofImageKey = await uploadDeliveryProofImage({
-      parcelId: parseResult.data.parcelId,
-      file: parseResult.data.proofImage,
-    });
-
-    await markRiderParcelDelivered({
-      parcelId: parseResult.data.parcelId,
-      proofImageKey,
-      riderUserId: actor.id,
-      actorRole: actor.role,
-      createdBy: actor.id,
-    });
-  } catch (error) {
-    return {
-      ok: false as const,
-      message: error instanceof Error ? error.message : "Unable to mark parcel delivered.",
-    };
-  }
-
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/parcels");
-  revalidatePath("/dashboard/rider/parcels");
-
-  return {
-    ok: true as const,
-    message: "Parcel marked delivered.",
   };
 }
 

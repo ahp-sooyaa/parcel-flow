@@ -1,8 +1,11 @@
 # merchant-overview-reporting Specification
 
 ## Purpose
+
 TBD - created by archiving change add-merchant-overview-and-parcel-filters. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Merchant overview page shows parcel and remittance summary cards
 
 The system SHALL provide a merchant-only overview page at `dashboard/merchant/overview` that shows summary cards scoped to the current merchant account.
@@ -65,4 +68,3 @@ The system SHALL paginate the settled settlement history on the overview page.
 - **WHEN** the merchant has more settled settlements than fit on one page
 - **THEN** the system shows pagination controls for the settlement table
 - **AND** changing the page updates the visible settlement rows without changing the current search term or date filter
-

@@ -1,8 +1,11 @@
 # persisted-user-management Specification
 
 ## Purpose
+
 TBD - created by archiving change wire-auth-and-persistence-foundation. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Persisted user list
 
 The system SHALL load the user management list from the database instead of mock arrays.
@@ -125,4 +128,3 @@ The system SHALL allow authenticated users to update permitted personal account 
 
 - **WHEN** an authenticated user submits their current password and a valid new password
 - **THEN** the system updates their credentials and clears `mustResetPassword` when the change succeeds
-

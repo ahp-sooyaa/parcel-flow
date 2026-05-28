@@ -42,7 +42,6 @@ import { ParcelDetailSheet } from "@/features/parcels/components/parcel-detail-s
 import {
   deleteDeliveryFailureForRiderParcelAction,
   markRiderParcelReturnedToMerchantAction,
-  markRiderParcelDeliveredAction,
   reportDeliveryFailureForRiderParcelAction,
   startDeliveryForRiderParcelsAction,
   updateDeliveryFailureForRiderParcelAction,
@@ -52,6 +51,7 @@ import { useAppRouter } from "@/lib/client-navigation";
 import { parcelStatusLabels, parcelStatuses, type ParcelStatus } from "@/lib/domain";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { z } from "zod";
 
 type RiderParcelTab = "to_deliver" | "delivered" | "returned";
 type TownshipOption = { value: string; label: string };
@@ -67,6 +67,10 @@ const pageSize = 12;
 const toDeliverStatuses: ParcelStatus[] = ["at_office", "on_the_way", "canceled_returned"];
 const deliveredStatuses: ParcelStatus[] = ["delivered"];
 const returnedStatuses: ParcelStatus[] = ["returned_to_merchant"];
+const deliveryUploadResponseSchema = z.object({
+  ok: z.boolean(),
+  message: z.string(),
+});
 
 function getStatusVariant(status: ParcelStatus) {
   if (status === "delivered") {
@@ -460,23 +464,36 @@ export function RiderParcelCardList({
     setDeliveryPending(true);
 
     void (async () => {
-      const result = await markRiderParcelDeliveredAction(formData);
+      try {
+        const response = await fetch("/api/rider/parcels/deliver", {
+          method: "POST",
+          body: formData,
+        });
+        const result = deliveryUploadResponseSchema.parse(await response.json());
 
-      setDeliveryPending(false);
+        setDeliveryPending(false);
 
-      setSubmissionState({
-        kind: result.ok ? "success" : "error",
-        message: result.message,
-      });
+        setSubmissionState({
+          kind: result.ok ? "success" : "error",
+          message: result.message,
+        });
 
-      if (!result.ok) {
-        return;
+        if (!result.ok) {
+          return;
+        }
+
+        setDeliveryParcel(null);
+        setProofImage(null);
+        setProofPreviewUrl(null);
+        router.refresh();
+      } catch {
+        setDeliveryPending(false);
+
+        setSubmissionState({
+          kind: "error",
+          message: "Unable to upload the delivery proof photo right now.",
+        });
       }
-
-      setDeliveryParcel(null);
-      setProofImage(null);
-      setProofPreviewUrl(null);
-      router.refresh();
     })();
   }
 

@@ -1,8 +1,11 @@
 # admin-failure-parcel-management Specification
 
 ## Purpose
+
 TBD - created by archiving change manage-admin-failure-parcels. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Admin failure indicator
 
 The system SHALL show a red failure warning indicator beside the parcel code on the admin parcel list when a parcel has an unresolved rider delivery failure report.
@@ -116,4 +119,3 @@ The system SHALL preserve the retry and merchant-return assignment rules after a
 
 - **WHEN** a parcel has status `canceled_returned` and no assigned rider
 - **THEN** a super admin or office admin can assign it to a rider for merchant return handling without changing its status
-

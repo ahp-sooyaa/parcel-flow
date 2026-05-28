@@ -1,8 +1,11 @@
 # merchant-settlement-management Specification
 
 ## Purpose
+
 TBD - created by archiving change manage-merchant-settlements. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Admin dashboard shows merchants eligible for settlement
 
 The system SHALL replace the current admin dashboard parcel table with a merchant settlement workspace that lists merchants who have eligible settlement financial items.
@@ -87,4 +90,3 @@ The system SHALL allow only superadmins to resolve a pending merchant settlement
 - **WHEN** any required receipt upload or settlement persistence step fails during pending-settlement resolution
 - **THEN** the system does not persist a partially settled settlement
 - **AND** the system does not persist partially updated linked financial items
-

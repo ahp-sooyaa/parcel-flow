@@ -106,11 +106,14 @@ export function useParcelRealtimeEvents({
 function parseParcelUpsertEvent(data: string): ParcelUpsertEvent | null {
   const payload = parseRealtimeEventPayload(data);
 
-  if (payload?.type !== "parcel-upsert" || !("parcel" in payload)) {
+  if (payload?.type !== "parcel-upsert" || !isParcelListItemDto(payload.parcel)) {
     return null;
   }
 
-  return payload as ParcelUpsertEvent;
+  return {
+    type: "parcel-upsert",
+    parcel: payload.parcel,
+  };
 }
 
 function parseParcelRemoveEvent(data: string): ParcelRemoveEvent | null {
@@ -120,7 +123,10 @@ function parseParcelRemoveEvent(data: string): ParcelRemoveEvent | null {
     return null;
   }
 
-  return payload as ParcelRemoveEvent;
+  return {
+    type: "parcel-remove",
+    parcelId: payload.parcelId,
+  };
 }
 
 function parseStatsInvalidatedEvent(data: string): StatsInvalidatedEvent | null {
@@ -130,7 +136,10 @@ function parseStatsInvalidatedEvent(data: string): StatsInvalidatedEvent | null 
     return null;
   }
 
-  return payload as StatsInvalidatedEvent;
+  return {
+    type: "stats-invalidated",
+    parcelId: payload.parcelId,
+  };
 }
 
 function parseRealtimeEventPayload(data: string): Record<string, unknown> | null {
@@ -140,5 +149,34 @@ function parseRealtimeEventPayload(data: string): Record<string, unknown> | null
     return null;
   }
 
-  return payload as Record<string, unknown>;
+  return payload;
+}
+
+function isParcelListItemDto(value: unknown): value is ParcelListItemDto {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const parcel = value as Partial<ParcelListItemDto>;
+
+  return (
+    typeof parcel.id === "string" &&
+    typeof parcel.parcelCode === "string" &&
+    typeof parcel.merchantId === "string" &&
+    typeof parcel.merchantName === "string" &&
+    typeof parcel.receiverName === "string" &&
+    typeof parcel.receiverPhoneNumber === "string" &&
+    typeof parcel.receiverAddress === "string" &&
+    typeof parcel.townshipId === "string" &&
+    typeof parcel.townshipName === "string" &&
+    (parcel.parcelType === "cod" || parcel.parcelType === "non_cod") &&
+    typeof parcel.codAmount === "number" &&
+    typeof parcel.deliveryFee === "number" &&
+    typeof parcel.weightKg === "number" &&
+    Array.isArray(parcel.failureNotes) &&
+    Array.isArray(parcel.proofOfDeliveryImagesKeys) &&
+    typeof parcel.status === "string" &&
+    typeof parcel.hasUnresolvedFailureReview === "boolean" &&
+    typeof parcel.createdAt === "string"
+  );
 }

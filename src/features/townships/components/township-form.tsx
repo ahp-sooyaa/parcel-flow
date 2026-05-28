@@ -16,12 +16,7 @@ import {
 } from "@/components/shared/form-fields";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  SheetClose,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { SheetClose, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { createTownshipAction, updateTownshipAction } from "@/features/townships/server/actions";
 import type { TownshipListItemDto } from "@/features/townships/server/dto";

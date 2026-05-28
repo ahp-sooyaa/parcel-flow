@@ -36,9 +36,8 @@ void mock.module("@/features/parcels/components/rider-parcel-card-list", () => (
 }));
 
 describe("RealtimeRiderParcelCardList", async () => {
-  const { RealtimeRiderParcelCardList } = await import(
-    "@/features/parcels/components/realtime-rider-parcel-card-list"
-  );
+  const { RealtimeRiderParcelCardList } =
+    await import("@/features/parcels/components/realtime-rider-parcel-card-list");
 
   beforeEach(() => {
     MockEventSource.instances = [];

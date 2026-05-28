@@ -1,8 +1,11 @@
 # persisted-township-settings Specification
 
 ## Purpose
+
 TBD - created by archiving change wire-auth-and-persistence-foundation. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Persisted township list
 
 The system SHALL load township delivery pricing/settings from the database instead of mock arrays.
@@ -53,4 +56,3 @@ The system SHALL validate township pricing inputs before persistence.
 
 - **WHEN** a township request contains invalid negative fees, invalid weights, invalid percentages, or missing names
 - **THEN** the system returns a validation error and does not write data
-

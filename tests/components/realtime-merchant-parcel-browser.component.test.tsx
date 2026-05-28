@@ -40,9 +40,8 @@ void mock.module("@/features/parcels/components/merchant-parcel-browser", () => 
 }));
 
 describe("RealtimeMerchantParcelBrowser", async () => {
-  const { RealtimeMerchantParcelBrowser } = await import(
-    "@/features/parcels/components/realtime-merchant-parcel-browser"
-  );
+  const { RealtimeMerchantParcelBrowser } =
+    await import("@/features/parcels/components/realtime-merchant-parcel-browser");
 
   beforeEach(() => {
     refreshMock.mockReset();
@@ -57,7 +56,14 @@ describe("RealtimeMerchantParcelBrowser", async () => {
   test("refreshes the server-rendered merchant parcel page when a parcel changes", async () => {
     render(
       <RealtimeMerchantParcelBrowser
-        result={{ parcels: [], page: 1, pageSize: 10, totalCount: 0, totalPages: 1, hasAnyParcels: false }}
+        result={{
+          parcels: [],
+          page: 1,
+          pageSize: 10,
+          totalCount: 0,
+          totalPages: 1,
+          hasAnyParcels: false,
+        }}
         filters={{ searchTerm: "", createdOn: null, status: "all", page: 1, pageSize: 10 }}
       />,
     );

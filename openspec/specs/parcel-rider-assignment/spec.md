@@ -1,8 +1,11 @@
 # parcel-rider-assignment Specification
 
 ## Purpose
+
 TBD - created by archiving change wire-auth-and-persistence-foundation. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Persisted rider assignment
 
 The system SHALL allow super admins and office admins to assign one or more parcels to a rider from the parcel list.
@@ -92,4 +95,3 @@ The system SHALL NOT create financial items, settlement records, payout records,
 
 - **WHEN** parcels are assigned to a rider
 - **THEN** no financial items, merchant settlements, rider payouts, delivered timestamps, or collection confirmation fields are created or changed by the assignment operation
-

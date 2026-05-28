@@ -1,8 +1,11 @@
 # persisted-parcel-intake Specification
 
 ## Purpose
+
 TBD - created by archiving change wire-auth-and-persistence-foundation. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Persisted parcel list
 
 The system SHALL load parcel lists from persisted database records and scope visibility by user role.
@@ -139,4 +142,3 @@ The system SHALL calculate parcel dashboard summary values from persisted record
 
 - **WHEN** expected collection is calculated
 - **THEN** it includes active collection parcels with statuses `at_office` and `on_the_way` when a rider is assigned
-

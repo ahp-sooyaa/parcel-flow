@@ -36,9 +36,8 @@ void mock.module("@/features/parcels/components/parcel-list-view", () => ({
 }));
 
 describe("RealtimeParcelListView", async () => {
-  const { RealtimeParcelListView } = await import(
-    "@/features/parcels/components/realtime-parcel-list-view"
-  );
+  const { RealtimeParcelListView } =
+    await import("@/features/parcels/components/realtime-parcel-list-view");
 
   beforeEach(() => {
     MockEventSource.instances = [];

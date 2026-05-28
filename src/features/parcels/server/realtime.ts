@@ -223,5 +223,7 @@ function shouldInvalidateStats(
           "deleted_at",
         ];
 
-  return trackedFields.some((field) => (nextRow?.[field] ?? null) !== (previousRow?.[field] ?? null));
+  return trackedFields.some(
+    (field) => (nextRow?.[field] ?? null) !== (previousRow?.[field] ?? null),
+  );
 }
