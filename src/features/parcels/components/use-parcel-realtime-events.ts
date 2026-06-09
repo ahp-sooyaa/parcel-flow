@@ -5,11 +5,6 @@ import { useEffect, useEffectEvent } from "react";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
 import type { ParcelRealtimeSurface } from "@/features/parcels/server/realtime";
 
-type ParcelUpsertEvent = {
-  type: "parcel-upsert";
-  parcel: ParcelListItemDto;
-};
-
 type ParcelRemoveEvent = {
   type: "parcel-remove";
   parcelId: string;
@@ -23,26 +18,32 @@ type StatsInvalidatedEvent = {
 export function useParcelRealtimeEvents({
   surface,
   onParcelUpsert,
+  onParcelUpsertEvent,
   onParcelRemove,
   onStatsInvalidated,
 }: {
   surface: ParcelRealtimeSurface;
   onParcelUpsert?: (parcel: ParcelListItemDto) => void;
+  onParcelUpsertEvent?: () => void;
   onParcelRemove?: (parcelId: string) => void;
   onStatsInvalidated?: () => void;
 }) {
   const handleParcelUpsert = useEffectEvent((event: MessageEvent<string>) => {
-    if (!onParcelUpsert) {
+    const payload = parseRealtimeEventPayload(event.data);
+
+    if (payload?.type !== "parcel-upsert") {
       return;
     }
 
-    const payload = parseParcelUpsertEvent(event.data);
+    onParcelUpsertEvent?.();
 
-    if (!payload) {
+    const parcel = payload.parcel;
+
+    if (!onParcelUpsert || !isParcelListItemDto(parcel)) {
       return;
     }
 
-    onParcelUpsert(payload.parcel);
+    onParcelUpsert(parcel);
   });
 
   const handleParcelRemove = useEffectEvent((event: MessageEvent<string>) => {
@@ -77,7 +78,7 @@ export function useParcelRealtimeEvents({
     }
 
     const eventSource = new EventSource(`/api/realtime/parcels?surface=${surface}`);
-    const onParcelUpsertEvent = (event: Event) => {
+    const onParcelUpsertMessage = (event: Event) => {
       if (event instanceof MessageEvent && typeof event.data === "string") {
         handleParcelUpsert(event);
       }
@@ -93,7 +94,7 @@ export function useParcelRealtimeEvents({
       }
     };
 
-    eventSource.addEventListener("parcel-upsert", onParcelUpsertEvent);
+    eventSource.addEventListener("parcel-upsert", onParcelUpsertMessage);
     eventSource.addEventListener("parcel-remove", onParcelRemoveEvent);
     eventSource.addEventListener("stats-invalidated", onStatsInvalidatedEvent);
 
@@ -101,19 +102,6 @@ export function useParcelRealtimeEvents({
       eventSource.close();
     };
   }, [surface]);
-}
-
-function parseParcelUpsertEvent(data: string): ParcelUpsertEvent | null {
-  const payload = parseRealtimeEventPayload(data);
-
-  if (payload?.type !== "parcel-upsert" || !isParcelListItemDto(payload.parcel)) {
-    return null;
-  }
-
-  return {
-    type: "parcel-upsert",
-    parcel: payload.parcel,
-  };
 }
 
 function parseParcelRemoveEvent(data: string): ParcelRemoveEvent | null {
@@ -143,13 +131,19 @@ function parseStatsInvalidatedEvent(data: string): StatsInvalidatedEvent | null 
 }
 
 function parseRealtimeEventPayload(data: string): Record<string, unknown> | null {
-  const payload: unknown = JSON.parse(data);
+  let payload: unknown;
 
-  if (!payload || typeof payload !== "object") {
+  try {
+    payload = JSON.parse(data);
+  } catch {
     return null;
   }
 
-  return payload;
+  return isRecord(payload) ? payload : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function isParcelListItemDto(value: unknown): value is ParcelListItemDto {

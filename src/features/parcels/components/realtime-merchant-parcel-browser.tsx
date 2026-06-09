@@ -20,7 +20,7 @@ export function RealtimeMerchantParcelBrowser(
 
   useParcelRealtimeEvents({
     surface: "merchant-list",
-    onParcelUpsert() {
+    onParcelUpsertEvent() {
       refresh();
     },
     onParcelRemove() {
