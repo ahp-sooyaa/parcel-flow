@@ -57,4 +57,4 @@
 - [x] 6.2 Run typecheck after implementation.
 - [x] 6.3 Run relevant unit, component, or integration tests for parcel delivery actions.
 - [x] 6.4 Manually verify the rider parcel card flow on desktop for failure reporting, delivery proof upload, delivery completion, tabs, filters, and detail sheet behavior.
-- [ ] 6.5 Manually verify the rider parcel card flow on mobile width, including camera-first proof capture behavior where the environment supports it.
+- [x] 6.5 Manually verify the rider parcel card flow on mobile width, including camera-first proof capture behavior where the environment supports it.
