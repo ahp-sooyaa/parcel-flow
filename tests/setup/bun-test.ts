@@ -55,4 +55,7 @@ afterEach(() => {
   mock.restore();
   cleanup();
   window.document.body.innerHTML = "";
+  for (const attribute of Array.from(window.document.body.attributes)) {
+    window.document.body.removeAttribute(attribute.name);
+  }
 });

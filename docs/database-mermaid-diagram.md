@@ -197,6 +197,23 @@ uuid changed_by FK
 
 }
 
+parcel_correction_logs {
+uuid id PK
+uuid parcel_id FK
+text correction_type
+text old_status
+text new_status
+uuid old_rider_id FK
+uuid new_rider_id FK
+uuid status_log_id FK
+text reason
+jsonb side_effects
+uuid created_by FK
+
+    timestamp created_at
+
+}
+
 auth_users ||--o| merchants : "has merchant profile"
 auth_users ||--o| riders : "has rider profile"
 
@@ -219,6 +236,12 @@ rider_payouts ||--o{ financial_items : "pays rider ways"
 
 parcels ||--o{ parcel_status_logs : "status history"
 auth_users ||--o{ parcel_status_logs : "changed by"
+
+parcels ||--o{ parcel_correction_logs : "correction history"
+auth_users ||--o{ parcel_correction_logs : "created by"
+riders ||--o{ parcel_correction_logs : "old rider"
+riders ||--o{ parcel_correction_logs : "new rider"
+parcel_status_logs ||--o{ parcel_correction_logs : "correction status change"
 
 auth_users ||--o{ parcels : "created by"
 auth_users ||--o{ parcels : "confirmed collection by"

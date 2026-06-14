@@ -304,10 +304,39 @@ export const parcelStatusLogs = pgTable("parcel_status_logs", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const parcelCorrectionLogs = pgTable(
+  "parcel_correction_logs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    parcelId: uuid("parcel_id")
+      .notNull()
+      .references(() => parcels.id),
+    correctionType: text("correction_type").notNull(),
+    oldStatus: text("old_status"),
+    newStatus: text("new_status"),
+    oldRiderId: uuid("old_rider_id").references(() => riders.id),
+    newRiderId: uuid("new_rider_id").references(() => riders.id),
+    statusLogId: uuid("status_log_id").references(() => parcelStatusLogs.id),
+    reason: text("reason").notNull(),
+    sideEffects: jsonb("side_effects")
+      .$type<{ summary: string[] }>()
+      .default(sql`'{"summary":[]}'::jsonb`)
+      .notNull(),
+    createdBy: uuid("created_by").references(() => appUsers.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("parcel_correction_logs_parcel_id_idx").on(table.parcelId),
+    index("parcel_correction_logs_created_by_idx").on(table.createdBy),
+    index("parcel_correction_logs_status_log_id_idx").on(table.statusLogId),
+  ],
+);
+
 export const appUsersRelations = relations(appUsers, ({ many, one }) => ({
   merchant: one(merchants),
   rider: one(riders),
   bankAccounts: many(bankAccounts),
+  parcelCorrections: many(parcelCorrectionLogs),
 }));
 
 export const merchantsRelations = relations(merchants, ({ many, one }) => ({
@@ -329,6 +358,7 @@ export const parcelsRelations = relations(parcels, ({ many, one }) => ({
   township: one(townships, { fields: [parcels.townshipId], references: [townships.id] }),
   financialItems: many(financialItems),
   statusLogs: many(parcelStatusLogs),
+  correctionLogs: many(parcelCorrectionLogs),
 }));
 
 export const financialItemsRelations = relations(financialItems, ({ one }) => ({
@@ -367,4 +397,38 @@ export const merchantSettlementsRelations = relations(merchantSettlements, ({ ma
     references: [appUsers.id],
   }),
   financialItems: many(financialItems),
+}));
+
+export const parcelStatusLogsRelations = relations(parcelStatusLogs, ({ many, one }) => ({
+  parcel: one(parcels, { fields: [parcelStatusLogs.parcelId], references: [parcels.id] }),
+  changedByUser: one(appUsers, {
+    fields: [parcelStatusLogs.changedBy],
+    references: [appUsers.id],
+  }),
+  correctionLogs: many(parcelCorrectionLogs),
+}));
+
+export const parcelCorrectionLogsRelations = relations(parcelCorrectionLogs, ({ one }) => ({
+  parcel: one(parcels, {
+    fields: [parcelCorrectionLogs.parcelId],
+    references: [parcels.id],
+  }),
+  createdByUser: one(appUsers, {
+    fields: [parcelCorrectionLogs.createdBy],
+    references: [appUsers.id],
+  }),
+  oldRider: one(riders, {
+    fields: [parcelCorrectionLogs.oldRiderId],
+    references: [riders.id],
+    relationName: "oldCorrectionRider",
+  }),
+  newRider: one(riders, {
+    fields: [parcelCorrectionLogs.newRiderId],
+    references: [riders.id],
+    relationName: "newCorrectionRider",
+  }),
+  statusLog: one(parcelStatusLogs, {
+    fields: [parcelCorrectionLogs.statusLogId],
+    references: [parcelStatusLogs.id],
+  }),
 }));

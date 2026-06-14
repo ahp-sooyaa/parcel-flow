@@ -5,6 +5,8 @@ import { z } from "zod";
 
 import {
   assignParcelsToRider,
+  correctParcelRider,
+  correctParcelStatus,
   createParcel,
   deleteDeliveryFailureForRiderParcel,
   markRiderParcelReturnedToMerchant,
@@ -15,9 +17,15 @@ import {
   updateParcel,
 } from "@/features/parcels/server/dal";
 import {
+  correctParcelRiderInputSchema,
+  correctParcelStatusInputSchema,
   createParcelFormInputSchema,
   updateParcelFormInputSchema,
 } from "@/features/parcels/server/dto";
+import {
+  deleteDeliveryProofImage,
+  uploadDeliveryProofImage,
+} from "@/features/parcels/server/upload";
 import {
   mapCreateParcelFormInputToCreateParcelInput,
   mapUpdateParcelFormInputToUpdateParcelInput,
@@ -53,6 +61,23 @@ const resolveFailedParcelInputSchema = z.object({
   parcelId: z.uuid("Invalid parcel selection."),
 });
 
+const maxCorrectionProofImageSize = 5 * 1024 * 1024;
+const allowedCorrectionProofImageTypes = ["image/jpeg", "image/png", "image/webp"] as const;
+const optionalCorrectionProofImageSchema = z.preprocess(
+  (value) => (value instanceof File && value.size > 0 ? value : undefined),
+  z
+    .file("Delivery proof photo is required.")
+    .max(maxCorrectionProofImageSize, "Delivery proof photo must be 5MB or smaller.")
+    .mime(
+      [...allowedCorrectionProofImageTypes],
+      "Delivery proof photo must be a JPG, PNG, or WebP image.",
+    )
+    .optional(),
+);
+const correctParcelStatusFormInputSchema = correctParcelStatusInputSchema.extend({
+  proofImage: optionalCorrectionProofImageSchema,
+});
+
 function normalizeFormInput(input: unknown) {
   if (!(input instanceof FormData)) {
     return input;
@@ -62,6 +87,23 @@ function normalizeFormInput(input: unknown) {
     parcelId: input.get("parcelId"),
     note: input.get("note"),
     proofImage: input.get("proofImage"),
+  };
+}
+
+function normalizeCorrectParcelStatusInput(input: unknown) {
+  if (!(input instanceof FormData)) {
+    return input;
+  }
+
+  return {
+    parcelId: input.get("parcelId"),
+    expectedStatus: input.get("expectedStatus"),
+    expectedRiderId: input.get("expectedRiderId"),
+    expectedFinancialItemsFingerprint: input.get("expectedFinancialItemsFingerprint"),
+    targetStatus: input.get("targetStatus"),
+    targetRiderId: input.get("targetRiderId"),
+    proofImage: input.get("proofImage"),
+    reason: input.get("reason"),
   };
 }
 
@@ -185,6 +227,114 @@ export async function assignParcelsToRiderAction(input: unknown) {
   return {
     ok: true as const,
     message: "Parcels assigned.",
+  };
+}
+
+function revalidateParcelCorrectionPaths() {
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/parcels");
+  revalidatePath("/dashboard/riders");
+  revalidatePath("/dashboard/settlements");
+  revalidatePath("/dashboard/rider-payouts");
+  revalidatePath("/dashboard/merchant/parcels");
+  revalidatePath("/dashboard/rider/parcels");
+}
+
+export async function correctParcelStatusAction(input: unknown) {
+  const actor = await requireCurrentUser();
+  const parseResult = correctParcelStatusFormInputSchema.safeParse(
+    normalizeCorrectParcelStatusInput(input),
+  );
+
+  if (!parseResult.success) {
+    return {
+      ok: false as const,
+      message: parseResult.error.issues[0]?.message ?? "Invalid parcel correction details.",
+      fieldErrors: getFormFieldErrors(parseResult.error),
+    };
+  }
+
+  if (actor.role !== "super_admin" && actor.role !== "office_admin") {
+    return {
+      ok: false as const,
+      message: "You do not have permission to correct parcels.",
+    };
+  }
+
+  let uploadedProofImageKey: string | undefined;
+
+  try {
+    const { proofImage, ...correctionInput } = parseResult.data;
+    uploadedProofImageKey =
+      proofImage && correctionInput.targetStatus === "delivered"
+        ? await uploadDeliveryProofImage({
+            parcelId: correctionInput.parcelId,
+            file: proofImage,
+          })
+        : undefined;
+
+    await correctParcelStatus({
+      ...correctionInput,
+      proofImageKey: uploadedProofImageKey,
+      actorId: actor.id,
+      actorRole: actor.role,
+    });
+  } catch (error) {
+    if (uploadedProofImageKey) {
+      await deleteDeliveryProofImage(uploadedProofImageKey).catch(() => undefined);
+    }
+
+    return {
+      ok: false as const,
+      message: error instanceof Error ? error.message : "Unable to correct parcel status.",
+    };
+  }
+
+  revalidateParcelCorrectionPaths();
+
+  return {
+    ok: true as const,
+    message: "Parcel status corrected.",
+  };
+}
+
+export async function correctParcelRiderAction(input: unknown) {
+  const actor = await requireCurrentUser();
+  const parseResult = correctParcelRiderInputSchema.safeParse(input);
+
+  if (!parseResult.success) {
+    return {
+      ok: false as const,
+      message: parseResult.error.issues[0]?.message ?? "Invalid parcel rider correction details.",
+      fieldErrors: getFormFieldErrors(parseResult.error),
+    };
+  }
+
+  if (actor.role !== "super_admin" && actor.role !== "office_admin") {
+    return {
+      ok: false as const,
+      message: "You do not have permission to correct parcels.",
+    };
+  }
+
+  try {
+    await correctParcelRider({
+      ...parseResult.data,
+      actorId: actor.id,
+      actorRole: actor.role,
+    });
+  } catch (error) {
+    return {
+      ok: false as const,
+      message: error instanceof Error ? error.message : "Unable to correct parcel rider.",
+    };
+  }
+
+  revalidateParcelCorrectionPaths();
+
+  return {
+    ok: true as const,
+    message: "Parcel rider corrected.",
   };
 }
 

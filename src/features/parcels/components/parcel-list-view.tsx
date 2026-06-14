@@ -188,6 +188,9 @@ export function ParcelListView({
     () => parcels.filter((parcel) => selectedParcelIds.includes(parcel.id)),
     [parcels, selectedParcelIds],
   );
+  const currentViewingParcel = viewingParcel
+    ? (parcels.find((parcel) => parcel.id === viewingParcel.id) ?? viewingParcel)
+    : null;
   const selectedExpectedCollection = selectedParcels
     .filter((parcel) => parcel.status !== "canceled_returned")
     .reduce((sum, parcel) => sum + parcel.codAmount + parcel.deliveryFee, 0);
@@ -412,7 +415,7 @@ export function ParcelListView({
       />
 
       <Sheet
-        open={viewingParcel !== null}
+        open={currentViewingParcel !== null}
         onOpenChange={(open) => {
           if (!open) {
             setViewingParcel(null);
@@ -420,8 +423,12 @@ export function ParcelListView({
         }}
       >
         <SheetContent className="overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[720px] data-[side=right]:sm:max-w-[720px]">
-          {viewingParcel ? (
-            <ParcelDetailSheet actorRole={actorRole} parcel={viewingParcel} />
+          {currentViewingParcel ? (
+            <ParcelDetailSheet
+              actorRole={actorRole}
+              parcel={currentViewingParcel}
+              riders={riders}
+            />
           ) : null}
         </SheetContent>
       </Sheet>

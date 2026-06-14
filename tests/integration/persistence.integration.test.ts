@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { and, eq, inArray } from "drizzle-orm";
 
-import { financialItems, merchantSettlements, parcels, parcelStatusLogs } from "@/db/schema";
+import {
+  financialItems,
+  merchantSettlements,
+  parcels,
+  parcelCorrectionLogs,
+  parcelStatusLogs,
+} from "@/db/schema";
 import { appendActiveParcelFailureNote } from "@/features/parcels/server/failure-notes";
 import { cleanupTestRecords } from "../fixtures/cleanup";
 import { createTestDatabase } from "../fixtures/db";
@@ -1545,6 +1551,766 @@ describe("persistence integration coverage", () => {
     expect(relatedFinancialItems).toHaveLength(0);
   });
 
+  test("corrects delivered parcels away from delivered and voids pending financial side effects", async () => {
+    const riderSeed = await seedTestRider(testDb.db);
+    const admin = await seedTestUser(testDb.db, { role: "office_admin" });
+    const parcelSeed = await seedTestParcel(testDb.db, {
+      riderId: riderSeed.rider.id,
+      status: "delivered",
+      assignedAt: new Date(),
+      deliveredAt: new Date(),
+      collectedAt: new Date(),
+      collectedAmount: 12_000,
+      codStatus: "collected",
+      deliveryFeeStatus: "collected",
+      isReceivedByOffice: true,
+      collectionConfirmedBy: admin.id,
+      proofOfDeliveryImagesKeys: ["proof-key"],
+    });
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.userIds.push(
+      riderSeed.user?.id ?? "",
+      admin.id,
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+    );
+    seededIds.riderIds.push(riderSeed.rider.id);
+    seededIds.townshipIds.push(riderSeed.township.id, parcelSeed.township.id);
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+
+    await testDb.db.insert(financialItems).values([
+      {
+        parcelId: parcelSeed.parcel.id,
+        merchantId: parcelSeed.parcel.merchantId,
+        riderId: riderSeed.rider.id,
+        itemType: "rider_way_payout",
+        amount: 1,
+        status: "pending",
+        createdBy: admin.id,
+      },
+      {
+        parcelId: parcelSeed.parcel.id,
+        merchantId: parcelSeed.parcel.merchantId,
+        riderId: null,
+        itemType: "cod_remit",
+        amount: parcelSeed.parcel.codAmount,
+        status: "pending",
+        createdBy: admin.id,
+      },
+    ]);
+
+    const { correctParcelStatus } = await import("@/features/parcels/server/dal");
+    await correctParcelStatus({
+      parcelId: parcelSeed.parcel.id,
+      ...(await getParcelCorrectionExpectation(parcelSeed.parcel.id)),
+      targetStatus: "at_office",
+      targetRiderId: null,
+      reason: "Marked delivered by mistake.",
+      actorId: admin.id,
+      actorRole: "office_admin",
+    });
+
+    const [updatedParcel] = await testDb.db
+      .select()
+      .from(parcels)
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+    const relatedItems = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(eq(financialItems.parcelId, parcelSeed.parcel.id));
+    const [statusLog] = await testDb.db
+      .select()
+      .from(parcelStatusLogs)
+      .where(eq(parcelStatusLogs.parcelId, parcelSeed.parcel.id));
+    const [correctionLog] = await testDb.db
+      .select()
+      .from(parcelCorrectionLogs)
+      .where(eq(parcelCorrectionLogs.parcelId, parcelSeed.parcel.id));
+
+    expect(updatedParcel).toMatchObject({
+      status: "at_office",
+      riderId: null,
+      collectedAmount: 0,
+      codStatus: "pending",
+      deliveryFeeStatus: "pending",
+      isReceivedByOffice: false,
+      collectionConfirmedBy: null,
+    });
+    expect(updatedParcel.deliveredAt).toBeNull();
+    expect(updatedParcel.collectedAt).toBeNull();
+    expect(updatedParcel.proofOfDeliveryImagesKeys).toEqual([]);
+    expect(relatedItems.every((item) => item.status === "void")).toBe(true);
+    expect(statusLog).toMatchObject({ oldStatus: "delivered", newStatus: "at_office" });
+    expect(correctionLog).toMatchObject({
+      correctionType: "status",
+      oldStatus: "delivered",
+      newStatus: "at_office",
+      statusLogId: statusLog.id,
+      reason: "Marked delivered by mistake.",
+    });
+  });
+
+  test("corrects delivered parcels to each non-delivered target status", async () => {
+    const riderSeed = await seedTestRider(testDb.db);
+    const admin = await seedTestUser(testDb.db, { role: "office_admin" });
+    seededIds.userIds.push(riderSeed.user?.id ?? "", admin.id);
+    seededIds.riderIds.push(riderSeed.rider.id);
+    seededIds.townshipIds.push(riderSeed.township.id);
+
+    const targets = [
+      { status: "on_the_way" as const, targetRiderId: riderSeed.rider.id },
+      { status: "at_office" as const, targetRiderId: null },
+      { status: "postpone" as const, targetRiderId: null },
+      { status: "canceled_returned" as const, targetRiderId: null },
+    ];
+    const { correctParcelStatus } = await import("@/features/parcels/server/dal");
+
+    for (const target of targets) {
+      const parcelSeed = await seedTestParcel(testDb.db, {
+        riderId: riderSeed.rider.id,
+        status: "delivered",
+        assignedAt: new Date(),
+        deliveredAt: new Date(),
+        collectedAt: new Date(),
+        collectedAmount: 12_000,
+        codStatus: "collected",
+        deliveryFeeStatus: "collected",
+        proofOfDeliveryImagesKeys: ["proof-key"],
+      });
+      seededIds.parcelIds.push(parcelSeed.parcel.id);
+      seededIds.userIds.push(parcelSeed.merchantSeed?.user?.id ?? "", parcelSeed.creator?.id ?? "");
+      seededIds.townshipIds.push(parcelSeed.township.id);
+      seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+
+      await testDb.db.insert(financialItems).values({
+        parcelId: parcelSeed.parcel.id,
+        merchantId: parcelSeed.parcel.merchantId,
+        riderId: riderSeed.rider.id,
+        itemType: "rider_way_payout",
+        amount: 1,
+        status: "pending",
+        createdBy: admin.id,
+      });
+
+      await correctParcelStatus({
+        parcelId: parcelSeed.parcel.id,
+        ...(await getParcelCorrectionExpectation(parcelSeed.parcel.id)),
+        targetStatus: target.status,
+        targetRiderId: target.targetRiderId,
+        reason: `Correct delivered to ${target.status}.`,
+        actorId: admin.id,
+        actorRole: "office_admin",
+      });
+
+      const [updatedParcel] = await testDb.db
+        .select()
+        .from(parcels)
+        .where(eq(parcels.id, parcelSeed.parcel.id));
+      const relatedItems = await testDb.db
+        .select()
+        .from(financialItems)
+        .where(eq(financialItems.parcelId, parcelSeed.parcel.id));
+
+      expect(updatedParcel.status).toBe(target.status);
+      expect(updatedParcel.deliveredAt).toBeNull();
+      expect(relatedItems.every((item) => item.status === "void")).toBe(true);
+    }
+  });
+
+  test("corrects returned parcels away from returned-to-merchant and voids pending deductions", async () => {
+    const riderSeed = await seedTestRider(testDb.db);
+    const admin = await seedTestUser(testDb.db, { role: "super_admin" });
+    const parcelSeed = await seedTestParcel(testDb.db, {
+      riderId: riderSeed.rider.id,
+      status: "returned_to_merchant",
+      assignedAt: new Date(),
+      returnedToMerchantAt: new Date(),
+      deliveryFeeStatus: "deduct_from_merchant",
+    });
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.userIds.push(
+      riderSeed.user?.id ?? "",
+      admin.id,
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+    );
+    seededIds.riderIds.push(riderSeed.rider.id);
+    seededIds.townshipIds.push(riderSeed.township.id, parcelSeed.township.id);
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+
+    await testDb.db.insert(financialItems).values({
+      parcelId: parcelSeed.parcel.id,
+      merchantId: parcelSeed.parcel.merchantId,
+      riderId: null,
+      itemType: "delivery_fee_deduction",
+      amount: parcelSeed.parcel.deliveryFee,
+      status: "pending",
+      createdBy: admin.id,
+    });
+
+    const { correctParcelStatus } = await import("@/features/parcels/server/dal");
+    await correctParcelStatus({
+      parcelId: parcelSeed.parcel.id,
+      ...(await getParcelCorrectionExpectation(parcelSeed.parcel.id)),
+      targetStatus: "on_the_way",
+      targetRiderId: riderSeed.rider.id,
+      reason: "Return was completed on the wrong parcel.",
+      actorId: admin.id,
+      actorRole: "super_admin",
+    });
+
+    const [updatedParcel] = await testDb.db
+      .select()
+      .from(parcels)
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+    const [deductionItem] = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(eq(financialItems.parcelId, parcelSeed.parcel.id));
+
+    expect(updatedParcel).toMatchObject({
+      status: "on_the_way",
+      riderId: riderSeed.rider.id,
+      deliveryFeeStatus: "pending",
+    });
+    expect(updatedParcel.returnedToMerchantAt).toBeNull();
+    expect(deductionItem).toMatchObject({ itemType: "delivery_fee_deduction", status: "void" });
+  });
+
+  test("corrects parcels to delivered without duplicating rider payout items", async () => {
+    const riderSeed = await seedTestRider(testDb.db);
+    const admin = await seedTestUser(testDb.db, { role: "super_admin" });
+    const parcelSeed = await seedTestParcel(testDb.db, {
+      riderId: riderSeed.rider.id,
+      status: "on_the_way",
+      assignedAt: new Date(),
+    });
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.userIds.push(
+      riderSeed.user?.id ?? "",
+      admin.id,
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+    );
+    seededIds.riderIds.push(riderSeed.rider.id);
+    seededIds.townshipIds.push(riderSeed.township.id, parcelSeed.township.id);
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+
+    await testDb.db.insert(financialItems).values({
+      parcelId: parcelSeed.parcel.id,
+      merchantId: parcelSeed.parcel.merchantId,
+      riderId: riderSeed.rider.id,
+      itemType: "rider_way_payout",
+      amount: 1,
+      status: "pending",
+      createdBy: admin.id,
+    });
+
+    const { correctParcelStatus } = await import("@/features/parcels/server/dal");
+    await correctParcelStatus({
+      parcelId: parcelSeed.parcel.id,
+      ...(await getParcelCorrectionExpectation(parcelSeed.parcel.id)),
+      targetStatus: "delivered",
+      targetRiderId: riderSeed.rider.id,
+      proofImageKey: "proof-key",
+      reason: "Delivered status was missed.",
+      actorId: admin.id,
+      actorRole: "super_admin",
+    });
+
+    const relatedItems = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(eq(financialItems.parcelId, parcelSeed.parcel.id));
+    const [updatedParcel] = await testDb.db
+      .select()
+      .from(parcels)
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+
+    expect(updatedParcel).toMatchObject({
+      status: "delivered",
+      collectedAmount: 12_000,
+      codStatus: "collected",
+      deliveryFeeStatus: "collected",
+    });
+    expect(updatedParcel.proofOfDeliveryImagesKeys).toEqual(["proof-key"]);
+    expect(relatedItems.filter((item) => item.itemType === "rider_way_payout")).toHaveLength(1);
+  });
+
+  test("corrects parcels to returned-to-merchant without duplicating deductions", async () => {
+    const riderSeed = await seedTestRider(testDb.db);
+    const admin = await seedTestUser(testDb.db, { role: "office_admin" });
+    const parcelSeed = await seedTestParcel(testDb.db, {
+      riderId: riderSeed.rider.id,
+      status: "canceled_returned",
+      assignedAt: new Date(),
+    });
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.userIds.push(
+      riderSeed.user?.id ?? "",
+      admin.id,
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+    );
+    seededIds.riderIds.push(riderSeed.rider.id);
+    seededIds.townshipIds.push(riderSeed.township.id, parcelSeed.township.id);
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+
+    await testDb.db.insert(financialItems).values({
+      parcelId: parcelSeed.parcel.id,
+      merchantId: parcelSeed.parcel.merchantId,
+      riderId: null,
+      itemType: "delivery_fee_deduction",
+      amount: parcelSeed.parcel.deliveryFee,
+      status: "pending",
+      createdBy: admin.id,
+    });
+
+    const { correctParcelStatus } = await import("@/features/parcels/server/dal");
+    await correctParcelStatus({
+      parcelId: parcelSeed.parcel.id,
+      ...(await getParcelCorrectionExpectation(parcelSeed.parcel.id)),
+      targetStatus: "returned_to_merchant",
+      targetRiderId: riderSeed.rider.id,
+      reason: "Return completion was missed.",
+      actorId: admin.id,
+      actorRole: "office_admin",
+    });
+
+    const relatedItems = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(eq(financialItems.parcelId, parcelSeed.parcel.id));
+    const [updatedParcel] = await testDb.db
+      .select()
+      .from(parcels)
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+
+    expect(updatedParcel).toMatchObject({
+      status: "returned_to_merchant",
+      deliveryFeeStatus: "deduct_from_merchant",
+    });
+    expect(updatedParcel.returnedToMerchantAt).toBeInstanceOf(Date);
+    expect(relatedItems.filter((item) => item.itemType === "delivery_fee_deduction")).toHaveLength(
+      1,
+    );
+  });
+
+  test("corrects between non-financial statuses without creating financial items", async () => {
+    const riderSeed = await seedTestRider(testDb.db);
+    const admin = await seedTestUser(testDb.db, { role: "office_admin" });
+    seededIds.userIds.push(riderSeed.user?.id ?? "", admin.id);
+    seededIds.riderIds.push(riderSeed.rider.id);
+    seededIds.townshipIds.push(riderSeed.township.id);
+    const { correctParcelStatus } = await import("@/features/parcels/server/dal");
+
+    const pairs = [
+      {
+        sourceStatus: "at_office" as const,
+        targetStatus: "on_the_way" as const,
+        initialRiderId: null,
+        targetRiderId: riderSeed.rider.id,
+      },
+      {
+        sourceStatus: "on_the_way" as const,
+        targetStatus: "postpone" as const,
+        initialRiderId: riderSeed.rider.id,
+        targetRiderId: null,
+      },
+      {
+        sourceStatus: "postpone" as const,
+        targetStatus: "at_office" as const,
+        initialRiderId: null,
+        targetRiderId: null,
+      },
+      {
+        sourceStatus: "at_office" as const,
+        targetStatus: "canceled_returned" as const,
+        initialRiderId: null,
+        targetRiderId: null,
+      },
+    ];
+
+    for (const pair of pairs) {
+      const parcelSeed = await seedTestParcel(testDb.db, {
+        riderId: pair.initialRiderId,
+        status: pair.sourceStatus,
+        assignedAt: pair.initialRiderId ? new Date() : null,
+        deliveryFailureNote:
+          pair.sourceStatus === "on_the_way" ? "Receiver asked to retry." : undefined,
+      });
+      seededIds.parcelIds.push(parcelSeed.parcel.id);
+      seededIds.userIds.push(parcelSeed.merchantSeed?.user?.id ?? "", parcelSeed.creator?.id ?? "");
+      seededIds.townshipIds.push(parcelSeed.township.id);
+      seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+
+      await correctParcelStatus({
+        parcelId: parcelSeed.parcel.id,
+        ...(await getParcelCorrectionExpectation(parcelSeed.parcel.id)),
+        targetStatus: pair.targetStatus,
+        targetRiderId: pair.targetRiderId,
+        reason: `Correct ${pair.sourceStatus} to ${pair.targetStatus}.`,
+        actorId: admin.id,
+        actorRole: "office_admin",
+      });
+
+      const relatedItems = await testDb.db
+        .select()
+        .from(financialItems)
+        .where(eq(financialItems.parcelId, parcelSeed.parcel.id));
+      const [updatedParcel] = await testDb.db
+        .select()
+        .from(parcels)
+        .where(eq(parcels.id, parcelSeed.parcel.id));
+
+      expect(updatedParcel.status).toBe(pair.targetStatus);
+      expect(relatedItems).toHaveLength(0);
+    }
+  });
+
+  test("corrects delivered parcel rider and updates pending payout ownership", async () => {
+    const originalRiderSeed = await seedTestRider(testDb.db);
+    const targetRiderSeed = await seedTestRider(testDb.db);
+    const admin = await seedTestUser(testDb.db, { role: "super_admin" });
+    const parcelSeed = await seedTestParcel(testDb.db, {
+      riderId: originalRiderSeed.rider.id,
+      status: "delivered",
+      assignedAt: new Date(),
+      deliveredAt: new Date(),
+      collectedAt: new Date(),
+      collectedAmount: 12_000,
+      codStatus: "collected",
+      deliveryFeeStatus: "collected",
+      proofOfDeliveryImagesKeys: ["proof-key"],
+    });
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.userIds.push(
+      originalRiderSeed.user?.id ?? "",
+      targetRiderSeed.user?.id ?? "",
+      admin.id,
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+    );
+    seededIds.riderIds.push(originalRiderSeed.rider.id, targetRiderSeed.rider.id);
+    seededIds.townshipIds.push(
+      originalRiderSeed.township.id,
+      targetRiderSeed.township.id,
+      parcelSeed.township.id,
+    );
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+
+    await testDb.db.insert(financialItems).values({
+      parcelId: parcelSeed.parcel.id,
+      merchantId: parcelSeed.parcel.merchantId,
+      riderId: originalRiderSeed.rider.id,
+      itemType: "rider_way_payout",
+      amount: 1,
+      status: "pending",
+      createdBy: admin.id,
+    });
+
+    const { correctParcelRider, listParcels, listParcelsForMerchantUser, listParcelsForRiderUser } =
+      await import("@/features/parcels/server/dal");
+    await correctParcelRider({
+      parcelId: parcelSeed.parcel.id,
+      ...(await getParcelCorrectionExpectation(parcelSeed.parcel.id)),
+      targetRiderId: targetRiderSeed.rider.id,
+      reason: "Parcel was assigned to the wrong rider.",
+      actorId: admin.id,
+      actorRole: "super_admin",
+    });
+
+    const [updatedParcel] = await testDb.db
+      .select()
+      .from(parcels)
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+    const [payoutItem] = await testDb.db
+      .select()
+      .from(financialItems)
+      .where(eq(financialItems.parcelId, parcelSeed.parcel.id));
+    const [correctionLog] = await testDb.db
+      .select()
+      .from(parcelCorrectionLogs)
+      .where(eq(parcelCorrectionLogs.parcelId, parcelSeed.parcel.id));
+
+    expect(updatedParcel.riderId).toBe(targetRiderSeed.rider.id);
+    expect(payoutItem.riderId).toBe(targetRiderSeed.rider.id);
+    expect(correctionLog).toMatchObject({
+      correctionType: "rider",
+      oldRiderId: originalRiderSeed.rider.id,
+      newRiderId: targetRiderSeed.rider.id,
+    });
+
+    const [adminParcel] = (await listParcels()).filter((item) => item.id === parcelSeed.parcel.id);
+    const [merchantParcel] = (
+      await listParcelsForMerchantUser(parcelSeed.merchantSeed?.user?.id ?? "")
+    ).filter((item) => item.id === parcelSeed.parcel.id);
+    const [riderParcel] = (await listParcelsForRiderUser(targetRiderSeed.user?.id ?? "")).filter(
+      (item) => item.id === parcelSeed.parcel.id,
+    );
+
+    expect(adminParcel.correctionLogs).toHaveLength(1);
+    expect(merchantParcel.correctionLogs).toHaveLength(0);
+    expect(riderParcel.correctionLogs).toHaveLength(0);
+  });
+
+  test("rejects stale corrections when financial items changed after review", async () => {
+    const admin = await seedTestUser(testDb.db, { role: "office_admin" });
+    const parcelSeed = await seedTestParcel(testDb.db, {
+      status: "at_office",
+    });
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.userIds.push(
+      admin.id,
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+    );
+    seededIds.townshipIds.push(parcelSeed.township.id);
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+
+    const reviewedState = await getParcelCorrectionExpectation(parcelSeed.parcel.id);
+
+    await testDb.db.insert(financialItems).values({
+      parcelId: parcelSeed.parcel.id,
+      merchantId: parcelSeed.parcel.merchantId,
+      riderId: null,
+      itemType: "cod_remit",
+      amount: parcelSeed.parcel.codAmount,
+      status: "pending",
+      createdBy: admin.id,
+    });
+
+    const { correctParcelStatus } = await import("@/features/parcels/server/dal");
+
+    await expectPromiseToRejectWith(
+      correctParcelStatus({
+        parcelId: parcelSeed.parcel.id,
+        ...reviewedState,
+        targetStatus: "postpone",
+        targetRiderId: null,
+        reason: "Reviewed before financial state changed.",
+        actorId: admin.id,
+        actorRole: "office_admin",
+      }),
+      "Parcel changed since you opened it. Refresh and review before correcting.",
+    );
+
+    const correctionRows = await testDb.db
+      .select()
+      .from(parcelCorrectionLogs)
+      .where(eq(parcelCorrectionLogs.parcelId, parcelSeed.parcel.id));
+
+    expect(correctionRows).toHaveLength(0);
+  });
+
+  test("corrects rider on active statuses and blocks unsafe unassignment", async () => {
+    const originalRiderSeed = await seedTestRider(testDb.db);
+    const targetRiderSeed = await seedTestRider(testDb.db);
+    const admin = await seedTestUser(testDb.db, { role: "office_admin" });
+    seededIds.userIds.push(
+      originalRiderSeed.user?.id ?? "",
+      targetRiderSeed.user?.id ?? "",
+      admin.id,
+    );
+    seededIds.riderIds.push(originalRiderSeed.rider.id, targetRiderSeed.rider.id);
+    seededIds.townshipIds.push(originalRiderSeed.township.id, targetRiderSeed.township.id);
+    const { correctParcelRider } = await import("@/features/parcels/server/dal");
+
+    const atOfficeParcelSeed = await seedTestParcel(testDb.db, {
+      riderId: originalRiderSeed.rider.id,
+      status: "at_office",
+      assignedAt: new Date(),
+    });
+    const onTheWayParcelSeed = await seedTestParcel(testDb.db, {
+      riderId: originalRiderSeed.rider.id,
+      status: "on_the_way",
+      assignedAt: new Date(),
+    });
+    seededIds.parcelIds.push(atOfficeParcelSeed.parcel.id, onTheWayParcelSeed.parcel.id);
+    seededIds.userIds.push(
+      atOfficeParcelSeed.merchantSeed?.user?.id ?? "",
+      atOfficeParcelSeed.creator?.id ?? "",
+      onTheWayParcelSeed.merchantSeed?.user?.id ?? "",
+      onTheWayParcelSeed.creator?.id ?? "",
+    );
+    seededIds.townshipIds.push(atOfficeParcelSeed.township.id, onTheWayParcelSeed.township.id);
+    seededIds.merchantIds.push(
+      atOfficeParcelSeed.merchantSeed?.merchant.id ?? "",
+      onTheWayParcelSeed.merchantSeed?.merchant.id ?? "",
+    );
+
+    await correctParcelRider({
+      parcelId: atOfficeParcelSeed.parcel.id,
+      ...(await getParcelCorrectionExpectation(atOfficeParcelSeed.parcel.id)),
+      targetRiderId: null,
+      reason: "Parcel should be unassigned.",
+      actorId: admin.id,
+      actorRole: "office_admin",
+    });
+    await correctParcelRider({
+      parcelId: onTheWayParcelSeed.parcel.id,
+      ...(await getParcelCorrectionExpectation(onTheWayParcelSeed.parcel.id)),
+      targetRiderId: targetRiderSeed.rider.id,
+      reason: "Parcel was with the wrong rider.",
+      actorId: admin.id,
+      actorRole: "office_admin",
+    });
+
+    await expectPromiseToRejectWith(
+      correctParcelRider({
+        parcelId: onTheWayParcelSeed.parcel.id,
+        ...(await getParcelCorrectionExpectation(onTheWayParcelSeed.parcel.id)),
+        targetRiderId: null,
+        reason: "Unsafe unassign attempt.",
+        actorId: admin.id,
+        actorRole: "office_admin",
+      }),
+      "This parcel status requires an active rider assignment.",
+    );
+
+    const [atOfficeParcel] = await testDb.db
+      .select()
+      .from(parcels)
+      .where(eq(parcels.id, atOfficeParcelSeed.parcel.id));
+    const [onTheWayParcel] = await testDb.db
+      .select()
+      .from(parcels)
+      .where(eq(parcels.id, onTheWayParcelSeed.parcel.id));
+
+    expect(atOfficeParcel.riderId).toBeNull();
+    expect(onTheWayParcel.riderId).toBe(targetRiderSeed.rider.id);
+  });
+
+  test("blocks rider corrections when payout items are reserved", async () => {
+    const originalRiderSeed = await seedTestRider(testDb.db);
+    const targetRiderSeed = await seedTestRider(testDb.db);
+    const admin = await seedTestUser(testDb.db, { role: "super_admin" });
+    const parcelSeed = await seedTestParcel(testDb.db, {
+      riderId: originalRiderSeed.rider.id,
+      status: "delivered",
+      assignedAt: new Date(),
+      deliveredAt: new Date(),
+      collectedAt: new Date(),
+      collectedAmount: 12_000,
+      codStatus: "collected",
+      deliveryFeeStatus: "collected",
+      proofOfDeliveryImagesKeys: ["proof-key"],
+    });
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.userIds.push(
+      originalRiderSeed.user?.id ?? "",
+      targetRiderSeed.user?.id ?? "",
+      admin.id,
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+    );
+    seededIds.riderIds.push(originalRiderSeed.rider.id, targetRiderSeed.rider.id);
+    seededIds.townshipIds.push(
+      originalRiderSeed.township.id,
+      targetRiderSeed.township.id,
+      parcelSeed.township.id,
+    );
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+
+    await testDb.db.insert(financialItems).values({
+      parcelId: parcelSeed.parcel.id,
+      merchantId: parcelSeed.parcel.merchantId,
+      riderId: originalRiderSeed.rider.id,
+      itemType: "rider_way_payout",
+      amount: 1,
+      status: "in_progress",
+      createdBy: admin.id,
+    });
+
+    const { correctParcelRider } = await import("@/features/parcels/server/dal");
+
+    await expectPromiseToRejectWith(
+      correctParcelRider({
+        parcelId: parcelSeed.parcel.id,
+        ...(await getParcelCorrectionExpectation(parcelSeed.parcel.id)),
+        targetRiderId: targetRiderSeed.rider.id,
+        reason: "Wrong rider.",
+        actorId: admin.id,
+        actorRole: "super_admin",
+      }),
+      "This parcel has rider payout items already reserved or settled. Reverse those records before correcting the rider.",
+    );
+  });
+
+  test("blocks corrections when financial items are reserved", async () => {
+    const riderSeed = await seedTestRider(testDb.db);
+    const admin = await seedTestUser(testDb.db, { role: "super_admin" });
+    const parcelSeed = await seedTestParcel(testDb.db, {
+      riderId: riderSeed.rider.id,
+      status: "delivered",
+      assignedAt: new Date(),
+      deliveredAt: new Date(),
+      collectedAt: new Date(),
+      collectedAmount: 12_000,
+      codStatus: "collected",
+      deliveryFeeStatus: "collected",
+      proofOfDeliveryImagesKeys: ["proof-key"],
+    });
+    const [settlement] = await testDb.db
+      .insert(merchantSettlements)
+      .values({
+        settlementCode: `MS-${crypto.randomUUID()}`,
+        merchantId: parcelSeed.parcel.merchantId,
+        status: "pending",
+        createdBy: admin.id,
+      })
+      .returning();
+    seededIds.parcelIds.push(parcelSeed.parcel.id);
+    seededIds.settlementIds.push(settlement.id);
+    seededIds.userIds.push(
+      riderSeed.user?.id ?? "",
+      admin.id,
+      parcelSeed.merchantSeed?.user?.id ?? "",
+      parcelSeed.creator?.id ?? "",
+    );
+    seededIds.riderIds.push(riderSeed.rider.id);
+    seededIds.townshipIds.push(riderSeed.township.id, parcelSeed.township.id);
+    seededIds.merchantIds.push(parcelSeed.merchantSeed?.merchant.id ?? "");
+
+    await testDb.db.insert(financialItems).values({
+      parcelId: parcelSeed.parcel.id,
+      merchantId: parcelSeed.parcel.merchantId,
+      riderId: null,
+      merchantSettlementId: settlement.id,
+      itemType: "cod_remit",
+      amount: parcelSeed.parcel.codAmount,
+      status: "in_progress",
+      createdBy: admin.id,
+    });
+
+    const { correctParcelStatus } = await import("@/features/parcels/server/dal");
+
+    await expectPromiseToRejectWith(
+      correctParcelStatus({
+        parcelId: parcelSeed.parcel.id,
+        ...(await getParcelCorrectionExpectation(parcelSeed.parcel.id)),
+        targetStatus: "at_office",
+        targetRiderId: null,
+        reason: "Wrong delivered status.",
+        actorId: admin.id,
+        actorRole: "super_admin",
+      }),
+      "This parcel has financial items already reserved or settled. Reverse those records before correcting the parcel.",
+    );
+
+    const [unchangedParcel] = await testDb.db
+      .select()
+      .from(parcels)
+      .where(eq(parcels.id, parcelSeed.parcel.id));
+    const correctionRows = await testDb.db
+      .select()
+      .from(parcelCorrectionLogs)
+      .where(eq(parcelCorrectionLogs.parcelId, parcelSeed.parcel.id));
+
+    expect(unchangedParcel.status).toBe("delivered");
+    expect(correctionRows).toHaveLength(0);
+  });
+
   test("updates user profiles across rider-specific branches", async () => {
     const townshipA = await seedTestTownship(testDb.db, { name: uniqueTownshipName("A") });
     const townshipB = await seedTestTownship(testDb.db, { name: uniqueTownshipName("B") });
@@ -1606,6 +2372,21 @@ function uniqueTownshipName(suffix: string) {
 
 function uniquePhoneNumber() {
   return `09${Math.floor(10_000_000 + Math.random() * 89_999_999)}`;
+}
+
+async function getParcelCorrectionExpectation(parcelId: string) {
+  const { listParcels } = await import("@/features/parcels/server/dal");
+  const parcel = (await listParcels()).find((item) => item.id === parcelId);
+
+  if (!parcel) {
+    throw new Error(`Parcel ${parcelId} was not found for correction expectation.`);
+  }
+
+  return {
+    expectedStatus: parcel.status,
+    expectedRiderId: parcel.riderId,
+    expectedFinancialItemsFingerprint: parcel.correctionStateToken,
+  };
 }
 
 async function expectPromiseToRejectWith(promise: Promise<unknown>, message: string) {

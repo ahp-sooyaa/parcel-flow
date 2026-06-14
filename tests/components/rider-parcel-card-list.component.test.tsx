@@ -28,15 +28,20 @@ const markRiderParcelReturnedToMerchantActionMock = mock(async () => ({
   message: "Parcel returned to merchant.",
 }));
 let deliveredRequestInput: BodyInit | null | undefined;
-const fetchMock: typeof fetch = mock(async (_input: RequestInfo | URL, init?: RequestInit) => {
-  deliveredRequestInput = init?.body;
+const fetchMock = Object.assign(
+  mock(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    deliveredRequestInput = init?.body;
 
-  return new Response(JSON.stringify({ ok: true, message: "Parcel marked delivered." }), {
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-});
+    return new Response(JSON.stringify({ ok: true, message: "Parcel marked delivered." }), {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+  }),
+  {
+    preconnect: mock((_input: string | URL) => undefined),
+  },
+);
 
 void mock.module("@/lib/client-navigation", () => ({
   useAppRouter: () => ({

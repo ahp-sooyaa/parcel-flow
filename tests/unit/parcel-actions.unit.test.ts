@@ -6,6 +6,8 @@ const getSessionMock = mock(async () => buildSessionUser({ role: "super_admin" }
 const headersMock = mock(async () => new Headers());
 const createParcelMock = mock(async () => ({ id: "parcel-id", parcelCode: "PF-000001-000001" }));
 const assignParcelsToRiderMock = mock(async () => undefined);
+const correctParcelStatusMock = mock(async () => undefined);
+const correctParcelRiderMock = mock(async () => undefined);
 const startDeliveryForRiderParcelsMock = mock(async () => undefined);
 const reportDeliveryFailureForRiderParcelMock = mock(async () => undefined);
 const updateDeliveryFailureForRiderParcelMock = mock(async () => undefined);
@@ -13,6 +15,8 @@ const deleteDeliveryFailureForRiderParcelMock = mock(async () => undefined);
 const markRiderParcelReturnedToMerchantMock = mock(async () => undefined);
 const resolveFailedParcelByAdminMock = mock(async () => undefined);
 const updateParcelMock = mock(async () => undefined);
+const uploadDeliveryProofImageMock = mock(async () => "parcels/test/proof.jpg");
+const deleteDeliveryProofImageMock = mock(async () => undefined);
 const revalidatePathMock = mock(() => undefined);
 
 void mock.module("@/lib/auth", () => ({
@@ -29,6 +33,8 @@ void mock.module("next/headers", () => ({
 
 void mock.module("@/features/parcels/server/dal", () => ({
   assignParcelsToRider: assignParcelsToRiderMock,
+  correctParcelRider: correctParcelRiderMock,
+  correctParcelStatus: correctParcelStatusMock,
   createParcel: createParcelMock,
   deleteDeliveryFailureForRiderParcel: deleteDeliveryFailureForRiderParcelMock,
   markRiderParcelReturnedToMerchant: markRiderParcelReturnedToMerchantMock,
@@ -39,6 +45,11 @@ void mock.module("@/features/parcels/server/dal", () => ({
   updateParcel: updateParcelMock,
 }));
 
+void mock.module("@/features/parcels/server/upload", () => ({
+  deleteDeliveryProofImage: deleteDeliveryProofImageMock,
+  uploadDeliveryProofImage: uploadDeliveryProofImageMock,
+}));
+
 void mock.module("next/cache", () => ({
   revalidatePath: revalidatePathMock,
 }));
@@ -46,6 +57,8 @@ void mock.module("next/cache", () => ({
 describe("parcel server actions", async () => {
   const {
     assignParcelsToRiderAction,
+    correctParcelRiderAction,
+    correctParcelStatusAction,
     createParcelAction,
     deleteDeliveryFailureForRiderParcelAction,
     markRiderParcelReturnedToMerchantAction,
@@ -61,6 +74,8 @@ describe("parcel server actions", async () => {
     headersMock.mockReset();
     createParcelMock.mockReset();
     assignParcelsToRiderMock.mockReset();
+    correctParcelStatusMock.mockReset();
+    correctParcelRiderMock.mockReset();
     startDeliveryForRiderParcelsMock.mockReset();
     reportDeliveryFailureForRiderParcelMock.mockReset();
     updateDeliveryFailureForRiderParcelMock.mockReset();
@@ -68,11 +83,15 @@ describe("parcel server actions", async () => {
     markRiderParcelReturnedToMerchantMock.mockReset();
     resolveFailedParcelByAdminMock.mockReset();
     updateParcelMock.mockReset();
+    uploadDeliveryProofImageMock.mockReset();
+    deleteDeliveryProofImageMock.mockReset();
     revalidatePathMock.mockReset();
     getSessionMock.mockResolvedValue(buildSessionUser({ id: "actor-id", role: "super_admin" }));
     headersMock.mockResolvedValue(new Headers());
     createParcelMock.mockResolvedValue({ id: "parcel-id", parcelCode: "PF-000001-000001" });
     assignParcelsToRiderMock.mockResolvedValue(undefined);
+    correctParcelStatusMock.mockResolvedValue(undefined);
+    correctParcelRiderMock.mockResolvedValue(undefined);
     startDeliveryForRiderParcelsMock.mockResolvedValue(undefined);
     reportDeliveryFailureForRiderParcelMock.mockResolvedValue(undefined);
     updateDeliveryFailureForRiderParcelMock.mockResolvedValue(undefined);
@@ -80,6 +99,8 @@ describe("parcel server actions", async () => {
     markRiderParcelReturnedToMerchantMock.mockResolvedValue(undefined);
     resolveFailedParcelByAdminMock.mockResolvedValue(undefined);
     updateParcelMock.mockResolvedValue(undefined);
+    uploadDeliveryProofImageMock.mockResolvedValue("parcels/test/proof.jpg");
+    deleteDeliveryProofImageMock.mockResolvedValue(undefined);
   });
 
   test("rejects invalid parcel creation input before persistence", async () => {
@@ -220,6 +241,198 @@ describe("parcel server actions", async () => {
     expect(result).toEqual({
       ok: false,
       message: "Only unassigned at-office, postponed, or returned parcels can be assigned.",
+    });
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  test("corrects parcel status and revalidates affected read models", async () => {
+    const result = await correctParcelStatusAction({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+      expectedStatus: "at_office",
+      expectedRiderId: null,
+      expectedFinancialItemsFingerprint: "state-token",
+      targetStatus: "on_the_way",
+      targetRiderId: "00000000-0000-4000-8000-000000000002",
+      reason: "Wrong status selected.",
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Parcel status corrected.",
+    });
+    expect(correctParcelStatusMock).toHaveBeenCalledWith({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+      expectedStatus: "at_office",
+      expectedRiderId: null,
+      expectedFinancialItemsFingerprint: "state-token",
+      targetStatus: "on_the_way",
+      targetRiderId: "00000000-0000-4000-8000-000000000002",
+      proofImageKey: undefined,
+      reason: "Wrong status selected.",
+      actorId: "actor-id",
+      actorRole: "super_admin",
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/parcels");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/settlements");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/rider-payouts");
+  });
+
+  test("uploads delivered correction proof image before correcting status", async () => {
+    const formData = new FormData();
+    const proofImage = new File(["proof"], "proof.jpg", { type: "image/jpeg" });
+    formData.set("parcelId", "00000000-0000-4000-8000-000000000001");
+    formData.set("expectedStatus", "on_the_way");
+    formData.set("expectedRiderId", "00000000-0000-4000-8000-000000000002");
+    formData.set("expectedFinancialItemsFingerprint", "state-token");
+    formData.set("targetStatus", "delivered");
+    formData.set("targetRiderId", "00000000-0000-4000-8000-000000000002");
+    formData.set("reason", "Delivered status was missed.");
+    formData.set("proofImage", proofImage);
+
+    const result = await correctParcelStatusAction(formData);
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Parcel status corrected.",
+    });
+    expect(uploadDeliveryProofImageMock).toHaveBeenCalledWith({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+      file: proofImage,
+    });
+    expect(correctParcelStatusMock).toHaveBeenCalledWith({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+      expectedStatus: "on_the_way",
+      expectedRiderId: "00000000-0000-4000-8000-000000000002",
+      expectedFinancialItemsFingerprint: "state-token",
+      targetStatus: "delivered",
+      targetRiderId: "00000000-0000-4000-8000-000000000002",
+      proofImageKey: "parcels/test/proof.jpg",
+      reason: "Delivered status was missed.",
+      actorId: "actor-id",
+      actorRole: "super_admin",
+    });
+    expect(deleteDeliveryProofImageMock).not.toHaveBeenCalled();
+  });
+
+  test("ignores proof images submitted for non-delivered status corrections", async () => {
+    const formData = new FormData();
+    const proofImage = new File(["proof"], "proof.jpg", { type: "image/jpeg" });
+    formData.set("parcelId", "00000000-0000-4000-8000-000000000001");
+    formData.set("expectedStatus", "on_the_way");
+    formData.set("expectedRiderId", "00000000-0000-4000-8000-000000000002");
+    formData.set("expectedFinancialItemsFingerprint", "state-token");
+    formData.set("targetStatus", "at_office");
+    formData.set("targetRiderId", "");
+    formData.set("reason", "Delivered proof was submitted with the wrong target.");
+    formData.set("proofImage", proofImage);
+
+    const result = await correctParcelStatusAction(formData);
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Parcel status corrected.",
+    });
+    expect(uploadDeliveryProofImageMock).not.toHaveBeenCalled();
+    expect(deleteDeliveryProofImageMock).not.toHaveBeenCalled();
+    expect(correctParcelStatusMock).toHaveBeenCalledWith({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+      expectedStatus: "on_the_way",
+      expectedRiderId: "00000000-0000-4000-8000-000000000002",
+      expectedFinancialItemsFingerprint: "state-token",
+      targetStatus: "at_office",
+      targetRiderId: null,
+      proofImageKey: undefined,
+      reason: "Delivered proof was submitted with the wrong target.",
+      actorId: "actor-id",
+      actorRole: "super_admin",
+    });
+  });
+
+  test("deletes uploaded delivered correction proof when persistence rejects", async () => {
+    correctParcelStatusMock.mockRejectedValue(
+      new Error("Parcel changed since you opened it. Refresh and review before correcting."),
+    );
+    const formData = new FormData();
+    const proofImage = new File(["proof"], "proof.jpg", { type: "image/jpeg" });
+    formData.set("parcelId", "00000000-0000-4000-8000-000000000001");
+    formData.set("expectedStatus", "on_the_way");
+    formData.set("expectedRiderId", "00000000-0000-4000-8000-000000000002");
+    formData.set("expectedFinancialItemsFingerprint", "state-token");
+    formData.set("targetStatus", "delivered");
+    formData.set("targetRiderId", "00000000-0000-4000-8000-000000000002");
+    formData.set("reason", "Delivered status was missed.");
+    formData.set("proofImage", proofImage);
+
+    const result = await correctParcelStatusAction(formData);
+
+    expect(result).toEqual({
+      ok: false,
+      message: "Parcel changed since you opened it. Refresh and review before correcting.",
+    });
+    expect(deleteDeliveryProofImageMock).toHaveBeenCalledWith("parcels/test/proof.jpg");
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  test("rejects invalid parcel status corrections before persistence", async () => {
+    const result = await correctParcelStatusAction({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+      expectedStatus: "on_the_way",
+      expectedRiderId: "00000000-0000-4000-8000-000000000002",
+      expectedFinancialItemsFingerprint: "state-token",
+      targetStatus: "delivered",
+      reason: "",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(correctParcelStatusMock).not.toHaveBeenCalled();
+  });
+
+  test("rejects parcel corrections from merchant users", async () => {
+    getSessionMock.mockResolvedValue(buildSessionUser({ role: "merchant" }));
+
+    const result = await correctParcelRiderAction({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+      expectedStatus: "at_office",
+      expectedRiderId: "00000000-0000-4000-8000-000000000002",
+      expectedFinancialItemsFingerprint: "state-token",
+      targetRiderId: null,
+      reason: "Wrong rider selected.",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message: "You do not have permission to correct parcels.",
+    });
+    expect(correctParcelRiderMock).not.toHaveBeenCalled();
+  });
+
+  test("corrects parcel rider and returns DAL errors", async () => {
+    correctParcelRiderMock.mockRejectedValue(
+      new Error("This parcel status requires an active rider assignment."),
+    );
+
+    const result = await correctParcelRiderAction({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+      expectedStatus: "on_the_way",
+      expectedRiderId: "00000000-0000-4000-8000-000000000002",
+      expectedFinancialItemsFingerprint: "state-token",
+      targetRiderId: null,
+      reason: "Wrong rider selected.",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message: "This parcel status requires an active rider assignment.",
+    });
+    expect(correctParcelRiderMock).toHaveBeenCalledWith({
+      parcelId: "00000000-0000-4000-8000-000000000001",
+      expectedStatus: "on_the_way",
+      expectedRiderId: "00000000-0000-4000-8000-000000000002",
+      expectedFinancialItemsFingerprint: "state-token",
+      targetRiderId: null,
+      reason: "Wrong rider selected.",
+      actorId: "actor-id",
+      actorRole: "super_admin",
     });
     expect(revalidatePathMock).not.toHaveBeenCalled();
   });

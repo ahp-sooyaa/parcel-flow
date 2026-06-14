@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import type { ParcelFailureNoteEntry } from "@/features/parcels/server/failure-notes";
-import type { ParcelStatus, ParcelType } from "@/lib/domain";
+import { parcelStatuses, type ParcelStatus, type ParcelType } from "@/lib/domain";
 
 function isNonNegativeIntegerString(value: string) {
   const numberValue = Number(value);
@@ -104,6 +104,70 @@ export type UpdateParcelInputDto = CreateParcelInputDto & {
   id: string;
 };
 
+const correctionRiderIdSchema = z.preprocess(
+  (value) => (value === "" ? null : value),
+  z.uuid("Invalid rider selection.").nullable(),
+);
+
+const optionalCorrectionRiderIdSchema = z.preprocess(
+  (value) => (value === "" ? null : value),
+  z.uuid("Invalid rider selection.").nullable().optional(),
+);
+
+const correctionReasonSchema = z.string().trim().min(1, "Correction reason is required.");
+
+export const correctParcelStatusInputSchema = z.object({
+  parcelId: z.uuid("Invalid parcel selection."),
+  expectedStatus: z.enum(parcelStatuses),
+  expectedRiderId: correctionRiderIdSchema,
+  expectedFinancialItemsFingerprint: z.string().trim().min(1, "Parcel state is stale."),
+  targetStatus: z.enum(parcelStatuses),
+  targetRiderId: optionalCorrectionRiderIdSchema,
+  proofImageKey: z
+    .string()
+    .trim()
+    .transform((value) => (value && value.length > 0 ? value : undefined))
+    .optional(),
+  reason: correctionReasonSchema,
+});
+
+export type CorrectParcelStatusInputDto = z.infer<typeof correctParcelStatusInputSchema>;
+
+export const correctParcelRiderInputSchema = z.object({
+  parcelId: z.uuid("Invalid parcel selection."),
+  expectedStatus: z.enum(parcelStatuses),
+  expectedRiderId: correctionRiderIdSchema,
+  expectedFinancialItemsFingerprint: z.string().trim().min(1, "Parcel state is stale."),
+  targetRiderId: z.preprocess(
+    (value) => (value === "" ? null : value),
+    z.uuid("Invalid rider selection.").nullable(),
+  ),
+  reason: correctionReasonSchema,
+});
+
+export type CorrectParcelRiderInputDto = z.infer<typeof correctParcelRiderInputSchema>;
+
+export type ParcelCorrectionType = "status" | "rider";
+
+export type ParcelCorrectionSideEffectsDto = {
+  summary: string[];
+};
+
+export type ParcelCorrectionLogDto = {
+  id: string;
+  correctionType: ParcelCorrectionType;
+  oldStatus: ParcelStatus | null;
+  newStatus: ParcelStatus | null;
+  oldRiderId: string | null;
+  oldRiderName: string | null;
+  newRiderId: string | null;
+  newRiderName: string | null;
+  reason: string;
+  sideEffects: ParcelCorrectionSideEffectsDto;
+  createdByName: string | null;
+  createdAt: string;
+};
+
 export type ParcelListItemDto = {
   id: string;
   parcelCode: string;
@@ -129,6 +193,8 @@ export type ParcelListItemDto = {
   riderName: string | null;
   status: ParcelStatus;
   hasUnresolvedFailureReview: boolean;
+  correctionStateToken: string;
+  correctionLogs: ParcelCorrectionLogDto[];
   createdAt: string;
 };
 

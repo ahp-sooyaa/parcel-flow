@@ -1,4 +1,4 @@
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 function requireR2Config() {
   const accountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID;
@@ -57,4 +57,16 @@ export async function uploadDeliveryProofImage(input: { parcelId: string; file: 
   );
 
   return objectKey;
+}
+
+export async function deleteDeliveryProofImage(objectKey: string) {
+  const config = requireR2Config();
+  const client = createR2Client(config);
+
+  await client.send(
+    new DeleteObjectCommand({
+      Bucket: config.bucketName,
+      Key: objectKey,
+    }),
+  );
 }

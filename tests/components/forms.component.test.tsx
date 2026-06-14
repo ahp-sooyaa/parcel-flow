@@ -312,7 +312,7 @@ function getInputByLabel(label: string) {
 async function chooseSelectOption(label: string, optionName: string) {
   const user = userEvent.setup();
   await user.click(screen.getByLabelText(new RegExp(`${escapeRegExp(label)}\\s*\\*?`, "i")));
-  await user.click(screen.getByRole("option", { name: optionName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
 }
 
 async function chooseComboboxOption(label: string, optionName: string) {

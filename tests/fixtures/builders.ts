@@ -92,6 +92,8 @@ export function buildParcelListItem(overrides: Partial<ParcelListItemDto> = {}):
     status: overrides.status ?? "at_office",
     riderName: overrides.riderName ?? null,
     hasUnresolvedFailureReview: overrides.hasUnresolvedFailureReview ?? false,
+    correctionStateToken: overrides.correctionStateToken ?? "test-correction-state-token",
+    correctionLogs: overrides.correctionLogs ?? [],
     createdAt: overrides.createdAt ?? "2026-01-01",
   };
 }

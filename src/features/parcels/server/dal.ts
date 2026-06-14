@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { and, desc, eq, gte, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -7,14 +9,19 @@ import {
   financialItems,
   merchants,
   parcels,
+  parcelCorrectionLogs,
   parcelStatusLogs,
   riders,
   townships,
 } from "@/db/schema";
 import type {
+  CorrectParcelRiderInputDto,
+  CorrectParcelStatusInputDto,
   CreateParcelInputDto,
   MerchantParcelListFiltersDto,
   MerchantParcelListPageDto,
+  ParcelCorrectionLogDto,
+  ParcelCorrectionSideEffectsDto,
   ParcelListItemDto,
   ParcelSummaryDto,
   UpdateParcelInputDto,
@@ -33,37 +40,41 @@ import {
   isActiveCollectionStatus,
 } from "@/features/parcels/server/utils";
 import { parcelStatuses } from "@/lib/domain";
-import type { ParcelStatus, UserRole } from "@/lib/domain";
+import type { FinancialItemType, ParcelStatus, UserRole } from "@/lib/domain";
 import { canChangeParcelStatus } from "@/lib/permissions";
 
 const parcelStatusSchema = z.enum(parcelStatuses);
 const assignmentEligibleStatuses = ["at_office", "postpone", "canceled_returned"] as const;
 
-function mapParcel(row: {
-  id: string;
-  parcelCode: string;
-  merchantId: string;
-  merchantName: string;
-  receiverName: string;
-  receiverPhoneNumber: string;
-  receiverAddress: string;
-  specialNotes: string | null;
-  deliveryFailureNote: unknown;
-  townshipId: string;
-  townshipName: string;
-  parcelType: string;
-  codAmount: number;
-  deliveryFee: number;
-  weightKg: string;
-  parcelWidthCm: string | null;
-  parcelHeightCm: string | null;
-  parcelLengthCm: string | null;
-  proofOfDeliveryImagesKeys: string[] | null;
-  riderId: string | null;
-  riderName: string | null;
-  status: string;
-  createdAt: Date;
-}): ParcelListItemDto {
+function mapParcel(
+  row: {
+    id: string;
+    parcelCode: string;
+    merchantId: string;
+    merchantName: string;
+    receiverName: string;
+    receiverPhoneNumber: string;
+    receiverAddress: string;
+    specialNotes: string | null;
+    deliveryFailureNote: unknown;
+    townshipId: string;
+    townshipName: string;
+    parcelType: string;
+    codAmount: number;
+    deliveryFee: number;
+    weightKg: string;
+    parcelWidthCm: string | null;
+    parcelHeightCm: string | null;
+    parcelLengthCm: string | null;
+    proofOfDeliveryImagesKeys: string[] | null;
+    riderId: string | null;
+    riderName: string | null;
+    status: string;
+    createdAt: Date;
+  },
+  correctionLogs: ParcelCorrectionLogDto[] = [],
+  correctionStateToken = createFinancialItemsFingerprint([]),
+): ParcelListItemDto {
   const failureNotes = parseParcelFailureNotes(row.deliveryFailureNote);
   const activeFailureNote = getActiveParcelFailureNote(failureNotes);
 
@@ -93,8 +104,37 @@ function mapParcel(row: {
     status: parcelStatusSchema.parse(row.status),
     hasUnresolvedFailureReview:
       row.status === "on_the_way" && row.riderId !== null && activeFailureNote !== null,
+    correctionStateToken,
+    correctionLogs,
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+function parseNullableParcelStatus(status: string | null): ParcelStatus | null {
+  if (status === null) {
+    return null;
+  }
+
+  return parcelStatusSchema.parse(status);
+}
+
+function hasSummaryArray(value: unknown): value is { summary: unknown[] } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "summary" in value &&
+    Array.isArray(value.summary)
+  );
+}
+
+function parseCorrectionSideEffects(value: unknown): ParcelCorrectionSideEffectsDto {
+  if (hasSummaryArray(value)) {
+    return {
+      summary: value.summary.filter((item): item is string => typeof item === "string"),
+    };
+  }
+
+  return { summary: [] };
 }
 
 export type ParcelRealtimeViewerScope =
@@ -175,7 +215,7 @@ export async function listMerchantParcelsPageForUser(
     .offset(offset);
 
   return {
-    parcels: rows.map(mapParcel),
+    parcels: rows.map((row) => mapParcel(row)),
     page,
     pageSize: filters.pageSize,
     totalCount,
@@ -233,7 +273,24 @@ export async function getParcelByIdForRealtimeScope(
     )
     .limit(1);
 
-  return row ? mapParcel(row) : null;
+  if (!row) {
+    return null;
+  }
+
+  if (scope.role !== "super_admin" && scope.role !== "office_admin") {
+    return mapParcel(row);
+  }
+
+  const [correctionLogs, correctionStateTokens] = await Promise.all([
+    getCorrectionLogsByParcelIds([row.id]),
+    getFinancialItemFingerprintsByParcelIds([row.id]),
+  ]);
+
+  return mapParcel(
+    row,
+    correctionLogs.get(row.id) ?? [],
+    correctionStateTokens.get(row.id) ?? createFinancialItemsFingerprint([]),
+  );
 }
 
 async function listParcelsByScope(scope: {
@@ -279,7 +336,22 @@ async function listParcelsByScope(scope: {
       ),
     );
 
-  return rows.map(mapParcel);
+  if (scope.merchantUserId || scope.riderUserId) {
+    return rows.map((row) => mapParcel(row));
+  }
+
+  const [correctionLogs, correctionStateTokens] = await Promise.all([
+    getCorrectionLogsByParcelIds(rows.map((row) => row.id)),
+    getFinancialItemFingerprintsByParcelIds(rows.map((row) => row.id)),
+  ]);
+
+  return rows.map((row) =>
+    mapParcel(
+      row,
+      correctionLogs.get(row.id) ?? [],
+      correctionStateTokens.get(row.id) ?? createFinancialItemsFingerprint([]),
+    ),
+  );
 }
 
 function buildMerchantParcelWhere(userId: string, filters: MerchantParcelListFiltersDto) {
@@ -310,6 +382,123 @@ function getDayRange(day: string) {
   end.setUTCDate(end.getUTCDate() + 1);
 
   return { start, end };
+}
+
+async function getCorrectionLogsByParcelIds(parcelIds: string[]) {
+  const correctionLogMap = new Map<string, ParcelCorrectionLogDto[]>();
+  const uniqueParcelIds = Array.from(new Set(parcelIds));
+
+  if (uniqueParcelIds.length === 0) {
+    return correctionLogMap;
+  }
+
+  const rows = await db
+    .select({
+      id: parcelCorrectionLogs.id,
+      parcelId: parcelCorrectionLogs.parcelId,
+      correctionType: parcelCorrectionLogs.correctionType,
+      oldStatus: parcelCorrectionLogs.oldStatus,
+      newStatus: parcelCorrectionLogs.newStatus,
+      oldRiderId: parcelCorrectionLogs.oldRiderId,
+      newRiderId: parcelCorrectionLogs.newRiderId,
+      reason: parcelCorrectionLogs.reason,
+      sideEffects: parcelCorrectionLogs.sideEffects,
+      createdBy: parcelCorrectionLogs.createdBy,
+      createdAt: parcelCorrectionLogs.createdAt,
+    })
+    .from(parcelCorrectionLogs)
+    .where(inArray(parcelCorrectionLogs.parcelId, uniqueParcelIds))
+    .orderBy(desc(parcelCorrectionLogs.createdAt));
+
+  const riderIds = Array.from(
+    new Set(
+      rows
+        .flatMap((row) => [row.oldRiderId, row.newRiderId])
+        .filter((riderId): riderId is string => riderId !== null),
+    ),
+  );
+  const actorIds = Array.from(
+    new Set(rows.map((row) => row.createdBy).filter((userId): userId is string => userId !== null)),
+  );
+
+  const riderNameRows =
+    riderIds.length > 0
+      ? await db
+          .select({ riderId: riders.id, riderName: appUsers.name })
+          .from(riders)
+          .innerJoin(appUsers, eq(appUsers.id, riders.userId))
+          .where(inArray(riders.id, riderIds))
+      : [];
+  const actorNameRows =
+    actorIds.length > 0
+      ? await db
+          .select({ userId: appUsers.id, userName: appUsers.name })
+          .from(appUsers)
+          .where(inArray(appUsers.id, actorIds))
+      : [];
+
+  const riderNameMap = new Map(riderNameRows.map((row) => [row.riderId, row.riderName]));
+  const actorNameMap = new Map(actorNameRows.map((row) => [row.userId, row.userName]));
+
+  for (const row of rows) {
+    const correctionLog: ParcelCorrectionLogDto = {
+      id: row.id,
+      correctionType: row.correctionType === "rider" ? "rider" : "status",
+      oldStatus: parseNullableParcelStatus(row.oldStatus),
+      newStatus: parseNullableParcelStatus(row.newStatus),
+      oldRiderId: row.oldRiderId,
+      oldRiderName: row.oldRiderId ? (riderNameMap.get(row.oldRiderId) ?? null) : null,
+      newRiderId: row.newRiderId,
+      newRiderName: row.newRiderId ? (riderNameMap.get(row.newRiderId) ?? null) : null,
+      reason: row.reason,
+      sideEffects: parseCorrectionSideEffects(row.sideEffects),
+      createdByName: row.createdBy ? (actorNameMap.get(row.createdBy) ?? null) : null,
+      createdAt: row.createdAt.toISOString(),
+    };
+
+    const parcelLogs = correctionLogMap.get(row.parcelId) ?? [];
+    parcelLogs.push(correctionLog);
+    correctionLogMap.set(row.parcelId, parcelLogs);
+  }
+
+  return correctionLogMap;
+}
+
+async function getFinancialItemFingerprintsByParcelIds(parcelIds: string[]) {
+  const fingerprintMap = new Map<string, string>();
+  const uniqueParcelIds = Array.from(new Set(parcelIds));
+
+  if (uniqueParcelIds.length === 0) {
+    return fingerprintMap;
+  }
+
+  const rows = await db
+    .select({
+      id: financialItems.id,
+      parcelId: financialItems.parcelId,
+      riderId: financialItems.riderId,
+      itemType: financialItems.itemType,
+      amount: financialItems.amount,
+      status: financialItems.status,
+      merchantSettlementId: financialItems.merchantSettlementId,
+      riderPayoutId: financialItems.riderPayoutId,
+      updatedAt: financialItems.updatedAt,
+    })
+    .from(financialItems)
+    .where(inArray(financialItems.parcelId, uniqueParcelIds));
+
+  for (const parcelId of uniqueParcelIds) {
+    fingerprintMap.set(
+      parcelId,
+      createFinancialItemsFingerprint(
+        rows.filter((row): row is CorrectionFinancialItem & { parcelId: string } => {
+          return row.parcelId === parcelId;
+        }),
+      ),
+    );
+  }
+
+  return fingerprintMap;
 }
 
 export async function getParcelSummary(): Promise<ParcelSummaryDto> {
@@ -481,6 +670,529 @@ export async function updateParcel(input: UpdateParcelInputDto) {
         updatedAt: new Date(),
       })
       .where(eq(parcels.id, input.id));
+  });
+}
+
+type ParcelCorrectionActor = {
+  actorId: string;
+  actorRole: UserRole;
+};
+
+type CorrectionFinancialItem = {
+  id: string;
+  riderId: string | null;
+  itemType: string;
+  amount: number;
+  status: string;
+  merchantSettlementId: string | null;
+  riderPayoutId: string | null;
+  updatedAt: Date;
+};
+
+function createFinancialItemsFingerprint(items: CorrectionFinancialItem[]) {
+  const normalizedItems = items
+    .map((item) => ({
+      id: item.id,
+      riderId: item.riderId,
+      itemType: item.itemType,
+      amount: item.amount,
+      status: item.status,
+      merchantSettlementId: item.merchantSettlementId,
+      riderPayoutId: item.riderPayoutId,
+      updatedAt: item.updatedAt.toISOString(),
+    }))
+    .toSorted((left, right) => left.id.localeCompare(right.id));
+
+  return createHash("sha256").update(JSON.stringify(normalizedItems)).digest("hex");
+}
+
+function assertFreshCorrectionState(input: {
+  expectedStatus: ParcelStatus;
+  expectedRiderId: string | null;
+  expectedFinancialItemsFingerprint: string;
+  currentStatus: ParcelStatus;
+  currentRiderId: string | null;
+  currentFinancialItems: CorrectionFinancialItem[];
+}) {
+  const currentFinancialItemsFingerprint = createFinancialItemsFingerprint(
+    input.currentFinancialItems,
+  );
+
+  if (
+    input.currentStatus !== input.expectedStatus ||
+    input.currentRiderId !== input.expectedRiderId ||
+    currentFinancialItemsFingerprint !== input.expectedFinancialItemsFingerprint
+  ) {
+    throw new Error("Parcel changed since you opened it. Refresh and review before correcting.");
+  }
+}
+
+function assertCanCorrectParcel(actorRole: UserRole) {
+  if (actorRole !== "super_admin" && actorRole !== "office_admin") {
+    throw new Error("You do not have permission to correct parcels.");
+  }
+}
+
+function isFinancialItemType(value: string): value is FinancialItemType {
+  return (
+    value === "cod_remit" || value === "delivery_fee_deduction" || value === "rider_way_payout"
+  );
+}
+
+function assertNoUnsafeFinancialItems(items: CorrectionFinancialItem[]) {
+  const unsafeItem = items.find(
+    (item) =>
+      item.status !== "void" &&
+      (item.status !== "pending" ||
+        item.merchantSettlementId !== null ||
+        item.riderPayoutId !== null),
+  );
+
+  if (unsafeItem) {
+    throw new Error(
+      "This parcel has financial items already reserved or settled. Reverse those records before correcting the parcel.",
+    );
+  }
+}
+
+function getActiveFinancialItemTypes(items: CorrectionFinancialItem[]) {
+  const activeItemTypes = new Set<FinancialItemType>();
+
+  for (const item of items) {
+    if (item.status !== "void" && isFinancialItemType(item.itemType)) {
+      activeItemTypes.add(item.itemType);
+    }
+  }
+
+  return activeItemTypes;
+}
+
+function getVoidableFinancialItemIds(
+  items: CorrectionFinancialItem[],
+  keepTypes: FinancialItemType[],
+) {
+  const keepTypeSet = new Set<FinancialItemType>(keepTypes);
+
+  return items
+    .filter(
+      (item) =>
+        item.status === "pending" &&
+        item.merchantSettlementId === null &&
+        item.riderPayoutId === null &&
+        isFinancialItemType(item.itemType) &&
+        !keepTypeSet.has(item.itemType),
+    )
+    .map((item) => item.id);
+}
+
+function deactivateActiveFailureNoteIfNeeded(
+  deliveryFailureNote: unknown,
+): typeof parcels.$inferInsert.deliveryFailureNote {
+  const failureNotes = parseParcelFailureNotes(deliveryFailureNote);
+  const nextFailureNotes = deactivateLatestActiveParcelFailureNote(failureNotes);
+
+  return nextFailureNotes ?? (failureNotes.length > 0 ? failureNotes : null);
+}
+
+function getResetCodStatus(parcelType: string) {
+  return parcelType === "cod" ? "pending" : "not_applicable";
+}
+
+async function getActiveCorrectionRider(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  riderId: string,
+) {
+  const [rider] = await tx
+    .select({ id: riders.id, userIsActive: appUsers.isActive })
+    .from(riders)
+    .innerJoin(appUsers, eq(appUsers.id, riders.userId))
+    .where(eq(riders.id, riderId))
+    .limit(1);
+
+  if (!rider?.userIsActive) {
+    throw new Error("Active rider was not found.");
+  }
+
+  return rider;
+}
+
+export async function correctParcelStatus(
+  input: CorrectParcelStatusInputDto & ParcelCorrectionActor,
+) {
+  assertCanCorrectParcel(input.actorRole);
+
+  await db.transaction(async (tx) => {
+    const [parcel] = await tx
+      .select({
+        id: parcels.id,
+        merchantId: parcels.merchantId,
+        riderId: parcels.riderId,
+        status: parcels.status,
+        parcelType: parcels.parcelType,
+        codAmount: parcels.codAmount,
+        deliveryFee: parcels.deliveryFee,
+        assignedAt: parcels.assignedAt,
+        deliveryFailureNote: parcels.deliveryFailureNote,
+        proofOfDeliveryImagesKeys: parcels.proofOfDeliveryImagesKeys,
+      })
+      .from(parcels)
+      .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
+      .limit(1)
+      .for("update");
+
+    if (!parcel) {
+      throw new Error("Parcel was not found.");
+    }
+
+    const oldStatus = parcelStatusSchema.parse(parcel.status);
+
+    const relatedFinancialItems = await tx
+      .select({
+        id: financialItems.id,
+        riderId: financialItems.riderId,
+        itemType: financialItems.itemType,
+        amount: financialItems.amount,
+        status: financialItems.status,
+        merchantSettlementId: financialItems.merchantSettlementId,
+        riderPayoutId: financialItems.riderPayoutId,
+        updatedAt: financialItems.updatedAt,
+      })
+      .from(financialItems)
+      .where(eq(financialItems.parcelId, parcel.id))
+      .for("update");
+
+    assertFreshCorrectionState({
+      expectedStatus: input.expectedStatus,
+      expectedRiderId: input.expectedRiderId,
+      expectedFinancialItemsFingerprint: input.expectedFinancialItemsFingerprint,
+      currentStatus: oldStatus,
+      currentRiderId: parcel.riderId,
+      currentFinancialItems: relatedFinancialItems,
+    });
+
+    if (oldStatus === input.targetStatus) {
+      throw new Error("Target status is already the current parcel status.");
+    }
+
+    assertNoUnsafeFinancialItems(relatedFinancialItems);
+
+    const now = new Date();
+    const activeItemTypes = getActiveFinancialItemTypes(relatedFinancialItems);
+    const sideEffects: string[] = [];
+    const proofKeys = input.proofImageKey
+      ? [input.proofImageKey]
+      : (parcel.proofOfDeliveryImagesKeys ?? []);
+    const baseParcelUpdate = {
+      status: input.targetStatus,
+      updatedAt: now,
+      merchantSettlementStatus: "pending",
+      riderPayoutStatus: "pending",
+    };
+    const commonResetFields = {
+      deliveredAt: null,
+      returnedToMerchantAt: null,
+      collectedAt: null,
+      collectedAmount: 0,
+      codStatus: getResetCodStatus(parcel.parcelType),
+      deliveryFeeStatus: "pending",
+      isReceivedByOffice: false,
+      collectionConfirmedBy: null,
+      proofOfDeliveryImagesKeys: [],
+      deliveryFailureNote: deactivateActiveFailureNoteIfNeeded(parcel.deliveryFailureNote),
+    };
+    let targetRiderId: string | null = null;
+    let keepFinancialItemTypes: FinancialItemType[] = [];
+    let parcelUpdate: Partial<typeof parcels.$inferInsert> = {};
+
+    if (input.targetStatus === "delivered") {
+      targetRiderId = input.targetRiderId ?? parcel.riderId;
+
+      if (!targetRiderId) {
+        throw new Error("An active rider is required when correcting a parcel to delivered.");
+      }
+
+      await getActiveCorrectionRider(tx, targetRiderId);
+
+      if (proofKeys.length === 0) {
+        throw new Error("Delivery proof is required when correcting a parcel to delivered.");
+      }
+
+      keepFinancialItemTypes = ["rider_way_payout"];
+      parcelUpdate = {
+        ...baseParcelUpdate,
+        riderId: targetRiderId,
+        assignedAt: parcel.riderId === targetRiderId && parcel.assignedAt ? parcel.assignedAt : now,
+        deliveredAt: now,
+        returnedToMerchantAt: null,
+        collectedAt: now,
+        collectedAmount: calculateAmountToCollect(parcel),
+        codStatus: parcel.parcelType === "cod" ? "collected" : "not_applicable",
+        deliveryFeeStatus: "collected",
+        isReceivedByOffice: false,
+        collectionConfirmedBy: null,
+        proofOfDeliveryImagesKeys: proofKeys,
+        deliveryFailureNote: deactivateActiveFailureNoteIfNeeded(parcel.deliveryFailureNote),
+      };
+      sideEffects.push("Set delivery completion and collection fields.");
+    } else if (input.targetStatus === "returned_to_merchant") {
+      targetRiderId = input.targetRiderId ?? parcel.riderId;
+
+      if (!targetRiderId) {
+        throw new Error(
+          "An active rider is required when correcting a parcel to returned to merchant.",
+        );
+      }
+
+      await getActiveCorrectionRider(tx, targetRiderId);
+      keepFinancialItemTypes = ["delivery_fee_deduction"];
+      parcelUpdate = {
+        ...baseParcelUpdate,
+        ...commonResetFields,
+        riderId: targetRiderId,
+        assignedAt: parcel.riderId === targetRiderId && parcel.assignedAt ? parcel.assignedAt : now,
+        returnedToMerchantAt: now,
+        deliveryFeeStatus: "deduct_from_merchant",
+      };
+      sideEffects.push("Set return completion fields.");
+    } else if (input.targetStatus === "on_the_way") {
+      targetRiderId = input.targetRiderId ?? parcel.riderId;
+
+      if (!targetRiderId) {
+        throw new Error("An active rider is required when correcting a parcel to on the way.");
+      }
+
+      await getActiveCorrectionRider(tx, targetRiderId);
+      parcelUpdate = {
+        ...baseParcelUpdate,
+        ...commonResetFields,
+        riderId: targetRiderId,
+        assignedAt: parcel.riderId === targetRiderId && parcel.assignedAt ? parcel.assignedAt : now,
+      };
+      sideEffects.push("Reset later delivery and return fields.");
+    } else if (input.targetStatus === "canceled_returned") {
+      targetRiderId = input.targetRiderId ?? null;
+
+      if (targetRiderId) {
+        await getActiveCorrectionRider(tx, targetRiderId);
+      }
+
+      parcelUpdate = {
+        ...baseParcelUpdate,
+        ...commonResetFields,
+        riderId: targetRiderId,
+        assignedAt: targetRiderId ? now : null,
+      };
+      sideEffects.push("Prepared parcel for merchant return handling.");
+    } else {
+      parcelUpdate = {
+        ...baseParcelUpdate,
+        ...commonResetFields,
+        riderId: null,
+        assignedAt: null,
+      };
+      sideEffects.push(
+        input.targetStatus === "postpone"
+          ? "Postponed parcel and cleared rider assignment."
+          : "Reset parcel to office state and cleared rider assignment.",
+      );
+    }
+
+    const voidableFinancialItemIds = getVoidableFinancialItemIds(
+      relatedFinancialItems,
+      keepFinancialItemTypes,
+    );
+
+    if (voidableFinancialItemIds.length > 0) {
+      await tx
+        .update(financialItems)
+        .set({ status: "void", updatedAt: now })
+        .where(inArray(financialItems.id, voidableFinancialItemIds));
+      sideEffects.push(`Voided ${voidableFinancialItemIds.length} pending financial item(s).`);
+    }
+
+    if (input.targetStatus === "delivered" && targetRiderId) {
+      if (activeItemTypes.has("rider_way_payout")) {
+        await tx
+          .update(financialItems)
+          .set({ riderId: targetRiderId, updatedAt: now })
+          .where(
+            and(
+              eq(financialItems.parcelId, parcel.id),
+              eq(financialItems.itemType, "rider_way_payout"),
+              eq(financialItems.status, "pending"),
+            ),
+          );
+        sideEffects.push("Updated pending rider payout item rider.");
+      } else {
+        await tx.insert(financialItems).values({
+          parcelId: parcel.id,
+          merchantId: parcel.merchantId,
+          riderId: targetRiderId,
+          itemType: "rider_way_payout",
+          amount: 1,
+          status: "pending",
+          createdBy: input.actorId,
+          updatedAt: now,
+        });
+        sideEffects.push("Created pending rider payout item.");
+      }
+    }
+
+    if (input.targetStatus === "returned_to_merchant") {
+      if (!activeItemTypes.has("delivery_fee_deduction")) {
+        await tx.insert(financialItems).values({
+          parcelId: parcel.id,
+          merchantId: parcel.merchantId,
+          riderId: null,
+          itemType: "delivery_fee_deduction",
+          amount: parcel.deliveryFee,
+          status: "pending",
+          createdBy: input.actorId,
+          updatedAt: now,
+        });
+        sideEffects.push("Created pending delivery fee deduction item.");
+      }
+    }
+
+    await tx.update(parcels).set(parcelUpdate).where(eq(parcels.id, parcel.id));
+
+    const [statusLog] = await tx
+      .insert(parcelStatusLogs)
+      .values({
+        parcelId: parcel.id,
+        oldStatus,
+        newStatus: input.targetStatus,
+        changedBy: input.actorId,
+      })
+      .returning({ id: parcelStatusLogs.id });
+
+    await tx.insert(parcelCorrectionLogs).values({
+      parcelId: parcel.id,
+      correctionType: "status",
+      oldStatus,
+      newStatus: input.targetStatus,
+      oldRiderId: parcel.riderId,
+      newRiderId: targetRiderId,
+      statusLogId: statusLog.id,
+      reason: input.reason,
+      sideEffects: { summary: sideEffects },
+      createdBy: input.actorId,
+    });
+  });
+}
+
+export async function correctParcelRider(
+  input: CorrectParcelRiderInputDto & ParcelCorrectionActor,
+) {
+  assertCanCorrectParcel(input.actorRole);
+
+  await db.transaction(async (tx) => {
+    const [parcel] = await tx
+      .select({
+        id: parcels.id,
+        riderId: parcels.riderId,
+        status: parcels.status,
+      })
+      .from(parcels)
+      .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
+      .limit(1)
+      .for("update");
+
+    if (!parcel) {
+      throw new Error("Parcel was not found.");
+    }
+
+    const status = parcelStatusSchema.parse(parcel.status);
+
+    const relatedRiderPayoutItems = await tx
+      .select({
+        id: financialItems.id,
+        riderId: financialItems.riderId,
+        itemType: financialItems.itemType,
+        amount: financialItems.amount,
+        status: financialItems.status,
+        merchantSettlementId: financialItems.merchantSettlementId,
+        riderPayoutId: financialItems.riderPayoutId,
+        updatedAt: financialItems.updatedAt,
+      })
+      .from(financialItems)
+      .where(eq(financialItems.parcelId, parcel.id))
+      .for("update");
+
+    assertFreshCorrectionState({
+      expectedStatus: input.expectedStatus,
+      expectedRiderId: input.expectedRiderId,
+      expectedFinancialItemsFingerprint: input.expectedFinancialItemsFingerprint,
+      currentStatus: status,
+      currentRiderId: parcel.riderId,
+      currentFinancialItems: relatedRiderPayoutItems,
+    });
+
+    if (parcel.riderId === input.targetRiderId) {
+      throw new Error("Target rider is already assigned to this parcel.");
+    }
+
+    if (input.targetRiderId === null) {
+      const canUnassign =
+        status === "at_office" || status === "postpone" || status === "canceled_returned";
+
+      if (!canUnassign) {
+        throw new Error("This parcel status requires an active rider assignment.");
+      }
+    } else {
+      await getActiveCorrectionRider(tx, input.targetRiderId);
+    }
+
+    const unsafePayoutItem = relatedRiderPayoutItems.find(
+      (item) =>
+        item.itemType === "rider_way_payout" &&
+        item.status !== "void" &&
+        (item.status !== "pending" || item.riderPayoutId),
+    );
+
+    if (unsafePayoutItem) {
+      throw new Error(
+        "This parcel has rider payout items already reserved or settled. Reverse those records before correcting the rider.",
+      );
+    }
+
+    const now = new Date();
+    const sideEffects: string[] = ["Updated parcel rider assignment."];
+
+    await tx
+      .update(parcels)
+      .set({
+        riderId: input.targetRiderId,
+        assignedAt: input.targetRiderId ? now : null,
+        updatedAt: now,
+      })
+      .where(eq(parcels.id, parcel.id));
+
+    if (status === "delivered" && input.targetRiderId !== null) {
+      await tx
+        .update(financialItems)
+        .set({ riderId: input.targetRiderId, updatedAt: now })
+        .where(
+          and(
+            eq(financialItems.parcelId, parcel.id),
+            eq(financialItems.itemType, "rider_way_payout"),
+            eq(financialItems.status, "pending"),
+          ),
+        );
+      sideEffects.push("Updated pending rider payout item rider.");
+    }
+
+    await tx.insert(parcelCorrectionLogs).values({
+      parcelId: parcel.id,
+      correctionType: "rider",
+      oldStatus: status,
+      newStatus: status,
+      oldRiderId: parcel.riderId,
+      newRiderId: input.targetRiderId,
+      reason: input.reason,
+      sideEffects: { summary: sideEffects },
+      createdBy: input.actorId,
+    });
   });
 }
 
