@@ -8,7 +8,10 @@ export function buildContentSecurityPolicy(nonce: string) {
   const directives = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
-    `style-src 'self' 'nonce-${nonce}'`,
+    // Nonces do not apply to style="" attributes; React, Radix, Sonner, and Next.js
+    // all rely on inline styles or client-injected <style> tags.
+    "style-src-elem 'self' 'unsafe-inline'",
+    "style-src-attr 'unsafe-inline'",
     "img-src 'self' blob: data:",
     "font-src 'self'",
     `connect-src 'self'${isDev ? " ws: wss:" : ""}`,

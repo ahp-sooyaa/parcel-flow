@@ -12,7 +12,8 @@ describe("content security policy", () => {
 
     expect(policy).toContain("default-src 'self'");
     expect(policy).toContain(`script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`);
-    expect(policy).toContain(`style-src 'self' 'nonce-${nonce}'`);
+    expect(policy).toContain("style-src-elem 'self' 'unsafe-inline'");
+    expect(policy).toContain("style-src-attr 'unsafe-inline'");
     expect(policy).toContain("connect-src 'self'");
     expect(policy).toContain("worker-src 'self' blob:");
     expect(policy).toContain("frame-ancestors 'none'");
