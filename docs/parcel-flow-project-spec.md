@@ -30,7 +30,7 @@ Parcel Flow MVP includes:
 - Financial item generation for merchant settlement
 - Merchant settlement creation from eligible financial items
 - Super admin settlement resolution with bank transfer receipt
-- Rider payout by delivered way count
+- Rider payout by payable delivery-attempt and merchant-return way count
 - Merchant overview reporting
 - Merchant paid settlement history view
 - Realtime parcel synchronization across admin, merchant, and rider parcel views
@@ -122,7 +122,9 @@ Can:
 - Mark settlements as paid
 - Cancel settlements
 - Create rider payout drafts
+- Cancel in-progress rider payout drafts
 - Mark rider payouts as paid
+- Correct parcel status and rider assignment with a required reason
 - Regenerate user passwords
 - View reports and stats
 
@@ -144,6 +146,8 @@ Can:
 - Track rider collection amounts
 - Create merchant settlements from eligible financial items
 - Create rider payout drafts
+- Cancel in-progress rider payout drafts
+- Correct parcel status and rider assignment with a required reason
 - Regenerate user passwords, except super admin accounts
 
 Cannot:
@@ -154,7 +158,6 @@ Cannot:
 - Mark merchant settlements as paid
 - Mark rider payouts as paid
 - Cancel merchant settlements
-- Cancel rider payouts
 - Manage super admin accounts
 - Confirm actual bank transfer
 
@@ -547,7 +550,7 @@ Return rule:
 | `postpone -> at_office` | Admin only, when the parcel is ready for retry |
 | `postpone -> canceled_returned` | Admin only, when retry is canceled |
 | `canceled_returned -> returned_to_merchant` | Rider for assigned return work, or admin for manual completion after physical return |
-| Manual correction | Super admin only |
+| Manual status or rider correction | Super admin or office admin |
 
 Rider can start delivery, mark an `on_the_way` parcel as delivered, report delivery failure with a note, or complete assigned `canceled_returned` return work.
 Reporting failure does not directly change parcel status.
@@ -581,6 +584,13 @@ When admin assigns parcel to rider:
 When rider starts delivery:
 
 - `status = on_the_way`
+- Create one rider payout financial item for the assigned rider:
+  - `item_type = rider_way_payout`
+  - `amount = 1`
+  - `status = pending`
+  - `rider_way_source = delivery_attempt`
+- The way belongs to the rider assigned when the delivery attempt starts.
+- A retry that later starts delivery creates another delivery-attempt way for the rider assigned to that retry.
 
 ---
 
@@ -592,7 +602,8 @@ When rider cannot complete delivery:
 - Rider enters a failure note
 - Failure note is stored in `parcels.delivery_failure_note`
 - `rider_id` remains set until admin or super admin reviews the report
-- No financial items, settlement records, rider payout records, delivered timestamps, or return timestamps are created
+- No additional financial items, settlement records, rider payout records, delivered timestamps, or return timestamps are created
+- The existing `delivery_attempt` rider way remains pending for the rider who made the attempt
 
 The failure note is separate from `special_notes`.
 `special_notes` is merchant/intake context and must not be reused for rider delivery failure reporting.
@@ -611,10 +622,7 @@ For COD parcel:
 - `merchant_settlement_status = pending`
 - `rider_payout_status = pending`
 - `collected_amount = cod_amount + delivery_fee`
-- Create rider payout financial item:
-  - `item_type = rider_way_payout`
-  - `amount = 1`
-  - `status = pending`
+- Preserve the existing `delivery_attempt` rider payout financial item without creating a duplicate
 - Do not create `cod_remit` at delivery time
 - Create `cod_remit` only after office confirms rider cash handover
 
@@ -627,10 +635,7 @@ For non-COD parcel:
 - `rider_payout_status = pending`
 - `collected_amount = delivery_fee`
 - No `cod_remit` financial item is created
-- Create rider payout financial item:
-  - `item_type = rider_way_payout`
-  - `amount = 1`
-  - `status = pending`
+- Preserve the existing `delivery_attempt` rider payout financial item without creating a duplicate
 
 ---
 
@@ -644,7 +649,8 @@ When admin changes an `on_the_way` parcel to `postpone` after reviewing a rider 
 - Rider expected collection amount reduces immediately
 - COD is not collected
 - Delivery fee deduction is not created
-- No financial items are created
+- No additional financial items are created
+- The failed rider's existing `delivery_attempt` way remains pending and is not increased, decreased, or moved to another rider
 
 When the parcel is ready for retry:
 
@@ -673,6 +679,7 @@ Recommended updates:
 - `is_received_by_office = false`
 - `collected_amount = 0`
 - Related financial items that are no longer valid should be marked `void`
+- The failed rider's existing `delivery_attempt` way remains pending and is not moved to the rider later assigned for return work
 
 ---
 
@@ -687,11 +694,41 @@ When rider completes assigned return work, or admin manually completes the physi
   - `item_type = delivery_fee_deduction`
   - `amount = delivery_fee`
   - `status = pending`
+- When an assigned rider completes the return, create one rider payout financial item for that return rider:
+  - `item_type = rider_way_payout`
+  - `amount = 1`
+  - `status = pending`
+  - `rider_way_source = merchant_return`
+- A prior delivery-attempt way remains with the rider who made that attempt.
+- Admin manual completion without an attributed rider does not create a merchant-return rider way.
 
 Recommended updates:
 
 - `delivery_fee_status = deduct_from_merchant`
 - `merchant_settlement_status = pending`
+
+---
+
+### 12.8 Manual Parcel Corrections
+
+Super admins and office admins can correct parcel status or rider assignment from the parcel detail sheet.
+
+Correction rules:
+
+- Every correction requires a non-empty reason.
+- Status corrections write both `parcel_status_logs` and `parcel_correction_logs`.
+- Rider-only corrections write `parcel_correction_logs`.
+- Correction logs store before/after values, actor, reason, timestamp, and a structured side-effect summary.
+- The server validates the current parcel, rider, and related financial item state to reject stale requests.
+- Parcel fields and eligible pending financial items are reconciled in one transaction.
+- Corrections that would mutate in-progress or settled merchant settlement or rider payout items are rejected until a dedicated financial reversal workflow exists.
+- Status correction repairs recorded parcel state; it does not replace normal workflow actions or create a missing delivery attempt.
+- Correcting a parcel to `delivered` requires an existing active `delivery_attempt` way created by `Start Delivery`.
+- If the corrected delivery rider differs, only the latest pending, unreserved delivery-attempt way is moved to that rider.
+- Historical delivery-attempt and merchant-return way credits remain owned by the rider who earned each event.
+- Only an eligible pending way item for the current active event may be reassigned or voided by a correction.
+
+Correction controls and correction history are visible only to super admins and office admins.
 
 ---
 
@@ -882,12 +919,19 @@ parcels.collected_amount
 
 Rider payout is separate from merchant settlement.
 
-Rider payout is based on **delivered way count**, and the eligible delivered ways are tracked through `financial_items`.
+Rider payout is based on **payable way count**, and eligible ways are tracked through `financial_items`.
+
+A payable way is created for:
+
+- each receiver delivery attempt when an assigned rider starts delivery; and
+- each completed merchant return performed by an assigned return rider.
+
+Successful delivery does not create another way because the delivery-attempt way already exists. Failed attempts remain payable. Retries and merchant returns can therefore produce multiple way items for the same parcel, each owned by the rider who performed that work.
 
 Example:
 
 ```text
-Delivered ways: 40
+Payable ways: 40
 Fee per way: 900 MMK
 Total payout: 36,000 MMK
 ```
@@ -895,14 +939,18 @@ Total payout: 36,000 MMK
 Formula:
 
 ```text
-rider payout = delivered way count * fee per way
+rider payout = selected payable way count * fee per way
 ```
 
 Rules:
 
 - No rider payout item table is required for MVP.
 - Rider payout uses `financial_items` with `item_type = rider_way_payout`.
-- One delivered parcel creates one rider payout financial item.
+- Each qualifying delivery-attempt or merchant-return event creates one rider payout financial item.
+- `financial_items.amount = 1` represents one way, not a monetary fee.
+- `fee_per_way` is entered by the admin when creating the payout draft.
+- Rider way source metadata distinguishes `delivery_attempt`, `merchant_return`, and migrated `legacy_delivery` rows.
+- Multiple rider way items may reference the same parcel.
 - Only eligible rider payout financial items should be attached to a rider payout.
 
 Eligible financial item rule:
@@ -911,6 +959,7 @@ Eligible financial item rule:
 financial_items.item_type = rider_way_payout
 financial_items.status = pending
 financial_items.rider_id = selected rider
+financial_items.rider_payout_id IS NULL
 ```
 
 When payout draft is created:
@@ -918,21 +967,23 @@ When payout draft is created:
 - `rider_payouts.status = in_progress`
 - selected rider payout `financial_items.status = in_progress`
 - selected rider payout `financial_items.rider_payout_id = rider_payouts.id`
-- related parcels get `rider_payout_status = in_progress`
+- affected parcel `rider_payout_status` summaries are recomputed from all active rider way items
 
 When payout is paid:
 
 - `rider_payouts.status = settled`
 - selected rider payout `financial_items.status = settled`
 - selected rider payout `financial_items.settled_at` is set
-- related parcels get `rider_payout_status = settled`
+- affected parcel `rider_payout_status` summaries are recomputed from all active rider way items
 
 If payout draft is canceled:
 
 - `rider_payouts.status = void`
 - selected rider payout `financial_items.status = pending`
 - selected rider payout `financial_items.rider_payout_id = null`
-- related parcels get `rider_payout_status = pending`
+- affected parcel `rider_payout_status` summaries are recomputed from all active rider way items
+
+Parcel payout status is a denormalized summary only. Rider payout eligibility and totals always come from `financial_items`.
 
 ---
 
@@ -1156,10 +1207,10 @@ When parcel is delivered:
 - Delivery fee status is updated.
 - Collected amount is recorded.
 - Collection status becomes received by rider.
-- Parcel becomes eligible for rider payout.
+- The existing delivery-attempt way remains eligible for rider payout.
 - COD parcel does not create `cod_remit` yet.
 - COD remit becomes eligible for merchant settlement only after office confirms rider cash handover.
-- Delivered parcel creates one `rider_way_payout` financial item for rider payout.
+- Delivered status does not create a duplicate `rider_way_payout` financial item.
 
 ---
 
@@ -1172,12 +1223,14 @@ When delivery fails:
 3. Admin changes status to `postpone` for retry or `canceled_returned` for return.
 4. Rider assignment is cleared when status becomes `postpone` or `canceled_returned`.
 5. Rider expected collection amount reduces immediately.
-6. No delivery fee deduction happens while the parcel is only `postpone` or `canceled_returned`.
-7. If retrying, admin assigns a rider again, assignment changes status to `at_office`, and the normal delivery flow restarts.
-8. If returning, admin assigns a rider again while status remains `canceled_returned`.
-9. Assigned rider completes the physical return by changing status to `returned_to_merchant`, or admin does it manually if needed.
-10. One `delivery_fee_deduction` financial item is created.
-11. Delivery fee becomes eligible for deduction from merchant settlement.
+6. The failed rider keeps the existing delivery-attempt way without an increase or decrease during admin resolution.
+7. No delivery fee deduction happens while the parcel is only `postpone` or `canceled_returned`.
+8. If retrying, admin assigns a rider again, assignment changes status to `at_office`, and starting the retry creates another delivery-attempt way for the retry rider.
+9. If returning, admin assigns a rider again while status remains `canceled_returned`.
+10. Assigned rider completes the physical return by changing status to `returned_to_merchant`, or admin does it manually if needed.
+11. One `delivery_fee_deduction` financial item is created.
+12. An assigned rider who completes the return receives one separate merchant-return way.
+13. Delivery fee becomes eligible for deduction from merchant settlement.
 
 ---
 
@@ -1211,7 +1264,7 @@ void
 
 ### 19.1 COD Remit Financial Item
 
-Created when COD parcel becomes `delivered`.
+Created only after an admin confirms office cash handover for a delivered COD parcel.
 
 Fields:
 
@@ -1226,6 +1279,7 @@ parcel_id = parcel.id
 Purpose:
 
 - Represents COD amount that should be remitted to merchant.
+- A delivered COD parcel with `is_received_by_office = false` is not yet eligible for this item.
 
 ---
 
@@ -1251,7 +1305,7 @@ Purpose:
 
 ### 19.3 Rider Way Payout Financial Item
 
-Created when parcel becomes `delivered`.
+Created when an assigned rider starts a receiver delivery attempt or completes assigned merchant-return work.
 
 Fields:
 
@@ -1262,11 +1316,15 @@ status = pending
 merchant_id = parcel.merchant_id
 rider_id = parcel.rider_id
 parcel_id = parcel.id
+rider_way_source = delivery_attempt | merchant_return | legacy_delivery
 ```
 
 Purpose:
 
-- Represents one delivered way eligible for rider payout.
+- Represents one payable rider way eligible for rider payout.
+- `delivery_attempt` belongs to the rider assigned when delivery starts.
+- `merchant_return` belongs to the rider assigned when return work is completed.
+- `legacy_delivery` identifies existing payout rows migrated from the prior successful-delivery model.
 
 ---
 
@@ -1274,9 +1332,13 @@ Purpose:
 
 Rules:
 
-- Office-confirmed delivered COD parcel creates one `cod_remit` item.
+- Office cash handover confirmation for a delivered COD parcel creates one `cod_remit` item.
 - Returned-to-merchant parcel creates one `delivery_fee_deduction` item.
-- Delivered parcel creates one `rider_way_payout` item.
+- Starting receiver delivery creates one `delivery_attempt` rider way item.
+- Completing assigned merchant return creates one `merchant_return` rider way item.
+- Marking a parcel delivered, reporting failure, or resolving failure does not create an additional delivery-attempt way.
+- Failed delivery-attempt ways remain valid when the parcel becomes `postpone` or `canceled_returned`.
+- Multiple rider way items may reference the same parcel and different riders.
 - Non-COD delivered parcel does not create `cod_remit` item.
 - Financial items are selected into merchant settlement by setting `merchant_settlement_id`.
 - Financial items are selected into rider payout by setting `rider_payout_id`.
@@ -1684,7 +1746,7 @@ Recommended routes and UI patterns:
 
 /dashboard/rider-payouts/create
   Opens as shadcn right-side sheet.
-  Sheet includes rider combo box, eligible rider payout financial items, delivered way count, fee per way, and payout summary.
+  Sheet includes rider combo box, eligible rider payout financial items, payable way count, fee per way, and payout summary.
 
 /dashboard/rider-payouts/[id]
   Rider payout detail page.
@@ -1784,7 +1846,7 @@ Recommended routes and UI patterns:
 - Merchant settlement creation from eligible dashboard financial items
 - Super admin settlement resolution with bank transfer receipt
 - Returned parcel delivery fee deduction
-- Rider payout by delivered way count
+- Rider payout by selected payable delivery-attempt and merchant-return way count
 - Status change logs
 
 ---
@@ -1831,11 +1893,11 @@ These features are not required in MVP:
 - Parcel payment statuses are stored directly on `parcels`.
 - Rider expected collection amount reduces when parcel becomes `postpone` or `canceled_returned`.
 - Failed parcel delivery fee deduction happens only after `returned_to_merchant`.
-- Office-confirmed delivered COD parcel creates one `cod_remit` financial item.
+- Office cash handover confirmation for a delivered COD parcel creates one `cod_remit` financial item.
 - Returned-to-merchant parcel creates one `delivery_fee_deduction` financial item.
 - Merchant settlement is created from selected financial items.
 - Office admin can create pending settlement from eligible dashboard financial items.
 - Super admin performs actual bank transfer, uploads receipt proof, and marks settlement as paid.
 - Merchant sees paid COD settlement as **Paid to you**.
-- Rider payout is calculated by delivered way count and fee per way.
+- Rider payout is calculated by selected payable way count and fee per way.
 - Rider payout uses selected `rider_way_payout` financial items.

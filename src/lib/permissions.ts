@@ -69,6 +69,14 @@ export function canCreateRiderPayoutDraft(role: UserRole) {
   return role === "super_admin" || role === "office_admin";
 }
 
+export function canCancelRiderPayoutDraft(role: UserRole) {
+  return role === "super_admin" || role === "office_admin";
+}
+
+export function canSettleRiderPayout(role: UserRole) {
+  return role === "super_admin";
+}
+
 export function canEditDeliveryFee(
   role: UserRole,
   parcel: { status: ParcelStatus; riderId: string | null },

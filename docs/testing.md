@@ -104,6 +104,26 @@ The seed script creates or updates:
 
 ## Scope
 
-The regression suite covers auth, route protection, role authorization, user/profile/bank-account persistence, township persistence, parcel creation, rider assignment, and role-scoped parcel visibility.
+The regression suite covers auth, route protection, role authorization, user/profile/bank-account persistence, township persistence, parcel creation, rider assignment, role-scoped parcel visibility, and parcel correction behavior.
 
-Settlement completion, payout completion, delivery status side effects, and R2 uploads remain out of scope for this test change.
+Parcel correction coverage includes:
+
+- status and rider correction authorization and validation;
+- required correction reason and stale-state rejection;
+- transactional parcel and eligible pending financial item reconciliation;
+- blocking corrections that would mutate reserved or settled financial items;
+- correction audit history and admin-only correction UI.
+
+The `add-rider-payouts` change must add focused unit, component, and integration coverage for:
+
+- one `delivery_attempt` way when an assigned rider starts delivery;
+- preserving that way after failure, `postpone`, or `canceled_returned`;
+- creating another way when a postponed parcel is retried;
+- one `merchant_return` way for the rider who completes assigned return work;
+- preserving way ownership when different riders perform the delivery attempt and merchant return;
+- delivered corrections preserving the existing attempt, correcting only the latest eligible attempt rider, and rejecting corrections with no real delivery attempt;
+- deduction-only manual return corrections and legacy rider-way sources not suppressing merchant-return credits;
+- payout eligibility, draft creation, stale selection rejection, cancellation, settlement, and authorization;
+- rider payout table and right-side create-sheet item status behavior.
+
+R2 upload integration and full browser coverage for settlement and payout completion remain outside the current regression baseline until their dedicated flows add those tests.

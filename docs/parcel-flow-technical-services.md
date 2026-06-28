@@ -325,6 +325,11 @@ Drizzle is used for:
 - Rider queries must be scoped to assigned rider parcels.
 - `financial_items` supports both merchant settlement and rider payout workflows.
 - `cod_remit` should be created only after office confirms rider cash handover for a delivered COD parcel.
+- Rider way payout items are event credits: `delivery_attempt` is created when an assigned rider starts delivery, and `merchant_return` is created when an assigned rider completes return work.
+- Multiple rider way payout items may reference the same parcel, and each item remains owned by the rider who performed that event.
+- Rider payout eligibility must be queried from pending, unreserved `financial_items`; `parcels.rider_payout_status` is only a denormalized summary.
+- Parcel corrections must reconcile parcel state and eligible pending financial items transactionally while blocking mutation of in-progress or settled financial records.
+- Parcel status correction must not create a missing delivery-attempt event; correcting to delivered requires an existing attempt item, and a corrected rider may receive only the latest pending, unreserved attempt item.
 - `is_received_by_office` is modeled as a boolean field.
 - Rider delivery failure reports should use the parcel `delivery_failure_note` field, not `special_notes`.
 
@@ -363,6 +368,7 @@ Use Zod for important inputs such as:
 - Merchant settlement creation from dashboard financial items
 - Super admin settlement resolution with bank transfer receipt
 - Rider payout creation
+- Parcel status and rider corrections, including required reason and stale-state tokens
 - Password change
 - Password regeneration
 
@@ -514,6 +520,7 @@ Important security rules:
 - Password regeneration is admin-only.
 - Office admin cannot regenerate super admin passwords.
 - Delivery fee manual override is super admin-only.
+- Parcel status and rider corrections are limited to super admins and office admins and must be authorized again on the server.
 - Settlement paid confirmation is super admin-only.
 - Rider payout paid confirmation is super admin-only.
 - Object storage keys should not expose sensitive data.

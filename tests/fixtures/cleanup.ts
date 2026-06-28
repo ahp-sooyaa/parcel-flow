@@ -12,6 +12,7 @@ import {
   parcelCorrectionLogs,
   parcelStatusLogs,
   riders,
+  riderPayouts,
   riderServiceTownships,
   sessions,
   townships,
@@ -25,6 +26,7 @@ type TestRecordIds = {
   parcelIds?: string[];
   bankAccountIds?: string[];
   settlementIds?: string[];
+  riderPayoutIds?: string[];
 };
 
 export async function cleanupTestRecords(
@@ -42,6 +44,10 @@ export async function cleanupTestRecords(
 
   if (ids.settlementIds?.length) {
     await db.delete(merchantSettlements).where(inArray(merchantSettlements.id, ids.settlementIds));
+  }
+
+  if (ids.riderPayoutIds?.length) {
+    await db.delete(riderPayouts).where(inArray(riderPayouts.id, ids.riderPayoutIds));
   }
 
   if (ids.bankAccountIds?.length) {

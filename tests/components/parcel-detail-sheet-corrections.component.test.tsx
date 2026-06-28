@@ -283,6 +283,52 @@ describe("ParcelDetailSheet corrections", async () => {
     });
   });
 
+  test("allows returned-to-merchant status correction without a rider", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <Sheet open>
+        <SheetContent>
+          <ParcelDetailSheet
+            actorRole="office_admin"
+            parcel={buildParcelListItem({
+              id: "00000000-0000-4000-8000-000000000012",
+              parcelCode: "PF-RETURNED",
+              status: "canceled_returned",
+              riderId: null,
+              riderName: null,
+              correctionStateToken: "returned-state-token",
+            })}
+            riders={[
+              buildRiderListItem({
+                id: "00000000-0000-4000-8000-000000000013",
+                name: "Available Rider",
+              }),
+            ]}
+          />
+        </SheetContent>
+      </Sheet>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Correct Status" }));
+    await user.click(screen.getByLabelText("Target status"));
+    await user.click(await screen.findByRole("option", { name: "Returned to Merchant" }));
+
+    expect(screen.getByLabelText("Rider").textContent).toContain("Unassigned");
+
+    await user.click(getLastButton("Correct Status"));
+
+    await waitFor(() => {
+      const submittedInput = correctParcelStatusActionMock.mock.calls.at(-1)?.[0];
+      if (!(submittedInput instanceof FormData)) {
+        throw new Error("Expected status correction to submit FormData.");
+      }
+
+      expect(submittedInput.get("targetStatus")).toBe("returned_to_merchant");
+      expect(submittedInput.get("targetRiderId")).toBe("");
+    });
+  });
+
   test("renders rider correction dialog and allows unassigned target", async () => {
     const user = userEvent.setup();
 

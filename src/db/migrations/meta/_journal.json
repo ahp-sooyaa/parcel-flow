@@ -43,6 +43,13 @@
       "when": 1781130000000,
       "tag": "0005_parcel_correction_logs",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781481600000,
+      "tag": "0006_rider_way_source",
+      "breakpoints": true
     }
   ]
 }

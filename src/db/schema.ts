@@ -222,6 +222,7 @@ export const financialItems = pgTable("financial_items", {
   merchantSettlementId: uuid("merchant_settlement_id").references(() => merchantSettlements.id),
   riderPayoutId: uuid("rider_payout_id").references(() => riderPayouts.id),
   itemType: text("item_type").notNull(),
+  riderWaySource: text("rider_way_source"),
   amount: integer("amount").notNull(),
   status: text("status").default("pending").notNull(),
   createdBy: uuid("created_by").references(() => appUsers.id),

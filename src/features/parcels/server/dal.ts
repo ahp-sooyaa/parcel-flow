@@ -39,8 +39,14 @@ import {
   generateParcelCode,
   isActiveCollectionStatus,
 } from "@/features/parcels/server/utils";
-import { parcelStatuses } from "@/lib/domain";
-import type { FinancialItemType, ParcelStatus, UserRole } from "@/lib/domain";
+import { recomputeParcelRiderPayoutStatuses } from "@/features/rider-payouts/server/utils";
+import {
+  isDeliveryAttemptRiderWaySource,
+  isFinancialItemType,
+  isRiderWaySource,
+  parcelStatuses,
+} from "@/lib/domain";
+import type { FinancialItemType, ParcelStatus, RiderWaySource, UserRole } from "@/lib/domain";
 import { canChangeParcelStatus } from "@/lib/permissions";
 
 const parcelStatusSchema = z.enum(parcelStatuses);
@@ -478,10 +484,12 @@ async function getFinancialItemFingerprintsByParcelIds(parcelIds: string[]) {
       parcelId: financialItems.parcelId,
       riderId: financialItems.riderId,
       itemType: financialItems.itemType,
+      riderWaySource: financialItems.riderWaySource,
       amount: financialItems.amount,
       status: financialItems.status,
       merchantSettlementId: financialItems.merchantSettlementId,
       riderPayoutId: financialItems.riderPayoutId,
+      createdAt: financialItems.createdAt,
       updatedAt: financialItems.updatedAt,
     })
     .from(financialItems)
@@ -682,10 +690,12 @@ type CorrectionFinancialItem = {
   id: string;
   riderId: string | null;
   itemType: string;
+  riderWaySource: string | null;
   amount: number;
   status: string;
   merchantSettlementId: string | null;
   riderPayoutId: string | null;
+  createdAt: Date;
   updatedAt: Date;
 };
 
@@ -695,10 +705,12 @@ function createFinancialItemsFingerprint(items: CorrectionFinancialItem[]) {
       id: item.id,
       riderId: item.riderId,
       itemType: item.itemType,
+      riderWaySource: item.riderWaySource,
       amount: item.amount,
       status: item.status,
       merchantSettlementId: item.merchantSettlementId,
       riderPayoutId: item.riderPayoutId,
+      createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
     }))
     .toSorted((left, right) => left.id.localeCompare(right.id));
@@ -733,28 +745,6 @@ function assertCanCorrectParcel(actorRole: UserRole) {
   }
 }
 
-function isFinancialItemType(value: string): value is FinancialItemType {
-  return (
-    value === "cod_remit" || value === "delivery_fee_deduction" || value === "rider_way_payout"
-  );
-}
-
-function assertNoUnsafeFinancialItems(items: CorrectionFinancialItem[]) {
-  const unsafeItem = items.find(
-    (item) =>
-      item.status !== "void" &&
-      (item.status !== "pending" ||
-        item.merchantSettlementId !== null ||
-        item.riderPayoutId !== null),
-  );
-
-  if (unsafeItem) {
-    throw new Error(
-      "This parcel has financial items already reserved or settled. Reverse those records before correcting the parcel.",
-    );
-  }
-}
-
 function getActiveFinancialItemTypes(items: CorrectionFinancialItem[]) {
   const activeItemTypes = new Set<FinancialItemType>();
 
@@ -767,22 +757,85 @@ function getActiveFinancialItemTypes(items: CorrectionFinancialItem[]) {
   return activeItemTypes;
 }
 
-function getVoidableFinancialItemIds(
-  items: CorrectionFinancialItem[],
-  keepTypes: FinancialItemType[],
+function shouldPreserveFinancialItemForStatus(
+  item: CorrectionFinancialItem,
+  targetStatus: ParcelStatus,
 ) {
-  const keepTypeSet = new Set<FinancialItemType>(keepTypes);
+  if (item.itemType === "rider_way_payout") {
+    if (item.riderWaySource === "merchant_return") {
+      return targetStatus === "returned_to_merchant";
+    }
 
+    return true;
+  }
+
+  return item.itemType === "delivery_fee_deduction" && targetStatus === "returned_to_merchant";
+}
+
+function getCorrectionFinancialItemsToVoid(
+  items: CorrectionFinancialItem[],
+  targetStatus: ParcelStatus,
+) {
+  const inconsistentItems = items.filter(
+    (item) =>
+      item.status !== "void" &&
+      isFinancialItemType(item.itemType) &&
+      !shouldPreserveFinancialItemForStatus(item, targetStatus),
+  );
+  const unsafeItem = inconsistentItems.find(
+    (item) =>
+      item.status !== "pending" ||
+      item.merchantSettlementId !== null ||
+      item.riderPayoutId !== null,
+  );
+
+  if (unsafeItem) {
+    throw new Error(
+      "This parcel has financial items already reserved or settled. Reverse those records before correcting the parcel.",
+    );
+  }
+
+  return inconsistentItems.map((item) => item.id);
+}
+
+function hasActiveRiderWaySource(items: CorrectionFinancialItem[], sources: RiderWaySource[]) {
+  const sourceSet = new Set<RiderWaySource>(sources);
+
+  return items.some((item) => {
+    let riderWaySource: RiderWaySource | null = null;
+
+    if (item.riderWaySource === null) {
+      riderWaySource = "legacy_delivery";
+    } else if (isRiderWaySource(item.riderWaySource)) {
+      riderWaySource = item.riderWaySource;
+    }
+
+    return (
+      item.itemType === "rider_way_payout" &&
+      item.status !== "void" &&
+      riderWaySource !== null &&
+      sourceSet.has(riderWaySource)
+    );
+  });
+}
+
+function getLatestActiveDeliveryAttemptItem(items: CorrectionFinancialItem[]) {
   return items
     .filter(
       (item) =>
-        item.status === "pending" &&
-        item.merchantSettlementId === null &&
-        item.riderPayoutId === null &&
-        isFinancialItemType(item.itemType) &&
-        !keepTypeSet.has(item.itemType),
+        item.itemType === "rider_way_payout" &&
+        isDeliveryAttemptRiderWaySource(item.riderWaySource) &&
+        item.status !== "void",
     )
-    .map((item) => item.id);
+    .toSorted((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0];
+}
+
+function assertDeliveryAttemptOwnershipCanChange(item: CorrectionFinancialItem) {
+  if (item.status !== "pending" || item.riderPayoutId !== null) {
+    throw new Error(
+      "The current delivery attempt is already reserved or settled. Reverse that payout before correcting the rider.",
+    );
+  }
 }
 
 function deactivateActiveFailureNoteIfNeeded(
@@ -851,10 +904,12 @@ export async function correctParcelStatus(
         id: financialItems.id,
         riderId: financialItems.riderId,
         itemType: financialItems.itemType,
+        riderWaySource: financialItems.riderWaySource,
         amount: financialItems.amount,
         status: financialItems.status,
         merchantSettlementId: financialItems.merchantSettlementId,
         riderPayoutId: financialItems.riderPayoutId,
+        createdAt: financialItems.createdAt,
         updatedAt: financialItems.updatedAt,
       })
       .from(financialItems)
@@ -873,8 +928,6 @@ export async function correctParcelStatus(
     if (oldStatus === input.targetStatus) {
       throw new Error("Target status is already the current parcel status.");
     }
-
-    assertNoUnsafeFinancialItems(relatedFinancialItems);
 
     const now = new Date();
     const activeItemTypes = getActiveFinancialItemTypes(relatedFinancialItems);
@@ -901,7 +954,7 @@ export async function correctParcelStatus(
       deliveryFailureNote: deactivateActiveFailureNoteIfNeeded(parcel.deliveryFailureNote),
     };
     let targetRiderId: string | null = null;
-    let keepFinancialItemTypes: FinancialItemType[] = [];
+    let currentDeliveryAttemptItem: CorrectionFinancialItem | undefined;
     let parcelUpdate: Partial<typeof parcels.$inferInsert> = {};
 
     if (input.targetStatus === "delivered") {
@@ -917,7 +970,18 @@ export async function correctParcelStatus(
         throw new Error("Delivery proof is required when correcting a parcel to delivered.");
       }
 
-      keepFinancialItemTypes = ["rider_way_payout"];
+      currentDeliveryAttemptItem = getLatestActiveDeliveryAttemptItem(relatedFinancialItems);
+
+      if (!currentDeliveryAttemptItem) {
+        throw new Error(
+          "Correcting to delivered requires an existing delivery attempt. Use the normal start-delivery workflow first.",
+        );
+      }
+
+      if (currentDeliveryAttemptItem.riderId !== targetRiderId) {
+        assertDeliveryAttemptOwnershipCanChange(currentDeliveryAttemptItem);
+      }
+
       parcelUpdate = {
         ...baseParcelUpdate,
         riderId: targetRiderId,
@@ -936,20 +1000,19 @@ export async function correctParcelStatus(
       sideEffects.push("Set delivery completion and collection fields.");
     } else if (input.targetStatus === "returned_to_merchant") {
       targetRiderId = input.targetRiderId ?? parcel.riderId;
+      let targetAssignedAt: Date | null = null;
 
-      if (!targetRiderId) {
-        throw new Error(
-          "An active rider is required when correcting a parcel to returned to merchant.",
-        );
+      if (targetRiderId) {
+        await getActiveCorrectionRider(tx, targetRiderId);
+        targetAssignedAt =
+          parcel.riderId === targetRiderId && parcel.assignedAt ? parcel.assignedAt : now;
       }
 
-      await getActiveCorrectionRider(tx, targetRiderId);
-      keepFinancialItemTypes = ["delivery_fee_deduction"];
       parcelUpdate = {
         ...baseParcelUpdate,
         ...commonResetFields,
         riderId: targetRiderId,
-        assignedAt: parcel.riderId === targetRiderId && parcel.assignedAt ? parcel.assignedAt : now,
+        assignedAt: targetAssignedAt,
         returnedToMerchantAt: now,
         deliveryFeeStatus: "deduct_from_merchant",
       };
@@ -997,9 +1060,9 @@ export async function correctParcelStatus(
       );
     }
 
-    const voidableFinancialItemIds = getVoidableFinancialItemIds(
+    const voidableFinancialItemIds = getCorrectionFinancialItemsToVoid(
       relatedFinancialItems,
-      keepFinancialItemTypes,
+      input.targetStatus,
     );
 
     if (voidableFinancialItemIds.length > 0) {
@@ -1010,32 +1073,17 @@ export async function correctParcelStatus(
       sideEffects.push(`Voided ${voidableFinancialItemIds.length} pending financial item(s).`);
     }
 
-    if (input.targetStatus === "delivered" && targetRiderId) {
-      if (activeItemTypes.has("rider_way_payout")) {
-        await tx
-          .update(financialItems)
-          .set({ riderId: targetRiderId, updatedAt: now })
-          .where(
-            and(
-              eq(financialItems.parcelId, parcel.id),
-              eq(financialItems.itemType, "rider_way_payout"),
-              eq(financialItems.status, "pending"),
-            ),
-          );
-        sideEffects.push("Updated pending rider payout item rider.");
-      } else {
-        await tx.insert(financialItems).values({
-          parcelId: parcel.id,
-          merchantId: parcel.merchantId,
-          riderId: targetRiderId,
-          itemType: "rider_way_payout",
-          amount: 1,
-          status: "pending",
-          createdBy: input.actorId,
-          updatedAt: now,
-        });
-        sideEffects.push("Created pending rider payout item.");
-      }
+    if (
+      input.targetStatus === "delivered" &&
+      targetRiderId &&
+      currentDeliveryAttemptItem &&
+      currentDeliveryAttemptItem.riderId !== targetRiderId
+    ) {
+      await tx
+        .update(financialItems)
+        .set({ riderId: targetRiderId, updatedAt: now })
+        .where(eq(financialItems.id, currentDeliveryAttemptItem.id));
+      sideEffects.push("Corrected the latest delivery-attempt payout item rider.");
     }
 
     if (input.targetStatus === "returned_to_merchant") {
@@ -1052,9 +1100,25 @@ export async function correctParcelStatus(
         });
         sideEffects.push("Created pending delivery fee deduction item.");
       }
+
+      if (targetRiderId && !hasActiveRiderWaySource(relatedFinancialItems, ["merchant_return"])) {
+        await tx.insert(financialItems).values({
+          parcelId: parcel.id,
+          merchantId: parcel.merchantId,
+          riderId: targetRiderId,
+          itemType: "rider_way_payout",
+          riderWaySource: "merchant_return",
+          amount: 1,
+          status: "pending",
+          createdBy: input.actorId,
+          updatedAt: now,
+        });
+        sideEffects.push("Created pending merchant-return rider payout item.");
+      }
     }
 
     await tx.update(parcels).set(parcelUpdate).where(eq(parcels.id, parcel.id));
+    await recomputeParcelRiderPayoutStatuses(tx, [parcel.id]);
 
     const [statusLog] = await tx
       .insert(parcelStatusLogs)
@@ -1109,10 +1173,12 @@ export async function correctParcelRider(
         id: financialItems.id,
         riderId: financialItems.riderId,
         itemType: financialItems.itemType,
+        riderWaySource: financialItems.riderWaySource,
         amount: financialItems.amount,
         status: financialItems.status,
         merchantSettlementId: financialItems.merchantSettlementId,
         riderPayoutId: financialItems.riderPayoutId,
+        createdAt: financialItems.createdAt,
         updatedAt: financialItems.updatedAt,
       })
       .from(financialItems)
@@ -1143,17 +1209,17 @@ export async function correctParcelRider(
       await getActiveCorrectionRider(tx, input.targetRiderId);
     }
 
-    const unsafePayoutItem = relatedRiderPayoutItems.find(
-      (item) =>
-        item.itemType === "rider_way_payout" &&
-        item.status !== "void" &&
-        (item.status !== "pending" || item.riderPayoutId),
-    );
+    const currentAttemptItem =
+      status === "on_the_way" || status === "delivered"
+        ? getLatestActiveDeliveryAttemptItem(relatedRiderPayoutItems)
+        : undefined;
 
-    if (unsafePayoutItem) {
-      throw new Error(
-        "This parcel has rider payout items already reserved or settled. Reverse those records before correcting the rider.",
-      );
+    if (
+      currentAttemptItem &&
+      input.targetRiderId !== null &&
+      currentAttemptItem.riderId !== input.targetRiderId
+    ) {
+      assertDeliveryAttemptOwnershipCanChange(currentAttemptItem);
     }
 
     const now = new Date();
@@ -1168,18 +1234,16 @@ export async function correctParcelRider(
       })
       .where(eq(parcels.id, parcel.id));
 
-    if (status === "delivered" && input.targetRiderId !== null) {
+    if (
+      currentAttemptItem &&
+      input.targetRiderId !== null &&
+      currentAttemptItem.riderId !== input.targetRiderId
+    ) {
       await tx
         .update(financialItems)
         .set({ riderId: input.targetRiderId, updatedAt: now })
-        .where(
-          and(
-            eq(financialItems.parcelId, parcel.id),
-            eq(financialItems.itemType, "rider_way_payout"),
-            eq(financialItems.status, "pending"),
-          ),
-        );
-      sideEffects.push("Updated pending rider payout item rider.");
+        .where(eq(financialItems.id, currentAttemptItem.id));
+      sideEffects.push("Updated the current delivery-attempt payout item rider.");
     }
 
     await tx.insert(parcelCorrectionLogs).values({
@@ -1294,7 +1358,8 @@ export async function resolveFailedParcelByAdmin(input: {
       })
       .from(parcels)
       .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
-      .limit(1);
+      .limit(1)
+      .for("update");
 
     if (!parcel) {
       throw new Error("Parcel was not found.");
@@ -1339,6 +1404,7 @@ export async function resolveFailedParcelByAdmin(input: {
       newStatus: input.targetStatus,
       changedBy: input.actorId,
     });
+    await recomputeParcelRiderPayoutStatuses(tx, [parcel.id]);
   });
 }
 
@@ -1350,6 +1416,8 @@ export async function startDeliveryForRiderParcels(input: {
   if (!canChangeParcelStatus(input.actorRole, "at_office", "on_the_way")) {
     throw new Error("You do not have permission to start delivery.");
   }
+
+  const uniqueParcelIds = Array.from(new Set(input.parcelIds));
 
   await db.transaction(async (tx) => {
     const [rider] = await tx
@@ -1366,14 +1434,16 @@ export async function startDeliveryForRiderParcels(input: {
     const selectedParcels = await tx
       .select({
         id: parcels.id,
+        merchantId: parcels.merchantId,
         status: parcels.status,
         riderId: parcels.riderId,
         deliveryFailureNote: parcels.deliveryFailureNote,
       })
       .from(parcels)
-      .where(and(inArray(parcels.id, input.parcelIds), isNull(parcels.deletedAt)));
+      .where(and(inArray(parcels.id, uniqueParcelIds), isNull(parcels.deletedAt)))
+      .for("update");
 
-    if (selectedParcels.length !== input.parcelIds.length) {
+    if (selectedParcels.length !== uniqueParcelIds.length) {
       throw new Error("One or more selected parcels were not found.");
     }
 
@@ -1389,13 +1459,48 @@ export async function startDeliveryForRiderParcels(input: {
       throw new Error("Only assigned at-office parcels can be started for delivery.");
     }
 
-    await tx
+    const startedAt = new Date();
+    const updatedParcels = await tx
       .update(parcels)
       .set({
         status: "on_the_way",
-        updatedAt: new Date(),
+        updatedAt: startedAt,
       })
-      .where(and(inArray(parcels.id, input.parcelIds), eq(parcels.riderId, rider.id)));
+      .where(
+        and(
+          inArray(parcels.id, uniqueParcelIds),
+          eq(parcels.riderId, rider.id),
+          eq(parcels.status, "at_office"),
+        ),
+      )
+      .returning({ id: parcels.id });
+
+    if (updatedParcels.length !== uniqueParcelIds.length) {
+      throw new Error("One or more selected parcels are no longer eligible to start delivery.");
+    }
+
+    await tx.insert(financialItems).values(
+      selectedParcels.map((parcel) => ({
+        parcelId: parcel.id,
+        merchantId: parcel.merchantId,
+        riderId: rider.id,
+        itemType: "rider_way_payout" as const,
+        riderWaySource: "delivery_attempt" as const,
+        amount: 1,
+        status: "pending" as const,
+        createdBy: input.riderUserId,
+        updatedAt: startedAt,
+      })),
+    );
+    await tx.insert(parcelStatusLogs).values(
+      selectedParcels.map((parcel) => ({
+        parcelId: parcel.id,
+        oldStatus: "at_office",
+        newStatus: "on_the_way",
+        changedBy: input.riderUserId,
+      })),
+    );
+    await recomputeParcelRiderPayoutStatuses(tx, uniqueParcelIds);
   });
 }
 
@@ -1430,7 +1535,8 @@ export async function reportDeliveryFailureForRiderParcel(input: {
       })
       .from(parcels)
       .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
-      .limit(1);
+      .limit(1)
+      .for("update");
 
     if (!parcel) {
       throw new Error("Parcel was not found.");
@@ -1491,7 +1597,8 @@ export async function updateDeliveryFailureForRiderParcel(input: {
       })
       .from(parcels)
       .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
-      .limit(1);
+      .limit(1)
+      .for("update");
 
     if (!parcel) {
       throw new Error("Parcel was not found.");
@@ -1622,7 +1729,8 @@ export async function markRiderParcelDelivered(input: {
       })
       .from(parcels)
       .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
-      .limit(1);
+      .limit(1)
+      .for("update");
 
     if (!parcel) {
       throw new Error("Parcel was not found.");
@@ -1640,7 +1748,7 @@ export async function markRiderParcelDelivered(input: {
     const isCodParcel = parcel.parcelType === "cod";
     const collectedAmount = (isCodParcel ? parcel.codAmount : 0) + parcel.deliveryFee;
 
-    await tx
+    const [deliveredParcel] = await tx
       .update(parcels)
       .set({
         status: "delivered",
@@ -1655,21 +1763,26 @@ export async function markRiderParcelDelivered(input: {
         proofOfDeliveryImagesKeys: [input.proofImageKey],
         updatedAt: deliveredAt,
       })
-      .where(and(eq(parcels.id, input.parcelId), eq(parcels.riderId, rider.id)));
+      .where(
+        and(
+          eq(parcels.id, input.parcelId),
+          eq(parcels.riderId, rider.id),
+          eq(parcels.status, "on_the_way"),
+        ),
+      )
+      .returning({ id: parcels.id });
 
-    const pendingFinancialItems = [
-      {
-        parcelId: parcel.id,
-        merchantId: parcel.merchantId,
-        riderId: rider.id,
-        itemType: "rider_way_payout",
-        amount: 1,
-        status: "pending",
-        createdBy: input.createdBy,
-      },
-    ];
+    if (!deliveredParcel) {
+      throw new Error("Only on-the-way parcels can be marked delivered.");
+    }
 
-    await tx.insert(financialItems).values(pendingFinancialItems);
+    await tx.insert(parcelStatusLogs).values({
+      parcelId: parcel.id,
+      oldStatus: "on_the_way",
+      newStatus: "delivered",
+      changedBy: input.createdBy,
+    });
+    await recomputeParcelRiderPayoutStatuses(tx, [parcel.id]);
   });
 }
 
@@ -1705,7 +1818,8 @@ export async function markRiderParcelReturnedToMerchant(input: {
       })
       .from(parcels)
       .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
-      .limit(1);
+      .limit(1)
+      .for("update");
 
     if (!parcel) {
       throw new Error("Parcel was not found.");
@@ -1723,16 +1837,28 @@ export async function markRiderParcelReturnedToMerchant(input: {
 
     const returnedAt = new Date();
 
-    await tx
+    const [returnedParcel] = await tx
       .update(parcels)
       .set({
         status: "returned_to_merchant",
         returnedToMerchantAt: returnedAt,
         deliveryFeeStatus: "deduct_from_merchant",
         merchantSettlementStatus: "pending",
+        riderPayoutStatus: "pending",
         updatedAt: returnedAt,
       })
-      .where(and(eq(parcels.id, input.parcelId), eq(parcels.riderId, rider.id)));
+      .where(
+        and(
+          eq(parcels.id, input.parcelId),
+          eq(parcels.riderId, rider.id),
+          eq(parcels.status, "canceled_returned"),
+        ),
+      )
+      .returning({ id: parcels.id });
+
+    if (!returnedParcel) {
+      throw new Error("Only canceled-returned parcels can be completed as returned.");
+    }
 
     await tx.insert(parcelStatusLogs).values({
       parcelId: parcel.id,
@@ -1741,14 +1867,28 @@ export async function markRiderParcelReturnedToMerchant(input: {
       changedBy: input.createdBy,
     });
 
-    await tx.insert(financialItems).values({
-      parcelId: parcel.id,
-      merchantId: parcel.merchantId,
-      riderId: null,
-      itemType: "delivery_fee_deduction",
-      amount: parcel.deliveryFee,
-      status: "pending",
-      createdBy: input.createdBy,
-    });
+    await tx.insert(financialItems).values([
+      {
+        parcelId: parcel.id,
+        merchantId: parcel.merchantId,
+        riderId: null,
+        itemType: "delivery_fee_deduction",
+        riderWaySource: null,
+        amount: parcel.deliveryFee,
+        status: "pending",
+        createdBy: input.createdBy,
+      },
+      {
+        parcelId: parcel.id,
+        merchantId: parcel.merchantId,
+        riderId: rider.id,
+        itemType: "rider_way_payout",
+        riderWaySource: "merchant_return",
+        amount: 1,
+        status: "pending",
+        createdBy: input.createdBy,
+      },
+    ]);
+    await recomputeParcelRiderPayoutStatuses(tx, [parcel.id]);
   });
 }

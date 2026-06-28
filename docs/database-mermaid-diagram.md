@@ -2,6 +2,10 @@ erDiagram
 %% `auth_users` represents the Better Auth user model with Parcel Flow custom fields.
 %% It is not a separate app-owned `app_users` table.
 %% The physical table name should follow the Better Auth configuration.
+%% `financial_items.rider_way_source` uses `delivery_attempt`, `merchant_return`,
+%% or `legacy_delivery` for rider way payout rows.
+%% `rider_payouts.delivered_way_count` is the persisted legacy column name for
+%% the selected payable way count.
 auth_users {
 uuid id PK
 text name
@@ -115,6 +119,7 @@ uuid rider_payout_id FK
     text item_type
     integer amount
     text status
+    text rider_way_source
     uuid created_by FK
 
     timestamp created_at

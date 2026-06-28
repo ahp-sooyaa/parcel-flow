@@ -362,9 +362,7 @@ function CorrectStatusDialog({
     }
 
     if (
-      (nextStatus === "on_the_way" ||
-        nextStatus === "delivered" ||
-        nextStatus === "returned_to_merchant") &&
+      (nextStatus === "on_the_way" || nextStatus === "delivered") &&
       targetRiderValue === unassignedRiderValue &&
       riders[0]
     ) {
@@ -447,7 +445,9 @@ function CorrectStatusDialog({
               value={targetRiderValue}
               onChange={setTargetRiderValue}
               riders={riders}
-              allowUnassigned={targetStatus === "canceled_returned"}
+              allowUnassigned={
+                targetStatus === "canceled_returned" || targetStatus === "returned_to_merchant"
+              }
             />
           ) : null}
 

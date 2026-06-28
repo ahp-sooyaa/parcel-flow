@@ -33,6 +33,8 @@ export const financialItemTypes = [
 export type FinancialItemType = (typeof financialItemTypes)[number];
 export const financialItemStatuses = ["pending", "in_progress", "settled", "void"] as const;
 export type FinancialItemStatus = (typeof financialItemStatuses)[number];
+export const riderWaySources = ["delivery_attempt", "merchant_return", "legacy_delivery"] as const;
+export type RiderWaySource = (typeof riderWaySources)[number];
 export const parcelTypes = ["cod", "non_cod"] as const;
 export type ParcelType = (typeof parcelTypes)[number];
 
@@ -54,4 +56,20 @@ export const parcelStatusLabels: Record<ParcelStatus, string> = {
 
 export function isAdminRole(role: UserRole) {
   return role === "super_admin" || role === "office_admin";
+}
+
+export function isFinancialItemType(value: string): value is FinancialItemType {
+  return financialItemTypes.some((itemType) => itemType === value);
+}
+
+export function isFinancialItemStatus(value: string): value is FinancialItemStatus {
+  return financialItemStatuses.some((status) => status === value);
+}
+
+export function isRiderWaySource(value: string | null): value is RiderWaySource {
+  return value !== null && riderWaySources.some((source) => source === value);
+}
+
+export function isDeliveryAttemptRiderWaySource(value: string | null) {
+  return value === null || value === "delivery_attempt" || value === "legacy_delivery";
 }
