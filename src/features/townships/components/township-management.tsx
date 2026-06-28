@@ -58,47 +58,55 @@ export function TownshipManagement({ townships, canManagePricing }: TownshipMana
             </TableRow>
           </TableHeader>
           <TableBody>
-            {townships.map((township) => (
-              <TableRow key={township.id}>
-                <TableCell className="font-medium">{township.name}</TableCell>
-                <TableCell className="text-right">{formatMoney(township.baseFee)} MMK</TableCell>
-                <TableCell className="text-right">{township.baseWeightKg}kg</TableCell>
-                <TableCell className="text-right">
-                  {formatMoney(township.extraWeightFee)} MMK
-                </TableCell>
-                <TableCell>
-                  <StatusBadge
-                    label={township.isActive ? "Active" : "Inactive"}
-                    variant={township.isActive ? "success" : "secondary"}
-                  />
-                </TableCell>
-                <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-8 rounded-md text-muted-foreground"
-                        aria-label={`Open actions for ${township.name}`}
-                      >
-                        <MoreHorizontal className="size-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-[9rem]">
-                      {canManagePricing ? (
-                        <DropdownMenuItem onClick={() => setEditingTownship(township)}>
-                          Edit
-                        </DropdownMenuItem>
-                      ) : null}
-                      <DropdownMenuItem onClick={() => setViewingTownship(township)}>
-                        View
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+            {townships.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  No townships.
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              townships.map((township) => (
+                <TableRow key={township.id}>
+                  <TableCell className="font-medium">{township.name}</TableCell>
+                  <TableCell className="text-right">{formatMoney(township.baseFee)} MMK</TableCell>
+                  <TableCell className="text-right">{township.baseWeightKg}kg</TableCell>
+                  <TableCell className="text-right">
+                    {formatMoney(township.extraWeightFee)} MMK
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge
+                      label={township.isActive ? "Active" : "Inactive"}
+                      variant={township.isActive ? "success" : "secondary"}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 rounded-md text-muted-foreground"
+                          aria-label={`Open actions for ${township.name}`}
+                        >
+                          <MoreHorizontal className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-[9rem]">
+                        {canManagePricing ? (
+                          <DropdownMenuItem onClick={() => setEditingTownship(township)}>
+                            Edit
+                          </DropdownMenuItem>
+                        ) : null}
+                        <DropdownMenuItem onClick={() => setViewingTownship(township)}>
+                          View
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>

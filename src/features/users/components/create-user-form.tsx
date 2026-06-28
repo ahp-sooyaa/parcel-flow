@@ -44,6 +44,9 @@ import { creatableUserRoles, roleLabels, type CreatableUserRole } from "@/lib/do
 
 type CreateUserFormProps = Readonly<{
   townships: TownshipListItemDto[];
+  defaultRole?: CreatableUserRole;
+  roleOptions?: readonly CreatableUserRole[];
+  title?: string;
 }>;
 
 type CreateUserFormValues = {
@@ -57,7 +60,12 @@ type CreateUserFormValues = {
   selectedTownship: TownshipOption | null;
 };
 
-export function CreateUserForm({ townships }: CreateUserFormProps) {
+export function CreateUserForm({
+  townships,
+  defaultRole = "office_admin",
+  roleOptions = creatableUserRoles,
+  title = "Create User",
+}: CreateUserFormProps) {
   const overlayContainerRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -80,7 +88,7 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
         phoneNumber: "",
         address: "",
         age: "",
-        role: "office_admin",
+        role: defaultRole,
         password: generateTemporaryPassword(),
         shopName: "",
         selectedTownship: null,
@@ -166,7 +174,7 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
         phoneNumber: "",
         address: "",
         age: "",
-        role: "office_admin",
+        role: defaultRole,
         password: generateTemporaryPassword(),
         shopName: "",
         selectedTownship: null,
@@ -187,9 +195,7 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
       onSubmit={handleSubmit(submitForm)}
     >
       <SheetHeader className="space-y-3 border-b border-[#e7dfd8] p-6 pb-4 text-left">
-        <SheetTitle className="text-[2rem] font-semibold tracking-[-0.04em]">
-          Create User
-        </SheetTitle>
+        <SheetTitle className="text-[2rem] font-semibold tracking-[-0.04em]">{title}</SheetTitle>
       </SheetHeader>
 
       <div className="flex-1 overflow-y-auto px-6 pt-6 pb-6">
@@ -281,8 +287,8 @@ export function CreateUserForm({ townships }: CreateUserFormProps) {
                       setValue("role", nextRole);
                       clearFeedback("role");
                     }}
-                    disabled={isPending}
-                    roles={creatableUserRoles}
+                    disabled={isPending || roleOptions.length === 1}
+                    roles={roleOptions}
                   />
                 </FieldShell>
               </div>
