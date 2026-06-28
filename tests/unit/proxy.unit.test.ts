@@ -45,6 +45,7 @@ describe("dashboard proxy", async () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("location")).toBeNull();
+    expect(response.headers.get("content-security-policy")).toContain("default-src 'self'");
   });
 
   test("redirects out-of-scope role paths to the role landing path", async () => {
@@ -99,6 +100,13 @@ describe("dashboard proxy", async () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe("http://localhost/login");
+  });
+
+  test("adds content security policy headers for non-dashboard pages", async () => {
+    const response = await proxy(makeRequest("/login"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-security-policy")).toContain("default-src 'self'");
   });
 });
 

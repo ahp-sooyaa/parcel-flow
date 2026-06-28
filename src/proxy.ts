@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
+import { createContentSecurityPolicyRequestHeaders } from "@/lib/content-security-policy";
 import { auth } from "@/lib/auth";
 import { userRoles, type UserRole } from "@/lib/domain";
 import { getRoleLandingPath } from "@/lib/session";
@@ -26,8 +27,39 @@ const sessionUserSchema = z.looseObject({
   isActive: z.boolean(),
 });
 
+function applyContentSecurityPolicy(request: NextRequest) {
+  const { headers, contentSecurityPolicy } = createContentSecurityPolicyRequestHeaders(
+    request.headers,
+  );
+
+  return {
+    requestHeaders: headers,
+    contentSecurityPolicy,
+  };
+}
+
+function continueWithContentSecurityPolicy(
+  request: NextRequest,
+  requestHeaders: Headers,
+  contentSecurityPolicy: string,
+) {
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+
+  response.headers.set("Content-Security-Policy", contentSecurityPolicy);
+  return response;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const { requestHeaders, contentSecurityPolicy } = applyContentSecurityPolicy(request);
+
+  if (!pathname.startsWith("/dashboard")) {
+    return continueWithContentSecurityPolicy(request, requestHeaders, contentSecurityPolicy);
+  }
 
   const session = await auth.api.getSession({
     headers: request.headers,
@@ -51,9 +83,17 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(getRoleLandingPath(user.role), request.url));
   }
 
-  return NextResponse.next();
+  return continueWithContentSecurityPolicy(request, requestHeaders, contentSecurityPolicy);
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: [
+    {
+      source: "/((?!api|_next/static|_next/image|favicon.ico|monitoring).*)",
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" },
+      ],
+    },
+  ],
 };

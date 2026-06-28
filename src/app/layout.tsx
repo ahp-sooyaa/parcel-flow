@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { Inter } from "next/font/google";
 import type { ReactNode } from "react";
 
@@ -15,11 +16,13 @@ export const metadata: Metadata = {
   description: "Internal delivery management system for parcels, settlements, and rider payouts.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: ReactNode;
 }>) {
+  await connection();
+
   return (
     <html lang="en">
       <body className={inter.variable}>
