@@ -1,12 +1,11 @@
-# AGENTS.md
+---
+description: Parcel Flow engineering rules — architecture, stack, UI, data access, and verification
+alwaysApply: true
+---
 
-## Purpose
-
-This file defines the default engineering rules for Codex and other coding agents working in this repository.
+# Parcel Flow Engineering Rules
 
 These rules apply unless the user explicitly overrides them.
-
----
 
 ## Architecture
 
@@ -40,8 +39,6 @@ Rules:
 - Do not place business logic in `src/components`.
 - Do not create generic `services`, `managers`, `helpers`, or `utils` folders at the root unless explicitly requested.
 
----
-
 ## Stack Expectations
 
 - Framework: Next.js App Router
@@ -60,16 +57,12 @@ Rules:
 - Keep database access out of client components.
 - Validate all users input with Zod.
 
----
-
 ## Domain Notes
 
 - Authentication user tables come from Better Auth.
 - Domain docs may refer to the auth user table as `app_users` as a placeholder name.
 - `financial_items` is used for both merchant settlement and rider payout flows.
 - `is_received_by_office` is a boolean field.
-
----
 
 ## UI Rules
 
@@ -81,8 +74,6 @@ Rules:
 - Reuse shared app components before creating new ones.
 - Do not place app-specific reusable components in `src/components/ui`.
 
----
-
 ## Coding Rules
 
 - Prefer simple, explicit code over abstraction-heavy patterns.
@@ -93,8 +84,6 @@ Rules:
 - Do not introduce new dependencies unless necessary.
 - Avoid nested ternary operator.
 
----
-
 ## Data Access Rules
 
 - Put schema and database setup in `src/db`.
@@ -103,16 +92,12 @@ Rules:
 - Keep feature-specific server helpers in `src/features/<feature>/server/utils.ts`.
 - Do not bypass typed database access with ad hoc raw queries unless necessary.
 
----
-
 ## File Creation Rules
 
 - Prefer extending existing features over creating parallel patterns.
 - If a new feature is added, follow the same feature-sliced layout.
 - Do not add `middleware.ts`.
 - Do not add separate backend apps, microservices, or RPC layers unless explicitly requested.
-
----
 
 ## Verification
 

@@ -8,7 +8,6 @@ export default defineConfig({
     "dist/**",
     "docs/**",
     "node_modules/**",
-    "AGENTS.md",
     "DESIGN.md",
     "README.md",
     "bun.lock",
