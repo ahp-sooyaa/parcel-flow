@@ -15,4 +15,5 @@ export async function signIn(page: Page, user: { username: string; password: str
   await expect(passwordInput).toHaveValue(user.password);
 
   await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 60_000 });
 }

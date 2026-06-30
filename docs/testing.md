@@ -127,3 +127,113 @@ The `add-rider-payouts` change must add focused unit, component, and integration
 - rider payout table and right-side create-sheet item status behavior.
 
 R2 upload integration and full browser coverage for settlement and payout completion remain outside the current regression baseline until their dedicated flows add those tests.
+
+## Performance benchmarking
+
+Local performance benchmarks help verify query and page-load optimizations before and after changes. Benchmarks run against `.env.test` (local Supabase Postgres on port `54322` is supported).
+
+### Commands
+
+```bash
+bun run perf:seed
+bun run perf:dal
+bun run perf:explain
+bun run perf:pages
+bun run perf:lighthouse
+bun run perf:all
+bun run perf:compare <baseline-dir> <candidate-dir>
+```
+
+`perf:seed` resets parcel data by default (`PERF_RESET=1`) and removes previous perf-tagged users/parcels for the current `PERF_SEED` before re-seeding, so reruns are safe. Set `PERF_RESET=0` to only replace perf-tagged parcels without wiping unrelated parcel rows.
+
+Scale presets:
+
+```bash
+PERF_SCALE=small bun run perf:seed    # ~100 parcels
+PERF_SCALE=medium bun run perf:seed   # ~1,000 parcels
+PERF_SCALE=large bun run perf:seed    # ~10,000 parcels
+```
+
+Reproducible seeding:
+
+```bash
+PERF_SEED=42 PERF_SCALE=medium bun run perf:dal
+```
+
+### Workflow
+
+1. Start local Supabase / test database and ensure `.env.test` is configured.
+2. Run `bun run perf:dal` (or `perf:all`) and copy the output directory from `benchmarks/results/<timestamp>/` into `benchmarks/baselines/`.
+3. Apply the optimization.
+4. Re-run benchmarks and compare:
+
+```bash
+bun run perf:compare benchmarks/baselines/pre-optimization benchmarks/results/<new-timestamp>
+```
+
+### Output artifacts
+
+Each run writes JSON under `benchmarks/results/<timestamp>/`:
+
+- `manifest.json` — commit, scale, Bun version, commands run
+- `dal.json` — DAL function p50/p95 timings
+- `explain-*.json` — Postgres `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` snapshots
+- `pages.json` — Playwright page load metrics on a production build
+- `lighthouse.json` — Lighthouse performance scores for `/login` (mobile + desktop). Dashboard routes are covered by `pages.json`.
+
+`perf:pages` and `perf:lighthouse` expect the app on `PLAYWRIGHT_PORT` (default `3100`). `perf:pages` builds and starts the production server automatically.
+
+Lighthouse env vars:
+
+- `LIGHTHOUSE_AUDIT_TIMEOUT_MS` — max time per CLI audit (default `120000`)
+- `LIGHTHOUSE_MAX_WAIT_FOR_LOAD_MS` — Lighthouse `--max-wait-for-load` (default `60000`)
+- `LIGHTHOUSE_PAUSE_BETWEEN_AUDITS_MS` — pause between audits (default `2000`)
+- `PERF_SKIP_LIGHTHOUSE=1` — skip step 5 in `perf:all`
+- `PERF_STRICT_LIGHTHOUSE=1` — fail `perf:all` when Lighthouse fails (default: warn and continue)
+
+### Supabase MCP (ad-hoc checks)
+
+Use Supabase MCP alongside local benchmarks:
+
+- `get_advisors` with `type: "performance"` for index and RLS advisories
+- `execute_sql` for remote `EXPLAIN` comparisons when hosted behavior differs from local
+
+MCP does not replace the local harness for repeatable before/after numbers.
+
+### Benchmark coverage (performance audit plan)
+
+Benchmarks map to the performance bottleneck audit plan so `perf:compare` can validate each optimization phase.
+
+| Audit item                                        | DAL benchmark                                                                               | EXPLAIN snapshot                                                        | Page benchmark                                       |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------- |
+| Admin parcels triple-scan                         | `adminParcelsPageDataLoad`                                                                  | —                                                                       | `/dashboard/parcels`                                 |
+| Unpaginated admin parcel list                     | `listParcels`                                                                               | `listParcels`                                                           | `/dashboard/parcels`                                 |
+| Merchant pagination reference                     | `listMerchantParcelsPageForUser`                                                            | `listMerchantParcelsPageForUser`                                        | `/dashboard/merchant/parcels`                        |
+| `listMerchants` / `listRiders` parcel aggregation | `listMerchants`, `listRiders`                                                               | `listMerchantsParcelAggregation`, `listRidersParcelAggregation`         | —                                                    |
+| Missing indexes on hot tables                     | —                                                                                           | all `explain-*.json` (check for seq scans on `parcels`)                 | —                                                    |
+| Users page bank-account N+1                       | `usersPageBankAccountsLoad`                                                                 | —                                                                       | `/dashboard/users`                                   |
+| `recomputeParcelRiderPayoutStatuses` N+1 writes   | `recomputeParcelRiderPayoutStatuses`                                                        | —                                                                       | —                                                    |
+| Dashboard settlement workspace                    | `dashboardPageDataLoad`, `listEligibleSettlementMerchants`, `listPendingRiderCashHandovers` | `listEligibleSettlementFinancialItems`, `listPendingRiderCashHandovers` | `/dashboard`                                         |
+| `getParcelSummary` full-table scan                | `getParcelSummary`                                                                          | `getParcelSummary`                                                      | `/dashboard`                                         |
+| Rider parcels client pagination                   | `listParcelsForRiderUser`                                                                   | `listParcelsForRiderUser`                                               | `/dashboard/rider/parcels`                           |
+| Settlement / payout lists                         | `listSettlements`, `listRiderPayouts`, `listEligibleRiderPayoutRiders`                      | —                                                                       | `/dashboard/settlements`, `/dashboard/rider-payouts` |
+
+`perf:seed` creates login-capable perf users (`perf-<seed>-super-admin`, `perf-<seed>-merchant`, `perf-<seed>-rider-1`; password `password123`), financial items for settlement/payout eligibility, and sample settlement/payout history. Page benchmarks use the same seeded volume as DAL benchmarks.
+
+Recommended baseline scale for index and aggregation work:
+
+```bash
+PERF_SCALE=medium bun run perf:all
+cp -R benchmarks/results/<timestamp> benchmarks/baselines/pre-optimization
+```
+
+Use `PERF_SCALE=large` before claiming index wins when seq scans are still acceptable at medium scale.
+
+### Suggested thresholds (manual)
+
+| Layer      | Metric                                      | Investigate when                          |
+| ---------- | ------------------------------------------- | ----------------------------------------- |
+| DAL        | p95 latency                                 | >15% slower than baseline                 |
+| EXPLAIN    | Sequential scan on `parcels` at large scale | Still present after index/pagination work |
+| Playwright | Time to key content                         | >20% slower than baseline                 |
+| Lighthouse | LCP on `/login`                             | >10% slower than baseline                 |

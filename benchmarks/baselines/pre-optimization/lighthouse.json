@@ -1,0 +1,22 @@
+{
+  "note": "Dashboard route timings are captured in pages.json; Lighthouse audits /login only.",
+  "results": [
+    {
+      "route": "/login",
+      "formFactor": "mobile",
+      "performanceScore": 95,
+      "lcpMs": 2183.8076,
+      "tbtMs": 233.5,
+      "cls": 0
+    },
+    {
+      "route": "/login",
+      "formFactor": "desktop",
+      "performanceScore": 100,
+      "lcpMs": 520.332,
+      "tbtMs": 0,
+      "cls": 0
+    }
+  ],
+  "failures": []
+}

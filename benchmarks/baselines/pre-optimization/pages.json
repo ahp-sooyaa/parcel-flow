@@ -1,0 +1,220 @@
+{
+  "results": [
+    {
+      "route": "/dashboard",
+      "role": "super_admin",
+      "runs": 3,
+      "median": {
+        "ttfbMs": 578.527,
+        "domContentLoadedMs": 638.7000000029802,
+        "timeToContentMs": 686
+      },
+      "samples": [
+        {
+          "ttfbMs": 558.705,
+          "domContentLoadedMs": 646.2999999970198,
+          "timeToContentMs": 711
+        },
+        {
+          "ttfbMs": 581.376,
+          "domContentLoadedMs": 638.7000000029802,
+          "timeToContentMs": 686
+        },
+        {
+          "ttfbMs": 578.527,
+          "domContentLoadedMs": 626.1000000089407,
+          "timeToContentMs": 673
+        }
+      ]
+    },
+    {
+      "route": "/dashboard/parcels",
+      "role": "super_admin",
+      "runs": 3,
+      "median": {
+        "ttfbMs": 432.493,
+        "domContentLoadedMs": 1174.0999999940395,
+        "timeToContentMs": 2105
+      },
+      "samples": [
+        {
+          "ttfbMs": 394.338,
+          "domContentLoadedMs": 706.2999999970198,
+          "timeToContentMs": 1651
+        },
+        {
+          "ttfbMs": 432.493,
+          "domContentLoadedMs": 1174.0999999940395,
+          "timeToContentMs": 2105
+        },
+        {
+          "ttfbMs": 560.055,
+          "domContentLoadedMs": 1318.7999999970198,
+          "timeToContentMs": 2745
+        }
+      ]
+    },
+    {
+      "route": "/dashboard/users",
+      "role": "super_admin",
+      "runs": 3,
+      "median": {
+        "ttfbMs": 113.32,
+        "domContentLoadedMs": 159.59999999403954,
+        "timeToContentMs": 219
+      },
+      "samples": [
+        {
+          "ttfbMs": 197.581,
+          "domContentLoadedMs": 247.8999999910593,
+          "timeToContentMs": 330
+        },
+        {
+          "ttfbMs": 93.188,
+          "domContentLoadedMs": 140.70000000298023,
+          "timeToContentMs": 219
+        },
+        {
+          "ttfbMs": 113.32,
+          "domContentLoadedMs": 159.59999999403954,
+          "timeToContentMs": 218
+        }
+      ]
+    },
+    {
+      "route": "/dashboard/merchant/parcels",
+      "role": "merchant",
+      "runs": 3,
+      "median": {
+        "ttfbMs": 103.217,
+        "domContentLoadedMs": 147.59999999403954,
+        "timeToContentMs": 210
+      },
+      "samples": [
+        {
+          "ttfbMs": 127.911,
+          "domContentLoadedMs": 191.40000000596046,
+          "timeToContentMs": 294
+        },
+        {
+          "ttfbMs": 103.217,
+          "domContentLoadedMs": 147.59999999403954,
+          "timeToContentMs": 210
+        },
+        {
+          "ttfbMs": 47.936,
+          "domContentLoadedMs": 84.69999998807907,
+          "timeToContentMs": 164
+        }
+      ]
+    },
+    {
+      "route": "/dashboard/merchant/overview",
+      "role": "merchant",
+      "runs": 3,
+      "median": {
+        "ttfbMs": 38.369,
+        "domContentLoadedMs": 72.70000000298023,
+        "timeToContentMs": 127
+      },
+      "samples": [
+        {
+          "ttfbMs": 27.048,
+          "domContentLoadedMs": 61.5,
+          "timeToContentMs": 114
+        },
+        {
+          "ttfbMs": 38.369,
+          "domContentLoadedMs": 72.70000000298023,
+          "timeToContentMs": 131
+        },
+        {
+          "ttfbMs": 42.444,
+          "domContentLoadedMs": 77.80000001192093,
+          "timeToContentMs": 127
+        }
+      ]
+    },
+    {
+      "route": "/dashboard/rider/parcels",
+      "role": "rider",
+      "runs": 3,
+      "median": {
+        "ttfbMs": 60.345,
+        "domContentLoadedMs": 108.5,
+        "timeToContentMs": 186
+      },
+      "samples": [
+        {
+          "ttfbMs": 72.358,
+          "domContentLoadedMs": 121.8999999910593,
+          "timeToContentMs": 196
+        },
+        {
+          "ttfbMs": 60.345,
+          "domContentLoadedMs": 108.5,
+          "timeToContentMs": 186
+        },
+        {
+          "ttfbMs": 40.99,
+          "domContentLoadedMs": 86.69999998807907,
+          "timeToContentMs": 158
+        }
+      ]
+    },
+    {
+      "route": "/dashboard/rider-payouts",
+      "role": "super_admin",
+      "runs": 3,
+      "median": {
+        "ttfbMs": 53.664,
+        "domContentLoadedMs": 88.09999999403954,
+        "timeToContentMs": 139
+      },
+      "samples": [
+        {
+          "ttfbMs": 33.759,
+          "domContentLoadedMs": 76.59999999403954,
+          "timeToContentMs": 122
+        },
+        {
+          "ttfbMs": 57.631,
+          "domContentLoadedMs": 98.20000000298023,
+          "timeToContentMs": 139
+        },
+        {
+          "ttfbMs": 53.664,
+          "domContentLoadedMs": 88.09999999403954,
+          "timeToContentMs": 140
+        }
+      ]
+    },
+    {
+      "route": "/dashboard/settlements",
+      "role": "super_admin",
+      "runs": 3,
+      "median": {
+        "ttfbMs": 52.743,
+        "domContentLoadedMs": 91.79999999701977,
+        "timeToContentMs": 135
+      },
+      "samples": [
+        {
+          "ttfbMs": 16.696,
+          "domContentLoadedMs": 57.20000000298023,
+          "timeToContentMs": 103
+        },
+        {
+          "ttfbMs": 52.743,
+          "domContentLoadedMs": 91.79999999701977,
+          "timeToContentMs": 135
+        },
+        {
+          "ttfbMs": 63.64,
+          "domContentLoadedMs": 107.09999999403954,
+          "timeToContentMs": 163
+        }
+      ]
+    }
+  ]
+}

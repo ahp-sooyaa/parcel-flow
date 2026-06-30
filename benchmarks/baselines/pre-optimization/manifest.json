@@ -1,0 +1,16 @@
+{
+  "runId": "2026-06-29T13-55-14Z",
+  "createdAt": "2026-06-29T13:55:14.933Z",
+  "gitCommit": "4af0df8be394a01872eb318c5eac11f93b562c7c",
+  "bunVersion": "1.3.9",
+  "perfScale": "medium",
+  "perfSeed": "42",
+  "resultDir": "/Users/aunghtet/Personal/parcel-flow-v2/benchmarks/results/2026-06-29T13-55-14Z",
+  "commands": [
+    "perf:all",
+    "perf:dal",
+    "perf:explain",
+    "perf:pages",
+    "perf:lighthouse"
+  ]
+}

@@ -14,3 +14,8 @@ test-results
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+# Performance benchmark artifacts
+benchmarks/results/
+benchmarks/.last-run
+benchmarks/.perf-context.json

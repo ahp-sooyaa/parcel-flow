@@ -1,0 +1,51 @@
+{
+  "name": "getParcelSummary",
+  "sql": "select \"status\", \"cod_amount\", \"delivery_fee\", \"parcel_type\", \"rider_id\" from \"parcels\" where \"parcels\".\"deleted_at\" is null",
+  "params": [],
+  "plan": [
+    {
+      "Plan": {
+        "Node Type": "Seq Scan",
+        "Parallel Aware": false,
+        "Async Capable": false,
+        "Relation Name": "parcels",
+        "Alias": "parcels",
+        "Startup Cost": 0,
+        "Total Cost": 60,
+        "Plan Rows": 1000,
+        "Plan Width": 39,
+        "Actual Startup Time": 0.007,
+        "Actual Total Time": 0.185,
+        "Actual Rows": 1000,
+        "Actual Loops": 1,
+        "Filter": "(deleted_at IS NULL)",
+        "Rows Removed by Filter": 0,
+        "Shared Hit Blocks": 50,
+        "Shared Read Blocks": 0,
+        "Shared Dirtied Blocks": 0,
+        "Shared Written Blocks": 0,
+        "Local Hit Blocks": 0,
+        "Local Read Blocks": 0,
+        "Local Dirtied Blocks": 0,
+        "Local Written Blocks": 0,
+        "Temp Read Blocks": 0,
+        "Temp Written Blocks": 0
+      },
+      "Planning": {
+        "Shared Hit Blocks": 0,
+        "Shared Read Blocks": 0,
+        "Shared Dirtied Blocks": 0,
+        "Shared Written Blocks": 0,
+        "Local Hit Blocks": 0,
+        "Local Read Blocks": 0,
+        "Local Dirtied Blocks": 0,
+        "Local Written Blocks": 0,
+        "Temp Read Blocks": 0,
+        "Temp Written Blocks": 0
+      },
+      "Planning Time": 0.025,
+      "Triggers": [],
+      "Execution Time": 0.231
+    }
+  ]
+}
