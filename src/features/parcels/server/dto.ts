@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import type { ParcelFailureNoteEntry } from "@/features/parcels/server/failure-notes";
-import { parcelStatuses, type ParcelStatus, type ParcelType } from "@/lib/domain";
+import { isParcelStatus, parcelStatuses, type ParcelStatus, type ParcelType } from "@/lib/domain";
 
 function isNonNegativeIntegerString(value: string) {
   const numberValue = Number(value);
@@ -274,4 +274,209 @@ function readSearchParam(value: string | string[] | undefined) {
   }
 
   return value;
+}
+
+export const adminParcelAssignmentFilters = [
+  "all",
+  "unassigned",
+  "assigned",
+  "need_review",
+] as const;
+export type AdminParcelAssignmentFilter = (typeof adminParcelAssignmentFilters)[number];
+
+const adminParcelSearchParamsSchema = z.object({
+  query: z.string().trim().max(100).optional().catch(""),
+  assignment: z.enum(adminParcelAssignmentFilters).optional().catch("all"),
+  township: z.string().trim().max(100).optional().catch(""),
+  statuses: z.string().trim().max(200).optional().catch(""),
+  page: z.coerce.number().int().min(1).optional().catch(1),
+});
+
+export type AdminParcelListFiltersDto = {
+  searchTerm: string;
+  assignment: AdminParcelAssignmentFilter;
+  townshipName: string | null;
+  statuses: ParcelStatus[];
+  page: number;
+  pageSize: number;
+};
+
+export type AdminParcelAssignmentCountsDto = {
+  all: number;
+  unassigned: number;
+  assigned: number;
+  need_review: number;
+};
+
+export type AdminParcelListPageDto = {
+  parcels: ParcelListItemDto[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+  hasAnyParcels: boolean;
+  assignmentCounts: AdminParcelAssignmentCountsDto;
+};
+
+export const adminParcelPageSize = 25;
+
+export function parcelMatchesAdminListFilters(
+  parcel: ParcelListItemDto,
+  filters: AdminParcelListFiltersDto,
+) {
+  const normalizedSearchTerm = filters.searchTerm.trim().toLowerCase();
+
+  if (normalizedSearchTerm) {
+    const matchesSearch =
+      parcel.parcelCode.toLowerCase().includes(normalizedSearchTerm) ||
+      parcel.receiverName.toLowerCase().includes(normalizedSearchTerm) ||
+      parcel.receiverPhoneNumber.toLowerCase().includes(normalizedSearchTerm) ||
+      parcel.merchantName.toLowerCase().includes(normalizedSearchTerm);
+
+    if (!matchesSearch) {
+      return false;
+    }
+  }
+
+  if (filters.townshipName && parcel.townshipName !== filters.townshipName) {
+    return false;
+  }
+
+  if (filters.statuses.length > 0 && !filters.statuses.includes(parcel.status)) {
+    return false;
+  }
+
+  if (filters.assignment === "unassigned") {
+    return parcel.riderId === null;
+  }
+
+  if (filters.assignment === "assigned") {
+    return parcel.riderId !== null;
+  }
+
+  if (filters.assignment === "need_review") {
+    return parcel.hasUnresolvedFailureReview;
+  }
+
+  return true;
+}
+
+export function parseAdminParcelListFilters(input: Record<string, string | string[] | undefined>) {
+  const parseResult = adminParcelSearchParamsSchema.safeParse({
+    query: readSearchParam(input.query),
+    assignment: readSearchParam(input.assignment),
+    township: readSearchParam(input.township),
+    statuses: readSearchParam(input.statuses),
+    page: readSearchParam(input.page),
+  });
+
+  if (!parseResult.success) {
+    return {
+      searchTerm: "",
+      assignment: "all",
+      townshipName: null,
+      statuses: [],
+      page: 1,
+      pageSize: adminParcelPageSize,
+    } satisfies AdminParcelListFiltersDto;
+  }
+
+  const township = parseResult.data.township?.trim();
+  const statuses = (parseResult.data.statuses ?? "")
+    .split(",")
+    .map((status) => status.trim())
+    .filter((status): status is ParcelStatus => isParcelStatus(status));
+
+  return {
+    searchTerm: parseResult.data.query ?? "",
+    assignment: parseResult.data.assignment ?? "all",
+    townshipName: township ? township : null,
+    statuses,
+    page: parseResult.data.page ?? 1,
+    pageSize: adminParcelPageSize,
+  } satisfies AdminParcelListFiltersDto;
+}
+
+export const riderParcelTabs = ["to_deliver", "delivered", "returned"] as const;
+export type RiderParcelTab = (typeof riderParcelTabs)[number];
+
+const riderParcelSearchParamsSchema = z.object({
+  query: z.string().trim().max(100).optional().catch(""),
+  tab: z.enum(riderParcelTabs).optional().catch("to_deliver"),
+  township: z.string().trim().max(100).optional().catch(""),
+  statuses: z.string().trim().max(200).optional().catch(""),
+  page: z.coerce.number().int().min(1).optional().catch(1),
+});
+
+export type RiderParcelListFiltersDto = {
+  searchTerm: string;
+  tab: RiderParcelTab;
+  townshipName: string | null;
+  statuses: ParcelStatus[];
+  page: number;
+  pageSize: number;
+};
+
+export type RiderParcelTabCountsDto = {
+  to_deliver: number;
+  delivered: number;
+  returned: number;
+};
+
+export type RiderParcelListPageDto = {
+  parcels: ParcelListItemDto[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+  hasAnyParcels: boolean;
+  tabCounts: RiderParcelTabCountsDto;
+};
+
+export const riderParcelPageSize = 12;
+
+const riderTabStatuses: Record<RiderParcelTab, ParcelStatus[]> = {
+  to_deliver: ["at_office", "on_the_way", "canceled_returned"],
+  delivered: ["delivered"],
+  returned: ["returned_to_merchant"],
+};
+
+export function getRiderParcelTabStatuses(tab: RiderParcelTab) {
+  return riderTabStatuses[tab];
+}
+
+export function parseRiderParcelListFilters(input: Record<string, string | string[] | undefined>) {
+  const parseResult = riderParcelSearchParamsSchema.safeParse({
+    query: readSearchParam(input.query),
+    tab: readSearchParam(input.tab),
+    township: readSearchParam(input.township),
+    statuses: readSearchParam(input.statuses),
+    page: readSearchParam(input.page),
+  });
+
+  if (!parseResult.success) {
+    return {
+      searchTerm: "",
+      tab: "to_deliver",
+      townshipName: null,
+      statuses: [],
+      page: 1,
+      pageSize: riderParcelPageSize,
+    } satisfies RiderParcelListFiltersDto;
+  }
+
+  const township = parseResult.data.township?.trim();
+  const statuses = (parseResult.data.statuses ?? "")
+    .split(",")
+    .map((status) => status.trim())
+    .filter((status): status is ParcelStatus => isParcelStatus(status));
+
+  return {
+    searchTerm: parseResult.data.query ?? "",
+    tab: parseResult.data.tab ?? "to_deliver",
+    townshipName: township ? township : null,
+    statuses,
+    page: parseResult.data.page ?? 1,
+    pageSize: riderParcelPageSize,
+  } satisfies RiderParcelListFiltersDto;
 }

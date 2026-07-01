@@ -15,6 +15,16 @@ export const parcelStatuses = [
 ] as const;
 export type ParcelStatus = (typeof parcelStatuses)[number];
 
+export function isParcelStatus(status: string): status is ParcelStatus {
+  for (const parcelStatus of parcelStatuses) {
+    if (parcelStatus === status) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export const codStatuses = ["pending", "not_applicable", "collected", "not_collected"] as const;
 export const deliveryFeeStatuses = [
   "pending",

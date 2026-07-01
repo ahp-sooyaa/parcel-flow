@@ -6,6 +6,8 @@ import type { z } from "zod";
 import {
   cancelRiderPayoutDraft,
   createRiderPayoutDraft,
+  getEligibleRiderPayoutItemsByRiderId,
+  listEligibleRiderPayoutRiderSummaries,
   settleRiderPayout,
 } from "@/features/rider-payouts/server/dal";
 import {
@@ -42,6 +44,58 @@ function revalidateRiderPayoutPaths() {
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/parcels");
   revalidatePath("/dashboard/rider-payouts");
+}
+
+export async function listEligibleRiderPayoutRiderSummariesAction() {
+  const actor = await requireCurrentUser();
+
+  if (!canCreateRiderPayoutDraft(actor.role)) {
+    return {
+      ok: false as const,
+      message: "You do not have permission to view rider payout eligibility.",
+    };
+  }
+
+  try {
+    const riders = await listEligibleRiderPayoutRiderSummaries();
+
+    return {
+      ok: true as const,
+      riders,
+    };
+  } catch (error) {
+    return {
+      ok: false as const,
+      message:
+        error instanceof Error ? error.message : "Unable to load eligible rider payout riders.",
+    };
+  }
+}
+
+export async function getEligibleRiderPayoutRiderDetailAction(riderId: string) {
+  const actor = await requireCurrentUser();
+
+  if (!canCreateRiderPayoutDraft(actor.role)) {
+    return {
+      ok: false as const,
+      message: "You do not have permission to view rider payout eligibility.",
+    };
+  }
+
+  try {
+    const financialItems = await getEligibleRiderPayoutItemsByRiderId(riderId);
+
+    return {
+      ok: true as const,
+      financialItems,
+    };
+  } catch (error) {
+    return {
+      ok: false as const,
+      message:
+        error instanceof Error ? error.message : "Unable to load eligible rider payout items.",
+    };
+  }
 }
 
 export async function createRiderPayoutDraftAction(input: unknown) {

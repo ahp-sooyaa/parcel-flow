@@ -1,26 +1,79 @@
-import { eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { appUsers, parcels, riders, riderServiceTownships, townships } from "@/db/schema";
-import type { RiderListItemDto } from "@/features/riders/server/dto";
-import {
-  calculateAmountToCollect,
-  isActiveCollectionStatus,
-} from "@/features/parcels/server/utils";
-import type { ParcelStatus } from "@/lib/domain";
+import type { RiderListItemDto, RiderOptionDto } from "@/features/riders/server/dto";
 
-function toParcelStatus(status: string): ParcelStatus | null {
-  switch (status) {
-    case "at_office":
-    case "on_the_way":
-    case "delivered":
-    case "postpone":
-    case "canceled_returned":
-    case "returned_to_merchant":
-      return status;
-    default:
-      return null;
+const riderParcelAggregationSelect = {
+  riderId: parcels.riderId,
+  activeParcelCount: sql<number>`count(*) filter (where ${parcels.status} in ('at_office', 'on_the_way'))`,
+  expectedCollection: sql<number>`coalesce(sum(
+    case
+      when ${parcels.status} in ('at_office', 'on_the_way') then
+        case when ${parcels.parcelType} = 'cod' then ${parcels.codAmount} + ${parcels.deliveryFee} else ${parcels.deliveryFee} end
+      else 0
+    end
+  ), 0)`,
+  actualCollection: sql<number>`coalesce(sum(${parcels.collectedAmount}) filter (where ${parcels.status} = 'delivered'), 0)`,
+};
+
+async function loadRiderParcelAggregations(riderIds: string[]) {
+  if (riderIds.length === 0) {
+    return new Map<
+      string,
+      { activeParcelCount: number; expectedCollection: number; actualCollection: number }
+    >();
   }
+
+  const aggregationRows = await db
+    .select(riderParcelAggregationSelect)
+    .from(parcels)
+    .where(
+      and(
+        isNull(parcels.deletedAt),
+        isNotNull(parcels.riderId),
+        inArray(parcels.riderId, riderIds),
+      ),
+    )
+    .groupBy(parcels.riderId);
+
+  return new Map(
+    aggregationRows
+      .filter((row): row is typeof row & { riderId: string } => row.riderId !== null)
+      .map((row) => [
+        row.riderId,
+        {
+          activeParcelCount: row.activeParcelCount,
+          expectedCollection: row.expectedCollection,
+          actualCollection: row.actualCollection,
+        },
+      ]),
+  );
+}
+
+async function loadRiderServiceTownships(riderIds: string[]) {
+  if (riderIds.length === 0) {
+    return new Map<string, string[]>();
+  }
+
+  const serviceTownshipRows = await db
+    .select({
+      riderId: riderServiceTownships.riderId,
+      townshipName: townships.name,
+    })
+    .from(riderServiceTownships)
+    .innerJoin(townships, eq(townships.id, riderServiceTownships.townshipId))
+    .where(inArray(riderServiceTownships.riderId, riderIds));
+
+  const serviceTownshipsByRiderId = new Map<string, string[]>();
+
+  for (const row of serviceTownshipRows) {
+    const townshipsForRider = serviceTownshipsByRiderId.get(row.riderId) ?? [];
+    townshipsForRider.push(row.townshipName);
+    serviceTownshipsByRiderId.set(row.riderId, townshipsForRider);
+  }
+
+  return serviceTownshipsByRiderId;
 }
 
 export async function listRiders(): Promise<RiderListItemDto[]> {
@@ -35,64 +88,46 @@ export async function listRiders(): Promise<RiderListItemDto[]> {
     .where(isNull(appUsers.deletedAt));
 
   const riderIds = rows.map((rider) => rider.id);
-
-  const [serviceTownshipRows, parcelRows] =
-    riderIds.length > 0
-      ? await Promise.all([
-          db
-            .select({
-              riderId: riderServiceTownships.riderId,
-              townshipName: townships.name,
-            })
-            .from(riderServiceTownships)
-            .innerJoin(townships, eq(townships.id, riderServiceTownships.townshipId))
-            .where(inArray(riderServiceTownships.riderId, riderIds)),
-          db
-            .select({
-              riderId: parcels.riderId,
-              codAmount: parcels.codAmount,
-              deliveryFee: parcels.deliveryFee,
-              parcelType: parcels.parcelType,
-              collectedAmount: parcels.collectedAmount,
-              status: parcels.status,
-            })
-            .from(parcels)
-            .where(isNull(parcels.deletedAt)),
-        ])
-      : [[], []];
+  const [aggregationsByRiderId, serviceTownshipsByRiderId] = await Promise.all([
+    loadRiderParcelAggregations(riderIds),
+    loadRiderServiceTownships(riderIds),
+  ]);
 
   return rows.map((rider) => {
-    const assignedParcels = parcelRows.filter((parcel) => parcel.riderId === rider.id);
-    const normalizedParcels = assignedParcels.map((parcel) => ({
-      ...parcel,
-      normalizedStatus: toParcelStatus(parcel.status),
-    }));
+    const aggregation = aggregationsByRiderId.get(rider.id);
 
     return {
       ...rider,
-      serviceTownships: serviceTownshipRows
-        .filter((serviceTownship) => serviceTownship.riderId === rider.id)
-        .map((serviceTownship) => serviceTownship.townshipName),
-      expectedCollection: normalizedParcels
-        .filter(
-          (parcel) => parcel.normalizedStatus && isActiveCollectionStatus(parcel.normalizedStatus),
-        )
-        .reduce(
-          (total, parcel) =>
-            total +
-            calculateAmountToCollect({
-              codAmount: parcel.codAmount,
-              deliveryFee: parcel.deliveryFee,
-              parcelType: parcel.parcelType === "non_cod" ? "non_cod" : "cod",
-            }),
-          0,
-        ),
-      actualCollection: assignedParcels
-        .filter((parcel) => parcel.status === "delivered")
-        .reduce((total, parcel) => total + parcel.collectedAmount, 0),
-      activeParcelCount: normalizedParcels.filter(
-        (parcel) => parcel.normalizedStatus && isActiveCollectionStatus(parcel.normalizedStatus),
-      ).length,
+      serviceTownships: serviceTownshipsByRiderId.get(rider.id) ?? [],
+      expectedCollection: aggregation?.expectedCollection ?? 0,
+      actualCollection: aggregation?.actualCollection ?? 0,
+      activeParcelCount: aggregation?.activeParcelCount ?? 0,
     };
   });
+}
+
+export async function listRiderOptions(): Promise<RiderOptionDto[]> {
+  const rows = await db
+    .select({
+      id: riders.id,
+      name: appUsers.name,
+      phoneNumber: appUsers.phoneNumber,
+    })
+    .from(riders)
+    .innerJoin(appUsers, eq(appUsers.id, riders.userId))
+    .where(isNull(appUsers.deletedAt));
+
+  const riderIds = rows.map((rider) => rider.id);
+  const [aggregationsByRiderId, serviceTownshipsByRiderId] = await Promise.all([
+    loadRiderParcelAggregations(riderIds),
+    loadRiderServiceTownships(riderIds),
+  ]);
+
+  return rows.map((rider) => ({
+    id: rider.id,
+    name: rider.name,
+    phoneNumber: rider.phoneNumber,
+    serviceTownships: serviceTownshipsByRiderId.get(rider.id) ?? [],
+    expectedCollection: aggregationsByRiderId.get(rider.id)?.expectedCollection ?? 0,
+  }));
 }

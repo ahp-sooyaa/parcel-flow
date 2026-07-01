@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Check, ChevronDown, Route, Search, SlidersHorizontal } from "lucide-react";
 
+import { PaginationControls } from "@/components/shared/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -18,20 +20,25 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AssignRiderDialog } from "@/features/parcels/components/assign-rider-dialog";
 import { EditParcelForm } from "@/features/parcels/components/edit-parcel-form";
-import { ParcelDetailSheet } from "@/features/parcels/components/parcel-detail-sheet";
+import { ParcelDetailSheet } from "@/features/parcels/components/lazy-parcel-detail-sheet";
 import { ParcelTable } from "@/features/parcels/components/parcel-table";
-import type { MerchantListItemDto } from "@/features/merchants/server/dto";
-import type { ParcelListItemDto } from "@/features/parcels/server/dto";
-import type { RiderListItemDto } from "@/features/riders/server/dto";
+import type { MerchantOptionDto } from "@/features/merchants/server/dto";
+import { getAdminParcelDetailAction } from "@/features/parcels/server/actions";
+import type {
+  AdminParcelAssignmentFilter,
+  AdminParcelListFiltersDto,
+  AdminParcelListPageDto,
+  ParcelListItemDto,
+} from "@/features/parcels/server/dto";
+import type { RiderOptionDto } from "@/features/riders/server/dto";
 import type { TownshipListItemDto } from "@/features/townships/server/dto";
 import { parcelStatusLabels, parcelStatuses, type ParcelStatus, type UserRole } from "@/lib/domain";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-type AssignmentFilter = "all" | "unassigned" | "assigned" | "need_review";
 type TownshipOption = { value: string; label: string };
 
-const assignmentFilterLabels: Record<AssignmentFilter, string> = {
+const assignmentFilterLabels: Record<AdminParcelAssignmentFilter, string> = {
   all: "All",
   unassigned: "Unassigned",
   assigned: "Assigned",
@@ -40,7 +47,7 @@ const assignmentFilterLabels: Record<AssignmentFilter, string> = {
 
 const assignmentFilters = ["all", "unassigned", "assigned", "need_review"] as const;
 
-function isAssignmentFilter(value: string): value is AssignmentFilter {
+function isAssignmentFilter(value: string): value is AdminParcelAssignmentFilter {
   return (
     value === "all" || value === "unassigned" || value === "assigned" || value === "need_review"
   );
@@ -48,29 +55,42 @@ function isAssignmentFilter(value: string): value is AssignmentFilter {
 
 export function ParcelListView({
   actorRole,
-  parcels,
+  pageResult,
+  filters,
   merchants,
   riders,
   townships,
 }: Readonly<{
   actorRole: UserRole;
-  parcels: ParcelListItemDto[];
-  merchants: MerchantListItemDto[];
-  riders: RiderListItemDto[];
+  pageResult: AdminParcelListPageDto;
+  filters: AdminParcelListFiltersDto;
+  merchants: MerchantOptionDto[];
+  riders: RiderOptionDto[];
   townships: TownshipListItemDto[];
 }>) {
-  const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>("all");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedTownship, setSelectedTownship] = useState("all");
-  const [selectedStatuses, setSelectedStatuses] = useState<ParcelStatus[]>([]);
+  const pathname = usePathname();
+  const router = useRouter();
+  const [searchTerm, setSearchTerm] = useState(filters.searchTerm);
+  const [selectedStatuses, setSelectedStatuses] = useState<ParcelStatus[]>(filters.statuses);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [selectedParcelIds, setSelectedParcelIds] = useState<string[]>([]);
   const [editingParcel, setEditingParcel] = useState<ParcelListItemDto | null>(null);
   const [viewingParcel, setViewingParcel] = useState<ParcelListItemDto | null>(null);
-
+  const [, startParcelDetailTransition] = useTransition();
+  const parcels = pageResult.parcels;
   const filterRef = useRef<HTMLDivElement>(null);
   const townshipInputId = useId();
+  const selectedTownship = filters.townshipName ?? "all";
+
+  useEffect(() => {
+    setSearchTerm(filters.searchTerm);
+  }, [filters.searchTerm]);
+
+  useEffect(() => {
+    setSelectedStatuses(filters.statuses);
+  }, [filters.statuses]);
+
   const selectableParcelIds = useMemo(
     () =>
       parcels
@@ -132,100 +152,102 @@ export function ParcelListView({
     }
   }, [isAssignDialogOpen, selectedParcelIds.length]);
 
-  const townshipNames = [...new Set(parcels.map((parcel) => parcel.townshipName))].toSorted(
-    (left, right) => left.localeCompare(right),
-  );
-  const townshipOptions: TownshipOption[] = townshipNames.map((township) => ({
-    value: township,
-    label: township,
+  const townshipOptions: TownshipOption[] = townships.map((township) => ({
+    value: township.name,
+    label: township.name,
   }));
   const selectedTownshipOption =
     townshipOptions.find((option) => option.value === selectedTownship) ?? null;
-
-  const assignmentCounts = {
-    all: parcels.length,
-    unassigned: parcels.filter((parcel) => parcel.riderName === null).length,
-    assigned: parcels.filter((parcel) => parcel.riderName !== null).length,
-    need_review: parcels.filter((parcel) => parcel.activeFailureNote !== null).length,
-  };
-
-  const normalizedSearchTerm = searchTerm.trim().toLowerCase();
-
-  const filteredParcels = parcels.filter((parcel) => {
-    if (assignmentFilter === "unassigned" && parcel.riderName !== null) {
-      return false;
-    }
-
-    if (assignmentFilter === "assigned" && parcel.riderName === null) {
-      return false;
-    }
-
-    if (assignmentFilter === "need_review" && parcel.activeFailureNote === null) {
-      return false;
-    }
-
-    if (selectedTownship !== "all" && parcel.townshipName !== selectedTownship) {
-      return false;
-    }
-
-    if (selectedStatuses.length > 0 && !selectedStatuses.includes(parcel.status)) {
-      return false;
-    }
-
-    if (!normalizedSearchTerm) {
-      return true;
-    }
-
-    return [
-      parcel.parcelCode,
-      parcel.receiverPhoneNumber,
-      parcel.receiverName,
-      parcel.merchantName,
-    ].some((value) => value.toLowerCase().includes(normalizedSearchTerm));
-  });
 
   const selectedParcels = useMemo(
     () => parcels.filter((parcel) => selectedParcelIds.includes(parcel.id)),
     [parcels, selectedParcelIds],
   );
-  const currentViewingParcel = viewingParcel
-    ? (parcels.find((parcel) => parcel.id === viewingParcel.id) ?? viewingParcel)
-    : null;
   const selectedExpectedCollection = selectedParcels
     .filter((parcel) => parcel.status !== "canceled_returned")
     .reduce((sum, parcel) => sum + parcel.codAmount + parcel.deliveryFee, 0);
 
   const activeFilterCount = selectedStatuses.length + (selectedTownship === "all" ? 0 : 1);
 
+  function updateFilters(
+    next: Partial<{
+      query: string;
+      assignment: AdminParcelAssignmentFilter;
+      township: string | null;
+      statuses: ParcelStatus[];
+      page: number;
+    }>,
+  ) {
+    const params = new URLSearchParams();
+    const nextQuery = next.query ?? filters.searchTerm;
+    const nextAssignment = next.assignment ?? filters.assignment;
+    const nextTownship = next.township === undefined ? filters.townshipName : next.township;
+    const nextStatuses = next.statuses ?? filters.statuses;
+    const nextPage = next.page ?? filters.page;
+
+    if (nextQuery.trim()) {
+      params.set("query", nextQuery.trim());
+    }
+
+    if (nextAssignment !== "all") {
+      params.set("assignment", nextAssignment);
+    }
+
+    if (nextTownship) {
+      params.set("township", nextTownship);
+    }
+
+    if (nextStatuses.length > 0) {
+      params.set("statuses", nextStatuses.join(","));
+    }
+
+    if (nextPage > 1) {
+      params.set("page", String(nextPage));
+    }
+
+    const queryString = params.toString();
+    router.push(queryString ? `${pathname}?${queryString}` : pathname);
+  }
+
   function toggleStatus(status: ParcelStatus) {
-    setSelectedStatuses((current) =>
-      current.includes(status) ? current.filter((value) => value !== status) : [...current, status],
-    );
+    const nextStatuses = selectedStatuses.includes(status)
+      ? selectedStatuses.filter((value) => value !== status)
+      : [...selectedStatuses, status];
+
+    setSelectedStatuses(nextStatuses);
+    updateFilters({ statuses: nextStatuses, page: 1 });
   }
 
   function resetFilters() {
-    setSelectedTownship("all");
     setSelectedStatuses([]);
+    updateFilters({ township: null, statuses: [], page: 1 });
+  }
+
+  function openParcelDetail(parcelId: string, onOpen: (parcel: ParcelListItemDto) => void) {
+    startParcelDetailTransition(async () => {
+      const parcel = await getAdminParcelDetailAction(parcelId);
+      onOpen(parcel);
+    });
   }
 
   function handleEditParcel(parcel: ParcelListItemDto) {
     setViewingParcel(null);
-    setEditingParcel(parcel);
+    openParcelDetail(parcel.id, setEditingParcel);
   }
 
   function handleViewParcel(parcel: ParcelListItemDto) {
     setEditingParcel(null);
-    setViewingParcel(parcel);
+    openParcelDetail(parcel.id, setViewingParcel);
   }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
         <Tabs
-          value={assignmentFilter}
+          value={filters.assignment}
           onValueChange={(value) => {
             if (isAssignmentFilter(value)) {
-              setAssignmentFilter(value);
+              updateFilters({ assignment: value, page: 1 });
             }
           }}
         >
@@ -237,7 +259,9 @@ export function ParcelListView({
                 className="gap-2 rounded-md border-0 px-4 text-sm data-[state=active]:bg-white data-[state=active]:text-foreground"
               >
                 <span>{assignmentFilterLabels[value]}</span>
-                <span className="text-xs text-muted-foreground">{assignmentCounts[value]}</span>
+                <span className="text-xs text-muted-foreground">
+                  {pageResult.assignmentCounts[value]}
+                </span>
               </TabsTrigger>
             ))}
           </TabsList>
@@ -262,7 +286,13 @@ export function ParcelListView({
             ) : null}
           </Button>
 
-          <div className="relative min-w-0 flex-1 sm:w-[340px]">
+          <form
+            className="relative min-w-0 flex-1 sm:w-[340px]"
+            onSubmit={(event) => {
+              event.preventDefault();
+              updateFilters({ query: searchTerm, page: 1 });
+            }}
+          >
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={searchTerm}
@@ -270,7 +300,7 @@ export function ParcelListView({
               placeholder="Search parcel code, receiver phone, receiver name, merchant"
               className="pl-9"
             />
-          </div>
+          </form>
 
           <div className="relative" ref={filterRef}>
             <Button
@@ -320,7 +350,12 @@ export function ParcelListView({
                     <Combobox
                       items={townshipOptions}
                       value={selectedTownshipOption}
-                      onValueChange={(option) => setSelectedTownship(option?.value ?? "all")}
+                      onValueChange={(option) =>
+                        updateFilters({
+                          township: option?.value ?? null,
+                          page: 1,
+                        })
+                      }
                       itemToStringLabel={(option) => option.label}
                       isItemEqualToValue={(item, value) => item.value === value.value}
                     >
@@ -398,13 +433,19 @@ export function ParcelListView({
       ) : null}
 
       <ParcelTable
-        parcels={filteredParcels}
+        parcels={parcels}
         selectedParcelIds={selectedParcelIds}
         onSelectedParcelIdsChange={setSelectedParcelIds}
         onView={handleViewParcel}
         onEdit={handleEditParcel}
         enableSelection
         enableFailureReview
+      />
+
+      <PaginationControls
+        page={pageResult.page}
+        totalPages={pageResult.totalPages}
+        onPageChange={(page) => updateFilters({ page })}
       />
 
       <AssignRiderDialog
@@ -415,7 +456,7 @@ export function ParcelListView({
       />
 
       <Sheet
-        open={currentViewingParcel !== null}
+        open={viewingParcel !== null}
         onOpenChange={(open) => {
           if (!open) {
             setViewingParcel(null);
@@ -423,12 +464,8 @@ export function ParcelListView({
         }}
       >
         <SheetContent className="overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[720px] data-[side=right]:sm:max-w-[720px]">
-          {currentViewingParcel ? (
-            <ParcelDetailSheet
-              actorRole={actorRole}
-              parcel={currentViewingParcel}
-              riders={riders}
-            />
+          {viewingParcel ? (
+            <ParcelDetailSheet actorRole={actorRole} parcel={viewingParcel} riders={riders} />
           ) : null}
         </SheetContent>
       </Sheet>

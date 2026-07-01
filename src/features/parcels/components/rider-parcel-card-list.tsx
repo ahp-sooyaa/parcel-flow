@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Camera,
   Check,
@@ -38,7 +39,7 @@ import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { ParcelDetailSheet } from "@/features/parcels/components/parcel-detail-sheet";
+import { ParcelDetailSheet } from "@/features/parcels/components/lazy-parcel-detail-sheet";
 import {
   deleteDeliveryFailureForRiderParcelAction,
   markRiderParcelReturnedToMerchantAction,
@@ -46,14 +47,18 @@ import {
   startDeliveryForRiderParcelsAction,
   updateDeliveryFailureForRiderParcelAction,
 } from "@/features/parcels/server/actions";
-import type { ParcelListItemDto } from "@/features/parcels/server/dto";
+import type {
+  ParcelListItemDto,
+  RiderParcelListFiltersDto,
+  RiderParcelListPageDto,
+  RiderParcelTab,
+} from "@/features/parcels/server/dto";
+import type { TownshipListItemDto } from "@/features/townships/server/dto";
 import { useAppRouter } from "@/lib/client-navigation";
 import { parcelStatusLabels, parcelStatuses, type ParcelStatus } from "@/lib/domain";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { z } from "zod";
-
-type RiderParcelTab = "to_deliver" | "delivered" | "returned";
 type TownshipOption = { value: string; label: string };
 
 const riderTabLabels: Record<RiderParcelTab, string> = {
@@ -62,11 +67,11 @@ const riderTabLabels: Record<RiderParcelTab, string> = {
   returned: "Returned",
 };
 
-const riderTabs = ["to_deliver", "delivered", "returned"] as const;
-const pageSize = 12;
-const toDeliverStatuses: ParcelStatus[] = ["at_office", "on_the_way", "canceled_returned"];
-const deliveredStatuses: ParcelStatus[] = ["delivered"];
-const returnedStatuses: ParcelStatus[] = ["returned_to_merchant"];
+const riderTabs = [
+  "to_deliver",
+  "delivered",
+  "returned",
+] as const satisfies readonly RiderParcelTab[];
 const deliveryUploadResponseSchema = z.object({
   ok: z.boolean(),
   message: z.string(),
@@ -84,39 +89,31 @@ function getStatusVariant(status: ParcelStatus) {
   return "warning";
 }
 
-function getTabStatuses(tab: RiderParcelTab) {
-  if (tab === "delivered") {
-    return deliveredStatuses;
-  }
-
-  if (tab === "returned") {
-    return returnedStatuses;
-  }
-
-  return toDeliverStatuses;
-}
-
 function isRiderParcelTab(value: string): value is RiderParcelTab {
   return value === "to_deliver" || value === "delivered" || value === "returned";
 }
 
 export function RiderParcelCardList({
-  parcels,
+  pageResult,
+  filters,
+  townships,
 }: Readonly<{
-  parcels: ParcelListItemDto[];
+  pageResult: RiderParcelListPageDto;
+  filters: RiderParcelListFiltersDto;
+  townships: TownshipListItemDto[];
 }>) {
   const router = useAppRouter();
+  const pathname = usePathname();
+  const nextRouter = useRouter();
   const filterRef = useRef<HTMLDivElement>(null);
   const proofInputRef = useRef<HTMLInputElement>(null);
   const townshipInputId = useId();
   const failureNoteId = useId();
   const proofInputId = useId();
-  const [activeTab, setActiveTab] = useState<RiderParcelTab>("to_deliver");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedTownship, setSelectedTownship] = useState("all");
-  const [selectedStatuses, setSelectedStatuses] = useState<ParcelStatus[]>([]);
+  const parcels = pageResult.parcels;
+  const [searchTerm, setSearchTerm] = useState(filters.searchTerm);
+  const [selectedStatuses, setSelectedStatuses] = useState<ParcelStatus[]>(filters.statuses);
   const [selectedParcelIds, setSelectedParcelIds] = useState<string[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [viewingParcel, setViewingParcel] = useState<ParcelListItemDto | null>(null);
   const [failureParcel, setFailureParcel] = useState<ParcelListItemDto | null>(null);
@@ -133,29 +130,28 @@ export function RiderParcelCardList({
   const [pendingReturnParcelIds, setPendingReturnParcelIds] = useState<string[]>([]);
   const [deliveryPending, setDeliveryPending] = useState(false);
 
+  const selectedTownship = filters.townshipName ?? "all";
+
+  useEffect(() => {
+    setSearchTerm(filters.searchTerm);
+  }, [filters.searchTerm]);
+
+  useEffect(() => {
+    setSelectedStatuses(filters.statuses);
+  }, [filters.statuses]);
+
   const townshipOptions = useMemo<TownshipOption[]>(
     () =>
-      [...new Set(parcels.map((parcel) => parcel.townshipName))]
-        .toSorted((left, right) => left.localeCompare(right))
-        .map((township) => ({ value: township, label: township })),
-    [parcels],
+      townships.map((township) => ({
+        value: township.name,
+        label: township.name,
+      })),
+    [townships],
   );
   const selectedTownshipOption =
     townshipOptions.find((option) => option.value === selectedTownship) ?? null;
 
-  const tabCounts = useMemo(
-    () => ({
-      to_deliver: parcels.filter((parcel) => getTabStatuses("to_deliver").includes(parcel.status))
-        .length,
-      delivered: parcels.filter((parcel) => getTabStatuses("delivered").includes(parcel.status))
-        .length,
-      returned: parcels.filter((parcel) => getTabStatuses("returned").includes(parcel.status))
-        .length,
-    }),
-    [parcels],
-  );
-
-  const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+  const tabCounts = pageResult.tabCounts;
   const eligibleParcelIds = useMemo(
     () => parcels.filter((parcel) => parcel.status === "at_office").map((parcel) => parcel.id),
     [parcels],
@@ -204,9 +200,49 @@ export function RiderParcelCardList({
     setSelectedParcelIds((current) => current.filter((id) => eligibleParcelIds.includes(id)));
   }, [eligibleParcelIds]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [activeTab, normalizedSearchTerm, selectedTownship, selectedStatuses]);
+  const paginatedParcels = parcels;
+  const totalPages = pageResult.totalPages;
+  const safeCurrentPage = pageResult.page;
+
+  function updateFilters(
+    next: Partial<{
+      query: string;
+      tab: RiderParcelTab;
+      township: string | null;
+      statuses: ParcelStatus[];
+      page: number;
+    }>,
+  ) {
+    const params = new URLSearchParams();
+    const nextQuery = next.query ?? filters.searchTerm;
+    const nextTab = next.tab ?? filters.tab;
+    const nextTownship = next.township === undefined ? filters.townshipName : next.township;
+    const nextStatuses = next.statuses ?? filters.statuses;
+    const nextPage = next.page ?? filters.page;
+
+    if (nextQuery.trim()) {
+      params.set("query", nextQuery.trim());
+    }
+
+    if (nextTab !== "to_deliver") {
+      params.set("tab", nextTab);
+    }
+
+    if (nextTownship) {
+      params.set("township", nextTownship);
+    }
+
+    if (nextStatuses.length > 0) {
+      params.set("statuses", nextStatuses.join(","));
+    }
+
+    if (nextPage > 1) {
+      params.set("page", String(nextPage));
+    }
+
+    const queryString = params.toString();
+    nextRouter.push(queryString ? `${pathname}?${queryString}` : pathname);
+  }
 
   useEffect(() => {
     if (!proofPreviewUrl) {
@@ -218,38 +254,6 @@ export function RiderParcelCardList({
     };
   }, [proofPreviewUrl]);
 
-  const filteredParcels = useMemo(() => {
-    const tabStatuses = getTabStatuses(activeTab);
-
-    return parcels.filter((parcel) => {
-      if (!tabStatuses.includes(parcel.status)) {
-        return false;
-      }
-
-      if (selectedTownship !== "all" && parcel.townshipName !== selectedTownship) {
-        return false;
-      }
-
-      if (selectedStatuses.length > 0 && !selectedStatuses.includes(parcel.status)) {
-        return false;
-      }
-
-      if (!normalizedSearchTerm) {
-        return true;
-      }
-
-      return [parcel.parcelCode, parcel.receiverName, parcel.receiverPhoneNumber].some((value) =>
-        value.toLowerCase().includes(normalizedSearchTerm),
-      );
-    });
-  }, [activeTab, normalizedSearchTerm, parcels, selectedStatuses, selectedTownship]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredParcels.length / pageSize));
-  const safeCurrentPage = Math.min(currentPage, totalPages);
-  const paginatedParcels = filteredParcels.slice(
-    (safeCurrentPage - 1) * pageSize,
-    safeCurrentPage * pageSize,
-  );
   const selectedParcels = useMemo(
     () => parcels.filter((parcel) => selectedParcelIds.includes(parcel.id)),
     [parcels, selectedParcelIds],
@@ -261,14 +265,17 @@ export function RiderParcelCardList({
   const activeFilterCount = selectedStatuses.length + (selectedTownship === "all" ? 0 : 1);
 
   function toggleStatus(status: ParcelStatus) {
-    setSelectedStatuses((current) =>
-      current.includes(status) ? current.filter((value) => value !== status) : [...current, status],
-    );
+    const nextStatuses = selectedStatuses.includes(status)
+      ? selectedStatuses.filter((value) => value !== status)
+      : [...selectedStatuses, status];
+
+    setSelectedStatuses(nextStatuses);
+    updateFilters({ statuses: nextStatuses, page: 1 });
   }
 
   function resetFilters() {
-    setSelectedTownship("all");
     setSelectedStatuses([]);
+    updateFilters({ township: null, statuses: [], page: 1 });
   }
 
   function toggleParcel(parcelId: string, checked: boolean) {
@@ -498,7 +505,7 @@ export function RiderParcelCardList({
   }
 
   function renderParcelContent() {
-    if (parcels.length === 0) {
+    if (!pageResult.hasAnyParcels) {
       return (
         <div className="rounded-xl border border-dashed bg-[#fcfbf8] px-6 py-12 text-center">
           <div className="text-base font-medium text-foreground">No assigned parcels yet</div>
@@ -509,7 +516,7 @@ export function RiderParcelCardList({
       );
     }
 
-    if (filteredParcels.length === 0) {
+    if (paginatedParcels.length === 0) {
       return (
         <div className="rounded-xl border border-dashed bg-[#fcfbf8] px-6 py-12 text-center">
           <div className="text-base font-medium text-foreground">
@@ -672,9 +679,9 @@ export function RiderParcelCardList({
 
         <div className="flex flex-col gap-3 rounded-xl border bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-sm text-muted-foreground">
-            Showing {(safeCurrentPage - 1) * pageSize + 1}-
-            {Math.min(safeCurrentPage * pageSize, filteredParcels.length)} of{" "}
-            {filteredParcels.length} parcels
+            Showing {(safeCurrentPage - 1) * filters.pageSize + 1}-
+            {Math.min(safeCurrentPage * filters.pageSize, pageResult.totalCount)} of{" "}
+            {pageResult.totalCount} parcels
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -682,7 +689,7 @@ export function RiderParcelCardList({
               variant="outline"
               size="sm"
               disabled={safeCurrentPage === 1}
-              onClick={() => setCurrentPage((current) => Math.max(1, current - 1))}
+              onClick={() => updateFilters({ page: safeCurrentPage - 1 })}
             >
               <ChevronLeft className="size-4" />
               Previous
@@ -695,7 +702,7 @@ export function RiderParcelCardList({
               variant="outline"
               size="sm"
               disabled={safeCurrentPage === totalPages}
-              onClick={() => setCurrentPage((current) => Math.min(totalPages, current + 1))}
+              onClick={() => updateFilters({ page: safeCurrentPage + 1 })}
             >
               Next
               <ChevronRight className="size-4" />
@@ -710,10 +717,10 @@ export function RiderParcelCardList({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <Tabs
-          value={activeTab}
+          value={filters.tab}
           onValueChange={(value) => {
             if (isRiderParcelTab(value)) {
-              setActiveTab(value);
+              updateFilters({ tab: value, page: 1 });
             }
           }}
         >
@@ -732,7 +739,13 @@ export function RiderParcelCardList({
         </Tabs>
 
         <div className="flex gap-3 sm:flex-row sm:items-center">
-          <div className="relative min-w-0 flex-1 sm:w-[340px]">
+          <form
+            className="relative min-w-0 flex-1 sm:w-[340px]"
+            onSubmit={(event) => {
+              event.preventDefault();
+              updateFilters({ query: searchTerm, page: 1 });
+            }}
+          >
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={searchTerm}
@@ -740,7 +753,7 @@ export function RiderParcelCardList({
               placeholder="Search parcel code, receiver name, or phone"
               className="pl-9"
             />
-          </div>
+          </form>
 
           <div className="relative" ref={filterRef}>
             <Button
@@ -795,7 +808,12 @@ export function RiderParcelCardList({
                     <Combobox
                       items={townshipOptions}
                       value={selectedTownshipOption}
-                      onValueChange={(option) => setSelectedTownship(option?.value ?? "all")}
+                      onValueChange={(option) =>
+                        updateFilters({
+                          township: option?.value ?? null,
+                          page: 1,
+                        })
+                      }
                       itemToStringLabel={(option) => option.label}
                       isItemEqualToValue={(item, value) => item.value === value.value}
                     >

@@ -9,6 +9,7 @@ import {
   correctParcelStatus,
   createParcel,
   deleteDeliveryFailureForRiderParcel,
+  getParcelByIdForRealtimeScope,
   markRiderParcelReturnedToMerchant,
   reportDeliveryFailureForRiderParcel,
   resolveFailedParcelByAdmin,
@@ -31,6 +32,7 @@ import {
   mapUpdateParcelFormInputToUpdateParcelInput,
 } from "@/features/parcels/server/utils";
 import { getFormFieldErrors } from "@/lib/form-action-errors";
+import { isAdminRole } from "@/lib/domain";
 import { canChangeParcelStatus, canCreateParcel } from "@/lib/permissions";
 import { requireCurrentUser } from "@/lib/session";
 
@@ -607,4 +609,23 @@ export async function markRiderParcelReturnedToMerchantAction(input: unknown) {
     ok: true as const,
     message: "Parcel returned to merchant.",
   };
+}
+
+const parcelIdSchema = z.uuid("Invalid parcel selection.");
+
+export async function getAdminParcelDetailAction(parcelId: unknown) {
+  const actor = await requireCurrentUser();
+
+  if (!isAdminRole(actor.role)) {
+    throw new Error("Admin access required.");
+  }
+
+  const parsedParcelId = parcelIdSchema.parse(parcelId);
+  const parcel = await getParcelByIdForRealtimeScope(parsedParcelId, { role: actor.role });
+
+  if (!parcel) {
+    throw new Error("Parcel was not found.");
+  }
+
+  return parcel;
 }

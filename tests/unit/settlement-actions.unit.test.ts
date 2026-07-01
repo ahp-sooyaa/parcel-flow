@@ -13,6 +13,8 @@ const confirmRiderCashHandoverMock = mock(async () => ({
   createdCodRemitCount: 1,
 }));
 const resolveMerchantSettlementMock = mock(async () => undefined);
+const getEligibleSettlementMerchantByIdMock = mock(async () => null);
+const getPendingRiderCashHandoverByRiderIdMock = mock(async () => null);
 const uploadSettlementReceiptMock = mock(async () => "settlements/test/receipt.pdf");
 const revalidatePathMock = mock(() => undefined);
 
@@ -32,6 +34,8 @@ void mock.module("@/features/settlements/server/dal", () => ({
   createMerchantSettlement: createMerchantSettlementMock,
   confirmRiderCashHandover: confirmRiderCashHandoverMock,
   resolveMerchantSettlement: resolveMerchantSettlementMock,
+  getEligibleSettlementMerchantById: getEligibleSettlementMerchantByIdMock,
+  getPendingRiderCashHandoverByRiderId: getPendingRiderCashHandoverByRiderIdMock,
 }));
 
 void mock.module("@/features/settlements/server/upload", () => ({

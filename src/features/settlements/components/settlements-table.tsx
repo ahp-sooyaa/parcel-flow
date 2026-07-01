@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useId, useState, useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Camera, FileText } from "lucide-react";
 
+import { PaginationControls } from "@/components/shared/pagination-controls";
 import {
   FormBanner,
   type FormMessageState,
@@ -29,24 +31,47 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import type { SettlementListItemDto } from "@/features/settlements/server/dto";
+import type {
+  SettlementListFiltersDto,
+  SettlementListItemDto,
+  SettlementListPageDto,
+} from "@/features/settlements/server/dto";
 import { resolveMerchantSettlementAction } from "@/features/settlements/server/actions";
 import { useAppRouter } from "@/lib/client-navigation";
 import type { UserRole } from "@/lib/domain";
 import { formatDate, formatMoney } from "@/lib/format";
 
 type SettlementsTableProps = Readonly<{
-  settlements: SettlementListItemDto[];
+  pageResult: SettlementListPageDto;
+  filters: SettlementListFiltersDto;
   actorRole: UserRole;
 }>;
 
-export function SettlementsTable({ settlements, actorRole }: SettlementsTableProps) {
+export function SettlementsTable({
+  pageResult,
+  filters: _filters,
+  actorRole,
+}: SettlementsTableProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const settlements = pageResult.settlements;
   const [selectedSettlementId, setSelectedSettlementId] = useState<string | null>(null);
   const selectedSettlement =
     settlements.find((settlement) => settlement.id === selectedSettlementId) ?? null;
 
+  function updatePage(page: number) {
+    const params = new URLSearchParams();
+
+    if (page > 1) {
+      params.set("page", String(page));
+    }
+
+    const queryString = params.toString();
+    router.push(queryString ? `${pathname}?${queryString}` : pathname);
+  }
+
   return (
-    <>
+    <div className="space-y-4">
       <div className="rounded-lg border bg-white">
         <Table>
           <TableHeader>
@@ -131,7 +156,13 @@ export function SettlementsTable({ settlements, actorRole }: SettlementsTablePro
           ) : null}
         </SheetContent>
       </Sheet>
-    </>
+
+      <PaginationControls
+        page={pageResult.page}
+        totalPages={pageResult.totalPages}
+        onPageChange={updatePage}
+      />
+    </div>
   );
 }
 

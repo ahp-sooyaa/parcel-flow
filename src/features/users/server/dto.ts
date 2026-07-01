@@ -115,6 +115,58 @@ export type UserListItemDto = {
   mustResetPassword: boolean;
 };
 
+const userListSearchParamsSchema = z.object({
+  query: z.string().trim().max(100).optional().catch(""),
+  page: z.coerce.number().int().min(1).optional().catch(1),
+});
+
+export type UserListFiltersDto = {
+  searchTerm: string;
+  page: number;
+  pageSize: number;
+};
+
+export type UserListPageDto = {
+  users: UserListItemDto[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+};
+
+export const userListPageSize = 20;
+
+export function parseUserListFilters(
+  input: Record<string, string | string[] | undefined>,
+): UserListFiltersDto {
+  const parseResult = userListSearchParamsSchema.safeParse({
+    query: readSearchParam(input.query),
+    page: readSearchParam(input.page),
+  });
+
+  if (!parseResult.success) {
+    return {
+      searchTerm: "",
+      page: 1,
+      pageSize: userListPageSize,
+    };
+  }
+
+  return {
+    searchTerm: parseResult.data.query ?? "",
+    page: parseResult.data.page ?? 1,
+    pageSize: userListPageSize,
+  };
+}
+
+function readSearchParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+
+  return value;
+}
+
 export type BankAccountDto = {
   id: string;
   userId: string;

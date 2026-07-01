@@ -59,6 +59,21 @@ export type SettlementEligibleMerchantDto = {
   financialItems: SettlementEligibleFinancialItemDto[];
 };
 
+export type SettlementEligibleMerchantSummaryDto = {
+  merchantId: string;
+  merchantName: string;
+  bankAccountSummary: string | null;
+  eligibleItemCount: number;
+  totalCodAmount: number;
+  totalDeliveryFeeDeduction: number;
+  netPaymentAmount: number;
+};
+
+export type SettlementWorkspaceSummaryDto = {
+  merchants: SettlementEligibleMerchantSummaryDto[];
+  riderHandovers: RiderCashHandoverSummaryDto[];
+};
+
 export type RiderCashHandoverParcelDto = {
   id: string;
   parcelCode: string;
@@ -80,6 +95,15 @@ export type RiderCashHandoverListRowDto = {
   parcels: RiderCashHandoverParcelDto[];
 };
 
+export type RiderCashHandoverSummaryDto = {
+  riderId: string;
+  riderName: string;
+  pendingParcelCount: number;
+  totalCodAmount: number;
+  totalDeliveryFeeAmount: number;
+  totalCollectedAmount: number;
+};
+
 export type ConfirmRiderCashHandoverInputDto = z.infer<typeof confirmRiderCashHandoverInputSchema>;
 
 export type SettlementListItemDto = {
@@ -96,6 +120,38 @@ export type SettlementListItemDto = {
   paidAt: string | null;
   createdAt: string;
 };
+
+const settlementListSearchParamsSchema = z.object({
+  page: z.coerce.number().int().min(1).optional().catch(1),
+});
+
+export type SettlementListFiltersDto = {
+  page: number;
+  pageSize: number;
+};
+
+export type SettlementListPageDto = {
+  settlements: SettlementListItemDto[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+};
+
+export const settlementListPageSize = 20;
+
+export function parseSettlementListFilters(
+  input: Record<string, string | string[] | undefined>,
+): SettlementListFiltersDto {
+  const parseResult = settlementListSearchParamsSchema.safeParse({
+    page: readSearchParam(input.page),
+  });
+
+  return {
+    page: parseResult.success ? (parseResult.data.page ?? 1) : 1,
+    pageSize: settlementListPageSize,
+  };
+}
 
 const merchantSettlementHistorySearchParamsSchema = z.object({
   query: z.string().trim().max(100).optional().catch(""),

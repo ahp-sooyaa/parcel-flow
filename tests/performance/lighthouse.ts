@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 
-import { getOrCreateResultDir, writeJson, writeManifest } from "./report";
+import { getOrCreateResultDir, parseJsonContents, writeJson, writeManifest } from "./report";
 import { runPerfScript } from "./exit";
 
 const port = Number(process.env.PLAYWRIGHT_PORT ?? 3100);
@@ -32,6 +32,26 @@ type LighthouseReport = {
     }
   >;
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isLighthouseReport(value: unknown): value is LighthouseReport {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  if ("categories" in value && value.categories !== undefined && !isRecord(value.categories)) {
+    return false;
+  }
+
+  if ("audits" in value && value.audits !== undefined && !isRecord(value.audits)) {
+    return false;
+  }
+
+  return true;
+}
 
 async function runLighthouseCli(
   url: string,
@@ -116,7 +136,13 @@ async function runLighthouseCli(
     await unlink(directPath).catch(() => undefined);
   }
 
-  const report = JSON.parse(reportContents) as LighthouseReport;
+  const parsed = parseJsonContents(reportContents);
+
+  if (!isLighthouseReport(parsed)) {
+    throw new Error(`Lighthouse report at ${options.outputPath} is invalid.`);
+  }
+
+  const report = parsed;
 
   const audits = report.audits;
   const performanceScore = report.categories?.performance?.score ?? null;

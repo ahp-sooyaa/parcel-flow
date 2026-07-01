@@ -18,12 +18,50 @@ const cancelRiderPayoutDraftActionMock = mock(async () => ({
   ok: true as const,
   message: "Rider payout draft canceled.",
 }));
+const listEligibleRiderPayoutRiderSummariesActionMock = mock(async () => ({
+  ok: true as const,
+  riders: [
+    {
+      riderId: "00000000-0000-4000-8000-000000000001",
+      riderName: "Test Rider",
+      eligibleItemCount: 2,
+    },
+  ],
+}));
+const getEligibleRiderPayoutRiderDetailActionMock = mock(async () => ({
+  ok: true as const,
+  financialItems: [
+    {
+      id: "00000000-0000-4000-8000-000000000002",
+      parcelId: "00000000-0000-4000-8000-000000000003",
+      parcelCode: "PF-001",
+      riderWaySource: "delivery_attempt" as const,
+      status: "pending" as const,
+      createdAt: "2026-06-14T00:00:00.000Z",
+    },
+    {
+      id: "00000000-0000-4000-8000-000000000004",
+      parcelId: "00000000-0000-4000-8000-000000000005",
+      parcelCode: "PF-002",
+      riderWaySource: "merchant_return" as const,
+      status: "pending" as const,
+      createdAt: "2026-06-15T00:00:00.000Z",
+    },
+  ],
+}));
 const routerRefreshMock = mock(() => undefined);
+
+void mock.module("next/navigation", () => ({
+  useRouter: () => ({ push: () => undefined }),
+  usePathname: () => "/dashboard/rider-payouts",
+}));
 
 void mock.module("@/features/rider-payouts/server/actions", () => ({
   createRiderPayoutDraftAction: createRiderPayoutDraftActionMock,
   settleRiderPayoutAction: settleRiderPayoutActionMock,
   cancelRiderPayoutDraftAction: cancelRiderPayoutDraftActionMock,
+  listEligibleRiderPayoutRiderSummariesAction: listEligibleRiderPayoutRiderSummariesActionMock,
+  getEligibleRiderPayoutRiderDetailAction: getEligibleRiderPayoutRiderDetailActionMock,
 }));
 
 void mock.module("@/lib/client-navigation", () => ({
@@ -47,6 +85,8 @@ describe("RiderPayoutWorkspace", async () => {
     createRiderPayoutDraftActionMock.mockReset();
     settleRiderPayoutActionMock.mockReset();
     cancelRiderPayoutDraftActionMock.mockReset();
+    listEligibleRiderPayoutRiderSummariesActionMock.mockReset();
+    getEligibleRiderPayoutRiderDetailActionMock.mockReset();
     routerRefreshMock.mockReset();
     createRiderPayoutDraftActionMock.mockResolvedValue({
       ok: true,
@@ -56,10 +96,55 @@ describe("RiderPayoutWorkspace", async () => {
         payoutCode: "RP-20260615-000001",
       },
     });
+    getEligibleRiderPayoutRiderDetailActionMock.mockResolvedValue({
+      ok: true,
+      financialItems: [
+        {
+          id: "00000000-0000-4000-8000-000000000002",
+          parcelId: "00000000-0000-4000-8000-000000000003",
+          parcelCode: "PF-001",
+          riderWaySource: "delivery_attempt",
+          status: "pending",
+          createdAt: "2026-06-14T00:00:00.000Z",
+        },
+        {
+          id: "00000000-0000-4000-8000-000000000004",
+          parcelId: "00000000-0000-4000-8000-000000000005",
+          parcelCode: "PF-002",
+          riderWaySource: "merchant_return",
+          status: "pending",
+          createdAt: "2026-06-15T00:00:00.000Z",
+        },
+      ],
+    });
+    listEligibleRiderPayoutRiderSummariesActionMock.mockResolvedValue({
+      ok: true,
+      riders: [
+        {
+          riderId: "00000000-0000-4000-8000-000000000001",
+          riderName: "Test Rider",
+          eligibleItemCount: 2,
+        },
+      ],
+    });
   });
 
+  const defaultPayoutFilters = { page: 1, pageSize: 20 };
+
   test("renders persisted payout empty state", () => {
-    render(<RiderPayoutWorkspace payouts={[]} actorRole="super_admin" />);
+    render(
+      <RiderPayoutWorkspace
+        pageResult={{
+          payouts: [],
+          page: 1,
+          pageSize: 20,
+          totalCount: 0,
+          totalPages: 1,
+        }}
+        filters={defaultPayoutFilters}
+        actorRole="super_admin"
+      />,
+    );
 
     expect(screen.getByText("No rider payouts.")).toBeTruthy();
   });
@@ -68,29 +153,11 @@ describe("RiderPayoutWorkspace", async () => {
     const user = userEvent.setup();
     render(
       <RiderPayoutCreateAction
-        eligibleRiders={[
+        initialEligibleRiderSummaries={[
           {
             riderId: "00000000-0000-4000-8000-000000000001",
             riderName: "Test Rider",
             eligibleItemCount: 2,
-            financialItems: [
-              {
-                id: "00000000-0000-4000-8000-000000000002",
-                parcelId: "00000000-0000-4000-8000-000000000003",
-                parcelCode: "PF-001",
-                riderWaySource: "delivery_attempt",
-                status: "pending",
-                createdAt: "2026-06-14T00:00:00.000Z",
-              },
-              {
-                id: "00000000-0000-4000-8000-000000000004",
-                parcelId: "00000000-0000-4000-8000-000000000005",
-                parcelCode: "PF-002",
-                riderWaySource: "merchant_return",
-                status: "pending",
-                createdAt: "2026-06-15T00:00:00.000Z",
-              },
-            ],
           },
         ]}
       />,
@@ -99,9 +166,9 @@ describe("RiderPayoutWorkspace", async () => {
     await user.click(screen.getByRole("button", { name: "Create Payout" }));
     await user.click(screen.getByLabelText(/Rider\s*\*/i));
     await user.click(await screen.findByRole("option", { name: "Test Rider (2 ways)" }));
-    await user.type(screen.getByLabelText(/Fee per way\s*\*/i), "900");
 
-    expect(screen.getAllByText("Pending")).toHaveLength(2);
+    expect(await screen.findAllByText("Pending")).toHaveLength(2);
+    await user.type(screen.getByLabelText(/Fee per way\s*\*/i), "900");
     expect(screen.getByText("1,800 MMK")).toBeTruthy();
 
     await user.click(screen.getByLabelText("Select way for PF-002"));
@@ -120,21 +187,28 @@ describe("RiderPayoutWorkspace", async () => {
     render(
       <RiderPayoutWorkspace
         actorRole="office_admin"
-        payouts={[
-          {
-            id: "00000000-0000-4000-8000-000000000010",
-            payoutCode: "RP-20260615-000001",
-            riderId: "00000000-0000-4000-8000-000000000011",
-            riderName: "Office Rider",
-            status: "in_progress",
-            deliveredWayCount: 2,
-            feePerWay: 900,
-            totalPayoutAmount: 1_800,
-            paidAt: null,
-            paymentNote: null,
-            createdAt: "2026-06-15T00:00:00.000Z",
-          },
-        ]}
+        filters={defaultPayoutFilters}
+        pageResult={{
+          payouts: [
+            {
+              id: "00000000-0000-4000-8000-000000000010",
+              payoutCode: "RP-20260615-000001",
+              riderId: "00000000-0000-4000-8000-000000000011",
+              riderName: "Office Rider",
+              status: "in_progress",
+              deliveredWayCount: 2,
+              feePerWay: 900,
+              totalPayoutAmount: 1_800,
+              paidAt: null,
+              paymentNote: null,
+              createdAt: "2026-06-15T00:00:00.000Z",
+            },
+          ],
+          page: 1,
+          pageSize: 20,
+          totalCount: 1,
+          totalPages: 1,
+        }}
       />,
     );
 

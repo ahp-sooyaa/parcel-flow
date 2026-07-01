@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Facehash } from "facehash";
+import dynamic from "next/dynamic";
 import { LogOut } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -17,12 +17,31 @@ import {
 import { signOutAction } from "@/features/auth/server/actions";
 import { roleLabels, type UserRole } from "@/lib/domain";
 
+const Facehash = dynamic(() => import("facehash").then((module) => module.Facehash), {
+  ssr: false,
+  loading: () => null,
+});
+
 type DashboardAccountMenuProps = {
   name: string;
   role: UserRole;
   userId: string;
   username: string;
 };
+
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+
+  if (parts.length === 0) {
+    return "?";
+  }
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+}
 
 export function DashboardAccountMenu({
   name,
@@ -32,6 +51,7 @@ export function DashboardAccountMenu({
 }: Readonly<DashboardAccountMenuProps>) {
   const [isSigningOut, startSignOutTransition] = useTransition();
   const [signOutError, setSignOutError] = useState<string | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const avatarSeed = `${userId}:${username}`;
 
   function handleSignOut() {
@@ -47,7 +67,7 @@ export function DashboardAccountMenu({
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
@@ -57,15 +77,19 @@ export function DashboardAccountMenu({
           aria-label="Open account menu"
         >
           <Avatar className="size-9">
-            <AvatarFallback className="bg-transparent p-0">
-              <Facehash
-                name={avatarSeed}
-                size={36}
-                interactive={true}
-                enableBlink={true}
-                showInitial={true}
-                intensity3d="dramatic"
-              />
+            <AvatarFallback className="bg-muted text-xs font-medium text-foreground">
+              {isMenuOpen ? (
+                <Facehash
+                  name={avatarSeed}
+                  size={36}
+                  interactive={true}
+                  enableBlink={true}
+                  showInitial={true}
+                  intensity3d="dramatic"
+                />
+              ) : (
+                getInitials(name)
+              )}
             </AvatarFallback>
           </Avatar>
         </Button>

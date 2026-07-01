@@ -1,10 +1,14 @@
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { appUsers, bankAccounts, financialItems, parcels, riderPayouts, riders } from "@/db/schema";
 import type {
   RiderPayoutEligibleRiderDto,
+  RiderPayoutEligibleRiderSummaryDto,
+  RiderPayoutEligibleFinancialItemDto,
+  RiderPayoutListFiltersDto,
   RiderPayoutListItemDto,
+  RiderPayoutListPageDto,
 } from "@/features/rider-payouts/server/dto";
 import {
   generateUniqueRiderPayoutCode,
@@ -12,7 +16,19 @@ import {
 } from "@/features/rider-payouts/server/utils";
 import { isRiderWaySource } from "@/lib/domain";
 
-export async function listRiderPayouts(): Promise<RiderPayoutListItemDto[]> {
+export async function listRiderPayoutsPage(
+  filters: RiderPayoutListFiltersDto,
+): Promise<RiderPayoutListPageDto> {
+  const totalCountRow = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(riderPayouts)
+    .then((rows) => rows[0]);
+
+  const totalCount = totalCountRow?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / filters.pageSize));
+  const page = Math.min(filters.page, totalPages);
+  const offset = (page - 1) * filters.pageSize;
+
   const rows = await db
     .select({
       id: riderPayouts.id,
@@ -30,9 +46,38 @@ export async function listRiderPayouts(): Promise<RiderPayoutListItemDto[]> {
     .from(riderPayouts)
     .innerJoin(riders, eq(riders.id, riderPayouts.riderId))
     .innerJoin(appUsers, eq(appUsers.id, riders.userId))
-    .orderBy(desc(riderPayouts.createdAt), desc(riderPayouts.payoutCode));
+    .orderBy(desc(riderPayouts.createdAt), desc(riderPayouts.payoutCode))
+    .limit(filters.pageSize)
+    .offset(offset);
 
-  return rows.map((row) => ({
+  return {
+    payouts: rows.map(mapRiderPayoutListItem),
+    page,
+    pageSize: filters.pageSize,
+    totalCount,
+    totalPages,
+  };
+}
+
+export async function listRiderPayouts(): Promise<RiderPayoutListItemDto[]> {
+  const page = await listRiderPayoutsPage({ page: 1, pageSize: 10_000 });
+  return page.payouts;
+}
+
+function mapRiderPayoutListItem(row: {
+  id: string;
+  payoutCode: string;
+  riderId: string;
+  riderName: string;
+  status: string;
+  deliveredWayCount: number;
+  feePerWay: number;
+  totalPayoutAmount: number;
+  paidAt: Date | null;
+  paymentNote: string | null;
+  createdAt: Date;
+}): RiderPayoutListItemDto {
+  return {
     id: row.id,
     payoutCode: row.payoutCode,
     riderId: row.riderId,
@@ -44,7 +89,79 @@ export async function listRiderPayouts(): Promise<RiderPayoutListItemDto[]> {
     paidAt: row.paidAt?.toISOString() ?? null,
     paymentNote: row.paymentNote,
     createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export async function listEligibleRiderPayoutRiderSummaries(): Promise<
+  RiderPayoutEligibleRiderSummaryDto[]
+> {
+  const rows = await db
+    .select({
+      riderId: riders.id,
+      riderName: appUsers.name,
+      eligibleItemCount: sql<number>`count(*)`,
+    })
+    .from(financialItems)
+    .innerJoin(riders, eq(riders.id, financialItems.riderId))
+    .innerJoin(appUsers, eq(appUsers.id, riders.userId))
+    .where(
+      and(
+        eq(financialItems.itemType, "rider_way_payout"),
+        eq(financialItems.status, "pending"),
+        isNull(financialItems.riderPayoutId),
+        eq(appUsers.isActive, true),
+      ),
+    )
+    .groupBy(riders.id, appUsers.name)
+    .orderBy(asc(appUsers.name));
+
+  return rows.map((row) => ({
+    riderId: row.riderId,
+    riderName: row.riderName,
+    eligibleItemCount: row.eligibleItemCount,
   }));
+}
+
+export async function getEligibleRiderPayoutItemsByRiderId(
+  riderId: string,
+): Promise<RiderPayoutEligibleFinancialItemDto[]> {
+  const rows = await db
+    .select({
+      itemId: financialItems.id,
+      parcelId: financialItems.parcelId,
+      parcelCode: parcels.parcelCode,
+      riderWaySource: financialItems.riderWaySource,
+      createdAt: financialItems.createdAt,
+    })
+    .from(financialItems)
+    .innerJoin(riders, eq(riders.id, financialItems.riderId))
+    .innerJoin(appUsers, eq(appUsers.id, riders.userId))
+    .leftJoin(parcels, eq(parcels.id, financialItems.parcelId))
+    .where(
+      and(
+        eq(financialItems.riderId, riderId),
+        eq(financialItems.itemType, "rider_way_payout"),
+        eq(financialItems.status, "pending"),
+        isNull(financialItems.riderPayoutId),
+        eq(appUsers.isActive, true),
+      ),
+    )
+    .orderBy(asc(financialItems.createdAt));
+
+  return rows.map((row) => {
+    const riderWaySource = isRiderWaySource(row.riderWaySource)
+      ? row.riderWaySource
+      : "legacy_delivery";
+
+    return {
+      id: row.itemId,
+      parcelId: row.parcelId,
+      parcelCode: row.parcelCode,
+      riderWaySource,
+      status: "pending" as const,
+      createdAt: row.createdAt.toISOString(),
+    };
+  });
 }
 
 export async function listEligibleRiderPayoutRiders(): Promise<RiderPayoutEligibleRiderDto[]> {

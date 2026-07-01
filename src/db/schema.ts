@@ -111,13 +111,17 @@ export const session = sessions;
 export const account = accounts;
 export const verification = verifications;
 
-export const merchants = pgTable("merchants", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id").references(() => appUsers.id),
-  shopName: text("shop_name").notNull(),
-  address: text("address").notNull(),
-  ...timestamps,
-});
+export const merchants = pgTable(
+  "merchants",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").references(() => appUsers.id),
+    shopName: text("shop_name").notNull(),
+    address: text("address").notNull(),
+    ...timestamps,
+  },
+  (table) => [index("merchants_user_id_idx").on(table.userId)],
+);
 
 export const townships = pgTable("townships", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -137,11 +141,15 @@ export const townships = pgTable("townships", {
   ...timestamps,
 });
 
-export const riders = pgTable("riders", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id").references(() => appUsers.id),
-  ...timestamps,
-});
+export const riders = pgTable(
+  "riders",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").references(() => appUsers.id),
+    ...timestamps,
+  },
+  (table) => [index("riders_user_id_idx").on(table.userId)],
+);
 
 export const riderServiceTownships = pgTable(
   "rider_service_townships",
@@ -211,37 +219,71 @@ export const parcels = pgTable(
     collectedAt: timestamp("collected_at", { withTimezone: true }),
     ...softDeleteTimestamps,
   },
-  (table) => [uniqueIndex("parcels_parcel_code_idx").on(table.parcelCode)],
+  (table) => [
+    uniqueIndex("parcels_parcel_code_idx").on(table.parcelCode),
+    index("parcels_active_created_at_idx")
+      .on(table.createdAt)
+      .where(sql`${table.deletedAt} is null`),
+    index("parcels_active_merchant_id_idx")
+      .on(table.merchantId)
+      .where(sql`${table.deletedAt} is null`),
+    index("parcels_active_rider_id_idx")
+      .on(table.riderId)
+      .where(sql`${table.deletedAt} is null`),
+    index("parcels_active_status_received_idx")
+      .on(table.status, table.isReceivedByOffice)
+      .where(sql`${table.deletedAt} is null`),
+  ],
 );
 
-export const financialItems = pgTable("financial_items", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  parcelId: uuid("parcel_id").references(() => parcels.id),
-  merchantId: uuid("merchant_id").references(() => merchants.id),
-  riderId: uuid("rider_id").references(() => riders.id),
-  merchantSettlementId: uuid("merchant_settlement_id").references(() => merchantSettlements.id),
-  riderPayoutId: uuid("rider_payout_id").references(() => riderPayouts.id),
-  itemType: text("item_type").notNull(),
-  riderWaySource: text("rider_way_source"),
-  amount: integer("amount").notNull(),
-  status: text("status").default("pending").notNull(),
-  createdBy: uuid("created_by").references(() => appUsers.id),
-  ...timestamps,
-  settledAt: timestamp("settled_at", { withTimezone: true }),
-});
+export const financialItems = pgTable(
+  "financial_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    parcelId: uuid("parcel_id").references(() => parcels.id),
+    merchantId: uuid("merchant_id").references(() => merchants.id),
+    riderId: uuid("rider_id").references(() => riders.id),
+    merchantSettlementId: uuid("merchant_settlement_id").references(() => merchantSettlements.id),
+    riderPayoutId: uuid("rider_payout_id").references(() => riderPayouts.id),
+    itemType: text("item_type").notNull(),
+    riderWaySource: text("rider_way_source"),
+    amount: integer("amount").notNull(),
+    status: text("status").default("pending").notNull(),
+    createdBy: uuid("created_by").references(() => appUsers.id),
+    ...timestamps,
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("financial_items_parcel_id_idx").on(table.parcelId),
+    index("financial_items_settlement_eligibility_idx")
+      .on(table.merchantId, table.createdAt)
+      .where(sql`${table.status} = 'pending' and ${table.merchantSettlementId} is null`),
+    index("financial_items_rider_payout_eligibility_idx")
+      .on(table.riderId, table.createdAt)
+      .where(sql`${table.itemType} = 'rider_way_payout' and ${table.riderPayoutId} is null`),
+  ],
+);
 
-export const bankAccounts = pgTable("bank_accounts", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => appUsers.id),
-  bankName: text("bank_name").notNull(),
-  accountHolderName: text("account_holder_name").notNull(),
-  accountNumber: text("account_number").notNull(),
-  isCompanyAccount: boolean("is_company_account").default(false).notNull(),
-  isPrimary: boolean("is_primary").default(false).notNull(),
-  ...softDeleteTimestamps,
-});
+export const bankAccounts = pgTable(
+  "bank_accounts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUsers.id),
+    bankName: text("bank_name").notNull(),
+    accountHolderName: text("account_holder_name").notNull(),
+    accountNumber: text("account_number").notNull(),
+    isCompanyAccount: boolean("is_company_account").default(false).notNull(),
+    isPrimary: boolean("is_primary").default(false).notNull(),
+    ...softDeleteTimestamps,
+  },
+  (table) => [
+    index("bank_accounts_primary_user_id_idx")
+      .on(table.userId)
+      .where(sql`${table.isPrimary} and ${table.deletedAt} is null`),
+  ],
+);
 
 export const merchantSettlements = pgTable(
   "merchant_settlements",
@@ -269,7 +311,14 @@ export const merchantSettlements = pgTable(
     paymentNote: text("payment_note"),
     ...timestamps,
   },
-  (table) => [uniqueIndex("merchant_settlements_settlement_code_idx").on(table.settlementCode)],
+  (table) => [
+    uniqueIndex("merchant_settlements_settlement_code_idx").on(table.settlementCode),
+    index("merchant_settlements_merchant_status_created_idx").on(
+      table.merchantId,
+      table.status,
+      table.createdAt,
+    ),
+  ],
 );
 
 export const riderPayouts = pgTable(
@@ -291,7 +340,10 @@ export const riderPayouts = pgTable(
     paymentNote: text("payment_note"),
     ...timestamps,
   },
-  (table) => [uniqueIndex("rider_payouts_payout_code_idx").on(table.payoutCode)],
+  (table) => [
+    uniqueIndex("rider_payouts_payout_code_idx").on(table.payoutCode),
+    index("rider_payouts_created_at_idx").on(table.createdAt),
+  ],
 );
 
 export const parcelStatusLogs = pgTable("parcel_status_logs", {

@@ -13,12 +13,17 @@ import {
 import type {
   RiderCashHandoverListRowDto,
   RiderCashHandoverParcelDto,
+  RiderCashHandoverSummaryDto,
   MerchantSettlementHistoryFiltersDto,
   MerchantSettlementHistoryItemDto,
   MerchantSettlementHistoryPageDto,
   SettlementEligibleFinancialItemDto,
   SettlementEligibleMerchantDto,
+  SettlementEligibleMerchantSummaryDto,
+  SettlementWorkspaceSummaryDto,
   SettlementListItemDto,
+  SettlementListFiltersDto,
+  SettlementListPageDto,
 } from "@/features/settlements/server/dto";
 import {
   calculateMerchantSettlementTotals,
@@ -67,6 +72,262 @@ function mapRiderCashHandoverParcel(row: {
   };
 }
 
+function buildSettlementEligibleFinancialItemsWhere() {
+  return and(
+    isNull(financialItems.merchantSettlementId),
+    eq(financialItems.status, "pending"),
+    inArray(financialItems.itemType, merchantSettlementEligibleItemTypes),
+    or(
+      eq(financialItems.itemType, "delivery_fee_deduction"),
+      and(eq(financialItems.itemType, "cod_remit"), eq(parcels.isReceivedByOffice, true)),
+    ),
+  );
+}
+
+function mapSettlementEligibleMerchantFromRows(
+  rows: Array<{
+    merchantId: string;
+    merchantName: string;
+    bankName: string | null;
+    accountNumber: string | null;
+    itemId: string;
+    parcelId: string | null;
+    parcelCode: string | null;
+    itemType: string;
+    amount: number;
+    createdAt: Date;
+  }>,
+): SettlementEligibleMerchantDto | null {
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const firstRow = rows[0];
+  const merchant: SettlementEligibleMerchantDto = {
+    merchantId: firstRow.merchantId,
+    merchantName: firstRow.merchantName,
+    bankAccountSummary: formatBankAccountSummary({
+      bankName: firstRow.bankName,
+      accountNumber: firstRow.accountNumber,
+    }),
+    eligibleItemCount: 0,
+    totalCodAmount: 0,
+    totalDeliveryFeeDeduction: 0,
+    netPaymentAmount: 0,
+    financialItems: [],
+  };
+
+  for (const row of rows) {
+    if (row.itemType !== "cod_remit" && row.itemType !== "delivery_fee_deduction") {
+      continue;
+    }
+
+    merchant.financialItems.push(
+      mapEligibleFinancialItem({
+        itemId: row.itemId,
+        parcelId: row.parcelId,
+        parcelCode: row.parcelCode,
+        itemType: row.itemType,
+        amount: row.amount,
+        createdAt: row.createdAt,
+      }),
+    );
+    merchant.eligibleItemCount += 1;
+
+    if (row.itemType === "cod_remit") {
+      merchant.totalCodAmount += row.amount;
+    } else {
+      merchant.totalDeliveryFeeDeduction += row.amount;
+    }
+  }
+
+  merchant.netPaymentAmount = merchant.totalCodAmount - merchant.totalDeliveryFeeDeduction;
+
+  return merchant.totalCodAmount > 0 ? merchant : null;
+}
+
+export async function listEligibleSettlementMerchantSummaries(): Promise<
+  SettlementEligibleMerchantSummaryDto[]
+> {
+  const rows = await db
+    .select({
+      merchantId: merchants.id,
+      merchantName: merchants.shopName,
+      bankName: bankAccounts.bankName,
+      accountNumber: bankAccounts.accountNumber,
+      eligibleItemCount: sql<number>`count(${financialItems.id})`,
+      totalCodAmount: sql<number>`coalesce(sum(case when ${financialItems.itemType} = 'cod_remit' then ${financialItems.amount} else 0 end), 0)`,
+      totalDeliveryFeeDeduction: sql<number>`coalesce(sum(case when ${financialItems.itemType} = 'delivery_fee_deduction' then ${financialItems.amount} else 0 end), 0)`,
+    })
+    .from(financialItems)
+    .innerJoin(merchants, eq(merchants.id, financialItems.merchantId))
+    .leftJoin(parcels, eq(parcels.id, financialItems.parcelId))
+    .leftJoin(
+      bankAccounts,
+      and(
+        eq(bankAccounts.userId, merchants.userId),
+        eq(bankAccounts.isPrimary, true),
+        isNull(bankAccounts.deletedAt),
+      ),
+    )
+    .where(buildSettlementEligibleFinancialItemsWhere())
+    .groupBy(merchants.id, merchants.shopName, bankAccounts.bankName, bankAccounts.accountNumber)
+    .orderBy(asc(merchants.shopName));
+
+  return rows
+    .map((row) => {
+      const totalCodAmount = row.totalCodAmount;
+      const totalDeliveryFeeDeduction = row.totalDeliveryFeeDeduction;
+
+      return {
+        merchantId: row.merchantId,
+        merchantName: row.merchantName,
+        bankAccountSummary: formatBankAccountSummary({
+          bankName: row.bankName,
+          accountNumber: row.accountNumber,
+        }),
+        eligibleItemCount: row.eligibleItemCount,
+        totalCodAmount,
+        totalDeliveryFeeDeduction,
+        netPaymentAmount: totalCodAmount - totalDeliveryFeeDeduction,
+      };
+    })
+    .filter((merchant) => merchant.totalCodAmount > 0);
+}
+
+export async function getEligibleSettlementMerchantById(
+  merchantId: string,
+): Promise<SettlementEligibleMerchantDto | null> {
+  const rows = await db
+    .select({
+      merchantId: merchants.id,
+      merchantName: merchants.shopName,
+      bankName: bankAccounts.bankName,
+      accountNumber: bankAccounts.accountNumber,
+      itemId: financialItems.id,
+      parcelId: financialItems.parcelId,
+      parcelCode: parcels.parcelCode,
+      itemType: financialItems.itemType,
+      amount: financialItems.amount,
+      createdAt: financialItems.createdAt,
+    })
+    .from(financialItems)
+    .innerJoin(merchants, eq(merchants.id, financialItems.merchantId))
+    .leftJoin(parcels, eq(parcels.id, financialItems.parcelId))
+    .leftJoin(
+      bankAccounts,
+      and(
+        eq(bankAccounts.userId, merchants.userId),
+        eq(bankAccounts.isPrimary, true),
+        isNull(bankAccounts.deletedAt),
+      ),
+    )
+    .where(and(buildSettlementEligibleFinancialItemsWhere(), eq(merchants.id, merchantId)))
+    .orderBy(asc(financialItems.createdAt));
+
+  return mapSettlementEligibleMerchantFromRows(rows);
+}
+
+export async function listPendingRiderCashHandoverSummaries(): Promise<
+  RiderCashHandoverSummaryDto[]
+> {
+  const rows = await db
+    .select({
+      riderId: riders.id,
+      riderName: appUsers.name,
+      pendingParcelCount: sql<number>`count(*)`,
+      totalCodAmount: sql<number>`coalesce(sum(case when ${parcels.parcelType} = 'cod' then ${parcels.codAmount} else 0 end), 0)`,
+      totalDeliveryFeeAmount: sql<number>`coalesce(sum(${parcels.deliveryFee}), 0)`,
+      totalCollectedAmount: sql<number>`coalesce(sum(${parcels.collectedAmount}), 0)`,
+    })
+    .from(parcels)
+    .innerJoin(riders, eq(riders.id, parcels.riderId))
+    .innerJoin(appUsers, eq(appUsers.id, riders.userId))
+    .where(
+      and(
+        isNull(parcels.deletedAt),
+        eq(parcels.status, "delivered"),
+        eq(parcels.isReceivedByOffice, false),
+      ),
+    )
+    .groupBy(riders.id, appUsers.name)
+    .orderBy(asc(appUsers.name));
+
+  return rows.map((row) => ({
+    riderId: row.riderId,
+    riderName: row.riderName,
+    pendingParcelCount: row.pendingParcelCount,
+    totalCodAmount: row.totalCodAmount,
+    totalDeliveryFeeAmount: row.totalDeliveryFeeAmount,
+    totalCollectedAmount: row.totalCollectedAmount,
+  }));
+}
+
+export async function getPendingRiderCashHandoverByRiderId(
+  riderId: string,
+): Promise<RiderCashHandoverListRowDto | null> {
+  const rows = await db
+    .select({
+      riderId: riders.id,
+      riderName: appUsers.name,
+      parcelId: parcels.id,
+      parcelCode: parcels.parcelCode,
+      merchantName: merchants.shopName,
+      parcelType: parcels.parcelType,
+      codAmount: parcels.codAmount,
+      deliveryFee: parcels.deliveryFee,
+      collectedAmount: parcels.collectedAmount,
+      deliveredAt: parcels.deliveredAt,
+    })
+    .from(parcels)
+    .innerJoin(riders, eq(riders.id, parcels.riderId))
+    .innerJoin(appUsers, eq(appUsers.id, riders.userId))
+    .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
+    .where(
+      and(
+        eq(riders.id, riderId),
+        isNull(parcels.deletedAt),
+        eq(parcels.status, "delivered"),
+        eq(parcels.isReceivedByOffice, false),
+      ),
+    )
+    .orderBy(asc(parcels.deliveredAt), asc(parcels.parcelCode));
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const handover: RiderCashHandoverListRowDto = {
+    riderId: rows[0].riderId,
+    riderName: rows[0].riderName,
+    pendingParcelCount: 0,
+    totalCodAmount: 0,
+    totalDeliveryFeeAmount: 0,
+    totalCollectedAmount: 0,
+    parcels: [],
+  };
+
+  for (const row of rows) {
+    const parcel = mapRiderCashHandoverParcel(row);
+    handover.pendingParcelCount += 1;
+    handover.totalCodAmount += parcel.parcelType === "cod" ? parcel.codAmount : 0;
+    handover.totalDeliveryFeeAmount += parcel.deliveryFee;
+    handover.totalCollectedAmount += parcel.collectedAmount;
+    handover.parcels.push(parcel);
+  }
+
+  return handover;
+}
+
+export async function getSettlementWorkspaceSummary(): Promise<SettlementWorkspaceSummaryDto> {
+  const [eligibleMerchants, riderHandovers] = await Promise.all([
+    listEligibleSettlementMerchantSummaries(),
+    listPendingRiderCashHandoverSummaries(),
+  ]);
+
+  return { merchants: eligibleMerchants, riderHandovers };
+}
+
 export async function listEligibleSettlementMerchants(): Promise<SettlementEligibleMerchantDto[]> {
   const rows = await db
     .select({
@@ -92,26 +353,16 @@ export async function listEligibleSettlementMerchants(): Promise<SettlementEligi
         isNull(bankAccounts.deletedAt),
       ),
     )
-    .where(
-      and(
-        isNull(financialItems.merchantSettlementId),
-        eq(financialItems.status, "pending"),
-        inArray(financialItems.itemType, merchantSettlementEligibleItemTypes),
-        or(
-          eq(financialItems.itemType, "delivery_fee_deduction"),
-          and(eq(financialItems.itemType, "cod_remit"), eq(parcels.isReceivedByOffice, true)),
-        ),
-      ),
-    )
+    .where(buildSettlementEligibleFinancialItemsWhere())
     .orderBy(asc(merchants.shopName), asc(financialItems.createdAt));
 
   const merchantMap = new Map<string, SettlementEligibleMerchantDto>();
 
   for (const row of rows) {
-    const existingMerchant = merchantMap.get(row.merchantId);
+    let merchant = merchantMap.get(row.merchantId);
 
-    if (!existingMerchant) {
-      merchantMap.set(row.merchantId, {
+    if (!merchant) {
+      merchant = {
         merchantId: row.merchantId,
         merchantName: row.merchantName,
         bankAccountSummary: formatBankAccountSummary({
@@ -123,12 +374,11 @@ export async function listEligibleSettlementMerchants(): Promise<SettlementEligi
         totalDeliveryFeeDeduction: 0,
         netPaymentAmount: 0,
         financialItems: [],
-      });
+      };
+      merchantMap.set(row.merchantId, merchant);
     }
 
-    const merchant = merchantMap.get(row.merchantId);
-
-    if (!merchant || (row.itemType !== "cod_remit" && row.itemType !== "delivery_fee_deduction")) {
+    if (row.itemType !== "cod_remit" && row.itemType !== "delivery_fee_deduction") {
       continue;
     }
 
@@ -144,15 +394,13 @@ export async function listEligibleSettlementMerchants(): Promise<SettlementEligi
     );
     merchant.eligibleItemCount += 1;
 
-    const totals = calculateMerchantSettlementTotals(
-      merchant.financialItems.map((item) => ({
-        itemType: item.itemType,
-        amount: item.amount,
-      })),
-    );
-    merchant.totalCodAmount = totals.totalCodAmount;
-    merchant.totalDeliveryFeeDeduction = totals.totalDeliveryFeeDeduction;
-    merchant.netPaymentAmount = totals.netPaymentAmount;
+    if (row.itemType === "cod_remit") {
+      merchant.totalCodAmount += row.amount;
+    } else {
+      merchant.totalDeliveryFeeDeduction += row.amount;
+    }
+
+    merchant.netPaymentAmount = merchant.totalCodAmount - merchant.totalDeliveryFeeDeduction;
   }
 
   return Array.from(merchantMap.values()).filter((merchant) => merchant.totalCodAmount > 0);
@@ -214,7 +462,19 @@ export async function listPendingRiderCashHandovers(): Promise<RiderCashHandover
   return Array.from(riderMap.values());
 }
 
-export async function listSettlements(): Promise<SettlementListItemDto[]> {
+export async function listSettlementsPage(
+  filters: SettlementListFiltersDto,
+): Promise<SettlementListPageDto> {
+  const totalCountRow = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(merchantSettlements)
+    .then((rows) => rows[0]);
+
+  const totalCount = totalCountRow?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / filters.pageSize));
+  const page = Math.min(filters.page, totalPages);
+  const offset = (page - 1) * filters.pageSize;
+
   const rows = await db
     .select({
       id: merchantSettlements.id,
@@ -234,9 +494,40 @@ export async function listSettlements(): Promise<SettlementListItemDto[]> {
     .from(merchantSettlements)
     .innerJoin(merchants, eq(merchants.id, merchantSettlements.merchantId))
     .leftJoin(bankAccounts, eq(bankAccounts.id, merchantSettlements.bankAccountId))
-    .orderBy(desc(merchantSettlements.createdAt));
+    .orderBy(desc(merchantSettlements.createdAt))
+    .limit(filters.pageSize)
+    .offset(offset);
 
-  return rows.map((row) => ({
+  return {
+    settlements: rows.map(mapSettlementListItem),
+    page,
+    pageSize: filters.pageSize,
+    totalCount,
+    totalPages,
+  };
+}
+
+export async function listSettlements(): Promise<SettlementListItemDto[]> {
+  const page = await listSettlementsPage({ page: 1, pageSize: 10_000 });
+  return page.settlements;
+}
+
+function mapSettlementListItem(row: {
+  id: string;
+  settlementCode: string;
+  merchantId: string;
+  merchantName: string;
+  status: string;
+  totalCodAmount: number;
+  totalDeliveryFeeDeduction: number;
+  netPaymentAmount: number;
+  bankName: string | null;
+  accountNumber: string | null;
+  bankTransferReceiptKey: string | null;
+  paidAt: Date | null;
+  createdAt: Date;
+}): SettlementListItemDto {
+  return {
     id: row.id,
     settlementCode: row.settlementCode,
     merchantId: row.merchantId,
@@ -255,7 +546,7 @@ export async function listSettlements(): Promise<SettlementListItemDto[]> {
     bankTransferReceiptKey: row.bankTransferReceiptKey,
     paidAt: row.paidAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
-  }));
+  };
 }
 
 export async function listMerchantSettlementHistoryForUser(

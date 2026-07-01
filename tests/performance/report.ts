@@ -191,7 +191,8 @@ export async function writeManifest(
   resultDir: string,
   overrides: Partial<Manifest> & Pick<Manifest, "commands">,
 ): Promise<Manifest> {
-  const existing = await readJsonFile<Manifest>(path.join(resultDir, "manifest.json"));
+  const existingRaw = await readJsonFile(path.join(resultDir, "manifest.json"));
+  const existing = isManifest(existingRaw) ? existingRaw : null;
   const manifest: Manifest = {
     runId: path.basename(resultDir),
     createdAt: new Date().toISOString(),
@@ -214,10 +215,54 @@ export async function writeJson(filePath: string, value: unknown) {
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
-export async function readJsonFile<T>(filePath: string): Promise<T | null> {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isPercentileStats(value: unknown): value is PercentileStats {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.min === "number" &&
+    typeof value.max === "number" &&
+    typeof value.p50 === "number" &&
+    typeof value.p95 === "number" &&
+    typeof value.mean === "number" &&
+    typeof value.samples === "number"
+  );
+}
+
+export function isDalBenchmarkResult(value: unknown): value is DalBenchmarkResult {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.name === "string" &&
+    typeof value.rowCount === "number" &&
+    isPercentileStats(value.stats)
+  );
+}
+
+function isManifest(value: unknown): value is Manifest {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return typeof value.runId === "string" && Array.isArray(value.commands);
+}
+
+export function parseJsonContents(contents: string): unknown {
+  const parsed: unknown = JSON.parse(contents);
+  return parsed;
+}
+
+export async function readJsonFile(filePath: string): Promise<unknown> {
   try {
     const contents = await readFile(filePath, "utf8");
-    return JSON.parse(contents) as T;
+    return parseJsonContents(contents);
   } catch {
     return null;
   }

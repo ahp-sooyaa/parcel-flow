@@ -1,18 +1,20 @@
 import path from "node:path";
+import type postgres from "postgres";
 
 import { closeDatabase } from "@/db";
+import { adminParcelPageSize, riderParcelPageSize } from "@/features/parcels/server/dto";
 
 import { closeTestDatabase, createTestDatabase } from "../fixtures/db";
 import { readPerfContext } from "./context";
 import { runPerfScript } from "./exit";
 import {
-  buildAdminListParcelsQuery,
+  buildAdminParcelsPageQuery,
   buildEligibleSettlementFinancialItemsQuery,
   buildGetParcelSummaryQuery,
   buildMerchantParcelsPageQuery,
   buildMerchantsParcelAggregationQuery,
   buildPendingRiderCashHandoversQuery,
-  buildRiderScopedParcelsQuery,
+  buildRiderParcelsPageQuery,
   buildRidersParcelAggregationQuery,
 } from "./queries";
 import { getOrCreateResultDir, writeJson, writeManifest } from "./report";
@@ -24,17 +26,47 @@ type ExplainSnapshot = {
   plan: unknown;
 };
 
+type ExplainSqlParam = postgres.ParameterOrJSON<postgres.JSONValue>;
+
+function isExplainSqlParam(value: unknown): value is ExplainSqlParam {
+  return (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint" ||
+    value instanceof Date ||
+    Array.isArray(value) ||
+    typeof value === "object"
+  );
+}
+
+function toExplainSqlParams(params: unknown[]): ExplainSqlParam[] {
+  const sqlParams: ExplainSqlParam[] = [];
+
+  for (const param of params) {
+    if (!isExplainSqlParam(param)) {
+      throw new Error(`Unsupported SQL parameter: ${typeof param}`);
+    }
+
+    sqlParams.push(param);
+  }
+
+  return sqlParams;
+}
+
 async function main() {
   const context = await readPerfContext();
   const resultDir = await getOrCreateResultDir();
   const { client } = createTestDatabase();
+  const explainClient: postgres.Sql<Record<string, postgres.JSONValue>> = client;
   const snapshots: ExplainSnapshot[] = [];
 
   try {
     const queries = [
       {
-        name: "listParcels",
-        ...buildAdminListParcelsQuery().toSQL(),
+        name: "listAdminParcelsPage",
+        ...buildAdminParcelsPageQuery(adminParcelPageSize).toSQL(),
       },
       {
         name: "listMerchantParcelsPageForUser",
@@ -71,15 +103,15 @@ async function main() {
     const riderUserId = context.riderUserIds[0];
     if (riderUserId) {
       queries.push({
-        name: "listParcelsForRiderUser",
-        ...buildRiderScopedParcelsQuery(riderUserId).toSQL(),
+        name: "listRiderParcelsPageForUser",
+        ...buildRiderParcelsPageQuery(riderUserId, riderParcelPageSize).toSQL(),
       });
     }
 
     for (const query of queries) {
       console.log(`Running EXPLAIN ANALYZE for ${query.name}...`);
       const explainSql = `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query.sql}`;
-      const rows = await client.unsafe(explainSql, query.params as never[]);
+      const rows = await explainClient.unsafe(explainSql, toExplainSqlParams(query.params));
       const plan = rows[0]?.["QUERY PLAN"] ?? rows[0];
       console.log(`Finished EXPLAIN ANALYZE for ${query.name}.`);
 

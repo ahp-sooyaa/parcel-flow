@@ -3,6 +3,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { buildParcelFailureNoteEntry, buildParcelListItem } from "../fixtures/builders";
+import type {
+  RiderParcelListFiltersDto,
+  RiderParcelListPageDto,
+  RiderParcelTabCountsDto,
+} from "@/features/parcels/server/dto";
+
+const routerPushMock = mock(() => {});
 
 const toastSuccessMock = mock(() => undefined);
 const toastErrorMock = mock(() => undefined);
@@ -43,6 +50,11 @@ const fetchMock = Object.assign(
   },
 );
 
+void mock.module("next/navigation", () => ({
+  useRouter: () => ({ push: routerPushMock }),
+  usePathname: () => "/dashboard/rider/parcels",
+}));
+
 void mock.module("@/lib/client-navigation", () => ({
   useAppRouter: () => ({
     refresh: refreshMock,
@@ -57,6 +69,34 @@ void mock.module("@/features/parcels/server/actions", () => ({
   updateDeliveryFailureForRiderParcelAction: updateDeliveryFailureForRiderParcelActionMock,
 }));
 
+const defaultFilters: RiderParcelListFiltersDto = {
+  searchTerm: "",
+  tab: "to_deliver",
+  townshipName: null,
+  statuses: [],
+  page: 1,
+  pageSize: 12,
+};
+
+function buildRiderPageResult(
+  parcels: ReturnType<typeof buildParcelListItem>[],
+  tabCounts?: Partial<RiderParcelTabCountsDto>,
+): RiderParcelListPageDto {
+  return {
+    parcels,
+    page: 1,
+    pageSize: 12,
+    totalCount: parcels.length,
+    totalPages: 1,
+    hasAnyParcels: parcels.length > 0,
+    tabCounts: {
+      to_deliver: tabCounts?.to_deliver ?? parcels.length,
+      delivered: tabCounts?.delivered ?? 0,
+      returned: tabCounts?.returned ?? 0,
+    },
+  };
+}
+
 void mock.module("sonner", () => ({
   toast: {
     success: toastSuccessMock,
@@ -67,6 +107,24 @@ void mock.module("sonner", () => ({
 describe("RiderParcelCardList", async () => {
   const { RiderParcelCardList } =
     await import("@/features/parcels/components/rider-parcel-card-list");
+
+  function renderRiderParcelCardList(
+    parcels: ReturnType<typeof buildParcelListItem>[],
+    options?: {
+      filters?: Partial<RiderParcelListFiltersDto>;
+      tabCounts?: Partial<RiderParcelTabCountsDto>;
+    },
+  ) {
+    const filters = { ...defaultFilters, ...options?.filters };
+
+    return render(
+      <RiderParcelCardList
+        pageResult={buildRiderPageResult(parcels, options?.tabCounts)}
+        filters={filters}
+        townships={[]}
+      />,
+    );
+  }
 
   beforeEach(() => {
     toastSuccessMock.mockReset();
@@ -115,17 +173,13 @@ describe("RiderParcelCardList", async () => {
 
   test("opens failure dialog and submits rider failure note", async () => {
     const user = userEvent.setup();
-    render(
-      <RiderParcelCardList
-        parcels={[
-          buildParcelListItem({
-            id: "00000000-0000-4000-8000-000000000001",
-            parcelCode: "PF-FAILURE",
-            status: "on_the_way",
-          }),
-        ]}
-      />,
-    );
+    renderRiderParcelCardList([
+      buildParcelListItem({
+        id: "00000000-0000-4000-8000-000000000001",
+        parcelCode: "PF-FAILURE",
+        status: "on_the_way",
+      }),
+    ]);
 
     await user.click(screen.getByRole("button", { name: "Report Failure" }));
     await user.type(screen.getByLabelText("Failure note"), "Receiver was not available.");
@@ -147,20 +201,14 @@ describe("RiderParcelCardList", async () => {
 
   test("shows existing failure note management and suppresses delivery actions", async () => {
     const user = userEvent.setup();
-    render(
-      <RiderParcelCardList
-        parcels={[
-          buildParcelListItem({
-            id: "00000000-0000-4000-8000-000000000001",
-            parcelCode: "PF-NOTE",
-            status: "on_the_way",
-            failureNotes: [
-              buildParcelFailureNoteEntry({ note: "Receiver asked to call tomorrow." }),
-            ],
-          }),
-        ]}
-      />,
-    );
+    renderRiderParcelCardList([
+      buildParcelListItem({
+        id: "00000000-0000-4000-8000-000000000001",
+        parcelCode: "PF-NOTE",
+        status: "on_the_way",
+        failureNotes: [buildParcelFailureNoteEntry({ note: "Receiver asked to call tomorrow." })],
+      }),
+    ]);
 
     expect(screen.queryByRole("button", { name: "Report Failure" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Mark Delivered" })).toBeNull();
@@ -172,20 +220,14 @@ describe("RiderParcelCardList", async () => {
 
   test("allows riders to edit an existing active failure note", async () => {
     const user = userEvent.setup();
-    render(
-      <RiderParcelCardList
-        parcels={[
-          buildParcelListItem({
-            id: "00000000-0000-4000-8000-000000000001",
-            parcelCode: "PF-NOTE",
-            status: "on_the_way",
-            failureNotes: [
-              buildParcelFailureNoteEntry({ note: "Receiver asked to call tomorrow." }),
-            ],
-          }),
-        ]}
-      />,
-    );
+    renderRiderParcelCardList([
+      buildParcelListItem({
+        id: "00000000-0000-4000-8000-000000000001",
+        parcelCode: "PF-NOTE",
+        status: "on_the_way",
+        failureNotes: [buildParcelFailureNoteEntry({ note: "Receiver asked to call tomorrow." })],
+      }),
+    ]);
 
     await user.click(screen.getByRole("button", { name: "View Failure Note" }));
 
@@ -204,19 +246,15 @@ describe("RiderParcelCardList", async () => {
 
   test("opens mark delivered dialog, previews proof, and submits form data", async () => {
     const user = userEvent.setup();
-    render(
-      <RiderParcelCardList
-        parcels={[
-          buildParcelListItem({
-            id: "00000000-0000-4000-8000-000000000001",
-            parcelCode: "PF-DELIVERED",
-            status: "on_the_way",
-            codAmount: 10_000,
-            deliveryFee: 2_000,
-          }),
-        ]}
-      />,
-    );
+    renderRiderParcelCardList([
+      buildParcelListItem({
+        id: "00000000-0000-4000-8000-000000000001",
+        parcelCode: "PF-DELIVERED",
+        status: "on_the_way",
+        codAmount: 10_000,
+        deliveryFee: 2_000,
+      }),
+    ]);
 
     await user.click(screen.getByRole("button", { name: "Mark Delivered" }));
     expect(screen.getAllByText("12,000 MMK").length).toBeGreaterThanOrEqual(1);
@@ -259,17 +297,13 @@ describe("RiderParcelCardList", async () => {
 
   test("shows return action for canceled-returned parcel and completes it", async () => {
     const user = userEvent.setup();
-    render(
-      <RiderParcelCardList
-        parcels={[
-          buildParcelListItem({
-            id: "00000000-0000-4000-8000-000000000001",
-            parcelCode: "PF-RETURN",
-            status: "canceled_returned",
-          }),
-        ]}
-      />,
-    );
+    renderRiderParcelCardList([
+      buildParcelListItem({
+        id: "00000000-0000-4000-8000-000000000001",
+        parcelCode: "PF-RETURN",
+        status: "canceled_returned",
+      }),
+    ]);
 
     await user.click(screen.getByRole("button", { name: "Return to Merchant" }));
 
@@ -290,39 +324,43 @@ describe("RiderParcelCardList", async () => {
 
   test("shows returned-to-merchant parcels in the returned tab", async () => {
     const user = userEvent.setup();
-    render(
-      <RiderParcelCardList
-        parcels={[
-          buildParcelListItem({
-            id: "00000000-0000-4000-8000-000000000001",
-            parcelCode: "PF-RETURNED",
-            status: "returned_to_merchant",
-          }),
-        ]}
-      />,
-    );
+    renderRiderParcelCardList([], {
+      tabCounts: { to_deliver: 0, delivered: 0, returned: 1 },
+    });
 
     expect(screen.getByRole("tab", { name: /Returned 1/i })).toBeTruthy();
     expect(screen.queryByText("PF-RETURNED")).toBeNull();
 
     await user.click(screen.getByRole("tab", { name: /Returned 1/i }));
 
+    expect(routerPushMock).toHaveBeenCalledWith("/dashboard/rider/parcels?tab=returned");
+
+    renderRiderParcelCardList(
+      [
+        buildParcelListItem({
+          id: "00000000-0000-4000-8000-000000000001",
+          parcelCode: "PF-RETURNED",
+          status: "returned_to_merchant",
+        }),
+      ],
+      {
+        filters: { tab: "returned" },
+        tabCounts: { to_deliver: 0, delivered: 0, returned: 1 },
+      },
+    );
+
     expect(screen.getByText("PF-RETURNED")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Return to Merchant" })).toBeNull();
   });
 
   test("renders rider parcel cards expanded by default", () => {
-    render(
-      <RiderParcelCardList
-        parcels={[
-          buildParcelListItem({
-            parcelCode: "PF-EXPANDED",
-            receiverPhoneNumber: "09123456789",
-            receiverAddress: "Expanded address",
-          }),
-        ]}
-      />,
-    );
+    renderRiderParcelCardList([
+      buildParcelListItem({
+        parcelCode: "PF-EXPANDED",
+        receiverPhoneNumber: "09123456789",
+        receiverAddress: "Expanded address",
+      }),
+    ]);
 
     expect(screen.getByText("09123456789")).toBeTruthy();
     expect(screen.getByText("Expanded address")).toBeTruthy();

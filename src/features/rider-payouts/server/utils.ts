@@ -1,7 +1,7 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { financialItems, parcels, riderPayouts } from "@/db/schema";
+import { financialItems, riderPayouts } from "@/db/schema";
 import { isFinancialItemStatus, type FinancialItemStatus } from "@/lib/domain";
 
 export function isRiderWayPayoutItem(item: { itemType: string }) {
@@ -27,7 +27,7 @@ export function aggregateRiderPayoutStatus(statuses: FinancialItemStatus[]) {
 }
 
 export async function recomputeParcelRiderPayoutStatuses(
-  dbLike: Pick<typeof db, "select" | "update">,
+  dbLike: Pick<typeof db, "select" | "execute">,
   parcelIds: string[],
 ) {
   const uniqueParcelIds = Array.from(new Set(parcelIds));
@@ -60,17 +60,28 @@ export async function recomputeParcelRiderPayoutStatuses(
     statusesByParcelId.set(row.parcelId, statuses);
   }
 
-  const now = new Date();
+  const updates = uniqueParcelIds.map((parcelId) => ({
+    id: parcelId,
+    status: aggregateRiderPayoutStatus(statusesByParcelId.get(parcelId) ?? []),
+  }));
 
-  for (const parcelId of uniqueParcelIds) {
-    await dbLike
-      .update(parcels)
-      .set({
-        riderPayoutStatus: aggregateRiderPayoutStatus(statusesByParcelId.get(parcelId) ?? []),
-        updatedAt: now,
-      })
-      .where(eq(parcels.id, parcelId));
+  if (updates.length === 0) {
+    return;
   }
+
+  await dbLike.execute(sql`
+    update parcels as p
+    set
+      rider_payout_status = v.status,
+      updated_at = now()
+    from (
+      values ${sql.join(
+        updates.map((update) => sql`(${update.id}::uuid, ${update.status})`),
+        sql`, `,
+      )}
+    ) as v(id, status)
+    where p.id = v.id
+  `);
 }
 
 export async function generateUniqueRiderPayoutCode(dbLike: {

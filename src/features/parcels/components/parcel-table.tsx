@@ -35,6 +35,7 @@ import {
 } from "@/features/parcels/server/actions";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
 import { parcelStatusLabels } from "@/lib/domain";
+import { useAppRouter } from "@/lib/client-navigation";
 import { formatDate, formatMoney } from "@/lib/format";
 
 const assignmentEligibleStatuses = ["at_office", "postpone", "canceled_returned"] as const;
@@ -91,6 +92,7 @@ export function ParcelTable({
   const [pendingFailureAction, setPendingFailureAction] = useState<
     "postpone" | "return_merchant" | null
   >(null);
+  const router = useAppRouter();
   const selectableParcelIds = useMemo(
     () =>
       parcels
@@ -176,6 +178,7 @@ export function ParcelTable({
     }
 
     setFailureReviewParcel(null);
+    router.refresh();
   }
 
   return (

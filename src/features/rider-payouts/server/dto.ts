@@ -37,6 +37,46 @@ export type RiderPayoutListItemDto = {
   createdAt: string;
 };
 
+const riderPayoutListSearchParamsSchema = z.object({
+  page: z.coerce.number().int().min(1).optional().catch(1),
+});
+
+export type RiderPayoutListFiltersDto = {
+  page: number;
+  pageSize: number;
+};
+
+export type RiderPayoutListPageDto = {
+  payouts: RiderPayoutListItemDto[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+};
+
+export const riderPayoutListPageSize = 20;
+
+export function parseRiderPayoutListFilters(
+  input: Record<string, string | string[] | undefined>,
+): RiderPayoutListFiltersDto {
+  const parseResult = riderPayoutListSearchParamsSchema.safeParse({
+    page: readSearchParam(input.page),
+  });
+
+  return {
+    page: parseResult.success ? (parseResult.data.page ?? 1) : 1,
+    pageSize: riderPayoutListPageSize,
+  };
+}
+
+function readSearchParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+
+  return value;
+}
+
 export type RiderPayoutEligibleFinancialItemDto = {
   id: string;
   parcelId: string | null;
@@ -51,4 +91,10 @@ export type RiderPayoutEligibleRiderDto = {
   riderName: string;
   eligibleItemCount: number;
   financialItems: RiderPayoutEligibleFinancialItemDto[];
+};
+
+export type RiderPayoutEligibleRiderSummaryDto = {
+  riderId: string;
+  riderName: string;
+  eligibleItemCount: number;
 };

@@ -3,19 +3,15 @@ import { StorageCapacityCard } from "@/features/dashboard/components/storage-cap
 import { getStorageStats } from "@/features/dashboard/server/dal";
 import { RealtimeParcelSummaryCards } from "@/features/parcels/components/realtime-parcel-summary-cards";
 import { getParcelSummary } from "@/features/parcels/server/dal";
-import { MerchantSettlementWorkspace } from "@/features/settlements/components/merchant-settlement-workspace";
-import {
-  listEligibleSettlementMerchants,
-  listPendingRiderCashHandovers,
-} from "@/features/settlements/server/dal";
+import { DashboardSettlementWorkspace } from "@/features/settlements/components/dashboard-settlement-workspace";
+import { getSettlementWorkspaceSummary } from "@/features/settlements/server/dal";
 import { getCurrentUser } from "@/lib/session";
 
 export default async function DashboardPage() {
-  const [currentUser, summary, merchants, riderHandovers] = await Promise.all([
+  const [currentUser, summary, workspaceSummary] = await Promise.all([
     getCurrentUser(),
     getParcelSummary(),
-    listEligibleSettlementMerchants(),
-    listPendingRiderCashHandovers(),
+    getSettlementWorkspaceSummary(),
   ]);
   const storageStats = currentUser?.role === "super_admin" ? await getStorageStats() : null;
 
@@ -34,7 +30,10 @@ export default async function DashboardPage() {
         ) : (
           <RealtimeParcelSummaryCards summary={summary} />
         )}
-        <MerchantSettlementWorkspace merchants={merchants} riderHandovers={riderHandovers} />
+        <DashboardSettlementWorkspace
+          merchantSummaries={workspaceSummary.merchants}
+          riderHandoverSummaries={workspaceSummary.riderHandovers}
+        />
       </div>
     </>
   );

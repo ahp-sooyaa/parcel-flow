@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useMemo, useState, useTransition } from "react";
-import { Landmark, ReceiptText, Truck, WalletCards } from "lucide-react";
+import { Landmark, Loader2, ReceiptText, Truck, WalletCards } from "lucide-react";
 
 import { FormBanner, type FormMessageState } from "@/components/shared/form-fields";
 import { Button } from "@/components/ui/button";
@@ -25,30 +25,83 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type {
   RiderCashHandoverListRowDto,
+  RiderCashHandoverSummaryDto,
   SettlementEligibleMerchantDto,
+  SettlementEligibleMerchantSummaryDto,
 } from "@/features/settlements/server/dto";
 import {
   confirmRiderCashHandoverAction,
   createMerchantSettlementAction,
+  getEligibleSettlementMerchantDetailAction,
+  getRiderCashHandoverDetailAction,
 } from "@/features/settlements/server/actions";
 import { useAppRouter } from "@/lib/client-navigation";
 import { formatDate, formatMoney } from "@/lib/format";
 
 type MerchantSettlementWorkspaceProps = Readonly<{
-  merchants: SettlementEligibleMerchantDto[];
-  riderHandovers: RiderCashHandoverListRowDto[];
+  merchantSummaries: SettlementEligibleMerchantSummaryDto[];
+  riderHandoverSummaries: RiderCashHandoverSummaryDto[];
 }>;
 
 export function MerchantSettlementWorkspace({
-  merchants,
-  riderHandovers,
+  merchantSummaries,
+  riderHandoverSummaries,
 }: MerchantSettlementWorkspaceProps) {
   const [selectedMerchantId, setSelectedMerchantId] = useState<string | null>(null);
   const [selectedRiderId, setSelectedRiderId] = useState<string | null>(null);
-  const selectedMerchant =
-    merchants.find((merchant) => merchant.merchantId === selectedMerchantId) ?? null;
-  const selectedRider =
-    riderHandovers.find((handover) => handover.riderId === selectedRiderId) ?? null;
+  const [selectedMerchant, setSelectedMerchant] = useState<SettlementEligibleMerchantDto | null>(
+    null,
+  );
+  const [selectedRider, setSelectedRider] = useState<RiderCashHandoverListRowDto | null>(null);
+  const [merchantDetailError, setMerchantDetailError] = useState<string | null>(null);
+  const [riderDetailError, setRiderDetailError] = useState<string | null>(null);
+  const [, startDetailTransition] = useTransition();
+
+  function openMerchantReview(merchantId: string) {
+    setSelectedMerchantId(merchantId);
+    setSelectedMerchant(null);
+    setMerchantDetailError(null);
+
+    startDetailTransition(async () => {
+      try {
+        const merchant = await getEligibleSettlementMerchantDetailAction(merchantId);
+        setSelectedMerchant(merchant);
+      } catch (error) {
+        setMerchantDetailError(
+          error instanceof Error ? error.message : "Unable to load merchant settlement details.",
+        );
+      }
+    });
+  }
+
+  function openRiderHandoverReview(riderId: string) {
+    setSelectedRiderId(riderId);
+    setSelectedRider(null);
+    setRiderDetailError(null);
+
+    startDetailTransition(async () => {
+      try {
+        const handover = await getRiderCashHandoverDetailAction(riderId);
+        setSelectedRider(handover);
+      } catch (error) {
+        setRiderDetailError(
+          error instanceof Error ? error.message : "Unable to load rider cash handover details.",
+        );
+      }
+    });
+  }
+
+  function closeMerchantSheet() {
+    setSelectedMerchantId(null);
+    setSelectedMerchant(null);
+    setMerchantDetailError(null);
+  }
+
+  function closeRiderSheet() {
+    setSelectedRiderId(null);
+    setSelectedRider(null);
+    setRiderDetailError(null);
+  }
 
   return (
     <Tabs defaultValue="merchant-settlements" className="gap-0 space-y-4">
@@ -78,7 +131,7 @@ export function MerchantSettlementWorkspace({
       <TabsContent value="merchant-settlements">
         <div className="rounded-lg border bg-white">
           <div>
-            {merchants.length === 0 ? (
+            {merchantSummaries.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-3 px-6 py-14 text-center">
                 <WalletCards className="size-10 text-muted-foreground" />
                 <div>
@@ -101,7 +154,7 @@ export function MerchantSettlementWorkspace({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {merchants.map((merchant) => (
+                  {merchantSummaries.map((merchant) => (
                     <TableRow key={merchant.merchantId}>
                       <TableCell className="font-medium">{merchant.merchantName}</TableCell>
                       <TableCell>
@@ -121,7 +174,7 @@ export function MerchantSettlementWorkspace({
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => setSelectedMerchantId(merchant.merchantId)}
+                          onClick={() => openMerchantReview(merchant.merchantId)}
                         >
                           Review
                         </Button>
@@ -138,7 +191,7 @@ export function MerchantSettlementWorkspace({
       <TabsContent value="rider-cash-handover">
         <div className="rounded-lg border bg-white">
           <div>
-            {riderHandovers.length === 0 ? (
+            {riderHandoverSummaries.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-3 px-6 py-14 text-center">
                 <Truck className="size-10 text-muted-foreground" />
                 <div>
@@ -160,7 +213,7 @@ export function MerchantSettlementWorkspace({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {riderHandovers.map((handover) => (
+                  {riderHandoverSummaries.map((handover) => (
                     <TableRow key={handover.riderId}>
                       <TableCell className="font-medium">{handover.riderName}</TableCell>
                       <TableCell className="text-right">{handover.pendingParcelCount}</TableCell>
@@ -177,7 +230,7 @@ export function MerchantSettlementWorkspace({
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => setSelectedRiderId(handover.riderId)}
+                          onClick={() => openRiderHandoverReview(handover.riderId)}
                         >
                           Confirm Handover
                         </Button>
@@ -192,32 +245,45 @@ export function MerchantSettlementWorkspace({
       </TabsContent>
 
       <Sheet
-        open={selectedMerchant !== null}
-        onOpenChange={(open) => !open && setSelectedMerchantId(null)}
+        open={selectedMerchantId !== null}
+        onOpenChange={(open) => !open && closeMerchantSheet()}
       >
         <SheetContent className="gap-0 overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[780px] data-[side=right]:sm:max-w-[780px]">
-          {selectedMerchant ? (
+          {merchantDetailError ? (
+            <div className="flex h-full items-center justify-center px-6 text-sm text-destructive">
+              {merchantDetailError}
+            </div>
+          ) : selectedMerchant ? (
             <MerchantSettlementSheet
               key={selectedMerchant.merchantId}
               merchant={selectedMerchant}
-              onClose={() => setSelectedMerchantId(null)}
+              onClose={closeMerchantSheet}
             />
-          ) : null}
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            </div>
+          )}
         </SheetContent>
       </Sheet>
 
-      <Sheet
-        open={selectedRider !== null}
-        onOpenChange={(open) => !open && setSelectedRiderId(null)}
-      >
+      <Sheet open={selectedRiderId !== null} onOpenChange={(open) => !open && closeRiderSheet()}>
         <SheetContent className="gap-0 overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[820px] data-[side=right]:sm:max-w-[820px]">
-          {selectedRider ? (
+          {riderDetailError ? (
+            <div className="flex h-full items-center justify-center px-6 text-sm text-destructive">
+              {riderDetailError}
+            </div>
+          ) : selectedRider ? (
             <RiderCashHandoverSheet
               key={selectedRider.riderId}
               riderHandover={selectedRider}
-              onClose={() => setSelectedRiderId(null)}
+              onClose={closeRiderSheet}
             />
-          ) : null}
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            </div>
+          )}
         </SheetContent>
       </Sheet>
     </Tabs>

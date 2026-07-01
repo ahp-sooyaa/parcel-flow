@@ -23,14 +23,14 @@ import {
 } from "@/components/ui/dialog";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
 import { assignParcelsToRiderAction } from "@/features/parcels/server/actions";
-import type { RiderListItemDto } from "@/features/riders/server/dto";
+import type { RiderOptionDto } from "@/features/riders/server/dto";
 import { formatMoney } from "@/lib/format";
 
 type AssignRiderDialogProps = Readonly<{
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedParcels: ParcelListItemDto[];
-  riders: RiderListItemDto[];
+  riders: RiderOptionDto[];
 }>;
 
 type RiderOption = {

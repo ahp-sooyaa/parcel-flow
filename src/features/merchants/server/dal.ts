@@ -1,11 +1,37 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { appUsers, merchants, merchantSettlements, parcels } from "@/db/schema";
 import type {
   MerchantListItemDto,
+  MerchantOptionDto,
   MerchantOverviewSummaryDto,
 } from "@/features/merchants/server/dto";
+import { coerceSqlNumber } from "@/lib/format";
+
+async function loadMerchantParcelAggregations() {
+  const aggregationRows = await db
+    .select({
+      merchantId: parcels.merchantId,
+      parcelCount: sql<number>`count(*)`,
+      pendingPayment: sql<number>`coalesce(sum(
+        case when ${parcels.status} = 'delivered' then ${parcels.codAmount} - ${parcels.deliveryFee} else 0 end
+      ), 0)`,
+    })
+    .from(parcels)
+    .where(isNull(parcels.deletedAt))
+    .groupBy(parcels.merchantId);
+
+  return new Map(
+    aggregationRows.map((row) => [
+      row.merchantId,
+      {
+        parcelCount: coerceSqlNumber(row.parcelCount),
+        pendingPayment: coerceSqlNumber(row.pendingPayment),
+      },
+    ]),
+  );
+}
 
 export async function listMerchants(): Promise<MerchantListItemDto[]> {
   const rows = await db
@@ -20,43 +46,55 @@ export async function listMerchants(): Promise<MerchantListItemDto[]> {
     .innerJoin(appUsers, eq(appUsers.id, merchants.userId))
     .where(isNull(appUsers.deletedAt));
 
-  const parcelRows = await db
-    .select({
-      merchantId: parcels.merchantId,
-      codAmount: parcels.codAmount,
-      deliveryFee: parcels.deliveryFee,
-      status: parcels.status,
-    })
-    .from(parcels)
-    .where(isNull(parcels.deletedAt));
+  const aggregationsByMerchantId = await loadMerchantParcelAggregations();
 
   return rows.map((merchant) => {
-    const merchantParcels = parcelRows.filter((parcel) => parcel.merchantId === merchant.id);
+    const aggregation = aggregationsByMerchantId.get(merchant.id);
 
     return {
       ...merchant,
-      pendingPayment: merchantParcels
-        .filter((parcel) => parcel.status === "delivered")
-        .reduce((total, parcel) => total + parcel.codAmount - parcel.deliveryFee, 0),
-      parcelCount: merchantParcels.length,
+      pendingPayment: aggregation?.pendingPayment ?? 0,
+      parcelCount: aggregation?.parcelCount ?? 0,
     };
   });
+}
+
+export async function listMerchantOptions(): Promise<MerchantOptionDto[]> {
+  return db
+    .select({
+      id: merchants.id,
+      shopName: merchants.shopName,
+      ownerName: appUsers.name,
+      phoneNumber: appUsers.phoneNumber,
+    })
+    .from(merchants)
+    .innerJoin(appUsers, eq(appUsers.id, merchants.userId))
+    .where(isNull(appUsers.deletedAt));
 }
 
 export async function getMerchantOverviewSummary(
   merchantUserId: string,
 ): Promise<MerchantOverviewSummaryDto> {
-  const [parcelRows, settledSettlementRows] = await Promise.all([
+  const [parcelSummaryRow, settledSettlementRows] = await Promise.all([
     db
       .select({
-        status: parcels.status,
-        parcelType: parcels.parcelType,
-        codAmount: parcels.codAmount,
-        isReceivedByOffice: parcels.isReceivedByOffice,
+        totalParcels: sql<number>`count(*)`,
+        onTheWayParcels: sql<number>`count(*) filter (where ${parcels.status} = 'on_the_way')`,
+        deliveredParcels: sql<number>`count(*) filter (where ${parcels.status} = 'delivered')`,
+        totalCodCollected: sql<number>`coalesce(sum(
+          case
+            when ${parcels.status} = 'delivered'
+              and ${parcels.parcelType} = 'cod'
+              and ${parcels.isReceivedByOffice}
+            then ${parcels.codAmount}
+            else 0
+          end
+        ), 0)`,
       })
       .from(parcels)
       .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
-      .where(and(isNull(parcels.deletedAt), eq(merchants.userId, merchantUserId))),
+      .where(and(isNull(parcels.deletedAt), eq(merchants.userId, merchantUserId)))
+      .then((rows) => rows[0]),
     db
       .select({
         netPaymentAmount: merchantSettlements.netPaymentAmount,
@@ -66,27 +104,14 @@ export async function getMerchantOverviewSummary(
       .where(and(eq(merchants.userId, merchantUserId), eq(merchantSettlements.status, "settled"))),
   ]);
 
-  return parcelRows.reduce<MerchantOverviewSummaryDto>(
-    (summary, parcel) => ({
-      totalCodCollected:
-        summary.totalCodCollected +
-        (parcel.status === "delivered" && parcel.parcelType === "cod" && parcel.isReceivedByOffice
-          ? parcel.codAmount
-          : 0),
-      paidToYou: summary.paidToYou,
-      totalParcels: summary.totalParcels + 1,
-      onTheWayParcels: summary.onTheWayParcels + (parcel.status === "on_the_way" ? 1 : 0),
-      deliveredParcels: summary.deliveredParcels + (parcel.status === "delivered" ? 1 : 0),
-    }),
-    {
-      totalCodCollected: 0,
-      paidToYou: settledSettlementRows.reduce(
-        (total, settlement) => total + settlement.netPaymentAmount,
-        0,
-      ),
-      totalParcels: 0,
-      onTheWayParcels: 0,
-      deliveredParcels: 0,
-    },
-  );
+  return {
+    totalCodCollected: coerceSqlNumber(parcelSummaryRow?.totalCodCollected),
+    paidToYou: settledSettlementRows.reduce(
+      (total, settlement) => total + settlement.netPaymentAmount,
+      0,
+    ),
+    totalParcels: coerceSqlNumber(parcelSummaryRow?.totalParcels),
+    onTheWayParcels: coerceSqlNumber(parcelSummaryRow?.onTheWayParcels),
+    deliveredParcels: coerceSqlNumber(parcelSummaryRow?.deliveredParcels),
+  };
 }

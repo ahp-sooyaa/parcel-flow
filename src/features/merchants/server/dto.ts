@@ -16,6 +16,13 @@ export type MerchantListItemDto = {
   parcelCount: number;
 };
 
+export type MerchantOptionDto = {
+  id: string;
+  shopName: string;
+  ownerName: string;
+  phoneNumber: string;
+};
+
 export type MerchantOverviewSummaryDto = {
   totalCodCollected: number;
   paidToYou: number;

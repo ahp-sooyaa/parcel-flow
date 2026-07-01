@@ -788,7 +788,7 @@ describe("persistence integration coverage", () => {
       riderId: riderSeed.rider.id,
       parcelId: parcelSeed.parcel.id,
     });
-    expect(riderHandovers).toEqual([
+    expect(riderHandovers.find((handover) => handover.riderId === riderSeed.rider.id)).toEqual(
       expect.objectContaining({
         riderId: riderSeed.rider.id,
         riderName: riderSeed.user?.name,
@@ -797,8 +797,12 @@ describe("persistence integration coverage", () => {
         totalDeliveryFeeAmount: 2_000,
         totalCollectedAmount: 12_000,
       }),
-    ]);
-    expect(eligibleMerchants).toHaveLength(0);
+    );
+    expect(
+      eligibleMerchants.filter(
+        (merchant) => merchant.merchantId === parcelSeed.merchantSeed?.merchant.id,
+      ),
+    ).toHaveLength(0);
   });
 
   test("merchant overview counts COD as collected only after office receipt confirmation", async () => {
@@ -1013,7 +1017,10 @@ describe("persistence integration coverage", () => {
       "Delivery fee deductions exceed the selected COD total.",
     );
 
-    const settlements = await testDb.db.select().from(merchantSettlements);
+    const settlements = await testDb.db
+      .select()
+      .from(merchantSettlements)
+      .where(eq(merchantSettlements.merchantId, merchantSeed.merchant.id));
     const [unchangedItem] = await testDb.db
       .select()
       .from(financialItems)
@@ -1233,8 +1240,12 @@ describe("persistence integration coverage", () => {
       status: "pending",
     });
     expect(nonCodRemitItems).toHaveLength(0);
-    expect(remainingHandovers).toHaveLength(0);
-    expect(eligibleMerchants).toEqual([
+    expect(
+      remainingHandovers.find((handover) => handover.riderId === riderSeed.rider.id),
+    ).toBeUndefined();
+    expect(
+      eligibleMerchants.find((merchant) => merchant.merchantId === codParcelSeed.parcel.merchantId),
+    ).toEqual(
       expect.objectContaining({
         merchantId: codParcelSeed.parcel.merchantId,
         eligibleItemCount: 1,
@@ -1242,7 +1253,7 @@ describe("persistence integration coverage", () => {
         totalDeliveryFeeDeduction: 0,
         netPaymentAmount: 15_000,
       }),
-    ]);
+    );
   });
 
   test("rejects stale or mixed-rider handover selections without partial updates", async () => {

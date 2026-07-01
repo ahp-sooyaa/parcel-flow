@@ -36,7 +36,7 @@ import {
   correctParcelStatusAction,
 } from "@/features/parcels/server/actions";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
-import type { RiderListItemDto } from "@/features/riders/server/dto";
+import type { RiderOptionDto } from "@/features/riders/server/dto";
 import type { UserRole } from "@/lib/domain";
 import { parcelStatuses, parcelStatusLabels } from "@/lib/domain";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -84,7 +84,7 @@ export function ParcelDetailSheet({
 }: Readonly<{
   actorRole: UserRole;
   parcel: ParcelListItemDto;
-  riders?: RiderListItemDto[];
+  riders?: RiderOptionDto[];
 }>) {
   const parcelType = parcel.codAmount > 0 ? "COD" : "Non-COD";
   const amountToCollect = parcel.codAmount + parcel.deliveryFee;
@@ -202,7 +202,7 @@ function ParcelCorrectionsSection({
   riders,
 }: Readonly<{
   parcel: ParcelListItemDto;
-  riders: RiderListItemDto[];
+  riders: RiderOptionDto[];
 }>) {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [riderDialogOpen, setRiderDialogOpen] = useState(false);
@@ -300,7 +300,7 @@ function CorrectStatusDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   parcel: ParcelListItemDto;
-  riders: RiderListItemDto[];
+  riders: RiderOptionDto[];
 }>) {
   const statusInputId = useId();
   const riderInputId = useId();
@@ -521,7 +521,7 @@ function CorrectRiderDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   parcel: ParcelListItemDto;
-  riders: RiderListItemDto[];
+  riders: RiderOptionDto[];
 }>) {
   const riderInputId = useId();
   const reasonInputId = useId();
@@ -669,7 +669,7 @@ function RiderSelectField({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  riders: RiderListItemDto[];
+  riders: RiderOptionDto[];
   allowUnassigned: boolean;
 }>) {
   return (
@@ -698,7 +698,7 @@ function readRiderValue(value: string) {
   return value === unassignedRiderValue ? null : value;
 }
 
-function getRiderSelectLabel(value: string, riders: RiderListItemDto[]) {
+function getRiderSelectLabel(value: string, riders: RiderOptionDto[]) {
   if (value === unassignedRiderValue) {
     return "Unassigned";
   }

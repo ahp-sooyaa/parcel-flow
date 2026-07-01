@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Plus, WalletCards } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Loader2, Plus, WalletCards } from "lucide-react";
 
+import { PaginationControls } from "@/components/shared/pagination-controls";
 import {
   FieldShell,
   FormBanner,
@@ -42,30 +44,67 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   cancelRiderPayoutDraftAction,
   createRiderPayoutDraftAction,
+  getEligibleRiderPayoutRiderDetailAction,
+  listEligibleRiderPayoutRiderSummariesAction,
   settleRiderPayoutAction,
 } from "@/features/rider-payouts/server/actions";
 import type {
-  RiderPayoutEligibleRiderDto,
+  RiderPayoutEligibleFinancialItemDto,
+  RiderPayoutEligibleRiderSummaryDto,
+  RiderPayoutListFiltersDto,
   RiderPayoutListItemDto,
+  RiderPayoutListPageDto,
 } from "@/features/rider-payouts/server/dto";
 import { useAppRouter } from "@/lib/client-navigation";
 import type { RiderWaySource, UserRole } from "@/lib/domain";
 import { formatDate, formatMoney } from "@/lib/format";
 
 type RiderPayoutWorkspaceProps = Readonly<{
-  payouts: RiderPayoutListItemDto[];
+  pageResult: RiderPayoutListPageDto;
+  filters: RiderPayoutListFiltersDto;
   actorRole: UserRole;
 }>;
 
 type RiderPayoutCreateActionProps = Readonly<{
-  eligibleRiders: RiderPayoutEligibleRiderDto[];
+  initialEligibleRiderSummaries?: RiderPayoutEligibleRiderSummaryDto[];
 }>;
 
-export function RiderPayoutCreateAction({ eligibleRiders }: RiderPayoutCreateActionProps) {
+export function RiderPayoutCreateAction({
+  initialEligibleRiderSummaries = [],
+}: RiderPayoutCreateActionProps) {
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
+  const [eligibleRiderSummaries, setEligibleRiderSummaries] = useState(
+    initialEligibleRiderSummaries,
+  );
+  const [isLoadingEligibleRiders, setIsLoadingEligibleRiders] = useState(false);
+  const [eligibleRidersError, setEligibleRidersError] = useState<string | null>(null);
+
+  async function handleOpenChange(open: boolean) {
+    setCreateSheetOpen(open);
+
+    if (!open || eligibleRiderSummaries.length > 0 || isLoadingEligibleRiders) {
+      return;
+    }
+
+    setEligibleRidersError(null);
+    setIsLoadingEligibleRiders(true);
+
+    try {
+      const result = await listEligibleRiderPayoutRiderSummariesAction();
+
+      if (!result.ok) {
+        setEligibleRidersError(result.message);
+        return;
+      }
+
+      setEligibleRiderSummaries(result.riders);
+    } finally {
+      setIsLoadingEligibleRiders(false);
+    }
+  }
 
   return (
-    <Sheet open={createSheetOpen} onOpenChange={setCreateSheetOpen}>
+    <Sheet open={createSheetOpen} onOpenChange={handleOpenChange}>
       <Button asChild>
         <SheetTrigger>
           <Plus className="size-4" />
@@ -74,7 +113,9 @@ export function RiderPayoutCreateAction({ eligibleRiders }: RiderPayoutCreateAct
       </Button>
       <SheetContent className="gap-0 overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[760px] data-[side=right]:sm:max-w-[760px]">
         <CreateRiderPayoutSheet
-          eligibleRiders={eligibleRiders}
+          eligibleRiderSummaries={eligibleRiderSummaries}
+          isLoadingEligibleRiders={isLoadingEligibleRiders}
+          eligibleRidersError={eligibleRidersError}
           onClose={() => setCreateSheetOpen(false)}
         />
       </SheetContent>
@@ -82,9 +123,27 @@ export function RiderPayoutCreateAction({ eligibleRiders }: RiderPayoutCreateAct
   );
 }
 
-export function RiderPayoutWorkspace({ payouts, actorRole }: RiderPayoutWorkspaceProps) {
+export function RiderPayoutWorkspace({
+  pageResult,
+  filters: _filters,
+  actorRole,
+}: RiderPayoutWorkspaceProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const payouts = pageResult.payouts;
   const [selectedPayoutId, setSelectedPayoutId] = useState<string | null>(null);
   const selectedPayout = payouts.find((payout) => payout.id === selectedPayoutId) ?? null;
+
+  function updatePage(page: number) {
+    const params = new URLSearchParams();
+
+    if (page > 1) {
+      params.set("page", String(page));
+    }
+
+    const queryString = params.toString();
+    router.push(queryString ? `${pathname}?${queryString}` : pathname);
+  }
 
   return (
     <div className="space-y-4">
@@ -165,15 +224,25 @@ export function RiderPayoutWorkspace({ payouts, actorRole }: RiderPayoutWorkspac
           ) : null}
         </SheetContent>
       </Sheet>
+
+      <PaginationControls
+        page={pageResult.page}
+        totalPages={pageResult.totalPages}
+        onPageChange={updatePage}
+      />
     </div>
   );
 }
 
 function CreateRiderPayoutSheet({
-  eligibleRiders,
+  eligibleRiderSummaries,
+  isLoadingEligibleRiders,
+  eligibleRidersError,
   onClose,
 }: Readonly<{
-  eligibleRiders: RiderPayoutEligibleRiderDto[];
+  eligibleRiderSummaries: RiderPayoutEligibleRiderSummaryDto[];
+  isLoadingEligibleRiders: boolean;
+  eligibleRidersError: string | null;
   onClose: () => void;
 }>) {
   const router = useAppRouter();
@@ -182,10 +251,14 @@ function CreateRiderPayoutSheet({
   const [selectedRiderId, setSelectedRiderId] = useState<string | null>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [feePerWay, setFeePerWay] = useState("");
-  const selectedRider = eligibleRiders.find((rider) => rider.riderId === selectedRiderId) ?? null;
+  const [financialItems, setFinancialItems] = useState<RiderPayoutEligibleFinancialItemDto[]>([]);
+  const [isLoadingRiderDetail, setIsLoadingRiderDetail] = useState(false);
+  const [riderDetailError, setRiderDetailError] = useState<string | null>(null);
+  const selectedRiderSummary =
+    eligibleRiderSummaries.find((rider) => rider.riderId === selectedRiderId) ?? null;
   const selectedItems = useMemo(
-    () => selectedRider?.financialItems.filter((item) => selectedItemIds.includes(item.id)) ?? [],
-    [selectedItemIds, selectedRider],
+    () => financialItems.filter((item) => selectedItemIds.includes(item.id)),
+    [financialItems, selectedItemIds],
   );
   const numericFeePerWay = Number(feePerWay);
   const payoutTotal =
@@ -193,17 +266,35 @@ function CreateRiderPayoutSheet({
       ? selectedItems.length * numericFeePerWay
       : 0;
   const allSelected =
-    selectedRider !== null &&
-    selectedRider.financialItems.length > 0 &&
-    selectedRider.financialItems.every((item) => selectedItemIds.includes(item.id));
-  const someSelected =
-    selectedRider?.financialItems.some((item) => selectedItemIds.includes(item.id)) ?? false;
+    financialItems.length > 0 && financialItems.every((item) => selectedItemIds.includes(item.id));
+  const someSelected = financialItems.some((item) => selectedItemIds.includes(item.id));
 
-  function selectRider(riderId: string | null) {
+  async function selectRider(riderId: string | null) {
     setSelectedRiderId(riderId);
-    const rider = eligibleRiders.find((item) => item.riderId === riderId);
-    setSelectedItemIds(rider?.financialItems.map((item) => item.id) ?? []);
+    setSelectedItemIds([]);
+    setFinancialItems([]);
+    setRiderDetailError(null);
     setSubmissionState(null);
+
+    if (!riderId) {
+      return;
+    }
+
+    setIsLoadingRiderDetail(true);
+
+    try {
+      const result = await getEligibleRiderPayoutRiderDetailAction(riderId);
+
+      if (!result.ok) {
+        setRiderDetailError(result.message);
+        return;
+      }
+
+      setFinancialItems(result.financialItems);
+      setSelectedItemIds(result.financialItems.map((item) => item.id));
+    } finally {
+      setIsLoadingRiderDetail(false);
+    }
   }
 
   function toggleItem(itemId: string, checked: boolean) {
@@ -251,8 +342,16 @@ function CreateRiderPayoutSheet({
 
       <div className="flex-1 space-y-5 overflow-y-auto p-6">
         {submissionState ? <FormBanner state={submissionState} /> : null}
+        {eligibleRidersError ? (
+          <FormBanner state={{ kind: "error", message: eligibleRidersError }} />
+        ) : null}
 
-        {eligibleRiders.length === 0 ? (
+        {isLoadingEligibleRiders ? (
+          <div className="flex items-center justify-center gap-2 rounded-lg border bg-white px-6 py-14 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            Loading eligible riders...
+          </div>
+        ) : eligibleRiderSummaries.length === 0 ? (
           <div className="flex flex-col items-center gap-3 rounded-lg border bg-white px-6 py-14 text-center">
             <WalletCards className="size-9 text-muted-foreground" />
             <p className="font-medium">No riders have eligible payout ways.</p>
@@ -260,12 +359,17 @@ function CreateRiderPayoutSheet({
         ) : (
           <>
             <FieldShell htmlFor="rider-payout-rider" label="Rider" required>
-              <Select value={selectedRiderId} onValueChange={selectRider}>
+              <Select
+                value={selectedRiderId}
+                onValueChange={(value) => {
+                  void selectRider(value);
+                }}
+              >
                 <SelectTrigger id="rider-payout-rider" className={inputClassName}>
                   <SelectValue placeholder="Select rider" />
                 </SelectTrigger>
                 <SelectContent>
-                  {eligibleRiders.map((rider) => (
+                  {eligibleRiderSummaries.map((rider) => (
                     <SelectItem key={rider.riderId} value={rider.riderId}>
                       {rider.riderName} ({rider.eligibleItemCount} ways)
                     </SelectItem>
@@ -288,7 +392,16 @@ function CreateRiderPayoutSheet({
               />
             </FieldShell>
 
-            {selectedRider ? (
+            {riderDetailError ? (
+              <FormBanner state={{ kind: "error", message: riderDetailError }} />
+            ) : null}
+
+            {isLoadingRiderDetail ? (
+              <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Loading rider ways...
+              </div>
+            ) : selectedRiderSummary ? (
               <div className="rounded-lg border bg-white">
                 <Table>
                   <TableHeader>
@@ -299,9 +412,7 @@ function CreateRiderPayoutSheet({
                           checked={allSelected}
                           indeterminate={!allSelected && someSelected}
                           onCheckedChange={(checked) =>
-                            setSelectedItemIds(
-                              checked ? selectedRider.financialItems.map((item) => item.id) : [],
-                            )
+                            setSelectedItemIds(checked ? financialItems.map((item) => item.id) : [])
                           }
                         />
                       </TableHead>
@@ -312,7 +423,7 @@ function CreateRiderPayoutSheet({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {selectedRider.financialItems.map((item) => (
+                    {financialItems.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell>
                           <Checkbox

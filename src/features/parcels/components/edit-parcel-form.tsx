@@ -27,7 +27,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { SheetClose, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import type { MerchantListItemDto } from "@/features/merchants/server/dto";
+import type { MerchantOptionDto } from "@/features/merchants/server/dto";
 import {
   buildMerchantOptions,
   buildTownshipOptions,
@@ -62,7 +62,7 @@ export function EditParcelForm({
   onSaved,
 }: Readonly<{
   parcel: ParcelListItemDto;
-  merchants: MerchantListItemDto[];
+  merchants: MerchantOptionDto[];
   townships: TownshipListItemDto[];
   onSaved?: () => void;
 }>) {

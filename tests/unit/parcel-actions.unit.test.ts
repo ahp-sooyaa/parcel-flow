@@ -15,6 +15,7 @@ const deleteDeliveryFailureForRiderParcelMock = mock(async () => undefined);
 const markRiderParcelReturnedToMerchantMock = mock(async () => undefined);
 const resolveFailedParcelByAdminMock = mock(async () => undefined);
 const updateParcelMock = mock(async () => undefined);
+const getParcelByIdForRealtimeScopeMock = mock(async () => null);
 const uploadDeliveryProofImageMock = mock(async () => "parcels/test/proof.jpg");
 const deleteDeliveryProofImageMock = mock(async () => undefined);
 const revalidatePathMock = mock(() => undefined);
@@ -43,6 +44,7 @@ void mock.module("@/features/parcels/server/dal", () => ({
   startDeliveryForRiderParcels: startDeliveryForRiderParcelsMock,
   updateDeliveryFailureForRiderParcel: updateDeliveryFailureForRiderParcelMock,
   updateParcel: updateParcelMock,
+  getParcelByIdForRealtimeScope: getParcelByIdForRealtimeScopeMock,
 }));
 
 void mock.module("@/features/parcels/server/upload", () => ({

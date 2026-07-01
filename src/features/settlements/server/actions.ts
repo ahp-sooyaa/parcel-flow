@@ -1,10 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 
 import {
   confirmRiderCashHandover,
   createMerchantSettlement,
+  getEligibleSettlementMerchantById,
+  getPendingRiderCashHandoverByRiderId,
   resolveMerchantSettlement,
 } from "@/features/settlements/server/dal";
 import {
@@ -19,6 +22,9 @@ import {
   canResolveMerchantSettlement,
 } from "@/lib/permissions";
 import { requireCurrentUser } from "@/lib/session";
+
+const merchantIdSchema = z.uuid("Merchant selection is invalid.");
+const riderIdSchema = z.uuid("Rider selection is invalid.");
 
 function normalizeResolveSettlementInput(input: unknown) {
   if (!(input instanceof FormData)) {
@@ -160,4 +166,38 @@ export async function resolveMerchantSettlementAction(input: unknown) {
       message: error instanceof Error ? error.message : "Unable to resolve settlement.",
     };
   }
+}
+
+export async function getEligibleSettlementMerchantDetailAction(merchantId: unknown) {
+  const actor = await requireCurrentUser();
+
+  if (!canCreateMerchantSettlement(actor.role)) {
+    throw new Error("You do not have permission to review merchant settlements.");
+  }
+
+  const parsedMerchantId = merchantIdSchema.parse(merchantId);
+  const merchant = await getEligibleSettlementMerchantById(parsedMerchantId);
+
+  if (!merchant) {
+    throw new Error("Merchant settlement details were not found.");
+  }
+
+  return merchant;
+}
+
+export async function getRiderCashHandoverDetailAction(riderId: unknown) {
+  const actor = await requireCurrentUser();
+
+  if (!canConfirmRiderCashHandover(actor.role)) {
+    throw new Error("You do not have permission to review rider cash handovers.");
+  }
+
+  const parsedRiderId = riderIdSchema.parse(riderId);
+  const handover = await getPendingRiderCashHandoverByRiderId(parsedRiderId);
+
+  if (!handover) {
+    throw new Error("Rider cash handover details were not found.");
+  }
+
+  return handover;
 }

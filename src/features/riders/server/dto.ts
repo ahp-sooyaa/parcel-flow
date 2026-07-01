@@ -17,3 +17,11 @@ export type RiderListItemDto = {
   actualCollection: number;
   activeParcelCount: number;
 };
+
+export type RiderOptionDto = {
+  id: string;
+  name: string;
+  phoneNumber: string;
+  serviceTownships: string[];
+  expectedCollection: number;
+};

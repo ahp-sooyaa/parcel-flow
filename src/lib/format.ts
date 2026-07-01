@@ -4,6 +4,18 @@ export function formatMoney(amount: number) {
   }).format(amount);
 }
 
+export function coerceSqlNumber(value: number | string | null | undefined) {
+  if (typeof value === "number") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    return Number(value);
+  }
+
+  return 0;
+}
+
 export function formatDate(value: Date | string | null | undefined) {
   if (!value) {
     return "-";

@@ -14,6 +14,8 @@ const createRiderPayoutDraftMock = mock(async () => ({
 }));
 const settleRiderPayoutMock = mock(async () => undefined);
 const cancelRiderPayoutDraftMock = mock(async () => undefined);
+const listEligibleRiderPayoutRiderSummariesMock = mock(async () => []);
+const getEligibleRiderPayoutItemsByRiderIdMock = mock(async () => []);
 const revalidatePathMock = mock(() => undefined);
 
 void mock.module("@/lib/auth", () => ({
@@ -32,6 +34,8 @@ void mock.module("@/features/rider-payouts/server/dal", () => ({
   createRiderPayoutDraft: createRiderPayoutDraftMock,
   settleRiderPayout: settleRiderPayoutMock,
   cancelRiderPayoutDraft: cancelRiderPayoutDraftMock,
+  listEligibleRiderPayoutRiderSummaries: listEligibleRiderPayoutRiderSummariesMock,
+  getEligibleRiderPayoutItemsByRiderId: getEligibleRiderPayoutItemsByRiderIdMock,
 }));
 
 void mock.module("next/cache", () => ({

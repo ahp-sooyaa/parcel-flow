@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@aws-sdk/client-s3"],
+  experimental: {
+    optimizePackageImports: ["lucide-react"],
+  },
 };
 
 export default withSentryConfig(nextConfig, {

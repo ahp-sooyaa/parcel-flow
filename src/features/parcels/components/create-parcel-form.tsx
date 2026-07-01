@@ -27,7 +27,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { SheetClose, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import type { MerchantListItemDto } from "@/features/merchants/server/dto";
+import type { MerchantOptionDto } from "@/features/merchants/server/dto";
 import {
   buildMerchantOptions,
   buildTownshipOptions,
@@ -42,7 +42,7 @@ import type { TownshipListItemDto } from "@/features/townships/server/dto";
 import { formatMoney } from "@/lib/format";
 
 type CreateParcelFormProps = Readonly<{
-  merchants: MerchantListItemDto[];
+  merchants: MerchantOptionDto[];
   townships: TownshipListItemDto[];
 }>;
 

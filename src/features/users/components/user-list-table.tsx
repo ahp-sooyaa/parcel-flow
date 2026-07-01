@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { MoreHorizontal } from "lucide-react";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { MoreHorizontal, Search } from "lucide-react";
 
+import { PaginationControls } from "@/components/shared/pagination-controls";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +21,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from "@/components/ui/input-group";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
   Table,
@@ -30,27 +37,79 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EditUserForm } from "@/features/users/components/edit-user-form";
-import type { BankAccountDto, UserListItemDto } from "@/features/users/server/dto";
+import type {
+  BankAccountDto,
+  UserListFiltersDto,
+  UserListItemDto,
+  UserListPageDto,
+} from "@/features/users/server/dto";
 import type { TownshipListItemDto } from "@/features/townships/server/dto";
 import { roleLabels } from "@/lib/domain";
 
 export function UserListTable({
-  users,
+  pageResult,
+  filters,
   bankAccountsByUserId,
   townships,
   currentUserPhoneNumber,
 }: Readonly<{
-  users: UserListItemDto[];
+  pageResult: UserListPageDto;
+  filters: UserListFiltersDto;
   bankAccountsByUserId: Record<string, BankAccountDto[]>;
   townships: TownshipListItemDto[];
   currentUserPhoneNumber: string | null;
 }>) {
+  const pathname = usePathname();
   const router = useRouter();
+  const users = pageResult.users;
+  const [searchTerm, setSearchTerm] = useState(filters.searchTerm);
   const [viewingUser, setViewingUser] = useState<UserListItemDto | null>(null);
   const [editingUser, setEditingUser] = useState<UserListItemDto | null>(null);
 
+  useEffect(() => {
+    setSearchTerm(filters.searchTerm);
+  }, [filters.searchTerm]);
+
+  function updateFilters(next: Partial<{ query: string; page: number }>) {
+    const params = new URLSearchParams();
+    const nextQuery = next.query ?? filters.searchTerm;
+    const nextPage = next.page ?? filters.page;
+
+    if (nextQuery.trim()) {
+      params.set("query", nextQuery.trim());
+    }
+
+    if (nextPage > 1) {
+      params.set("page", String(nextPage));
+    }
+
+    const queryString = params.toString();
+    router.push(queryString ? `${pathname}?${queryString}` : pathname);
+  }
+
   return (
-    <>
+    <div className="space-y-4">
+      <form
+        className="w-full sm:w-[360px]"
+        onSubmit={(event) => {
+          event.preventDefault();
+          updateFilters({ query: searchTerm, page: 1 });
+        }}
+      >
+        <InputGroup className="rounded-lg border-border bg-white shadow-sm">
+          <InputGroupAddon align="inline-start">
+            <InputGroupText>
+              <Search className="size-4" />
+            </InputGroupText>
+          </InputGroupAddon>
+          <InputGroupInput
+            value={searchTerm}
+            placeholder="Search name or phone"
+            onChange={(event) => setSearchTerm(event.target.value)}
+          />
+        </InputGroup>
+      </form>
+
       <div className="rounded-lg border bg-white">
         <Table>
           <TableHeader>
@@ -66,56 +125,70 @@ export function UserListTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users.map((user) => {
-              const isCurrentUser = currentUserPhoneNumber === user.phoneNumber;
+            {users.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  No users found.
+                </TableCell>
+              </TableRow>
+            ) : (
+              users.map((user) => {
+                const isCurrentUser = currentUserPhoneNumber === user.phoneNumber;
 
-              return (
-                <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.name}</TableCell>
-                  <TableCell>{user.phoneNumber}</TableCell>
-                  <TableCell>{roleLabels[user.role]}</TableCell>
-                  <TableCell>
-                    <StatusBadge
-                      label={user.isActive ? "Active" : "Inactive"}
-                      variant={user.isActive ? "success" : "secondary"}
-                    />
-                  </TableCell>
-                  <TableCell>{user.mustResetPassword ? "Required" : "-"}</TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-8 rounded-md text-muted-foreground"
-                          aria-label={`Open actions for ${user.name}`}
-                        >
-                          <MoreHorizontal className="size-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="min-w-[11rem]">
-                        {isCurrentUser ? (
-                          <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
-                            Manage in Settings
+                return (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">{user.name}</TableCell>
+                    <TableCell>{user.phoneNumber}</TableCell>
+                    <TableCell>{roleLabels[user.role]}</TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        label={user.isActive ? "Active" : "Inactive"}
+                        variant={user.isActive ? "success" : "secondary"}
+                      />
+                    </TableCell>
+                    <TableCell>{user.mustResetPassword ? "Required" : "-"}</TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 rounded-md text-muted-foreground"
+                            aria-label={`Open actions for ${user.name}`}
+                          >
+                            <MoreHorizontal className="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-[11rem]">
+                          {isCurrentUser ? (
+                            <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
+                              Manage in Settings
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem onClick={() => setEditingUser(user)}>
+                              Edit
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => setViewingUser(user)}>
+                            View
                           </DropdownMenuItem>
-                        ) : (
-                          <DropdownMenuItem onClick={() => setEditingUser(user)}>
-                            Edit
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem onClick={() => setViewingUser(user)}>
-                          View
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </div>
+
+      <PaginationControls
+        page={pageResult.page}
+        totalPages={pageResult.totalPages}
+        onPageChange={(page) => updateFilters({ page })}
+      />
 
       <Dialog open={viewingUser !== null} onOpenChange={(open) => !open && setViewingUser(null)}>
         <DialogContent>
@@ -158,7 +231,7 @@ export function UserListTable({
           )}
         </SheetContent>
       </Sheet>
-    </>
+    </div>
   );
 }
 

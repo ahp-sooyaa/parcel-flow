@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { merchants, riders } from "@/db/schema";
 import {
-  getParcelByIdForRealtimeScope,
+  getParcelByIdForRealtimeListScope,
   type ParcelRealtimeViewerScope,
 } from "@/features/parcels/server/dal";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
@@ -169,7 +169,7 @@ export async function buildParcelRealtimeEventForScope(input: {
     };
   }
 
-  const parcel = await getParcelByIdForRealtimeScope(parcelId, toViewerScope(scope));
+  const parcel = await getParcelByIdForRealtimeListScope(parcelId, toViewerScope(scope));
 
   if (!parcel) {
     return wasVisibleBefore

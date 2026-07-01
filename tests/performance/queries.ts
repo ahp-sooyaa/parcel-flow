@@ -1,10 +1,10 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { appUsers, financialItems, merchants, parcels, riders, townships } from "@/db/schema";
 import type { MerchantParcelListFiltersDto } from "@/features/parcels/server/dto";
 
-export function buildAdminListParcelsQuery() {
+export function buildAdminParcelsPageQuery(pageSize: number) {
   return db
     .select({
       id: parcels.id,
@@ -36,7 +36,10 @@ export function buildAdminListParcelsQuery() {
     .innerJoin(townships, eq(townships.id, parcels.townshipId))
     .leftJoin(riders, eq(riders.id, parcels.riderId))
     .leftJoin(appUsers, eq(appUsers.id, riders.userId))
-    .where(isNull(parcels.deletedAt));
+    .where(isNull(parcels.deletedAt))
+    .orderBy(desc(parcels.createdAt), desc(parcels.parcelCode))
+    .limit(pageSize)
+    .offset(0);
 }
 
 export function buildMerchantParcelsPageQuery(
@@ -82,7 +85,7 @@ export function buildMerchantParcelsPageQuery(
     .offset((filters.page - 1) * filters.pageSize);
 }
 
-export function buildRiderScopedParcelsQuery(riderUserId: string) {
+export function buildRiderParcelsPageQuery(riderUserId: string, pageSize: number) {
   return db
     .select({
       id: parcels.id,
@@ -114,7 +117,16 @@ export function buildRiderScopedParcelsQuery(riderUserId: string) {
     .innerJoin(townships, eq(townships.id, parcels.townshipId))
     .leftJoin(riders, eq(riders.id, parcels.riderId))
     .leftJoin(appUsers, eq(appUsers.id, riders.userId))
-    .where(and(isNull(parcels.deletedAt), eq(riders.userId, riderUserId)));
+    .where(
+      and(
+        isNull(parcels.deletedAt),
+        eq(riders.userId, riderUserId),
+        inArray(parcels.status, ["at_office", "on_the_way", "canceled_returned"]),
+      ),
+    )
+    .orderBy(desc(parcels.createdAt), desc(parcels.parcelCode))
+    .limit(pageSize)
+    .offset(0);
 }
 
 export function buildGetParcelSummaryQuery() {

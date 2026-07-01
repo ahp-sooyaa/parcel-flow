@@ -23,6 +23,9 @@ void mock.module("next/headers", () => ({
 
 void mock.module("next/navigation", () => ({
   redirect: redirectMock,
+  useRouter: () => ({ push: () => undefined, refresh: () => undefined }),
+  usePathname: () => "/",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 describe("login action", async () => {

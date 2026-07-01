@@ -3,18 +3,20 @@ import {
   RiderPayoutCreateAction,
   RiderPayoutWorkspace,
 } from "@/features/rider-payouts/components/rider-payout-workspace";
-import {
-  listEligibleRiderPayoutRiders,
-  listRiderPayouts,
-} from "@/features/rider-payouts/server/dal";
+import { listRiderPayoutsPage } from "@/features/rider-payouts/server/dal";
+import { parseRiderPayoutListFilters } from "@/features/rider-payouts/server/dto";
 import { canCreateRiderPayoutDraft } from "@/lib/permissions";
 import { requireCurrentUser } from "@/lib/session";
 
-export default async function RiderPayoutsPage() {
-  const [actor, payouts, eligibleRiders] = await Promise.all([
+type RiderPayoutsPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function RiderPayoutsPage({ searchParams }: Readonly<RiderPayoutsPageProps>) {
+  const filters = parseRiderPayoutListFilters((await searchParams) ?? {});
+  const [actor, pageResult] = await Promise.all([
     requireCurrentUser(),
-    listRiderPayouts(),
-    listEligibleRiderPayoutRiders(),
+    listRiderPayoutsPage(filters),
   ]);
 
   return (
@@ -22,13 +24,9 @@ export default async function RiderPayoutsPage() {
       <PageHeader
         title="Rider Payouts"
         description="Create traceable rider payouts from pending delivery and merchant-return ways."
-        actions={
-          canCreateRiderPayoutDraft(actor.role) ? (
-            <RiderPayoutCreateAction eligibleRiders={eligibleRiders} />
-          ) : undefined
-        }
+        actions={canCreateRiderPayoutDraft(actor.role) ? <RiderPayoutCreateAction /> : undefined}
       />
-      <RiderPayoutWorkspace payouts={payouts} actorRole={actor.role} />
+      <RiderPayoutWorkspace pageResult={pageResult} filters={filters} actorRole={actor.role} />
     </>
   );
 }

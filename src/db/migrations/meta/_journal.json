@@ -57,6 +57,13 @@
       "when": 1782000000000,
       "tag": "0007_enable_table_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782804148458,
+      "tag": "0008_overrated_miss_america",
+      "breakpoints": true
     }
   ]
 }

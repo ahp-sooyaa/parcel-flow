@@ -12,10 +12,17 @@ const returnFailedParcelToMerchantActionMock = mock(async () => ({
   ok: true,
   message: "Parcel marked for merchant return.",
 }));
+const routerRefreshMock = mock(() => undefined);
 
 void mock.module("@/features/parcels/server/actions", () => ({
   postponeFailedParcelAction: postponeFailedParcelActionMock,
   returnFailedParcelToMerchantAction: returnFailedParcelToMerchantActionMock,
+}));
+
+void mock.module("@/lib/client-navigation", () => ({
+  useAppRouter: () => ({
+    refresh: routerRefreshMock,
+  }),
 }));
 
 describe("ParcelTable", async () => {
@@ -24,6 +31,7 @@ describe("ParcelTable", async () => {
   beforeEach(() => {
     postponeFailedParcelActionMock.mockReset();
     returnFailedParcelToMerchantActionMock.mockReset();
+    routerRefreshMock.mockReset();
     postponeFailedParcelActionMock.mockResolvedValue({
       ok: true,
       message: "Parcel postponed for retry.",
@@ -148,6 +156,9 @@ describe("ParcelTable", async () => {
 
     await waitFor(() => {
       expect(postponeFailedParcelActionMock).toHaveBeenCalledWith({ parcelId: "parcel-1" });
+    });
+    await waitFor(() => {
+      expect(routerRefreshMock).toHaveBeenCalled();
     });
     await waitFor(() => {
       expect(screen.queryByRole("heading", { name: "Delivery Failure" })).toBeNull();

@@ -4,18 +4,25 @@ import { useEffect, useState } from "react";
 
 import { RiderParcelCardList } from "@/features/parcels/components/rider-parcel-card-list";
 import { useParcelRealtimeEvents } from "@/features/parcels/components/use-parcel-realtime-events";
-import type { ParcelListItemDto } from "@/features/parcels/server/dto";
+import type {
+  ParcelListItemDto,
+  RiderParcelListFiltersDto,
+  RiderParcelListPageDto,
+} from "@/features/parcels/server/dto";
+import type { TownshipListItemDto } from "@/features/townships/server/dto";
 
-export function RealtimeRiderParcelCardList({
-  parcels,
-}: Readonly<{
-  parcels: ParcelListItemDto[];
-}>) {
-  const [liveParcels, setLiveParcels] = useState(parcels);
+export function RealtimeRiderParcelCardList(
+  props: Readonly<{
+    pageResult: RiderParcelListPageDto;
+    filters: RiderParcelListFiltersDto;
+    townships: TownshipListItemDto[];
+  }>,
+) {
+  const [liveParcels, setLiveParcels] = useState(props.pageResult.parcels);
 
   useEffect(() => {
-    setLiveParcels(parcels);
-  }, [parcels]);
+    setLiveParcels(props.pageResult.parcels);
+  }, [props.pageResult.parcels]);
 
   useParcelRealtimeEvents({
     surface: "rider-list",
@@ -27,7 +34,9 @@ export function RealtimeRiderParcelCardList({
     },
   });
 
-  return <RiderParcelCardList parcels={liveParcels} />;
+  return (
+    <RiderParcelCardList {...props} pageResult={{ ...props.pageResult, parcels: liveParcels }} />
+  );
 }
 
 function upsertParcel(parcels: ParcelListItemDto[], nextParcel: ParcelListItemDto) {

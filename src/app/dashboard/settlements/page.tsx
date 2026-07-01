@@ -1,10 +1,19 @@
 import { PageHeader } from "@/components/shared/page-header";
 import { SettlementsTable } from "@/features/settlements/components/settlements-table";
-import { listSettlements } from "@/features/settlements/server/dal";
+import { listSettlementsPage } from "@/features/settlements/server/dal";
+import { parseSettlementListFilters } from "@/features/settlements/server/dto";
 import { requireCurrentUser } from "@/lib/session";
 
-export default async function SettlementsPage() {
-  const [actor, settlements] = await Promise.all([requireCurrentUser(), listSettlements()]);
+type SettlementsPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function SettlementsPage({ searchParams }: Readonly<SettlementsPageProps>) {
+  const filters = parseSettlementListFilters((await searchParams) ?? {});
+  const [actor, pageResult] = await Promise.all([
+    requireCurrentUser(),
+    listSettlementsPage(filters),
+  ]);
 
   return (
     <>
@@ -12,7 +21,7 @@ export default async function SettlementsPage() {
         title="Merchant Settlements"
         description="Review generated settlements and resolve pending payouts after bank transfer confirmation."
       />
-      <SettlementsTable settlements={settlements} actorRole={actor.role} />
+      <SettlementsTable pageResult={pageResult} filters={filters} actorRole={actor.role} />
     </>
   );
 }

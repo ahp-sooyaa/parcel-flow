@@ -5,23 +5,27 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { CreateUserForm } from "@/features/users/components/create-user-form";
 import { UserListTable } from "@/features/users/components/user-list-table";
-import { listBankAccountsForUser, listUsers } from "@/features/users/server/dal";
+import { listBankAccountsForUserIds, listUsersPage } from "@/features/users/server/dal";
+import { parseUserListFilters } from "@/features/users/server/dto";
 import { listTownships } from "@/features/townships/server/dal";
 import { isAdminRole } from "@/lib/domain";
 import { requireCurrentUser } from "@/lib/session";
 
-export default async function UsersPage() {
+type UsersPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function UsersPage({ searchParams }: Readonly<UsersPageProps>) {
   const currentUser = await requireCurrentUser();
 
   if (!isAdminRole(currentUser.role)) {
     throw new Error("Admin access required.");
   }
 
-  const [users, townships] = await Promise.all([listUsers(), listTownships()]);
+  const filters = parseUserListFilters((await searchParams) ?? {});
+  const [pageResult, townships] = await Promise.all([listUsersPage(filters), listTownships()]);
   const bankAccountsByUserId = Object.fromEntries(
-    await Promise.all(
-      users.map(async (user) => [user.id, await listBankAccountsForUser(user.id)] as const),
-    ),
+    (await listBankAccountsForUserIds(pageResult.users.map((user) => user.id))).entries(),
   );
 
   return (
@@ -45,7 +49,8 @@ export default async function UsersPage() {
       />
 
       <UserListTable
-        users={users}
+        pageResult={pageResult}
+        filters={filters}
         bankAccountsByUserId={bankAccountsByUserId}
         townships={townships}
         currentUserPhoneNumber={currentUser?.phoneNumber ?? null}

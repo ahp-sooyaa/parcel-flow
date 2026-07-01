@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { and, desc, eq, gte, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
@@ -15,6 +15,9 @@ import {
   townships,
 } from "@/db/schema";
 import type {
+  AdminParcelAssignmentCountsDto,
+  AdminParcelListFiltersDto,
+  AdminParcelListPageDto,
   CorrectParcelRiderInputDto,
   CorrectParcelStatusInputDto,
   CreateParcelInputDto,
@@ -24,8 +27,12 @@ import type {
   ParcelCorrectionSideEffectsDto,
   ParcelListItemDto,
   ParcelSummaryDto,
+  RiderParcelListFiltersDto,
+  RiderParcelListPageDto,
+  RiderParcelTabCountsDto,
   UpdateParcelInputDto,
 } from "@/features/parcels/server/dto";
+import { getRiderParcelTabStatuses, riderParcelPageSize } from "@/features/parcels/server/dto";
 import {
   appendActiveParcelFailureNote,
   deactivateLatestActiveParcelFailureNote,
@@ -34,11 +41,7 @@ import {
   removeLatestActiveParcelFailureNote,
   updateLatestActiveParcelFailureNote,
 } from "@/features/parcels/server/failure-notes";
-import {
-  calculateAmountToCollect,
-  generateParcelCode,
-  isActiveCollectionStatus,
-} from "@/features/parcels/server/utils";
+import { calculateAmountToCollect, generateParcelCode } from "@/features/parcels/server/utils";
 import { recomputeParcelRiderPayoutStatuses } from "@/features/rider-payouts/server/utils";
 import {
   isDeliveryAttemptRiderWaySource,
@@ -230,6 +233,308 @@ export async function listMerchantParcelsPageForUser(
   };
 }
 
+function mapAdminListParcel(row: {
+  id: string;
+  parcelCode: string;
+  merchantId: string;
+  merchantName: string;
+  receiverName: string;
+  receiverPhoneNumber: string;
+  receiverAddress: string;
+  specialNotes: string | null;
+  deliveryFailureNote: unknown;
+  townshipId: string;
+  townshipName: string;
+  parcelType: string;
+  codAmount: number;
+  deliveryFee: number;
+  riderId: string | null;
+  riderName: string | null;
+  status: string;
+  createdAt: Date;
+}): ParcelListItemDto {
+  const failureNotes = parseParcelFailureNotes(row.deliveryFailureNote);
+  const activeFailureNote = getActiveParcelFailureNote(failureNotes);
+
+  return {
+    id: row.id,
+    parcelCode: row.parcelCode,
+    merchantId: row.merchantId,
+    merchantName: row.merchantName,
+    riderId: row.riderId,
+    receiverName: row.receiverName,
+    receiverPhoneNumber: row.receiverPhoneNumber,
+    receiverAddress: row.receiverAddress,
+    specialNotes: row.specialNotes,
+    failureNotes,
+    activeFailureNote,
+    townshipId: row.townshipId,
+    townshipName: row.townshipName,
+    parcelType: row.parcelType === "non_cod" ? "non_cod" : "cod",
+    codAmount: row.codAmount,
+    deliveryFee: row.deliveryFee,
+    weightKg: 0,
+    parcelWidthCm: null,
+    parcelHeightCm: null,
+    parcelLengthCm: null,
+    proofOfDeliveryImagesKeys: [],
+    riderName: row.riderName,
+    status: parcelStatusSchema.parse(row.status),
+    hasUnresolvedFailureReview:
+      row.status === "on_the_way" && row.riderId !== null && activeFailureNote !== null,
+    correctionStateToken: "",
+    correctionLogs: [],
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+const adminParcelListSelect = {
+  id: parcels.id,
+  parcelCode: parcels.parcelCode,
+  merchantId: parcels.merchantId,
+  merchantName: merchants.shopName,
+  receiverName: parcels.receiverName,
+  receiverPhoneNumber: parcels.receiverPhoneNumber,
+  receiverAddress: parcels.receiverAddress,
+  specialNotes: parcels.specialNotes,
+  deliveryFailureNote: parcels.deliveryFailureNote,
+  townshipId: parcels.townshipId,
+  townshipName: townships.name,
+  parcelType: parcels.parcelType,
+  codAmount: parcels.codAmount,
+  deliveryFee: parcels.deliveryFee,
+  riderId: parcels.riderId,
+  riderName: appUsers.name,
+  status: parcels.status,
+  createdAt: parcels.createdAt,
+};
+
+function buildAdminParcelSharedWhere(
+  filters: Pick<AdminParcelListFiltersDto, "searchTerm" | "townshipName" | "statuses">,
+) {
+  const normalizedSearchTerm = filters.searchTerm.trim();
+
+  return and(
+    isNull(parcels.deletedAt),
+    filters.townshipName ? eq(townships.name, filters.townshipName) : undefined,
+    filters.statuses.length > 0 ? inArray(parcels.status, filters.statuses) : undefined,
+    normalizedSearchTerm
+      ? or(
+          ilike(parcels.parcelCode, `%${normalizedSearchTerm}%`),
+          ilike(parcels.receiverName, `%${normalizedSearchTerm}%`),
+          ilike(parcels.receiverPhoneNumber, `%${normalizedSearchTerm}%`),
+          ilike(merchants.shopName, `%${normalizedSearchTerm}%`),
+        )
+      : undefined,
+  );
+}
+
+function buildAdminParcelWhere(filters: AdminParcelListFiltersDto) {
+  return and(
+    buildAdminParcelSharedWhere(filters),
+    filters.assignment === "unassigned" ? isNull(parcels.riderId) : undefined,
+    filters.assignment === "assigned" ? isNotNull(parcels.riderId) : undefined,
+    filters.assignment === "need_review"
+      ? and(
+          eq(parcels.status, "on_the_way"),
+          isNotNull(parcels.riderId),
+          sql`${parcels.deliveryFailureNote} @> '[{"status":"active"}]'::jsonb`,
+        )
+      : undefined,
+  );
+}
+
+async function getAdminParcelAssignmentCounts(
+  filters: Pick<AdminParcelListFiltersDto, "searchTerm" | "townshipName" | "statuses">,
+): Promise<AdminParcelAssignmentCountsDto> {
+  const sharedWhere = buildAdminParcelSharedWhere(filters);
+  const [countsRow] = await db
+    .select({
+      all: sql<number>`count(*)`,
+      unassigned: sql<number>`count(*) filter (where ${parcels.riderId} is null)`,
+      assigned: sql<number>`count(*) filter (where ${parcels.riderId} is not null)`,
+      needReview: sql<number>`count(*) filter (where ${parcels.status} = 'on_the_way' and ${parcels.riderId} is not null and ${parcels.deliveryFailureNote} @> '[{"status":"active"}]'::jsonb)`,
+    })
+    .from(parcels)
+    .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
+    .innerJoin(townships, eq(townships.id, parcels.townshipId))
+    .where(sharedWhere);
+
+  return {
+    all: countsRow?.all ?? 0,
+    unassigned: countsRow?.unassigned ?? 0,
+    assigned: countsRow?.assigned ?? 0,
+    need_review: countsRow?.needReview ?? 0,
+  };
+}
+
+export async function listAdminParcelsPage(
+  filters: AdminParcelListFiltersDto,
+): Promise<AdminParcelListPageDto> {
+  const hasAnyParcelsWhere = isNull(parcels.deletedAt);
+  const filteredWhere = buildAdminParcelWhere(filters);
+  const sharedFilters = {
+    searchTerm: filters.searchTerm,
+    townshipName: filters.townshipName,
+    statuses: filters.statuses,
+  };
+
+  const [hasAnyParcelsRow, totalCountRow, assignmentCounts] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(parcels)
+      .where(hasAnyParcelsWhere)
+      .then((rows) => rows[0]),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(parcels)
+      .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
+      .innerJoin(townships, eq(townships.id, parcels.townshipId))
+      .where(filteredWhere)
+      .then((rows) => rows[0]),
+    getAdminParcelAssignmentCounts(sharedFilters),
+  ]);
+
+  const hasAnyParcels = (hasAnyParcelsRow?.count ?? 0) > 0;
+  const totalCount = totalCountRow?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / filters.pageSize));
+  const page = Math.min(filters.page, totalPages);
+  const offset = (page - 1) * filters.pageSize;
+
+  const rows = await db
+    .select(adminParcelListSelect)
+    .from(parcels)
+    .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
+    .innerJoin(townships, eq(townships.id, parcels.townshipId))
+    .leftJoin(riders, eq(riders.id, parcels.riderId))
+    .leftJoin(appUsers, eq(appUsers.id, riders.userId))
+    .where(filteredWhere)
+    .orderBy(desc(parcels.createdAt), desc(parcels.parcelCode))
+    .limit(filters.pageSize)
+    .offset(offset);
+
+  return {
+    parcels: rows.map((row) => mapAdminListParcel(row)),
+    page,
+    pageSize: filters.pageSize,
+    totalCount,
+    totalPages,
+    hasAnyParcels,
+    assignmentCounts,
+  };
+}
+
+function buildRiderParcelSharedWhere(userId: string, filters: RiderParcelListFiltersDto) {
+  const normalizedSearchTerm = filters.searchTerm.trim();
+
+  return and(
+    isNull(parcels.deletedAt),
+    eq(riders.userId, userId),
+    filters.townshipName ? eq(townships.name, filters.townshipName) : undefined,
+    filters.statuses.length > 0 ? inArray(parcels.status, filters.statuses) : undefined,
+    normalizedSearchTerm
+      ? or(
+          ilike(parcels.parcelCode, `%${normalizedSearchTerm}%`),
+          ilike(parcels.receiverName, `%${normalizedSearchTerm}%`),
+          ilike(parcels.receiverPhoneNumber, `%${normalizedSearchTerm}%`),
+        )
+      : undefined,
+  );
+}
+
+function buildRiderParcelWhere(userId: string, filters: RiderParcelListFiltersDto) {
+  return and(
+    buildRiderParcelSharedWhere(userId, filters),
+    inArray(parcels.status, getRiderParcelTabStatuses(filters.tab)),
+  );
+}
+
+async function getRiderParcelTabCounts(
+  userId: string,
+  filters: Pick<RiderParcelListFiltersDto, "searchTerm" | "townshipName" | "statuses">,
+): Promise<RiderParcelTabCountsDto> {
+  const sharedWhere = buildRiderParcelSharedWhere(userId, {
+    ...filters,
+    tab: "to_deliver",
+    page: 1,
+    pageSize: riderParcelPageSize,
+  } as RiderParcelListFiltersDto);
+  const [countsRow] = await db
+    .select({
+      toDeliver: sql<number>`count(*) filter (where ${parcels.status} in ('at_office', 'on_the_way', 'canceled_returned'))`,
+      delivered: sql<number>`count(*) filter (where ${parcels.status} = 'delivered')`,
+      returned: sql<number>`count(*) filter (where ${parcels.status} = 'returned_to_merchant')`,
+    })
+    .from(parcels)
+    .innerJoin(riders, eq(riders.id, parcels.riderId))
+    .innerJoin(townships, eq(townships.id, parcels.townshipId))
+    .where(sharedWhere);
+
+  return {
+    to_deliver: countsRow?.toDeliver ?? 0,
+    delivered: countsRow?.delivered ?? 0,
+    returned: countsRow?.returned ?? 0,
+  };
+}
+
+export async function listRiderParcelsPageForUser(
+  userId: string,
+  filters: RiderParcelListFiltersDto,
+): Promise<RiderParcelListPageDto> {
+  const hasAnyParcelsWhere = and(isNull(parcels.deletedAt), eq(riders.userId, userId));
+  const filteredWhere = buildRiderParcelWhere(userId, filters);
+  const sharedFilters = {
+    searchTerm: filters.searchTerm,
+    townshipName: filters.townshipName,
+    statuses: filters.statuses,
+  };
+
+  const [hasAnyParcelsRow, totalCountRow, tabCounts] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(parcels)
+      .innerJoin(riders, eq(riders.id, parcels.riderId))
+      .where(hasAnyParcelsWhere)
+      .then((rows) => rows[0]),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(parcels)
+      .innerJoin(riders, eq(riders.id, parcels.riderId))
+      .innerJoin(townships, eq(townships.id, parcels.townshipId))
+      .where(filteredWhere)
+      .then((rows) => rows[0]),
+    getRiderParcelTabCounts(userId, sharedFilters),
+  ]);
+
+  const hasAnyParcels = (hasAnyParcelsRow?.count ?? 0) > 0;
+  const totalCount = totalCountRow?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / filters.pageSize));
+  const page = Math.min(filters.page, totalPages);
+  const offset = (page - 1) * filters.pageSize;
+
+  const rows = await db
+    .select(adminParcelListSelect)
+    .from(parcels)
+    .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
+    .innerJoin(townships, eq(townships.id, parcels.townshipId))
+    .innerJoin(riders, eq(riders.id, parcels.riderId))
+    .leftJoin(appUsers, eq(appUsers.id, riders.userId))
+    .where(filteredWhere)
+    .orderBy(desc(parcels.createdAt), desc(parcels.parcelCode))
+    .limit(filters.pageSize)
+    .offset(offset);
+
+  return {
+    parcels: rows.map((row) => mapAdminListParcel(row)),
+    page,
+    pageSize: filters.pageSize,
+    totalCount,
+    totalPages,
+    hasAnyParcels,
+    tabCounts,
+  };
+}
+
 export async function listParcelsForRiderUser(userId: string): Promise<ParcelListItemDto[]> {
   return listParcelsByScope({ riderUserId: userId });
 }
@@ -297,6 +602,34 @@ export async function getParcelByIdForRealtimeScope(
     correctionLogs.get(row.id) ?? [],
     correctionStateTokens.get(row.id) ?? createFinancialItemsFingerprint([]),
   );
+}
+
+export async function getParcelByIdForRealtimeListScope(
+  parcelId: string,
+  scope: ParcelRealtimeViewerScope,
+): Promise<ParcelListItemDto | null> {
+  const [row] = await db
+    .select(adminParcelListSelect)
+    .from(parcels)
+    .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
+    .innerJoin(townships, eq(townships.id, parcels.townshipId))
+    .leftJoin(riders, eq(riders.id, parcels.riderId))
+    .leftJoin(appUsers, eq(appUsers.id, riders.userId))
+    .where(
+      and(
+        isNull(parcels.deletedAt),
+        eq(parcels.id, parcelId),
+        scope.role === "merchant" ? eq(merchants.userId, scope.userId) : undefined,
+        scope.role === "rider" ? eq(riders.userId, scope.userId) : undefined,
+      ),
+    )
+    .limit(1);
+
+  if (!row) {
+    return null;
+  }
+
+  return mapAdminListParcel(row);
 }
 
 async function listParcelsByScope(scope: {
@@ -495,14 +828,36 @@ async function getFinancialItemFingerprintsByParcelIds(parcelIds: string[]) {
     .from(financialItems)
     .where(inArray(financialItems.parcelId, uniqueParcelIds));
 
+  const rowsByParcelId = new Map<string, Array<CorrectionFinancialItem & { parcelId: string }>>();
+
+  for (const row of rows) {
+    const parcelId = row.parcelId;
+
+    if (!parcelId) {
+      continue;
+    }
+
+    const parcelRows = rowsByParcelId.get(parcelId) ?? [];
+    parcelRows.push({
+      id: row.id,
+      parcelId,
+      riderId: row.riderId,
+      itemType: row.itemType,
+      riderWaySource: row.riderWaySource,
+      amount: row.amount,
+      status: row.status,
+      merchantSettlementId: row.merchantSettlementId,
+      riderPayoutId: row.riderPayoutId,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    });
+    rowsByParcelId.set(parcelId, parcelRows);
+  }
+
   for (const parcelId of uniqueParcelIds) {
     fingerprintMap.set(
       parcelId,
-      createFinancialItemsFingerprint(
-        rows.filter((row): row is CorrectionFinancialItem & { parcelId: string } => {
-          return row.parcelId === parcelId;
-        }),
-      ),
+      createFinancialItemsFingerprint(rowsByParcelId.get(parcelId) ?? []),
     );
   }
 
@@ -510,45 +865,30 @@ async function getFinancialItemFingerprintsByParcelIds(parcelIds: string[]) {
 }
 
 export async function getParcelSummary(): Promise<ParcelSummaryDto> {
-  const parcelRows = await db
+  const [summaryRow] = await db
     .select({
-      status: parcels.status,
-      codAmount: parcels.codAmount,
-      deliveryFee: parcels.deliveryFee,
-      parcelType: parcels.parcelType,
-      riderId: parcels.riderId,
+      totalParcels: sql<number>`count(*)`,
+      atOffice: sql<number>`count(*) filter (where ${parcels.status} = 'at_office')`,
+      onTheWay: sql<number>`count(*) filter (where ${parcels.status} = 'on_the_way')`,
+      delivered: sql<number>`count(*) filter (where ${parcels.status} = 'delivered')`,
+      expectedCollection: sql<number>`coalesce(sum(
+        case
+          when ${parcels.riderId} is not null and ${parcels.status} in ('at_office', 'on_the_way') then
+            case when ${parcels.parcelType} = 'cod' then ${parcels.codAmount} + ${parcels.deliveryFee} else ${parcels.deliveryFee} end
+          else 0
+        end
+      ), 0)`,
     })
     .from(parcels)
     .where(isNull(parcels.deletedAt));
 
-  return parcelRows.reduce<ParcelSummaryDto>(
-    (summary, parcel) => {
-      const status = parcelStatusSchema.parse(parcel.status);
-
-      return {
-        totalParcels: summary.totalParcels + 1,
-        atOffice: summary.atOffice + (status === "at_office" ? 1 : 0),
-        onTheWay: summary.onTheWay + (status === "on_the_way" ? 1 : 0),
-        delivered: summary.delivered + (status === "delivered" ? 1 : 0),
-        expectedCollection:
-          summary.expectedCollection +
-          (parcel.riderId !== null && isActiveCollectionStatus(status)
-            ? calculateAmountToCollect({
-                codAmount: parcel.codAmount,
-                deliveryFee: parcel.deliveryFee,
-                parcelType: parcel.parcelType,
-              })
-            : 0),
-      };
-    },
-    {
-      totalParcels: 0,
-      atOffice: 0,
-      onTheWay: 0,
-      delivered: 0,
-      expectedCollection: 0,
-    },
-  );
+  return {
+    totalParcels: summaryRow?.totalParcels ?? 0,
+    atOffice: summaryRow?.atOffice ?? 0,
+    onTheWay: summaryRow?.onTheWay ?? 0,
+    delivered: summaryRow?.delivered ?? 0,
+    expectedCollection: summaryRow?.expectedCollection ?? 0,
+  };
 }
 
 export async function createParcel(input: CreateParcelInputDto & { createdBy: string }) {

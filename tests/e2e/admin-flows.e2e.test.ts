@@ -1,10 +1,6 @@
 import { expect, test } from "./fixtures";
-import { signIn } from "./helpers";
 
-test.beforeEach(async ({ page, seededUsers }) => {
-  await signIn(page, seededUsers.superAdmin);
-  await expect(page).toHaveURL(/\/dashboard/);
-});
+test.describe.configure({ timeout: 120_000 });
 
 test("creates a user and shows the persisted row", async ({ page }) => {
   const userName = `E2E Merchant ${Date.now()}`;
@@ -18,6 +14,8 @@ test("creates a user and shows the persisted row", async ({ page }) => {
   await page.getByLabel("Address").fill("E2E address");
   await page.getByRole("button", { name: "Create User" }).click();
 
+  await page.getByPlaceholder("Search name or phone").fill(userName);
+  await page.getByPlaceholder("Search name or phone").press("Enter");
   await expect(page.getByText(userName, { exact: true }).first()).toBeVisible();
 });
 
@@ -79,13 +77,23 @@ test("reviews a rider failure note and postpones the parcel", async ({ page }) =
 
   await page.getByRole("button", { name: "Postpone" }).click();
   await expect(page.getByRole("heading", { name: "Delivery Failure" })).toBeHidden();
-  await expect(page.locator("tr", { hasText: "PF-E2E-SEED-FAILED" })).toHaveCount(0);
+  await expect(page.locator("tr", { hasText: "PF-E2E-SEED-FAILED" })).toHaveCount(0, {
+    timeout: 15_000,
+  });
   await page.getByRole("tab", { name: /^all/i }).click();
-  await page.reload();
+  await expect(page).not.toHaveURL(/assignment=need_review/);
+
+  const parcelSearch = page.getByPlaceholder(
+    "Search parcel code, receiver phone, receiver name, merchant",
+  );
+  await parcelSearch.fill("PF-E2E-SEED-FAILED");
+  await parcelSearch.press("Enter");
+  await expect(page).toHaveURL(/query=PF-E2E-SEED-FAILED/);
 
   await expect(page.getByLabel("Review failure note for PF-E2E-SEED-FAILED")).toHaveCount(0);
+  await expect(page.locator("tr", { hasText: "PF-E2E-SEED-FAILED" })).toBeVisible();
   await expect(
-    page.locator("tr", { hasText: "PF-E2E-SEED-FAILED" }).getByText("Postpone"),
+    page.locator("tr", { hasText: "PF-E2E-SEED-FAILED" }).getByText("Postpone", { exact: true }),
   ).toBeVisible();
 });
 

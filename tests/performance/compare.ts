@@ -1,7 +1,7 @@
 import path from "node:path";
 import { stat } from "node:fs/promises";
 
-import { type DalBenchmarkResult, readJsonFile } from "./report";
+import { type DalBenchmarkResult, isDalBenchmarkResult, readJsonFile } from "./report";
 import { runPerfScriptWithExitCode } from "./exit";
 
 type CompareFile = {
@@ -144,31 +144,87 @@ function percentDelta(baseline: number, candidate: number) {
 
 async function loadCompareFile(inputPath: string): Promise<CompareFile> {
   const resolved = path.resolve(inputPath);
-  const direct = await readJsonFile<CompareFile | DalBenchmarkResult[]>(resolved);
+  const direct = await readJsonFile(resolved);
 
-  if (Array.isArray(direct)) {
+  if (Array.isArray(direct) && direct.every(isDalBenchmarkResult)) {
     return { dal: { results: direct } };
   }
 
-  if (direct && "results" in direct && Array.isArray(direct.results) && direct.results[0]?.stats) {
-    return { dal: { results: direct.results as DalBenchmarkResult[] } };
+  if (
+    isRecord(direct) &&
+    "results" in direct &&
+    Array.isArray(direct.results) &&
+    direct.results.every(isDalBenchmarkResult)
+  ) {
+    return { dal: { results: direct.results } };
   }
 
-  if (direct && ("dal" in direct || "pages" in direct || "lighthouse" in direct)) {
+  if (isCompareFile(direct)) {
     return direct;
   }
 
   const parentDir = (await isDirectory(resolved)) ? resolved : path.dirname(resolved);
-  const dalFile = await readJsonFile<{ results: DalBenchmarkResult[] }>(
-    path.join(parentDir, "dal.json"),
-  );
-  const dal = dalFile ? { results: dalFile.results } : undefined;
-  const pages = await readJsonFile<CompareFile["pages"]>(path.join(parentDir, "pages.json"));
-  const lighthouse = await readJsonFile<CompareFile["lighthouse"]>(
-    path.join(parentDir, "lighthouse.json"),
-  );
+  const dalFile = await readJsonFile(path.join(parentDir, "dal.json"));
+  const dal =
+    isRecord(dalFile) &&
+    "results" in dalFile &&
+    Array.isArray(dalFile.results) &&
+    dalFile.results.every(isDalBenchmarkResult)
+      ? { results: dalFile.results }
+      : undefined;
+  const pages = await readJsonFile(path.join(parentDir, "pages.json"));
+  const lighthouse = await readJsonFile(path.join(parentDir, "lighthouse.json"));
 
-  return { dal, pages: pages ?? undefined, lighthouse: lighthouse ?? undefined };
+  return {
+    dal,
+    pages: isComparePages(pages) ? pages : undefined,
+    lighthouse: isCompareLighthouse(lighthouse) ? lighthouse : undefined,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isComparePages(value: unknown): value is NonNullable<CompareFile["pages"]> {
+  if (!isRecord(value) || !Array.isArray(value.results)) {
+    return false;
+  }
+
+  return value.results.every(
+    (entry) =>
+      isRecord(entry) &&
+      typeof entry.route === "string" &&
+      isRecord(entry.median) &&
+      typeof entry.median.timeToContentMs === "number",
+  );
+}
+
+function isCompareLighthouse(value: unknown): value is NonNullable<CompareFile["lighthouse"]> {
+  if (!isRecord(value) || !Array.isArray(value.results)) {
+    return false;
+  }
+
+  return value.results.every(
+    (entry) =>
+      isRecord(entry) && typeof entry.route === "string" && typeof entry.formFactor === "string",
+  );
+}
+
+function isCompareFile(value: unknown): value is CompareFile {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  const hasDal =
+    !("dal" in value) ||
+    (isRecord(value.dal) &&
+      Array.isArray(value.dal.results) &&
+      value.dal.results.every(isDalBenchmarkResult));
+  const hasPages = !("pages" in value) || isComparePages(value.pages);
+  const hasLighthouse = !("lighthouse" in value) || isCompareLighthouse(value.lighthouse);
+
+  return hasDal && hasPages && hasLighthouse;
 }
 
 async function isDirectory(targetPath: string) {

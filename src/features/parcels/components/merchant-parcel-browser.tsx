@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/input-group";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ParcelDetailSheet } from "@/features/parcels/components/parcel-detail-sheet";
+import { ParcelDetailSheet } from "@/features/parcels/components/lazy-parcel-detail-sheet";
 import { ParcelTable } from "@/features/parcels/components/parcel-table";
 import type {
   MerchantParcelListFiltersDto,

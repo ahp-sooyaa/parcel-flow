@@ -15,7 +15,7 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import type { MerchantListItemDto } from "@/features/merchants/server/dto";
+import type { MerchantOptionDto } from "@/features/merchants/server/dto";
 import type { TownshipListItemDto } from "@/features/townships/server/dto";
 import { formatMoney } from "@/lib/format";
 
@@ -39,7 +39,7 @@ export type ParcelDimensions = {
   length: string;
 };
 
-export function buildMerchantOptions(merchants: MerchantListItemDto[]) {
+export function buildMerchantOptions(merchants: MerchantOptionDto[]) {
   return merchants.map<MerchantOption>((merchant) => ({
     value: merchant.id,
     label: merchant.shopName,

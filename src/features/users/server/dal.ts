@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
@@ -10,7 +10,12 @@ import {
   riderServiceTownships,
   townships,
 } from "@/db/schema";
-import type { BankAccountDto, UserListItemDto } from "@/features/users/server/dto";
+import type {
+  BankAccountDto,
+  UserListFiltersDto,
+  UserListItemDto,
+  UserListPageDto,
+} from "@/features/users/server/dto";
 import { buildUsernameBase, normalizePhoneNumber } from "@/features/users/server/utils";
 import type { UserRole } from "@/lib/domain";
 import { userRoles } from "@/lib/domain";
@@ -28,6 +33,11 @@ function mapBankAccount(row: typeof bankAccounts.$inferSelect): BankAccountDto {
     isPrimary: row.isPrimary,
   };
 }
+
+type UserListRow = Pick<
+  typeof appUsers.$inferSelect,
+  "id" | "name" | "phoneNumber" | "address" | "age" | "role" | "isActive" | "mustResetPassword"
+>;
 
 type UserProfileRows = {
   merchantByUserId: Map<string, typeof merchants.$inferSelect>;
@@ -78,7 +88,7 @@ async function loadUserProfileRows(userIds: string[]): Promise<UserProfileRows> 
   };
 }
 
-function mapUser(row: typeof appUsers.$inferSelect, profileRows: UserProfileRows): UserListItemDto {
+function mapUser(row: UserListRow, profileRows: UserProfileRows): UserListItemDto {
   const merchant = profileRows.merchantByUserId.get(row.id);
   const rider = profileRows.riderByUserId.get(row.id);
   const serviceTownship = rider
@@ -100,11 +110,65 @@ function mapUser(row: typeof appUsers.$inferSelect, profileRows: UserProfileRows
   };
 }
 
-export async function listUsers() {
-  const rows = await db.select().from(appUsers).where(isNull(appUsers.deletedAt));
+export async function listUsersPage(filters: UserListFiltersDto): Promise<UserListPageDto> {
+  const where = buildUserListWhere(filters);
+
+  const totalCountRow = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(appUsers)
+    .where(where)
+    .then((rows) => rows[0]);
+
+  const totalCount = totalCountRow?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / filters.pageSize));
+  const page = Math.min(filters.page, totalPages);
+  const offset = (page - 1) * filters.pageSize;
+
+  const rows = await db
+    .select({
+      id: appUsers.id,
+      name: appUsers.name,
+      phoneNumber: appUsers.phoneNumber,
+      address: appUsers.address,
+      age: appUsers.age,
+      role: appUsers.role,
+      isActive: appUsers.isActive,
+      mustResetPassword: appUsers.mustResetPassword,
+    })
+    .from(appUsers)
+    .where(where)
+    .orderBy(asc(appUsers.name), asc(appUsers.id))
+    .limit(filters.pageSize)
+    .offset(offset);
+
   const profileRows = await loadUserProfileRows(rows.map((user) => user.id));
 
-  return rows.map((user) => mapUser(user, profileRows));
+  return {
+    users: rows.map((user) => mapUser(user, profileRows)),
+    page,
+    pageSize: filters.pageSize,
+    totalCount,
+    totalPages,
+  };
+}
+
+export async function listUsers() {
+  const page = await listUsersPage({ searchTerm: "", page: 1, pageSize: 10_000 });
+  return page.users;
+}
+
+function buildUserListWhere(filters: Pick<UserListFiltersDto, "searchTerm">) {
+  const normalizedSearchTerm = filters.searchTerm.trim();
+
+  return and(
+    isNull(appUsers.deletedAt),
+    normalizedSearchTerm
+      ? or(
+          ilike(appUsers.name, `%${normalizedSearchTerm}%`),
+          ilike(appUsers.phoneNumber, `%${normalizedSearchTerm}%`),
+        )
+      : undefined,
+  );
 }
 
 export async function getUserById(id: string) {
@@ -130,6 +194,29 @@ export async function listBankAccountsForUser(userId: string) {
     .where(and(eq(bankAccounts.userId, userId), isNull(bankAccounts.deletedAt)));
 
   return rows.map(mapBankAccount);
+}
+
+export async function listBankAccountsForUserIds(userIds: string[]) {
+  const uniqueUserIds = Array.from(new Set(userIds));
+
+  if (uniqueUserIds.length === 0) {
+    return new Map<string, BankAccountDto[]>();
+  }
+
+  const rows = await db
+    .select()
+    .from(bankAccounts)
+    .where(and(inArray(bankAccounts.userId, uniqueUserIds), isNull(bankAccounts.deletedAt)));
+
+  const accountsByUserId = new Map<string, BankAccountDto[]>();
+
+  for (const row of rows) {
+    const accounts = accountsByUserId.get(row.userId) ?? [];
+    accounts.push(mapBankAccount(row));
+    accountsByUserId.set(row.userId, accounts);
+  }
+
+  return accountsByUserId;
 }
 
 export async function findUniqueUsername(name: string) {
