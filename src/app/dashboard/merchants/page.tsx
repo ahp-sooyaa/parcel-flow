@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+
+import { PageLoading } from "@/components/shared/page-loading";
 import { Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
@@ -18,7 +21,7 @@ import { isAdminRole } from "@/lib/domain";
 import { formatMoney } from "@/lib/format";
 import { requireCurrentUser } from "@/lib/session";
 
-export default async function MerchantsPage() {
+async function MerchantsPageContent() {
   const currentUser = await requireCurrentUser();
 
   if (!isAdminRole(currentUser.role)) {
@@ -88,5 +91,13 @@ export default async function MerchantsPage() {
         </Table>
       </div>
     </>
+  );
+}
+
+export default function MerchantsPage() {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <MerchantsPageContent />
+    </Suspense>
   );
 }

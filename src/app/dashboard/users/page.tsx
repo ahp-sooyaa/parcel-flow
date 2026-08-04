@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+
+import { PageLoading } from "@/components/shared/page-loading";
 import { Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
@@ -15,7 +18,7 @@ type UsersPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function UsersPage({ searchParams }: Readonly<UsersPageProps>) {
+async function UsersPageContent({ searchParams }: Readonly<UsersPageProps>) {
   const currentUser = await requireCurrentUser();
 
   if (!isAdminRole(currentUser.role)) {
@@ -56,5 +59,13 @@ export default async function UsersPage({ searchParams }: Readonly<UsersPageProp
         currentUserPhoneNumber={currentUser?.phoneNumber ?? null}
       />
     </>
+  );
+}
+
+export default function UsersPage(props: Readonly<Parameters<typeof UsersPageContent>[0]>) {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <UsersPageContent {...props} />
+    </Suspense>
   );
 }

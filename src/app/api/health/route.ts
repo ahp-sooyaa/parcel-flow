@@ -3,9 +3,6 @@ import { NextResponse } from "next/server";
 
 import { db } from "@/db";
 
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
-
 type HealthCheck = "ok" | "error";
 
 async function checkDatabase(): Promise<HealthCheck> {

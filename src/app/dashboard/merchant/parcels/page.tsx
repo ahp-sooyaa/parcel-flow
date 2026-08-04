@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+
+import { PageLoading } from "@/components/shared/page-loading";
 import { PageHeader } from "@/components/shared/page-header";
 import { RealtimeMerchantParcelBrowser } from "@/features/parcels/components/realtime-merchant-parcel-browser";
 import { listMerchantParcelsPageForUser } from "@/features/parcels/server/dal";
@@ -8,9 +11,7 @@ type MerchantParcelsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function MerchantParcelsPage({
-  searchParams,
-}: Readonly<MerchantParcelsPageProps>) {
+async function MerchantParcelsPageContent({ searchParams }: Readonly<MerchantParcelsPageProps>) {
   const currentUser = await requireCurrentUser();
 
   if (currentUser.role !== "merchant") {
@@ -28,5 +29,15 @@ export default async function MerchantParcelsPage({
       />
       <RealtimeMerchantParcelBrowser result={parcels} filters={filters} />
     </>
+  );
+}
+
+export default function MerchantParcelsPage(
+  props: Readonly<Parameters<typeof MerchantParcelsPageContent>[0]>,
+) {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <MerchantParcelsPageContent {...props} />
+    </Suspense>
   );
 }

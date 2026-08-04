@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+
+import { PageLoading } from "@/components/shared/page-loading";
 import { PageHeader } from "@/components/shared/page-header";
 import { RealtimeMerchantOverviewSummaryCards } from "@/features/merchants/components/realtime-merchant-overview-summary-cards";
 import { getMerchantOverviewSummary } from "@/features/merchants/server/dal";
@@ -10,9 +13,7 @@ type MerchantOverviewPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function MerchantOverviewPage({
-  searchParams,
-}: Readonly<MerchantOverviewPageProps>) {
+async function MerchantOverviewPageContent({ searchParams }: Readonly<MerchantOverviewPageProps>) {
   const currentUser = await requireCurrentUser();
 
   if (currentUser.role !== "merchant") {
@@ -36,5 +37,15 @@ export default async function MerchantOverviewPage({
         <MerchantSettlementHistoryTable history={history} filters={filters} />
       </div>
     </>
+  );
+}
+
+export default function MerchantOverviewPage(
+  props: Readonly<Parameters<typeof MerchantOverviewPageContent>[0]>,
+) {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <MerchantOverviewPageContent {...props} />
+    </Suspense>
   );
 }

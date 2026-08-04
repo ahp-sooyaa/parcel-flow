@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+
+import { PageLoading } from "@/components/shared/page-loading";
 import { Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
@@ -9,7 +12,7 @@ import { listTownships } from "@/features/townships/server/dal";
 import { canManageTownshipPricing } from "@/lib/permissions";
 import { getCurrentUser } from "@/lib/session";
 
-export default async function TownshipsPage() {
+async function TownshipsPageContent() {
   const [townships, currentUser] = await Promise.all([listTownships(), getCurrentUser()]);
   const canManagePricing = currentUser ? canManageTownshipPricing(currentUser.role) : false;
 
@@ -36,5 +39,13 @@ export default async function TownshipsPage() {
       />
       <TownshipManagement townships={townships} canManagePricing={canManagePricing} />
     </>
+  );
+}
+
+export default function TownshipsPage() {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <TownshipsPageContent />
+    </Suspense>
   );
 }

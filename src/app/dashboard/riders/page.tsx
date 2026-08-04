@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+
+import { PageLoading } from "@/components/shared/page-loading";
 import { Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
@@ -18,7 +21,7 @@ import { isAdminRole } from "@/lib/domain";
 import { formatMoney } from "@/lib/format";
 import { requireCurrentUser } from "@/lib/session";
 
-export default async function RidersPage() {
+async function RidersPageContent() {
   const currentUser = await requireCurrentUser();
 
   if (!isAdminRole(currentUser.role)) {
@@ -90,5 +93,13 @@ export default async function RidersPage() {
         </Table>
       </div>
     </>
+  );
+}
+
+export default function RidersPage() {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <RidersPageContent />
+    </Suspense>
   );
 }

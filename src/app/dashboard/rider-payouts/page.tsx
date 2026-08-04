@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+
+import { PageLoading } from "@/components/shared/page-loading";
 import { PageHeader } from "@/components/shared/page-header";
 import {
   RiderPayoutCreateAction,
@@ -12,7 +15,7 @@ type RiderPayoutsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function RiderPayoutsPage({ searchParams }: Readonly<RiderPayoutsPageProps>) {
+async function RiderPayoutsPageContent({ searchParams }: Readonly<RiderPayoutsPageProps>) {
   const filters = parseRiderPayoutListFilters((await searchParams) ?? {});
   const [actor, pageResult] = await Promise.all([
     requireCurrentUser(),
@@ -28,5 +31,15 @@ export default async function RiderPayoutsPage({ searchParams }: Readonly<RiderP
       />
       <RiderPayoutWorkspace pageResult={pageResult} filters={filters} actorRole={actor.role} />
     </>
+  );
+}
+
+export default function RiderPayoutsPage(
+  props: Readonly<Parameters<typeof RiderPayoutsPageContent>[0]>,
+) {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <RiderPayoutsPageContent {...props} />
+    </Suspense>
   );
 }

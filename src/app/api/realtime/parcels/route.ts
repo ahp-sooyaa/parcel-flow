@@ -12,9 +12,6 @@ import {
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireCurrentUser } from "@/lib/session";
 
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
-
 const encoder = new TextEncoder();
 
 export async function GET(request: Request) {

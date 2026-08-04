@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+
+import { PageLoading } from "@/components/shared/page-loading";
 import { PageHeader } from "@/components/shared/page-header";
 import { SettlementsTable } from "@/features/settlements/components/settlements-table";
 import { listSettlementsPage } from "@/features/settlements/server/dal";
@@ -8,7 +11,7 @@ type SettlementsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function SettlementsPage({ searchParams }: Readonly<SettlementsPageProps>) {
+async function SettlementsPageContent({ searchParams }: Readonly<SettlementsPageProps>) {
   const filters = parseSettlementListFilters((await searchParams) ?? {});
   const [actor, pageResult] = await Promise.all([
     requireCurrentUser(),
@@ -23,5 +26,15 @@ export default async function SettlementsPage({ searchParams }: Readonly<Settlem
       />
       <SettlementsTable pageResult={pageResult} filters={filters} actorRole={actor.role} />
     </>
+  );
+}
+
+export default function SettlementsPage(
+  props: Readonly<Parameters<typeof SettlementsPageContent>[0]>,
+) {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <SettlementsPageContent {...props} />
+    </Suspense>
   );
 }

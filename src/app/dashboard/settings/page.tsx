@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+
+import { PageLoading } from "@/components/shared/page-loading";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,7 +10,7 @@ import { getUserById, listBankAccountsForUser } from "@/features/users/server/da
 import type { UserListItemDto } from "@/features/users/server/dto";
 import { requireCurrentUser } from "@/lib/session";
 
-export default async function SettingsPage() {
+async function SettingsPageContent() {
   const currentUser = await requireCurrentUser();
   const settingsUser = (await getUserById(currentUser.id)) ?? buildSettingsUser(currentUser);
   const bankAccounts = await listBankAccountsForUser(settingsUser.id);
@@ -77,4 +80,12 @@ function buildSettingsUser(
     isActive: currentUser.isActive,
     mustResetPassword: currentUser.mustResetPassword,
   };
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <SettingsPageContent />
+    </Suspense>
+  );
 }

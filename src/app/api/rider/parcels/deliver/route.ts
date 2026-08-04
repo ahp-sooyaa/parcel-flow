@@ -7,8 +7,6 @@ import { uploadDeliveryProofImage } from "@/features/parcels/server/upload";
 import { canChangeParcelStatus } from "@/lib/permissions";
 import { requireCurrentUser } from "@/lib/session";
 
-export const runtime = "nodejs";
-
 const maxProofImageSize = 5 * 1024 * 1024;
 const allowedProofImageTypes = ["image/jpeg", "image/png", "image/webp"];
 

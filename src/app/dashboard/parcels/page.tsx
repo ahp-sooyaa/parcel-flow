@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+
+import { PageLoading } from "@/components/shared/page-loading";
 import { Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
@@ -17,7 +20,7 @@ type ParcelsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function ParcelsPage({ searchParams }: Readonly<ParcelsPageProps>) {
+async function ParcelsPageContent({ searchParams }: Readonly<ParcelsPageProps>) {
   const currentUser = await requireCurrentUser();
 
   if (!isAdminRole(currentUser.role)) {
@@ -60,5 +63,13 @@ export default async function ParcelsPage({ searchParams }: Readonly<ParcelsPage
         townships={townships}
       />
     </>
+  );
+}
+
+export default function ParcelsPage(props: Readonly<Parameters<typeof ParcelsPageContent>[0]>) {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <ParcelsPageContent {...props} />
+    </Suspense>
   );
 }

@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+
+import { PageLoading } from "@/components/shared/page-loading";
 import { PageHeader } from "@/components/shared/page-header";
 import { StorageCapacityCard } from "@/features/dashboard/components/storage-capacity-card";
 import { getStorageStats } from "@/features/dashboard/server/dal";
@@ -7,7 +10,7 @@ import { DashboardSettlementWorkspace } from "@/features/settlements/components/
 import { getSettlementWorkspaceSummary } from "@/features/settlements/server/dal";
 import { getCurrentUser } from "@/lib/session";
 
-export default async function DashboardPage() {
+async function DashboardPageContent() {
   const [currentUser, summary, workspaceSummary] = await Promise.all([
     getCurrentUser(),
     getParcelSummary(),
@@ -36,5 +39,13 @@ export default async function DashboardPage() {
         />
       </div>
     </>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <DashboardPageContent />
+    </Suspense>
   );
 }
