@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath, updateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 
 import { createTownship, updateTownship } from "@/features/townships/server/dal";
 import { townshipInputSchema, updateTownshipInputSchema } from "@/features/townships/server/dto";
+import { invalidateTownshipCaches } from "@/lib/cache-invalidation";
 import { getFormFieldErrors } from "@/lib/form-action-errors";
 import { canManageTownshipPricing } from "@/lib/permissions";
 import { requireCurrentUser } from "@/lib/session";
@@ -31,7 +32,7 @@ export async function createTownshipAction(input: unknown) {
 
   const township = await createTownship(validatedInput);
 
-  updateTag("townships");
+  invalidateTownshipCaches();
   revalidatePath("/dashboard/townships");
   revalidatePath("/dashboard/parcels");
 
@@ -72,7 +73,7 @@ export async function updateTownshipAction(input: unknown) {
     };
   }
 
-  updateTag("townships");
+  invalidateTownshipCaches();
   revalidatePath("/dashboard/townships");
   revalidatePath("/dashboard/parcels");
 

@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { PageLoading } from "@/components/shared/page-loading";
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { SheetFormFallback } from "@/components/shared/sheet-form-fallback";
 import { CreateUserFormLoader } from "@/features/users/components/create-user-form-loader";
@@ -25,8 +25,8 @@ async function UsersPageContent({ searchParams }: Readonly<UsersPageProps>) {
 
   const filters = parseUserListFilters((await searchParams) ?? {});
   const [pageResult, townships] = await Promise.all([listUsersPage(filters), listTownships()]);
-  const bankAccountsByUserId = Object.fromEntries(
-    (await listBankAccountsForUserIds(pageResult.users.map((user) => user.id))).entries(),
+  const bankAccountsByUserId = await listBankAccountsForUserIds(
+    pageResult.users.map((user) => user.id),
   );
 
   return (
@@ -36,7 +36,7 @@ async function UsersPageContent({ searchParams }: Readonly<UsersPageProps>) {
         filters={filters}
         bankAccountsByUserId={bankAccountsByUserId}
         townships={townships}
-        currentUserPhoneNumber={currentUser?.phoneNumber ?? null}
+        currentUserPhoneNumber={currentUser.phoneNumber}
       />
     </div>
   );
@@ -56,7 +56,7 @@ export default function UsersPage(props: Readonly<Parameters<typeof UsersPageCon
           </CreateUserSheet>
         }
       />
-      <Suspense fallback={<PageLoading />}>
+      <Suspense fallback={<PageContentSkeleton variant="table" />}>
         <UsersPageContent {...props} />
       </Suspense>
     </>

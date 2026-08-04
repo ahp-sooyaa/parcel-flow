@@ -12,6 +12,8 @@ const updateTownshipMock = mock(
   }),
 );
 const revalidatePathMock = mock(() => undefined);
+const updateTagMock = mock(() => undefined);
+const revalidateTagMock = mock(() => undefined);
 
 void mock.module("@/lib/auth", () => ({
   auth: {
@@ -32,6 +34,8 @@ void mock.module("@/features/townships/server/dal", () => ({
 
 void mock.module("next/cache", () => ({
   revalidatePath: revalidatePathMock,
+  updateTag: updateTagMock,
+  revalidateTag: revalidateTagMock,
 }));
 
 describe("township server actions", async () => {
@@ -44,6 +48,8 @@ describe("township server actions", async () => {
     createTownshipMock.mockReset();
     updateTownshipMock.mockReset();
     revalidatePathMock.mockReset();
+    updateTagMock.mockReset();
+    revalidateTagMock.mockReset();
     getSessionMock.mockResolvedValue(buildSessionUser({ role: "super_admin" }));
     headersMock.mockResolvedValue(new Headers());
     createTownshipMock.mockImplementation(async (input: unknown) => ({ id: "township-id", input }));

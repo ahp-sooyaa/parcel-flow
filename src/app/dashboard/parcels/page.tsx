@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { PageLoading } from "@/components/shared/page-loading";
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { SheetFormFallback } from "@/components/shared/sheet-form-fallback";
 import { CreateParcelFormLoader } from "@/features/parcels/components/create-parcel-form-loader";
@@ -61,7 +61,7 @@ export default function ParcelsPage(props: Readonly<Parameters<typeof ParcelsPag
           </CreateParcelSheet>
         }
       />
-      <Suspense fallback={<PageLoading />}>
+      <Suspense fallback={<PageContentSkeleton variant="table" />}>
         <ParcelsPageContent {...props} />
       </Suspense>
     </>

@@ -141,6 +141,7 @@ function AppNavContent({
             <Link
               key={item.href}
               href={item.href}
+              prefetch={true}
               aria-current={isActive ? "page" : undefined}
               className={cn(
                 "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground",

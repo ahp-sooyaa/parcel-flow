@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import type { ChangeEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { FormBanner, type FormMessageState } from "@/components/shared/form-fields";
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -113,8 +114,10 @@ export function RiderParcelCardList({
   const parcels = pageResult.parcels;
   const [searchTerm, setSearchTerm] = useState(filters.searchTerm);
   const [selectedStatuses, setSelectedStatuses] = useState<ParcelStatus[]>(filters.statuses);
+  const [activeTab, setActiveTab] = useState(filters.tab);
   const [selectedParcelIds, setSelectedParcelIds] = useState<string[]>([]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isFilterPending, startFilterTransition] = useTransition();
   const [viewingParcel, setViewingParcel] = useState<ParcelListItemDto | null>(null);
   const [failureParcel, setFailureParcel] = useState<ParcelListItemDto | null>(null);
   const [deliveryParcel, setDeliveryParcel] = useState<ParcelListItemDto | null>(null);
@@ -200,6 +203,10 @@ export function RiderParcelCardList({
     setSelectedParcelIds((current) => current.filter((id) => eligibleParcelIds.includes(id)));
   }, [eligibleParcelIds]);
 
+  useEffect(() => {
+    setActiveTab(filters.tab);
+  }, [filters.tab]);
+
   const paginatedParcels = parcels;
   const totalPages = pageResult.totalPages;
   const safeCurrentPage = pageResult.page;
@@ -241,7 +248,9 @@ export function RiderParcelCardList({
     }
 
     const queryString = params.toString();
-    nextRouter.push(queryString ? `${pathname}?${queryString}` : pathname);
+    startFilterTransition(() => {
+      nextRouter.push(queryString ? `${pathname}?${queryString}` : pathname);
+    });
   }
 
   useEffect(() => {
@@ -717,9 +726,10 @@ export function RiderParcelCardList({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <Tabs
-          value={filters.tab}
+          value={activeTab}
           onValueChange={(value) => {
             if (isRiderParcelTab(value)) {
+              setActiveTab(value);
               updateFilters({ tab: value, page: 1 });
             }
           }}
@@ -896,7 +906,13 @@ export function RiderParcelCardList({
         </div>
       ) : null}
 
-      {renderParcelContent()}
+      {isFilterPending ? (
+        <div aria-busy={true}>
+          <PageContentSkeleton variant="cards" />
+        </div>
+      ) : (
+        renderParcelContent()
+      )}
 
       <Sheet
         open={viewingParcel !== null}

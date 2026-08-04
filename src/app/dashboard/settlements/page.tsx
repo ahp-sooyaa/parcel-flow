@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { PageLoading } from "@/components/shared/page-loading";
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { SettlementsTable } from "@/features/settlements/components/settlements-table";
 import { listSettlementsPage } from "@/features/settlements/server/dal";
@@ -13,10 +13,8 @@ type SettlementsPageProps = {
 
 async function SettlementsPageContent({ searchParams }: Readonly<SettlementsPageProps>) {
   const filters = parseSettlementListFilters((await searchParams) ?? {});
-  const [actor, pageResult] = await Promise.all([
-    requireCurrentUser(),
-    listSettlementsPage(filters),
-  ]);
+  const actor = await requireCurrentUser();
+  const pageResult = await listSettlementsPage(filters);
 
   return (
     <div data-testid="page-dynamic-content">
@@ -34,7 +32,7 @@ export default function SettlementsPage(
         title="Merchant Settlements"
         description="Review generated settlements and resolve pending payouts after bank transfer confirmation."
       />
-      <Suspense fallback={<PageLoading />}>
+      <Suspense fallback={<PageContentSkeleton variant="table" />}>
         <SettlementsPageContent {...props} />
       </Suspense>
     </>

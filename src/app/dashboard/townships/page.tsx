@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { PageLoading } from "@/components/shared/page-loading";
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { CreateTownshipHeaderAction } from "@/features/townships/components/create-township-header-action";
 import { TownshipManagement } from "@/features/townships/components/township-management";
@@ -9,7 +9,8 @@ import { canManageTownshipPricing } from "@/lib/permissions";
 import { getCurrentUser } from "@/lib/session";
 
 async function TownshipsPageContent() {
-  const [townships, currentUser] = await Promise.all([listTownships(), getCurrentUser()]);
+  const currentUser = await getCurrentUser();
+  const townships = await listTownships();
   const canManagePricing = currentUser ? canManageTownshipPricing(currentUser.role) : false;
 
   return (
@@ -31,7 +32,7 @@ export default function TownshipsPage() {
           </Suspense>
         }
       />
-      <Suspense fallback={<PageLoading />}>
+      <Suspense fallback={<PageContentSkeleton variant="table" />}>
         <TownshipsPageContent />
       </Suspense>
     </>

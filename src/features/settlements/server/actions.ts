@@ -16,6 +16,7 @@ import {
   resolveMerchantSettlementInputSchema,
 } from "@/features/settlements/server/dto";
 import { uploadSettlementReceipt } from "@/features/settlements/server/upload";
+import { invalidateSettlementCaches } from "@/lib/cache-invalidation";
 import {
   canConfirmRiderCashHandover,
   canCreateMerchantSettlement,
@@ -64,6 +65,7 @@ export async function createMerchantSettlementAction(input: unknown) {
       createdBy: actor.id,
     });
 
+    invalidateSettlementCaches();
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/settlements");
 
@@ -104,6 +106,7 @@ export async function confirmRiderCashHandoverAction(input: unknown) {
       confirmedBy: actor.id,
     });
 
+    invalidateSettlementCaches();
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/settlements");
 
@@ -153,6 +156,7 @@ export async function resolveMerchantSettlementAction(input: unknown) {
       paidBy: actor.id,
     });
 
+    invalidateSettlementCaches();
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/settlements");
 

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 
 import { DateFilterPopover } from "@/components/shared/date-filter-popover";
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { PaginationControls } from "@/components/shared/pagination-controls";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,11 +45,17 @@ export function MerchantParcelBrowser({
   const pathname = usePathname();
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState(filters.searchTerm);
+  const [activeStatus, setActiveStatus] = useState(filters.status);
   const [viewingParcel, setViewingParcel] = useState<ParcelListItemDto | null>(null);
+  const [isFilterPending, startFilterTransition] = useTransition();
 
   useEffect(() => {
     setSearchTerm(filters.searchTerm);
   }, [filters.searchTerm]);
+
+  useEffect(() => {
+    setActiveStatus(filters.status);
+  }, [filters.status]);
 
   function updateFilters(
     next: Partial<{
@@ -81,16 +88,19 @@ export function MerchantParcelBrowser({
     }
 
     const queryString = params.toString();
-    router.push(queryString ? `${pathname}?${queryString}` : pathname);
+    startFilterTransition(() => {
+      router.push(queryString ? `${pathname}?${queryString}` : pathname);
+    });
   }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <Tabs
-          value={filters.status}
+          value={activeStatus}
           onValueChange={(value) => {
             if (isMerchantParcelStatusFilter(value)) {
+              setActiveStatus(value);
               updateFilters({ status: value, page: 1 });
             }
           }}
@@ -149,18 +159,26 @@ export function MerchantParcelBrowser({
         </div>
       </div>
 
-      <ParcelTable
-        parcels={result.parcels}
-        onView={(parcel) => setViewingParcel(parcel)}
-        showMerchantColumn={false}
-        showRiderColumn={false}
-      />
+      <div aria-busy={isFilterPending} className="space-y-4">
+        {isFilterPending ? (
+          <PageContentSkeleton variant="table" />
+        ) : (
+          <>
+            <ParcelTable
+              parcels={result.parcels}
+              onView={(parcel) => setViewingParcel(parcel)}
+              showMerchantColumn={false}
+              showRiderColumn={false}
+            />
 
-      <PaginationControls
-        page={result.page}
-        totalPages={result.totalPages}
-        onPageChange={(page) => updateFilters({ page })}
-      />
+            <PaginationControls
+              page={result.page}
+              totalPages={result.totalPages}
+              onPageChange={(page) => updateFilters({ page })}
+            />
+          </>
+        )}
+      </div>
 
       <Sheet open={viewingParcel !== null} onOpenChange={(open) => !open && setViewingParcel(null)}>
         <SheetContent className="overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[720px] data-[side=right]:sm:max-w-[720px]">

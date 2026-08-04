@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { cacheLife, cacheTag } from "next/cache";
 
 import { db } from "@/db";
 import {
@@ -31,6 +32,7 @@ import {
   generateUniqueSettlementCode,
   merchantSettlementEligibleItemTypes,
 } from "@/features/settlements/server/utils";
+import { CACHE_TAGS, merchantSettlementsTag } from "@/lib/cache-tags";
 
 function mapEligibleFinancialItem(row: {
   itemId: string;
@@ -149,6 +151,10 @@ function mapSettlementEligibleMerchantFromRows(
 export async function listEligibleSettlementMerchantSummaries(): Promise<
   SettlementEligibleMerchantSummaryDto[]
 > {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(CACHE_TAGS.settlementWorkspace, CACHE_TAGS.settlements, CACHE_TAGS.parcels);
+
   const rows = await db
     .select({
       merchantId: merchants.id,
@@ -231,6 +237,10 @@ export async function getEligibleSettlementMerchantById(
 export async function listPendingRiderCashHandoverSummaries(): Promise<
   RiderCashHandoverSummaryDto[]
 > {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(CACHE_TAGS.settlementWorkspace, CACHE_TAGS.settlements, CACHE_TAGS.parcels);
+
   const rows = await db
     .select({
       riderId: riders.id,
@@ -320,6 +330,10 @@ export async function getPendingRiderCashHandoverByRiderId(
 }
 
 export async function getSettlementWorkspaceSummary(): Promise<SettlementWorkspaceSummaryDto> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(CACHE_TAGS.settlementWorkspace, CACHE_TAGS.settlements, CACHE_TAGS.parcels);
+
   const [eligibleMerchants, riderHandovers] = await Promise.all([
     listEligibleSettlementMerchantSummaries(),
     listPendingRiderCashHandoverSummaries(),
@@ -465,6 +479,10 @@ export async function listPendingRiderCashHandovers(): Promise<RiderCashHandover
 export async function listSettlementsPage(
   filters: SettlementListFiltersDto,
 ): Promise<SettlementListPageDto> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(CACHE_TAGS.settlements);
+
   const totalCountRow = await db
     .select({ count: sql<number>`count(*)` })
     .from(merchantSettlements)
@@ -553,6 +571,10 @@ export async function listMerchantSettlementHistoryForUser(
   userId: string,
   filters: MerchantSettlementHistoryFiltersDto,
 ): Promise<MerchantSettlementHistoryPageDto> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(merchantSettlementsTag(userId), CACHE_TAGS.settlements);
+
   const baseWhere = and(eq(merchants.userId, userId), eq(merchantSettlements.status, "settled"));
   const filteredWhere = buildMerchantSettlementHistoryWhere(userId, filters);
 

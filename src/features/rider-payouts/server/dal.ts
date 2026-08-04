@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { cacheLife, cacheTag } from "next/cache";
 
 import { db } from "@/db";
 import { appUsers, bankAccounts, financialItems, parcels, riderPayouts, riders } from "@/db/schema";
@@ -15,10 +16,15 @@ import {
   recomputeParcelRiderPayoutStatuses,
 } from "@/features/rider-payouts/server/utils";
 import { isRiderWaySource } from "@/lib/domain";
+import { CACHE_TAGS } from "@/lib/cache-tags";
 
 export async function listRiderPayoutsPage(
   filters: RiderPayoutListFiltersDto,
 ): Promise<RiderPayoutListPageDto> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(CACHE_TAGS.riderPayouts);
+
   const totalCountRow = await db
     .select({ count: sql<number>`count(*)` })
     .from(riderPayouts)
@@ -95,6 +101,10 @@ function mapRiderPayoutListItem(row: {
 export async function listEligibleRiderPayoutRiderSummaries(): Promise<
   RiderPayoutEligibleRiderSummaryDto[]
 > {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(CACHE_TAGS.riderPayouts, CACHE_TAGS.parcels);
+
   const rows = await db
     .select({
       riderId: riders.id,

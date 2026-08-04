@@ -41,7 +41,8 @@ export async function loginAction(
     };
   }
 
-  const { username, password } = parseResult.data;
+  const username = parseResult.data.username.trim().toLowerCase();
+  const { password } = parseResult.data;
 
   let landingPath: string;
 
@@ -65,19 +66,26 @@ export async function loginAction(
 
     landingPath = getRoleLandingPath(user.role);
   } catch (error) {
+    const betterAuthMessage =
+      error instanceof Error && error.message.trim().length > 0 ? error.message : null;
+
     Sentry.withScope((scope) => {
       scope.setTag("auth.flow", "login");
       scope.setContext("login", {
         username,
         betterAuthUrlSet: Boolean(process.env.BETTER_AUTH_URL),
+        betterAuthMessage,
       });
       Sentry.captureException(error);
     });
-    Sentry.logger.error("login_failed", { username });
+    Sentry.logger.error("login_failed", { username, betterAuthMessage });
 
     return {
       username,
-      message: "Username or password is incorrect.",
+      message:
+        betterAuthMessage === "Username is invalid"
+          ? "Username must be lowercase letters, numbers, or hyphens."
+          : "Username or password is incorrect.",
     };
   }
 

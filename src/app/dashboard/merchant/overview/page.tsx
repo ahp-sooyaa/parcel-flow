@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { PageLoading } from "@/components/shared/page-loading";
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { RealtimeMerchantOverviewSummaryCards } from "@/features/merchants/components/realtime-merchant-overview-summary-cards";
 import { getMerchantOverviewSummary } from "@/features/merchants/server/dal";
@@ -45,7 +45,7 @@ export default function MerchantOverviewPage(
         title="Overview"
         description="Track COD performance, paid remittances, and settled settlement history for your merchant account."
       />
-      <Suspense fallback={<PageLoading />}>
+      <Suspense fallback={<PageContentSkeleton variant="cards" />}>
         <MerchantOverviewPageContent {...props} />
       </Suspense>
     </>

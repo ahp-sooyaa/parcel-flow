@@ -3,6 +3,7 @@ import { withSentryConfig } from "@sentry/nextjs";
 const nextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
+  reactCompiler: true,
   serverExternalPackages: ["@aws-sdk/client-s3"],
   experimental: {
     optimizePackageImports: ["lucide-react"],

@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/shared/page-header";
-import { PageLoading } from "@/components/shared/page-loading";
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { SheetFormFallback } from "@/components/shared/sheet-form-fallback";
 import {
   Table,
@@ -85,7 +85,7 @@ export default function RidersPage() {
           </CreateUserSheet>
         }
       />
-      <Suspense fallback={<PageLoading />}>
+      <Suspense fallback={<PageContentSkeleton variant="table" />}>
         <RidersPageContent />
       </Suspense>
     </>

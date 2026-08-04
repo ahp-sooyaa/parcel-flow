@@ -1,3 +1,4 @@
+import { cacheLife } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
 
@@ -28,7 +29,14 @@ const sessionUserRoleSchema = z.looseObject({
   mustResetPassword: z.boolean(),
 });
 
+/**
+ * Session read is privately cached so runtime prefetch (`<Link prefetch={true}>`)
+ * can include auth-gated page content instead of always streaming a Suspense fallback.
+ */
 export async function getCurrentUser(): Promise<CurrentUser | null> {
+  "use cache: private";
+  cacheLife("minutes");
+
   const session = await auth.api.getSession({
     headers: await headers(),
   });

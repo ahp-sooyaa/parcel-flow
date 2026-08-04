@@ -1,4 +1,5 @@
 import { ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
+import { cacheLife, cacheTag } from "next/cache";
 import { z } from "zod";
 
 import type { StorageMetricRowDto, StorageStatsCardDto } from "@/features/dashboard/server/dto";
@@ -12,6 +13,7 @@ import {
   parseReferenceBytes,
   selectSupabaseDatabaseUsageBytes,
 } from "@/features/dashboard/server/utils";
+import { CACHE_TAGS } from "@/lib/cache-tags";
 
 const cloudflareGraphqlResponseSchema = z.object({
   data: z
@@ -300,6 +302,10 @@ async function loadCloudflareStorageRow() {
 }
 
 export async function getStorageStats() {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(CACHE_TAGS.storageStats);
+
   const rows = (await Promise.all([
     loadSupabaseStorageRow(),
     loadCloudflareStorageRow(),

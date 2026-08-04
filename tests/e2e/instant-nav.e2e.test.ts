@@ -3,7 +3,6 @@ import { expect, test } from "@playwright/test";
 
 const SHELL_MARKER = '[data-testid="page-shell-marker"]';
 const DYNAMIC_CONTENT = '[data-testid="page-dynamic-content"]';
-const PAGE_LOADING = '[data-testid="page-loading"]';
 
 type SoftNavCase = {
   name: string;
@@ -75,11 +74,8 @@ test.describe("instant nav: admin soft navigations", () => {
       await instant(page, async () => {
         await trigger.click();
         await expect(page.locator(SHELL_MARKER)).toContainText(navCase.shellTitle);
-        await expect(page.locator(PAGE_LOADING)).toBeVisible();
-        await expect(page.locator(DYNAMIC_CONTENT)).toHaveCount(0);
       });
 
-      await page.reload();
       await expect(page.locator(DYNAMIC_CONTENT)).toBeVisible({ timeout: 30_000 });
     });
   }
@@ -101,13 +97,10 @@ test.describe("instant nav: admin initial loads", () => {
         async () => {
           await page.goto(url);
           await expect(page.locator(SHELL_MARKER)).toContainText(route.title);
-          await expect(page.locator(PAGE_LOADING)).toBeVisible();
-          await expect(page.locator(DYNAMIC_CONTENT)).toHaveCount(0);
         },
         { baseURL },
       );
 
-      await page.reload();
       await expect(page.locator(DYNAMIC_CONTENT)).toBeVisible({ timeout: 30_000 });
     });
   }

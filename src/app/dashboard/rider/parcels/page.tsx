@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { PageLoading } from "@/components/shared/page-loading";
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { RealtimeRiderParcelCardList } from "@/features/parcels/components/realtime-rider-parcel-card-list";
 import { listRiderParcelsPageForUser } from "@/features/parcels/server/dal";
@@ -45,7 +45,7 @@ export default function RiderParcelsPage(
         title="Assigned Parcels"
         description="Parcels currently assigned to your rider account."
       />
-      <Suspense fallback={<PageLoading />}>
+      <Suspense fallback={<PageContentSkeleton variant="table" />}>
         <RiderParcelsPageContent {...props} />
       </Suspense>
     </>

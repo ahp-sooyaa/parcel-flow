@@ -14,6 +14,8 @@ const changePasswordMock = mock(async () => undefined);
 const setUserPasswordMock = mock(async () => undefined);
 const headersMock = mock(async () => new Headers());
 const revalidatePathMock = mock(() => undefined);
+const updateTagMock = mock(() => undefined);
+const revalidateTagMock = mock(() => undefined);
 const dbWhereMock = mock(async () => undefined);
 const dbSetMock = mock(() => ({ where: dbWhereMock }));
 const dbUpdateMock = mock(() => ({ set: dbSetMock }));
@@ -46,6 +48,8 @@ void mock.module("next/headers", () => ({
 
 void mock.module("next/cache", () => ({
   revalidatePath: revalidatePathMock,
+  updateTag: updateTagMock,
+  revalidateTag: revalidateTagMock,
 }));
 
 void mock.module("@/db", () => ({
@@ -82,6 +86,8 @@ describe("auth server actions", async () => {
     setUserPasswordMock.mockReset();
     headersMock.mockReset();
     revalidatePathMock.mockReset();
+    updateTagMock.mockReset();
+    revalidateTagMock.mockReset();
     dbWhereMock.mockReset();
     dbSetMock.mockReset();
     dbUpdateMock.mockReset();

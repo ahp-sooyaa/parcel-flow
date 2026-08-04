@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { and, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
+import { cacheLife, cacheTag } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/db";
@@ -51,6 +52,7 @@ import {
 } from "@/lib/domain";
 import type { FinancialItemType, ParcelStatus, RiderWaySource, UserRole } from "@/lib/domain";
 import { canChangeParcelStatus } from "@/lib/permissions";
+import { CACHE_TAGS, merchantParcelsTag, riderParcelsTag } from "@/lib/cache-tags";
 
 const parcelStatusSchema = z.enum(parcelStatuses);
 const assignmentEligibleStatuses = ["at_office", "postpone", "canceled_returned"] as const;
@@ -163,6 +165,10 @@ export async function listMerchantParcelsPageForUser(
   userId: string,
   filters: MerchantParcelListFiltersDto,
 ): Promise<MerchantParcelListPageDto> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(merchantParcelsTag(userId), CACHE_TAGS.parcels);
+
   const hasAnyParcelsWhere = and(isNull(parcels.deletedAt), eq(merchants.userId, userId));
   const filteredWhere = buildMerchantParcelWhere(userId, filters);
 
@@ -371,6 +377,10 @@ async function getAdminParcelAssignmentCounts(
 export async function listAdminParcelsPage(
   filters: AdminParcelListFiltersDto,
 ): Promise<AdminParcelListPageDto> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(CACHE_TAGS.parcels);
+
   const hasAnyParcelsWhere = isNull(parcels.deletedAt);
   const filteredWhere = buildAdminParcelWhere(filters);
   const sharedFilters = {
@@ -481,6 +491,10 @@ export async function listRiderParcelsPageForUser(
   userId: string,
   filters: RiderParcelListFiltersDto,
 ): Promise<RiderParcelListPageDto> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(riderParcelsTag(userId), CACHE_TAGS.parcels);
+
   const hasAnyParcelsWhere = and(isNull(parcels.deletedAt), eq(riders.userId, userId));
   const filteredWhere = buildRiderParcelWhere(userId, filters);
   const sharedFilters = {
@@ -865,6 +879,10 @@ async function getFinancialItemFingerprintsByParcelIds(parcelIds: string[]) {
 }
 
 export async function getParcelSummary(): Promise<ParcelSummaryDto> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(CACHE_TAGS.parcelSummary, CACHE_TAGS.parcels);
+
   const [summaryRow] = await db
     .select({
       totalParcels: sql<number>`count(*)`,

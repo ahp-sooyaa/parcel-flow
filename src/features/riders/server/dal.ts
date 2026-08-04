@@ -1,8 +1,10 @@
 import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { cacheLife, cacheTag } from "next/cache";
 
 import { db } from "@/db";
 import { appUsers, parcels, riders, riderServiceTownships, townships } from "@/db/schema";
 import type { RiderListItemDto, RiderOptionDto } from "@/features/riders/server/dto";
+import { CACHE_TAGS } from "@/lib/cache-tags";
 
 const riderParcelAggregationSelect = {
   riderId: parcels.riderId,
@@ -77,6 +79,10 @@ async function loadRiderServiceTownships(riderIds: string[]) {
 }
 
 export async function listRiders(): Promise<RiderListItemDto[]> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(CACHE_TAGS.riders, CACHE_TAGS.parcels);
+
   const rows = await db
     .select({
       id: riders.id,
@@ -107,6 +113,10 @@ export async function listRiders(): Promise<RiderListItemDto[]> {
 }
 
 export async function listRiderOptions(): Promise<RiderOptionDto[]> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(CACHE_TAGS.riderOptions, CACHE_TAGS.riders, CACHE_TAGS.parcels);
+
   const rows = await db
     .select({
       id: riders.id,

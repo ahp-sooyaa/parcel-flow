@@ -17,6 +17,8 @@ const getEligibleSettlementMerchantByIdMock = mock(async () => null);
 const getPendingRiderCashHandoverByRiderIdMock = mock(async () => null);
 const uploadSettlementReceiptMock = mock(async () => "settlements/test/receipt.pdf");
 const revalidatePathMock = mock(() => undefined);
+const updateTagMock = mock(() => undefined);
+const revalidateTagMock = mock(() => undefined);
 
 void mock.module("@/lib/auth", () => ({
   auth: {
@@ -44,6 +46,8 @@ void mock.module("@/features/settlements/server/upload", () => ({
 
 void mock.module("next/cache", () => ({
   revalidatePath: revalidatePathMock,
+  updateTag: updateTagMock,
+  revalidateTag: revalidateTagMock,
 }));
 
 describe("settlement server actions", async () => {
@@ -57,6 +61,8 @@ describe("settlement server actions", async () => {
     resolveMerchantSettlementMock.mockReset();
     uploadSettlementReceiptMock.mockReset();
     revalidatePathMock.mockReset();
+    updateTagMock.mockReset();
+    revalidateTagMock.mockReset();
 
     getSessionMock.mockResolvedValue(buildSessionUser({ id: "actor-id", role: "super_admin" }));
     headersMock.mockResolvedValue(new Headers());

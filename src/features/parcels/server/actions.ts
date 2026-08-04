@@ -31,6 +31,7 @@ import {
   mapCreateParcelFormInputToCreateParcelInput,
   mapUpdateParcelFormInputToUpdateParcelInput,
 } from "@/features/parcels/server/utils";
+import { invalidateParcelWriteCaches } from "@/lib/cache-invalidation";
 import { getFormFieldErrors } from "@/lib/form-action-errors";
 import { isAdminRole } from "@/lib/domain";
 import { canChangeParcelStatus, canCreateParcel } from "@/lib/permissions";
@@ -135,6 +136,7 @@ export async function createParcelAction(input: unknown) {
     createdBy: actor.id,
   });
 
+  invalidateParcelWriteCaches();
   revalidatePath("/dashboard/parcels");
 
   return {
@@ -183,11 +185,7 @@ export async function updateParcelAction(input: unknown) {
     };
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/parcels");
-  revalidatePath("/dashboard/riders");
-  revalidatePath("/dashboard/merchant/parcels");
-  revalidatePath("/dashboard/rider/parcels");
+  revalidateParcelOperationalPaths();
 
   return {
     ok: true as const,
@@ -222,6 +220,7 @@ export async function assignParcelsToRiderAction(input: unknown) {
     };
   }
 
+  invalidateParcelWriteCaches();
   revalidatePath("/dashboard/parcels");
   revalidatePath("/dashboard/riders");
   revalidatePath("/dashboard/rider/parcels");
@@ -233,11 +232,21 @@ export async function assignParcelsToRiderAction(input: unknown) {
 }
 
 function revalidateParcelCorrectionPaths() {
+  invalidateParcelWriteCaches();
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/parcels");
   revalidatePath("/dashboard/riders");
   revalidatePath("/dashboard/settlements");
   revalidatePath("/dashboard/rider-payouts");
+  revalidatePath("/dashboard/merchant/parcels");
+  revalidatePath("/dashboard/rider/parcels");
+}
+
+function revalidateParcelOperationalPaths() {
+  invalidateParcelWriteCaches();
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/parcels");
+  revalidatePath("/dashboard/riders");
   revalidatePath("/dashboard/merchant/parcels");
   revalidatePath("/dashboard/rider/parcels");
 }
@@ -375,10 +384,7 @@ async function resolveFailedParcelAction(
     };
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/parcels");
-  revalidatePath("/dashboard/riders");
-  revalidatePath("/dashboard/rider/parcels");
+  revalidateParcelOperationalPaths();
 
   return {
     ok: true as const,
@@ -428,9 +434,7 @@ export async function startDeliveryForRiderParcelsAction(input: unknown) {
     };
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/parcels");
-  revalidatePath("/dashboard/rider/parcels");
+  revalidateParcelOperationalPaths();
 
   return {
     ok: true as const,
@@ -473,9 +477,7 @@ export async function reportDeliveryFailureForRiderParcelAction(input: unknown) 
     };
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/parcels");
-  revalidatePath("/dashboard/rider/parcels");
+  revalidateParcelOperationalPaths();
 
   return {
     ok: true as const,
@@ -514,9 +516,7 @@ export async function deleteDeliveryFailureForRiderParcelAction(input: unknown) 
     };
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/parcels");
-  revalidatePath("/dashboard/rider/parcels");
+  revalidateParcelOperationalPaths();
 
   return {
     ok: true as const,
@@ -556,9 +556,7 @@ export async function updateDeliveryFailureForRiderParcelAction(input: unknown) 
     };
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/parcels");
-  revalidatePath("/dashboard/rider/parcels");
+  revalidateParcelOperationalPaths();
 
   return {
     ok: true as const,
@@ -601,9 +599,7 @@ export async function markRiderParcelReturnedToMerchantAction(input: unknown) {
     };
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/parcels");
-  revalidatePath("/dashboard/rider/parcels");
+  revalidateParcelOperationalPaths();
 
   return {
     ok: true as const,

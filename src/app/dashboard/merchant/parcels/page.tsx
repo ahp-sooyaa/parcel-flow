@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { PageLoading } from "@/components/shared/page-loading";
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { RealtimeMerchantParcelBrowser } from "@/features/parcels/components/realtime-merchant-parcel-browser";
 import { listMerchantParcelsPageForUser } from "@/features/parcels/server/dal";
@@ -37,7 +37,7 @@ export default function MerchantParcelsPage(
         title="My Parcels"
         description="Search and track parcel delivery progress for your merchant account."
       />
-      <Suspense fallback={<PageLoading />}>
+      <Suspense fallback={<PageContentSkeleton variant="table" />}>
         <MerchantParcelsPageContent {...props} />
       </Suspense>
     </>

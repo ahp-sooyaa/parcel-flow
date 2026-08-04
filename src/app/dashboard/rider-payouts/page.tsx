@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { PageLoading } from "@/components/shared/page-loading";
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { RiderPayoutHeaderAction } from "@/features/rider-payouts/components/rider-payout-header-action";
 import { RiderPayoutWorkspace } from "@/features/rider-payouts/components/rider-payout-workspace";
@@ -14,10 +14,8 @@ type RiderPayoutsPageProps = {
 
 async function RiderPayoutsPageContent({ searchParams }: Readonly<RiderPayoutsPageProps>) {
   const filters = parseRiderPayoutListFilters((await searchParams) ?? {});
-  const [actor, pageResult] = await Promise.all([
-    requireCurrentUser(),
-    listRiderPayoutsPage(filters),
-  ]);
+  const actor = await requireCurrentUser();
+  const pageResult = await listRiderPayoutsPage(filters);
 
   return (
     <div data-testid="page-dynamic-content">
@@ -40,7 +38,7 @@ export default function RiderPayoutsPage(
           </Suspense>
         }
       />
-      <Suspense fallback={<PageLoading />}>
+      <Suspense fallback={<PageContentSkeleton variant="table" />}>
         <RiderPayoutsPageContent {...props} />
       </Suspense>
     </>

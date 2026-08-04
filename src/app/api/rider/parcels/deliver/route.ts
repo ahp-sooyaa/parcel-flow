@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { markRiderParcelDelivered } from "@/features/parcels/server/dal";
 import { uploadDeliveryProofImage } from "@/features/parcels/server/upload";
+import { revalidateParcelWriteCaches } from "@/lib/cache-invalidation";
 import { canChangeParcelStatus } from "@/lib/permissions";
 import { requireCurrentUser } from "@/lib/session";
 
@@ -89,6 +90,7 @@ export async function POST(request: Request) {
     );
   }
 
+  revalidateParcelWriteCaches({ riderUserId: actor.id });
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/parcels");
   revalidatePath("/dashboard/rider/parcels");

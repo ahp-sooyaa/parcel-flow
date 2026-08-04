@@ -1,4 +1,5 @@
 import { and, asc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import { cacheLife, cacheTag } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/db";
@@ -19,6 +20,7 @@ import type {
 import { buildUsernameBase, normalizePhoneNumber } from "@/features/users/server/utils";
 import type { UserRole } from "@/lib/domain";
 import { userRoles } from "@/lib/domain";
+import { CACHE_TAGS, userBanksTag, userProfileTag } from "@/lib/cache-tags";
 
 const userRoleSchema = z.enum(userRoles);
 
@@ -111,6 +113,10 @@ function mapUser(row: UserListRow, profileRows: UserProfileRows): UserListItemDt
 }
 
 export async function listUsersPage(filters: UserListFiltersDto): Promise<UserListPageDto> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(CACHE_TAGS.users);
+
   const where = buildUserListWhere(filters);
 
   const totalCountRow = await db
@@ -172,6 +178,10 @@ function buildUserListWhere(filters: Pick<UserListFiltersDto, "searchTerm">) {
 }
 
 export async function getUserById(id: string) {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(userProfileTag(id), CACHE_TAGS.users);
+
   const [row] = await db
     .select()
     .from(appUsers)
@@ -188,6 +198,10 @@ export async function getUserById(id: string) {
 }
 
 export async function listBankAccountsForUser(userId: string) {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(userBanksTag(userId));
+
   const rows = await db
     .select()
     .from(bankAccounts)
@@ -196,11 +210,18 @@ export async function listBankAccountsForUser(userId: string) {
   return rows.map(mapBankAccount);
 }
 
-export async function listBankAccountsForUserIds(userIds: string[]) {
-  const uniqueUserIds = Array.from(new Set(userIds));
+export async function listBankAccountsForUserIds(
+  userIds: string[],
+): Promise<Record<string, BankAccountDto[]>> {
+  "use cache";
+  cacheLife("minutes");
+
+  // Stable key so the same page of users hits one cache entry.
+  const uniqueUserIds = Array.from(new Set(userIds)).sort();
+  cacheTag(CACHE_TAGS.users, ...uniqueUserIds.map(userBanksTag));
 
   if (uniqueUserIds.length === 0) {
-    return new Map<string, BankAccountDto[]>();
+    return {};
   }
 
   const rows = await db
@@ -208,12 +229,12 @@ export async function listBankAccountsForUserIds(userIds: string[]) {
     .from(bankAccounts)
     .where(and(inArray(bankAccounts.userId, uniqueUserIds), isNull(bankAccounts.deletedAt)));
 
-  const accountsByUserId = new Map<string, BankAccountDto[]>();
+  const accountsByUserId: Record<string, BankAccountDto[]> = {};
 
   for (const row of rows) {
-    const accounts = accountsByUserId.get(row.userId) ?? [];
+    const accounts = accountsByUserId[row.userId] ?? [];
     accounts.push(mapBankAccount(row));
-    accountsByUserId.set(row.userId, accounts);
+    accountsByUserId[row.userId] = accounts;
   }
 
   return accountsByUserId;

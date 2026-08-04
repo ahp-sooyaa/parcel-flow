@@ -19,6 +19,8 @@ const getParcelByIdForRealtimeScopeMock = mock(async () => null);
 const uploadDeliveryProofImageMock = mock(async () => "parcels/test/proof.jpg");
 const deleteDeliveryProofImageMock = mock(async () => undefined);
 const revalidatePathMock = mock(() => undefined);
+const updateTagMock = mock(() => undefined);
+const revalidateTagMock = mock(() => undefined);
 
 void mock.module("@/lib/auth", () => ({
   auth: {
@@ -54,6 +56,8 @@ void mock.module("@/features/parcels/server/upload", () => ({
 
 void mock.module("next/cache", () => ({
   revalidatePath: revalidatePathMock,
+  updateTag: updateTagMock,
+  revalidateTag: revalidateTagMock,
 }));
 
 describe("parcel server actions", async () => {
@@ -88,6 +92,8 @@ describe("parcel server actions", async () => {
     uploadDeliveryProofImageMock.mockReset();
     deleteDeliveryProofImageMock.mockReset();
     revalidatePathMock.mockReset();
+    updateTagMock.mockReset();
+    revalidateTagMock.mockReset();
     getSessionMock.mockResolvedValue(buildSessionUser({ id: "actor-id", role: "super_admin" }));
     headersMock.mockResolvedValue(new Headers());
     createParcelMock.mockResolvedValue({ id: "parcel-id", parcelCode: "PF-000001-000001" });

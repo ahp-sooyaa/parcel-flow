@@ -1,6 +1,7 @@
 import { CreateUserForm } from "@/features/users/components/create-user-form";
 import { getTownshipFormOptions } from "@/features/townships/server/form-options";
 import type { CreatableUserRole } from "@/lib/domain";
+import { getCurrentUser } from "@/lib/session";
 
 type CreateUserFormLoaderProps = Readonly<{
   defaultRole?: CreatableUserRole;
@@ -13,6 +14,7 @@ export async function CreateUserFormLoader({
   roleOptions,
   title,
 }: CreateUserFormLoaderProps) {
+  await getCurrentUser();
   const townships = await getTownshipFormOptions();
 
   return (
