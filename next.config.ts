@@ -1,8 +1,8 @@
 import { withSentryConfig } from "@sentry/nextjs";
-import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
+const nextConfig = {
   cacheComponents: true,
+  partialPrefetching: true,
   serverExternalPackages: ["@aws-sdk/client-s3"],
   experimental: {
     optimizePackageImports: ["lucide-react"],
