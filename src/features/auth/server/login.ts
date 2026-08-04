@@ -1,5 +1,6 @@
 "use server";
 
+import * as Sentry from "@sentry/nextjs";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -63,7 +64,17 @@ export async function loginAction(
     }
 
     landingPath = getRoleLandingPath(user.role);
-  } catch {
+  } catch (error) {
+    Sentry.withScope((scope) => {
+      scope.setTag("auth.flow", "login");
+      scope.setContext("login", {
+        username,
+        betterAuthUrlSet: Boolean(process.env.BETTER_AUTH_URL),
+      });
+      Sentry.captureException(error);
+    });
+    Sentry.logger.error("login_failed", { username });
+
     return {
       username,
       message: "Username or password is incorrect.",
