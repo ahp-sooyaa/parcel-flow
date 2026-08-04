@@ -1,0 +1,38 @@
+name: Keep Alive
+
+# Pings /api/health so the production DB query keeps Supabase from pausing
+# after 7 days of inactivity on the free tier.
+on:
+  schedule:
+    # Every 3 days at 06:00 UTC
+    - cron: "0 6 */3 * *"
+  workflow_dispatch:
+
+jobs:
+  ping-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Hit /api/health
+        env:
+          HEALTH_CHECK_URL: ${{ secrets.HEALTH_CHECK_URL }}
+        run: |
+          if [ -z "$HEALTH_CHECK_URL" ]; then
+            echo "HEALTH_CHECK_URL secret is not set"
+            exit 1
+          fi
+
+          url="${HEALTH_CHECK_URL%/}/api/health"
+          echo "Requesting $url"
+
+          response="$(curl --fail --silent --show-error --max-time 30 --write-out "\n%{http_code}" "$url")"
+          body="$(echo "$response" | sed '$d')"
+          status="$(echo "$response" | tail -n 1)"
+
+          echo "HTTP $status"
+          echo "$body"
+
+          if [ "$status" != "200" ]; then
+            echo "Health check failed"
+            exit 1
+          fi
