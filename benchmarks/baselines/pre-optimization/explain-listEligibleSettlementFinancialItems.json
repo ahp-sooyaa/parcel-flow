@@ -1,9 +1,7 @@
 {
   "name": "listEligibleSettlementFinancialItems",
   "sql": "select \"financial_items\".\"merchant_id\", \"financial_items\".\"id\" from \"financial_items\" inner join \"merchants\" on \"merchants\".\"id\" = \"financial_items\".\"merchant_id\" left join \"parcels\" on \"parcels\".\"id\" = \"financial_items\".\"parcel_id\" where (\"financial_items\".\"merchant_settlement_id\" is null and \"financial_items\".\"status\" = $1)",
-  "params": [
-    "pending"
-  ],
+  "params": ["pending"],
   "plan": [
     {
       "Plan": {

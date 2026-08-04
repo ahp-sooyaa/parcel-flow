@@ -1,10 +1,7 @@
 {
   "name": "listPendingRiderCashHandovers",
   "sql": "select \"riders\".\"id\", \"parcels\".\"id\" from \"parcels\" inner join \"riders\" on \"riders\".\"id\" = \"parcels\".\"rider_id\" where (\"parcels\".\"deleted_at\" is null and \"parcels\".\"status\" = $1 and \"parcels\".\"is_received_by_office\" = $2)",
-  "params": [
-    "delivered",
-    false
-  ],
+  "params": ["delivered", false],
   "plan": [
     {
       "Plan": {

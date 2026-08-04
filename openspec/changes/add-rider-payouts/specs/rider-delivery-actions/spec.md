@@ -91,4 +91,3 @@ The system SHALL preserve the rider delivery-attempt payout item and avoid dupli
 - **WHEN** any required parcel update or financial item consistency check fails during mark delivered
 - **THEN** the system does not persist a partially delivered parcel state
 - **AND** the system does not persist partial financial item changes
-

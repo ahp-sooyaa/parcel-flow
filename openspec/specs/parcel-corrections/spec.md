@@ -1,8 +1,11 @@
 # parcel-corrections Specification
 
 ## Purpose
+
 TBD - created by archiving change add-parcel-corrections. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Admins can access parcel corrections from parcel detail
 
 The system SHALL expose parcel correction controls from the parcel detail sheet only to super admins and office admins.
@@ -198,4 +201,3 @@ The system SHALL treat the server as the source of authority for every correctio
 
 - **WHEN** any required parcel update, financial item update, status log write, or correction log write fails
 - **THEN** the system does not persist a partial correction
-

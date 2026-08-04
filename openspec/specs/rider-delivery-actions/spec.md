@@ -1,8 +1,11 @@
 # rider-delivery-actions Specification
 
 ## Purpose
+
 TBD - created by archiving change rider-delivery-actions. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Rider reports delivery failure
 
 The system SHALL allow an active rider to report delivery failure for a parcel assigned to their rider profile when the parcel status is `on_the_way`.
@@ -174,4 +177,3 @@ The system SHALL provide parcel storage fields for rider delivery failure notes 
 - **WHEN** the application persists delivery proof after mark delivered
 - **THEN** the `parcels` table has a JSON image key collection column available through the Drizzle schema
 - **AND** the application stores object storage keys rather than public raw URLs
-

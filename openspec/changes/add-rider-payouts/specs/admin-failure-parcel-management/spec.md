@@ -40,4 +40,3 @@ The system SHALL allow super admins and office admins to mark an unresolved fail
 - **THEN** the system does not create a delivery fee deduction financial item until the parcel later becomes `returned_to_merchant`
 - **AND** the system does not create a merchant-return rider way payout item until a rider completes the return work
 - **AND** the existing pending `delivery_attempt` rider way payout item remains linked to the rider who attempted delivery
-

@@ -29,4 +29,3 @@ The system SHALL generate the merchant delivery-fee deduction financial item and
 - **WHEN** any required parcel update or financial item creation fails during rider return completion
 - **THEN** the system does not persist a partially returned parcel state
 - **AND** the system does not persist partial financial item rows
-
