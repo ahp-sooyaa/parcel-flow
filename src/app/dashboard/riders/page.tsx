@@ -1,10 +1,8 @@
 import { Suspense } from "react";
-import { Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
 import { PageLoading } from "@/components/shared/page-loading";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { SheetFormFallback } from "@/components/shared/sheet-form-fallback";
 import {
   Table,
   TableBody,
@@ -14,8 +12,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { listRiders } from "@/features/riders/server/dal";
-import { listTownships } from "@/features/townships/server/dal";
-import { CreateUserForm } from "@/features/users/components/create-user-form";
+import { CreateUserFormLoader } from "@/features/users/components/create-user-form-loader";
+import { CreateUserSheet } from "@/features/users/components/create-user-sheet";
 import { isAdminRole } from "@/lib/domain";
 import { formatMoney } from "@/lib/format";
 import { requireCurrentUser } from "@/lib/session";
@@ -27,28 +25,10 @@ async function RidersPageContent() {
     throw new Error("Admin access required.");
   }
 
-  const [riders, townships] = await Promise.all([listRiders(), listTownships()]);
+  const riders = await listRiders();
 
   return (
     <div data-testid="page-dynamic-content">
-      <div className="mb-4 flex justify-end" data-testid="page-header-actions">
-        <Sheet>
-          <Button asChild>
-            <SheetTrigger>
-              <Plus className="size-4" />
-              Add Rider
-            </SheetTrigger>
-          </Button>
-          <SheetContent className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:w-[500px] data-[side=right]:sm:max-w-[500px]">
-            <CreateUserForm
-              townships={townships}
-              defaultRole="rider"
-              roleOptions={["rider"]}
-              title="Add Rider"
-            />
-          </SheetContent>
-        </Sheet>
-      </div>
       <div className="rounded-lg border bg-white">
         <Table>
           <TableHeader>
@@ -97,6 +77,13 @@ export default function RidersPage() {
       <PageHeader
         title="Riders"
         description="Rider service areas, assigned parcels, and expected versus actual collection."
+        actions={
+          <CreateUserSheet triggerLabel="Add Rider">
+            <Suspense fallback={<SheetFormFallback />}>
+              <CreateUserFormLoader defaultRole="rider" roleOptions={["rider"]} title="Add Rider" />
+            </Suspense>
+          </CreateUserSheet>
+        }
       />
       <Suspense fallback={<PageLoading />}>
         <RidersPageContent />

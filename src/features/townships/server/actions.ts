@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 
 import { createTownship, updateTownship } from "@/features/townships/server/dal";
 import { townshipInputSchema, updateTownshipInputSchema } from "@/features/townships/server/dto";
@@ -31,6 +31,7 @@ export async function createTownshipAction(input: unknown) {
 
   const township = await createTownship(validatedInput);
 
+  updateTag("townships");
   revalidatePath("/dashboard/townships");
   revalidatePath("/dashboard/parcels");
 
@@ -71,6 +72,7 @@ export async function updateTownshipAction(input: unknown) {
     };
   }
 
+  updateTag("townships");
   revalidatePath("/dashboard/townships");
   revalidatePath("/dashboard/parcels");
 

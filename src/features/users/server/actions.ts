@@ -1,7 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 
 import { eq } from "drizzle-orm";
 
@@ -99,6 +99,8 @@ export async function createUserAction(input: unknown) {
   revalidatePath("/dashboard/users");
   revalidatePath("/dashboard/merchants");
   revalidatePath("/dashboard/riders");
+  updateTag("merchant-options");
+  updateTag("townships");
 
   return {
     ok: true as const,

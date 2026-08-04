@@ -1,12 +1,10 @@
 import { Suspense } from "react";
 
 import { PageLoading } from "@/components/shared/page-loading";
-import { Plus } from "lucide-react";
-
 import { PageHeader } from "@/components/shared/page-header";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { CreateUserForm } from "@/features/users/components/create-user-form";
+import { SheetFormFallback } from "@/components/shared/sheet-form-fallback";
+import { CreateUserFormLoader } from "@/features/users/components/create-user-form-loader";
+import { CreateUserSheet } from "@/features/users/components/create-user-sheet";
 import { UserListTable } from "@/features/users/components/user-list-table";
 import { listBankAccountsForUserIds, listUsersPage } from "@/features/users/server/dal";
 import { parseUserListFilters } from "@/features/users/server/dto";
@@ -33,20 +31,6 @@ async function UsersPageContent({ searchParams }: Readonly<UsersPageProps>) {
 
   return (
     <div data-testid="page-dynamic-content">
-      <div className="mb-4 flex justify-end" data-testid="page-header-actions">
-        <Sheet>
-          <Button asChild>
-            <SheetTrigger>
-              <Plus className="size-4" />
-              Create User
-            </SheetTrigger>
-          </Button>
-          <SheetContent className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:w-[500px] data-[side=right]:sm:max-w-[500px]">
-            <CreateUserForm townships={townships} />
-          </SheetContent>
-        </Sheet>
-      </div>
-
       <UserListTable
         pageResult={pageResult}
         filters={filters}
@@ -64,6 +48,13 @@ export default function UsersPage(props: Readonly<Parameters<typeof UsersPageCon
       <PageHeader
         title="Users"
         description="Admin-created user accounts for super admins, office admins, merchants, and riders."
+        actions={
+          <CreateUserSheet triggerLabel="Create User">
+            <Suspense fallback={<SheetFormFallback />}>
+              <CreateUserFormLoader />
+            </Suspense>
+          </CreateUserSheet>
+        }
       />
       <Suspense fallback={<PageLoading />}>
         <UsersPageContent {...props} />

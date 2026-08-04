@@ -24,7 +24,11 @@ export function PageHeader({ title, description, actions, className }: Readonly<
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{description}</p>
         ) : null}
       </div>
-      {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+      {actions ? (
+        <div className="flex shrink-0 items-center gap-2" data-testid="page-header-actions">
+          {actions}
+        </div>
+      ) : null}
     </div>
   );
 }
