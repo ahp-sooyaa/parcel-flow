@@ -36,24 +36,20 @@ async function ParcelsPageContent({ searchParams }: Readonly<ParcelsPageProps>) 
   ]);
 
   return (
-    <>
-      <PageHeader
-        title="Parcels"
-        description="Search, filter, create, and batch assign parcels after they arrive at the office."
-        actions={
-          <Sheet>
-            <Button asChild>
-              <SheetTrigger>
-                <Plus className="size-4" />
-                Create Parcel
-              </SheetTrigger>
-            </Button>
-            <SheetContent className="overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[720px] data-[side=right]:sm:max-w-[720px]">
-              <LazyCreateParcelForm merchants={merchants} townships={townships} />
-            </SheetContent>
-          </Sheet>
-        }
-      />
+    <div data-testid="page-dynamic-content">
+      <div className="mb-4 flex justify-end" data-testid="page-header-actions">
+        <Sheet>
+          <Button asChild>
+            <SheetTrigger>
+              <Plus className="size-4" />
+              Create Parcel
+            </SheetTrigger>
+          </Button>
+          <SheetContent className="overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[720px] data-[side=right]:sm:max-w-[720px]">
+            <LazyCreateParcelForm merchants={merchants} townships={townships} />
+          </SheetContent>
+        </Sheet>
+      </div>
       <RealtimeParcelListView
         actorRole={currentUser.role}
         pageResult={pageResult}
@@ -62,14 +58,20 @@ async function ParcelsPageContent({ searchParams }: Readonly<ParcelsPageProps>) 
         riders={riders}
         townships={townships}
       />
-    </>
+    </div>
   );
 }
 
 export default function ParcelsPage(props: Readonly<Parameters<typeof ParcelsPageContent>[0]>) {
   return (
-    <Suspense fallback={<PageLoading />}>
-      <ParcelsPageContent {...props} />
-    </Suspense>
+    <>
+      <PageHeader
+        title="Parcels"
+        description="Search, filter, create, and batch assign parcels after they arrive at the office."
+      />
+      <Suspense fallback={<PageLoading />}>
+        <ParcelsPageContent {...props} />
+      </Suspense>
+    </>
   );
 }

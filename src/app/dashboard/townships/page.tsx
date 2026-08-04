@@ -17,35 +17,37 @@ async function TownshipsPageContent() {
   const canManagePricing = currentUser ? canManageTownshipPricing(currentUser.role) : false;
 
   return (
-    <>
-      <PageHeader
-        title="Townships"
-        description="Township-based delivery pricing used to auto-fill parcel delivery fees."
-        actions={
-          canManagePricing ? (
-            <Sheet>
-              <Button asChild>
-                <SheetTrigger>
-                  <Plus className="size-4" />
-                  Create Township
-                </SheetTrigger>
-              </Button>
-              <SheetContent className="overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[720px] data-[side=right]:sm:max-w-[720px]">
-                <TownshipForm mode="create" />
-              </SheetContent>
-            </Sheet>
-          ) : undefined
-        }
-      />
+    <div data-testid="page-dynamic-content">
+      <div className="mb-4 flex justify-end" data-testid="page-header-actions">
+        {canManagePricing ? (
+          <Sheet>
+            <Button asChild>
+              <SheetTrigger>
+                <Plus className="size-4" />
+                Create Township
+              </SheetTrigger>
+            </Button>
+            <SheetContent className="overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[720px] data-[side=right]:sm:max-w-[720px]">
+              <TownshipForm mode="create" />
+            </SheetContent>
+          </Sheet>
+        ) : undefined}
+      </div>
       <TownshipManagement townships={townships} canManagePricing={canManagePricing} />
-    </>
+    </div>
   );
 }
 
 export default function TownshipsPage() {
   return (
-    <Suspense fallback={<PageLoading />}>
-      <TownshipsPageContent />
-    </Suspense>
+    <>
+      <PageHeader
+        title="Townships"
+        description="Township-based delivery pricing used to auto-fill parcel delivery fees."
+      />
+      <Suspense fallback={<PageLoading />}>
+        <TownshipsPageContent />
+      </Suspense>
+    </>
   );
 }

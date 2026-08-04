@@ -1,9 +1,8 @@
 import { Suspense } from "react";
-
-import { PageLoading } from "@/components/shared/page-loading";
 import { Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
+import { PageLoading } from "@/components/shared/page-loading";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
@@ -15,8 +14,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { listMerchants } from "@/features/merchants/server/dal";
-import { CreateUserForm } from "@/features/users/components/create-user-form";
 import { listTownships } from "@/features/townships/server/dal";
+import { CreateUserForm } from "@/features/users/components/create-user-form";
 import { isAdminRole } from "@/lib/domain";
 import { formatMoney } from "@/lib/format";
 import { requireCurrentUser } from "@/lib/session";
@@ -31,29 +30,25 @@ async function MerchantsPageContent() {
   const [merchants, townships] = await Promise.all([listMerchants(), listTownships()]);
 
   return (
-    <>
-      <PageHeader
-        title="Merchants"
-        description="Merchant profiles, parcel ownership, and settlement entry points."
-        actions={
-          <Sheet>
-            <Button asChild>
-              <SheetTrigger>
-                <Plus className="size-4" />
-                Add Merchant
-              </SheetTrigger>
-            </Button>
-            <SheetContent className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:w-[500px] data-[side=right]:sm:max-w-[500px]">
-              <CreateUserForm
-                townships={townships}
-                defaultRole="merchant"
-                roleOptions={["merchant"]}
-                title="Add Merchant"
-              />
-            </SheetContent>
-          </Sheet>
-        }
-      />
+    <div data-testid="page-dynamic-content">
+      <div className="mb-4 flex justify-end" data-testid="page-header-actions">
+        <Sheet>
+          <Button asChild>
+            <SheetTrigger>
+              <Plus className="size-4" />
+              Add Merchant
+            </SheetTrigger>
+          </Button>
+          <SheetContent className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:w-[500px] data-[side=right]:sm:max-w-[500px]">
+            <CreateUserForm
+              townships={townships}
+              defaultRole="merchant"
+              roleOptions={["merchant"]}
+              title="Add Merchant"
+            />
+          </SheetContent>
+        </Sheet>
+      </div>
       <div className="rounded-lg border bg-white">
         <Table>
           <TableHeader>
@@ -90,14 +85,20 @@ async function MerchantsPageContent() {
           </TableBody>
         </Table>
       </div>
-    </>
+    </div>
   );
 }
 
 export default function MerchantsPage() {
   return (
-    <Suspense fallback={<PageLoading />}>
-      <MerchantsPageContent />
-    </Suspense>
+    <>
+      <PageHeader
+        title="Merchants"
+        description="Merchant profiles, parcel ownership, and settlement entry points."
+      />
+      <Suspense fallback={<PageLoading />}>
+        <MerchantsPageContent />
+      </Suspense>
+    </>
   );
 }

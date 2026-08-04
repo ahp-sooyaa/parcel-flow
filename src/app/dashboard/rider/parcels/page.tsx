@@ -26,17 +26,13 @@ async function RiderParcelsPageContent({ searchParams }: Readonly<RiderParcelsPa
   ]);
 
   return (
-    <>
-      <PageHeader
-        title="Assigned Parcels"
-        description="Parcels currently assigned to your rider account."
-      />
+    <div data-testid="page-dynamic-content">
       <RealtimeRiderParcelCardList
         pageResult={pageResult}
         filters={filters}
         townships={townships}
       />
-    </>
+    </div>
   );
 }
 
@@ -44,8 +40,14 @@ export default function RiderParcelsPage(
   props: Readonly<Parameters<typeof RiderParcelsPageContent>[0]>,
 ) {
   return (
-    <Suspense fallback={<PageLoading />}>
-      <RiderParcelsPageContent {...props} />
-    </Suspense>
+    <>
+      <PageHeader
+        title="Assigned Parcels"
+        description="Parcels currently assigned to your rider account."
+      />
+      <Suspense fallback={<PageLoading />}>
+        <RiderParcelsPageContent {...props} />
+      </Suspense>
+    </>
   );
 }

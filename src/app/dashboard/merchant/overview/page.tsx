@@ -27,16 +27,12 @@ async function MerchantOverviewPageContent({ searchParams }: Readonly<MerchantOv
   ]);
 
   return (
-    <>
-      <PageHeader
-        title="Overview"
-        description="Track COD performance, paid remittances, and settled settlement history for your merchant account."
-      />
+    <div data-testid="page-dynamic-content">
       <div className="space-y-6">
         <RealtimeMerchantOverviewSummaryCards summary={summary} />
         <MerchantSettlementHistoryTable history={history} filters={filters} />
       </div>
-    </>
+    </div>
   );
 }
 
@@ -44,8 +40,14 @@ export default function MerchantOverviewPage(
   props: Readonly<Parameters<typeof MerchantOverviewPageContent>[0]>,
 ) {
   return (
-    <Suspense fallback={<PageLoading />}>
-      <MerchantOverviewPageContent {...props} />
-    </Suspense>
+    <>
+      <PageHeader
+        title="Overview"
+        description="Track COD performance, paid remittances, and settled settlement history for your merchant account."
+      />
+      <Suspense fallback={<PageLoading />}>
+        <MerchantOverviewPageContent {...props} />
+      </Suspense>
+    </>
   );
 }

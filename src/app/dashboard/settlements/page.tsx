@@ -19,13 +19,9 @@ async function SettlementsPageContent({ searchParams }: Readonly<SettlementsPage
   ]);
 
   return (
-    <>
-      <PageHeader
-        title="Merchant Settlements"
-        description="Review generated settlements and resolve pending payouts after bank transfer confirmation."
-      />
+    <div data-testid="page-dynamic-content">
       <SettlementsTable pageResult={pageResult} filters={filters} actorRole={actor.role} />
-    </>
+    </div>
   );
 }
 
@@ -33,8 +29,14 @@ export default function SettlementsPage(
   props: Readonly<Parameters<typeof SettlementsPageContent>[0]>,
 ) {
   return (
-    <Suspense fallback={<PageLoading />}>
-      <SettlementsPageContent {...props} />
-    </Suspense>
+    <>
+      <PageHeader
+        title="Merchant Settlements"
+        description="Review generated settlements and resolve pending payouts after bank transfer confirmation."
+      />
+      <Suspense fallback={<PageLoading />}>
+        <SettlementsPageContent {...props} />
+      </Suspense>
+    </>
   );
 }

@@ -32,24 +32,20 @@ async function UsersPageContent({ searchParams }: Readonly<UsersPageProps>) {
   );
 
   return (
-    <>
-      <PageHeader
-        title="Users"
-        description="Admin-created user accounts for super admins, office admins, merchants, and riders."
-        actions={
-          <Sheet>
-            <Button asChild>
-              <SheetTrigger>
-                <Plus className="size-4" />
-                Create User
-              </SheetTrigger>
-            </Button>
-            <SheetContent className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:w-[500px] data-[side=right]:sm:max-w-[500px]">
-              <CreateUserForm townships={townships} />
-            </SheetContent>
-          </Sheet>
-        }
-      />
+    <div data-testid="page-dynamic-content">
+      <div className="mb-4 flex justify-end" data-testid="page-header-actions">
+        <Sheet>
+          <Button asChild>
+            <SheetTrigger>
+              <Plus className="size-4" />
+              Create User
+            </SheetTrigger>
+          </Button>
+          <SheetContent className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:w-[500px] data-[side=right]:sm:max-w-[500px]">
+            <CreateUserForm townships={townships} />
+          </SheetContent>
+        </Sheet>
+      </div>
 
       <UserListTable
         pageResult={pageResult}
@@ -58,14 +54,20 @@ async function UsersPageContent({ searchParams }: Readonly<UsersPageProps>) {
         townships={townships}
         currentUserPhoneNumber={currentUser?.phoneNumber ?? null}
       />
-    </>
+    </div>
   );
 }
 
 export default function UsersPage(props: Readonly<Parameters<typeof UsersPageContent>[0]>) {
   return (
-    <Suspense fallback={<PageLoading />}>
-      <UsersPageContent {...props} />
-    </Suspense>
+    <>
+      <PageHeader
+        title="Users"
+        description="Admin-created user accounts for super admins, office admins, merchants, and riders."
+      />
+      <Suspense fallback={<PageLoading />}>
+        <UsersPageContent {...props} />
+      </Suspense>
+    </>
   );
 }

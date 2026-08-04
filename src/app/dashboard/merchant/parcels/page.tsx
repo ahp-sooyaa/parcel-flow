@@ -22,13 +22,9 @@ async function MerchantParcelsPageContent({ searchParams }: Readonly<MerchantPar
   const parcels = await listMerchantParcelsPageForUser(currentUser.id, filters);
 
   return (
-    <>
-      <PageHeader
-        title="My Parcels"
-        description="Search and track parcel delivery progress for your merchant account."
-      />
+    <div data-testid="page-dynamic-content">
       <RealtimeMerchantParcelBrowser result={parcels} filters={filters} />
-    </>
+    </div>
   );
 }
 
@@ -36,8 +32,14 @@ export default function MerchantParcelsPage(
   props: Readonly<Parameters<typeof MerchantParcelsPageContent>[0]>,
 ) {
   return (
-    <Suspense fallback={<PageLoading />}>
-      <MerchantParcelsPageContent {...props} />
-    </Suspense>
+    <>
+      <PageHeader
+        title="My Parcels"
+        description="Search and track parcel delivery progress for your merchant account."
+      />
+      <Suspense fallback={<PageLoading />}>
+        <MerchantParcelsPageContent {...props} />
+      </Suspense>
+    </>
   );
 }

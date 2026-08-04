@@ -18,6 +18,7 @@
     "test:coverage": "bun run test:db:migrate && bun test --coverage --preload ./tests/setup/bun-test.ts tests/unit tests/components && bun --env-file=.env.test test --coverage --preload ./tests/setup/bun-test.ts tests/integration",
     "test:e2e:seed": "bun --env-file=.env.test tests/e2e/seed.ts",
     "test:e2e": "bun run test:db:migrate && bun run test:e2e:seed && playwright test",
+    "test:e2e:instant": "bun run test:db:migrate && bun run test:e2e:seed && playwright test -c playwright.instant.config.ts",
     "test:all": "bun run test:unit && bun run test:integration && bun run test:e2e",
     "perf:seed": "bun run test:db:migrate && bun --env-file=.env.test tests/performance/seed.ts",
     "perf:dal": "bun run perf:seed && bun --env-file=.env.test tests/performance/dal.bench.ts",
@@ -59,6 +60,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@next/playwright": "16.3.0",
     "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4.3.0",
     "@testing-library/jest-dom": "^6.9.1",

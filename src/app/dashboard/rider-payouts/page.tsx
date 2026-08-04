@@ -23,14 +23,12 @@ async function RiderPayoutsPageContent({ searchParams }: Readonly<RiderPayoutsPa
   ]);
 
   return (
-    <>
-      <PageHeader
-        title="Rider Payouts"
-        description="Create traceable rider payouts from pending delivery and merchant-return ways."
-        actions={canCreateRiderPayoutDraft(actor.role) ? <RiderPayoutCreateAction /> : undefined}
-      />
+    <div data-testid="page-dynamic-content">
+      <div className="mb-4 flex justify-end" data-testid="page-header-actions">
+        {canCreateRiderPayoutDraft(actor.role) ? <RiderPayoutCreateAction /> : undefined}
+      </div>
       <RiderPayoutWorkspace pageResult={pageResult} filters={filters} actorRole={actor.role} />
-    </>
+    </div>
   );
 }
 
@@ -38,8 +36,14 @@ export default function RiderPayoutsPage(
   props: Readonly<Parameters<typeof RiderPayoutsPageContent>[0]>,
 ) {
   return (
-    <Suspense fallback={<PageLoading />}>
-      <RiderPayoutsPageContent {...props} />
-    </Suspense>
+    <>
+      <PageHeader
+        title="Rider Payouts"
+        description="Create traceable rider payouts from pending delivery and merchant-return ways."
+      />
+      <Suspense fallback={<PageLoading />}>
+        <RiderPayoutsPageContent {...props} />
+      </Suspense>
+    </>
   );
 }

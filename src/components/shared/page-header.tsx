@@ -12,6 +12,7 @@ type PageHeaderProps = {
 export function PageHeader({ title, description, actions, className }: Readonly<PageHeaderProps>) {
   return (
     <div
+      data-testid="page-shell-marker"
       className={cn(
         "mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between",
         className,

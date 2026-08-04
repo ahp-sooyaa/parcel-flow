@@ -16,11 +16,7 @@ async function SettingsPageContent() {
   const bankAccounts = await listBankAccountsForUser(settingsUser.id);
 
   return (
-    <>
-      <PageHeader
-        title="Settings"
-        description="Account details, bank accounts, delivery pricing, and office-level configuration."
-      />
+    <div data-testid="page-dynamic-content">
       <Tabs defaultValue="account" className="gap-4">
         <TabsList className="rounded-lg border border-border bg-[#f3f2ef] p-1">
           <TabsTrigger
@@ -58,7 +54,7 @@ async function SettingsPageContent() {
           </Card>
         </TabsContent>
       </Tabs>
-    </>
+    </div>
   );
 }
 
@@ -84,8 +80,14 @@ function buildSettingsUser(
 
 export default function SettingsPage() {
   return (
-    <Suspense fallback={<PageLoading />}>
-      <SettingsPageContent />
-    </Suspense>
+    <>
+      <PageHeader
+        title="Settings"
+        description="Account details, bank accounts, delivery pricing, and office-level configuration."
+      />
+      <Suspense fallback={<PageLoading />}>
+        <SettingsPageContent />
+      </Suspense>
+    </>
   );
 }

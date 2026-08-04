@@ -1,9 +1,8 @@
 import { Suspense } from "react";
-
-import { PageLoading } from "@/components/shared/page-loading";
 import { Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
+import { PageLoading } from "@/components/shared/page-loading";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
@@ -15,8 +14,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { listRiders } from "@/features/riders/server/dal";
-import { CreateUserForm } from "@/features/users/components/create-user-form";
 import { listTownships } from "@/features/townships/server/dal";
+import { CreateUserForm } from "@/features/users/components/create-user-form";
 import { isAdminRole } from "@/lib/domain";
 import { formatMoney } from "@/lib/format";
 import { requireCurrentUser } from "@/lib/session";
@@ -31,29 +30,25 @@ async function RidersPageContent() {
   const [riders, townships] = await Promise.all([listRiders(), listTownships()]);
 
   return (
-    <>
-      <PageHeader
-        title="Riders"
-        description="Rider service areas, assigned parcels, and expected versus actual collection."
-        actions={
-          <Sheet>
-            <Button asChild>
-              <SheetTrigger>
-                <Plus className="size-4" />
-                Add Rider
-              </SheetTrigger>
-            </Button>
-            <SheetContent className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:w-[500px] data-[side=right]:sm:max-w-[500px]">
-              <CreateUserForm
-                townships={townships}
-                defaultRole="rider"
-                roleOptions={["rider"]}
-                title="Add Rider"
-              />
-            </SheetContent>
-          </Sheet>
-        }
-      />
+    <div data-testid="page-dynamic-content">
+      <div className="mb-4 flex justify-end" data-testid="page-header-actions">
+        <Sheet>
+          <Button asChild>
+            <SheetTrigger>
+              <Plus className="size-4" />
+              Add Rider
+            </SheetTrigger>
+          </Button>
+          <SheetContent className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:w-[500px] data-[side=right]:sm:max-w-[500px]">
+            <CreateUserForm
+              townships={townships}
+              defaultRole="rider"
+              roleOptions={["rider"]}
+              title="Add Rider"
+            />
+          </SheetContent>
+        </Sheet>
+      </div>
       <div className="rounded-lg border bg-white">
         <Table>
           <TableHeader>
@@ -92,14 +87,20 @@ async function RidersPageContent() {
           </TableBody>
         </Table>
       </div>
-    </>
+    </div>
   );
 }
 
 export default function RidersPage() {
   return (
-    <Suspense fallback={<PageLoading />}>
-      <RidersPageContent />
-    </Suspense>
+    <>
+      <PageHeader
+        title="Riders"
+        description="Rider service areas, assigned parcels, and expected versus actual collection."
+      />
+      <Suspense fallback={<PageLoading />}>
+        <RidersPageContent />
+      </Suspense>
+    </>
   );
 }
