@@ -10,21 +10,21 @@ Parcel Flow is a Next.js-based internal delivery management system. The stack is
 
 ## 2. Technical Stack Summary
 
-| Area | Tool / Service | Purpose |
-|---|---|---|
-| Hosting / Deployment | Railway | Deploy and host the web application |
-| Database Infrastructure | Supabase | PostgreSQL database and database hosting infrastructure |
-| Authentication | Better Auth | Username + password authentication and session management |
-| Frontend Framework | Next.js | Full-stack React framework |
-| UI Components | shadcn/ui | Reusable UI components |
-| Form State | React Hook Form | Controlled complex forms with server actions |
-| Styling | Tailwind CSS | Utility-first CSS styling |
-| ORM / Database Access | Drizzle ORM | Type-safe database schema and queries |
-| Validation | Zod | Runtime validation and form/schema validation |
-| Object Storage | Cloudflare R2 | Store parcel images and uploaded files |
-| Linting / Formatting | OXC | Fast linting and formatting |
-| Code Quality | SonarQube | Code quality and maintainability checks |
-| Dependency Security | Socket Security | Dependency and supply chain security scanning |
+| Area                    | Tool / Service  | Purpose                                                   |
+| ----------------------- | --------------- | --------------------------------------------------------- |
+| Hosting / Deployment    | Railway         | Deploy and host the web application                       |
+| Database Infrastructure | Supabase        | PostgreSQL database and database hosting infrastructure   |
+| Authentication          | Better Auth     | Username + password authentication and session management |
+| Frontend Framework      | Next.js         | Full-stack React framework                                |
+| UI Components           | shadcn/ui       | Reusable UI components                                    |
+| Form State              | React Hook Form | Controlled complex forms with server actions              |
+| Styling                 | Tailwind CSS    | Utility-first CSS styling                                 |
+| ORM / Database Access   | Drizzle ORM     | Type-safe database schema and queries                     |
+| Validation              | Zod             | Runtime validation and form/schema validation             |
+| Object Storage          | Cloudflare R2   | Store parcel images and uploaded files                    |
+| Linting / Formatting    | OXC             | Fast linting and formatting                               |
+| Code Quality            | SonarQube       | Code quality and maintainability checks                   |
+| Dependency Security     | Socket Security | Dependency and supply chain security scanning             |
 
 ---
 
@@ -89,6 +89,7 @@ Supabase is used for:
 - Realtime publication is intentionally limited to `parcels` for the current scope.
 - `public.parcels` must remain in the `supabase_realtime` publication.
 - `public.parcels` RLS must remain enabled so authenticated realtime access stays aligned with role scope.
+- On the Supabase free tier, inactive projects pause after 7 days. A scheduled GitHub Action (`.github/workflows/keep-alive.yml`) pings `/api/health` every 3 days to run a lightweight DB query and keep the project awake. Configure the `HEALTH_CHECK_URL` repository secret to the production app base URL (for example `https://your-app.up.railway.app`).
 
 ---
 
@@ -471,21 +472,21 @@ Socket Security is used for:
 
 ## 15. Service Responsibilities
 
-| Responsibility | Tool / Service |
-|---|---|
-| Web application framework | Next.js |
-| Deployment | Railway |
-| Database | Supabase PostgreSQL |
-| Authentication | Better Auth |
-| UI components | shadcn/ui |
-| Form state | React Hook Form |
-| Styling | Tailwind CSS |
-| ORM and migrations | Drizzle |
-| Input validation | Zod |
-| Image/file storage | Cloudflare R2 |
-| Linting and formatting | OXC |
-| Code quality | SonarQube |
-| Dependency security | Socket Security |
+| Responsibility            | Tool / Service      |
+| ------------------------- | ------------------- |
+| Web application framework | Next.js             |
+| Deployment                | Railway             |
+| Database                  | Supabase PostgreSQL |
+| Authentication            | Better Auth         |
+| UI components             | shadcn/ui           |
+| Form state                | React Hook Form     |
+| Styling                   | Tailwind CSS        |
+| ORM and migrations        | Drizzle             |
+| Input validation          | Zod                 |
+| Image/file storage        | Cloudflare R2       |
+| Linting and formatting    | OXC                 |
+| Code quality              | SonarQube           |
+| Dependency security       | Socket Security     |
 
 ---
 
