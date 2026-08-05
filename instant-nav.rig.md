@@ -1,4 +1,4 @@
-# instant-nav rig: parcel-flow-v2
+# instant-nav rig: parcel-flow
 
 - BUILD: `EXPOSE_TESTING_API=1 bun --env-file=.env.test next build && EXPOSE_TESTING_API=1 bun --env-file=.env.test next start --hostname 127.0.0.1 --port 3100` (local production build; never `next dev` for instant() verdicts)
 - EXPOSE: `process.env.EXPOSE_TESTING_API === "1"` wired to `experimental.exposeTestingApiInProductionBuild`
