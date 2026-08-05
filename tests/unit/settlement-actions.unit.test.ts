@@ -45,6 +45,8 @@ void mock.module("@/features/settlements/server/upload", () => ({
 }));
 
 void mock.module("next/cache", () => ({
+  cacheLife: () => undefined,
+  cacheTag: () => undefined,
   revalidatePath: revalidatePathMock,
   updateTag: updateTagMock,
   revalidateTag: revalidateTagMock,

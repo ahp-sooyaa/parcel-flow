@@ -62,6 +62,8 @@ void mock.module("next/headers", () => ({
 }));
 
 void mock.module("next/cache", () => ({
+  cacheLife: () => undefined,
+  cacheTag: () => undefined,
   revalidatePath: revalidatePathMock,
   updateTag: updateTagMock,
   revalidateTag: revalidateTagMock,

@@ -5,6 +5,23 @@ import { Window } from "happy-dom";
 
 expect.extend(matchers);
 
+// Next.js Cache Components APIs require a Next request/work-unit store.
+// Bun unit/integration tests call cached DAL/session helpers directly, so
+// provide no-ops that keep business logic testable without the runtime.
+function mockNextCacheModule() {
+  void mock.module("next/cache", () => ({
+    cacheLife: () => undefined,
+    cacheTag: () => undefined,
+    revalidatePath: () => undefined,
+    revalidateTag: () => undefined,
+    updateTag: () => undefined,
+    unstable_cache: <T extends (...args: never[]) => unknown>(fn: T) => fn,
+    unstable_noStore: () => undefined,
+  }));
+}
+
+mockNextCacheModule();
+
 const window = new Window({
   url: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
 });

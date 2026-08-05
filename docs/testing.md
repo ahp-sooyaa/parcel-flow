@@ -15,12 +15,25 @@ bun run test:all
 
 `test` is the fast local command and runs unit/component tests only. Integration and E2E tests load `.env.test` for the local database-backed flows.
 
+## Bun harness notes (Next.js Cache Components)
+
+App reads under `cacheComponents` use `"use cache"` plus `cacheLife` / `cacheTag` from `next/cache`. Bun unit and integration tests call those helpers outside a Next request store, so [tests/setup/bun-test.ts](../tests/setup/bun-test.ts) registers a global no-op `next/cache` mock (`cacheLife`, `cacheTag`, `revalidatePath`, `revalidateTag`, `updateTag`, and related exports).
+
+Action unit tests that assert revalidation still provide their own `next/cache` mocks with spy functions; those override the global no-ops for that file.
+
+Keep `react` and `react-dom` on the same resolved version (see `overrides` in `package.json`). Mismatched copies break component tests with “Invalid hook call” when `@base-ui/react` and Testing Library resolve different React instances.
+
+## Integration cleanup
+
+[tests/fixtures/cleanup.ts](../tests/fixtures/cleanup.ts) deletes `rider_service_townships` by `townshipId` before deleting townships, in addition to clearing rows by `riderId`. That avoids foreign-key failures when a test tracks township IDs without also listing every linked rider.
+
 ## First-time Playwright setup
 
 ```bash
 bunx playwright install chromium
 ```
 
+After dependency reinstalls that bump Playwright, re-run the install command so Chromium matches the pinned Playwright version.
 ## Integration Test Database
 
 Database-backed tests use `DATABASE_URL` from `.env.test`. The database name must contain `test` or `ci`; helpers refuse to run against other database names to avoid mutating development or production data.
@@ -61,7 +74,9 @@ E2E coverage is not included in `test:coverage`. Playwright coverage should be c
 
 ## E2E Seed Users
 
-Playwright loads `.env.test`, starts the Next.js app with Bun, and uses `PLAYWRIGHT_PORT` or port `3100` by default.
+Playwright loads `.env.test`, builds and starts the Next.js app in production mode (`next build` + `next start`), and uses `PLAYWRIGHT_PORT` or port `3100` by default. Production start avoids Turbopack/watchpack `EMFILE` failures that can block `next dev` on constrained macOS file-descriptor limits.
+
+Instant-navigation coverage lives in `playwright.instant.config.ts` (`bun run test:e2e:instant`) and is not part of the default `test:e2e` project list.
 
 Playwright tests need seeded users because they test the real login page in a browser. Seed deterministic users and baseline domain records with:
 
@@ -126,7 +141,15 @@ The `add-rider-payouts` change must add focused unit, component, and integration
 - payout eligibility, draft creation, stale selection rejection, cancellation, settlement, and authorization;
 - rider payout table and right-side create-sheet item status behavior.
 
-R2 upload integration and full browser coverage for settlement and payout completion remain outside the current regression baseline until their dedicated flows add those tests.
+R2 upload integration for delivery proof and settlement receipts is covered by the Playwright money-loop suite (`tests/e2e/money-loop.e2e.test.ts`, project `chromium-money-loop`). It runs as part of `bun run test:e2e` and needs working Cloudflare R2 credentials in `.env.test` (`CLOUDFLARE_R2_ACCOUNT_ID`, `CLOUDFLARE_R2_ACCESS_KEY_ID`, `CLOUDFLARE_R2_SECRET_ACCESS_KEY`, `CLOUDFLARE_R2_BUCKET_NAME`).
+
+It walks create → assign → rider deliver → office handover → merchant settlement resolve → rider payout settle.
+
+```bash
+bunx playwright test --project=chromium-money-loop
+```
+
+Interactive verification against local `next dev` + `.env.development` can use next-dev-loop (`/_next/mcp` + `agent-browser`) with the same steps.
 
 ## Performance benchmarking
 

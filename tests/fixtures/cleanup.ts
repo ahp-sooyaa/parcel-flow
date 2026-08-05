@@ -66,6 +66,9 @@ export async function cleanupTestRecords(
   }
 
   if (ids.townshipIds?.length) {
+    await db
+      .delete(riderServiceTownships)
+      .where(inArray(riderServiceTownships.townshipId, ids.townshipIds));
     await db.delete(townships).where(inArray(townships.id, ids.townshipIds));
   }
 

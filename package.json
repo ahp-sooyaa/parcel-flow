@@ -1,6 +1,6 @@
 {
   "name": "parcel-flow-v2",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -51,9 +51,9 @@
     "next": "16.3.0",
     "next-themes": "^0.4.6",
     "postgres": "^3.4.9",
-    "react": "19.2.8",
+    "react": "19.2.6",
     "react-day-picker": "^10.0.1",
-    "react-dom": "19.2.8",
+    "react-dom": "19.2.6",
     "react-hook-form": "^7.76.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
@@ -85,7 +85,9 @@
   "overrides": {
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "next": "16.3.0"
+    "next": "16.3.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
   },
   "packageManager": "bun@1.3.9"
 }

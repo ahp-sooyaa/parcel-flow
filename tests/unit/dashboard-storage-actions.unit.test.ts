@@ -45,6 +45,8 @@ void mock.module("@/features/dashboard/server/dal", () => ({
 }));
 
 void mock.module("next/cache", () => ({
+  cacheLife: () => undefined,
+  cacheTag: () => undefined,
   revalidatePath: revalidatePathMock,
   updateTag: updateTagMock,
   revalidateTag: revalidateTagMock,
