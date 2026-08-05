@@ -129,7 +129,7 @@ Parcel correction coverage includes:
 - blocking corrections that would mutate reserved or settled financial items;
 - correction audit history and admin-only correction UI.
 
-The `add-rider-payouts` change must add focused unit, component, and integration coverage for:
+Focused unit, component, and integration coverage includes rider payout and rider-way behavior:
 
 - one `delivery_attempt` way when an assigned rider starts delivery;
 - preserving that way after failure, `postpone`, or `canceled_returned`;
