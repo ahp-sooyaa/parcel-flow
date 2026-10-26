@@ -79,7 +79,12 @@ const navItems = [
 
 export function AppNav({ className, role }: Readonly<{ className?: string; role: UserRole }>) {
   return (
-    <aside className={cn("hidden w-64 shrink-0 border-r bg-[#fafaf8] lg:block", className)}>
+    <aside
+      className={cn(
+        "hidden w-64 shrink-0 self-start border-r bg-[#fafaf8] lg:sticky lg:top-0 lg:block lg:h-svh lg:overflow-y-auto",
+        className,
+      )}
+    >
       <AppNavContent role={role} />
     </aside>
   );

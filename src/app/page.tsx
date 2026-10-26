@@ -13,7 +13,7 @@ const mono = JetBrains_Mono({
 });
 
 const GITHUB_URL = "https://github.com/ahp-sooyaa/parcel-flow";
-const PORTFOLIO_URL = "https://aunghtetpaing.netlify.app";
+const PORTFOLIO_URL = "https://aunghtetpaing.apaing894.workers.dev/";
 const ACCENT = "#c9b4fa";
 const roleCtaClassName =
   "flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#1b1938] text-[15px] font-semibold text-white transition-colors hover:bg-[#0e0c1f]";
