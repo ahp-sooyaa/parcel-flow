@@ -2,8 +2,9 @@ name: Demo Reset
 
 # Resets the public demo to fresh seed data every night at 00:00 Yangon time
 # (17:30 UTC). The app does the work; this job only calls its reset route, so
-# database and R2 credentials stay on Railway. The daily database write also
-# keeps the free Supabase projects from pausing.
+# database and R2 credentials stay on Railway. The route answers 202 at once
+# and finishes the reset in the background (it takes minutes across regions).
+# The daily database write also keeps the free Supabase projects from pausing.
 on:
   schedule:
     - cron: "30 17 * * *"
@@ -49,7 +50,7 @@ jobs:
             echo
 
             case "$status" in
-              200) exit 0 ;;
+              200|202) exit 0 ;;
               401|404|409) exit 1 ;;
             esac
 
