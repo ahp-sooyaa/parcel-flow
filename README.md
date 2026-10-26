@@ -60,7 +60,9 @@ Setting `NEXT_PUBLIC_DEMO_MODE=1` turns a deployment into the public demo:
 - Account changes (passwords, users, townships) are blocked on the server for everyone except the super admin, and Better Auth's HTTP endpoints are limited to sign-in, sign-out and session reads.
 - Uploads are off; a sample delivery photo or receipt is attached instead.
 - Mutations, logins and realtime streams are rate limited or capped.
-- `POST /api/demo/reset` (with `Authorization: Bearer $DEMO_RESET_TOKEN`) wipes everything except super admins and reseeds about 180 parcels with a month of history. The [Demo Reset workflow](.github/workflows/demo-reset.yml) calls it nightly. The reset refuses to run if it finds accounts the seed did not create.
+- `POST /api/demo/reset` (with `Authorization: Bearer $DEMO_RESET_TOKEN`) wipes everything except super admins and loads a small demo data set: 20 parcels covering every status, plus settlements and rider payouts spread over the last three weeks. The [Demo Reset workflow](.github/workflows/demo-reset.yml) calls it nightly. The reset refuses to run if it finds accounts the demo data did not create.
+
+The demo data is a committed snapshot ([src/features/demo/data/snapshot.json](src/features/demo/data/snapshot.json)). `bun run demo:snapshot` builds it by running the seed through the app's own data layer against the local test database, then saving the rows. The reset bulk-loads that file in one transaction and shifts every date so the newest records land on today. That takes a few dozen queries instead of thousands, so it stays fast when the database is in another region. Regenerate the snapshot after schema or seed changes.
 
 Run the same reset from a shell with `bun run db:reset:demo` (add `--force` the first time on a database that has other accounts).
 

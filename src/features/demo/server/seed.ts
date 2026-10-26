@@ -47,14 +47,10 @@ const townshipSeeds = [
   { name: "Sanchaung", baseFee: 2_500 },
   { name: "Bahan", baseFee: 2_500 },
   { name: "Yankin", baseFee: 2_500 },
-  { name: "Tamwe", baseFee: 2_500 },
   { name: "Mayangone", baseFee: 3_000 },
   { name: "Hlaing", baseFee: 3_000 },
   { name: "Thingangyun", baseFee: 3_000 },
-  { name: "South Okkalapa", baseFee: 3_000 },
   { name: "Insein", baseFee: 3_500 },
-  { name: "North Dagon", baseFee: 3_500 },
-  { name: "Hlaing Thar Yar", baseFee: 4_000 },
 ] as const;
 
 const merchantSeeds = [
@@ -72,13 +68,6 @@ const merchantSeeds = [
     address: "No. 12, 35th Street, Kyauktada",
     bankName: "AYA Bank",
   },
-  {
-    account: { username: "yadanar-gadgets", name: "Zaw Min Oo", password: "" },
-    shopName: "Yadanar Gadgets",
-    phoneNumber: "09250000103",
-    address: "No. 8, Anawrahta Road, Latha",
-    bankName: "CB Bank",
-  },
 ] as const;
 
 const riderSeeds = [
@@ -90,14 +79,6 @@ const riderSeeds = [
   {
     account: { username: "rider-soe-moe", name: "Soe Moe Naing", password: "" },
     phoneNumber: "09250000203",
-  },
-  {
-    account: { username: "rider-htet-aung", name: "Htet Aung Lin", password: "" },
-    phoneNumber: "09250000204",
-  },
-  {
-    account: { username: "rider-nay-lin", name: "Nay Lin Tun", password: "" },
-    phoneNumber: "09250000205",
   },
 ] as const;
 
@@ -172,22 +153,23 @@ type SeedPlan =
   | "canceled_returned"
   | "returned_to_merchant";
 
-// Roughly 180 parcels; older parcels are further along the flow.
+// A small set (20 parcels) that still shows every status; older parcels are
+// further along the flow.
 const planCounts: Array<[SeedPlan, number]> = [
-  ["delivered_handed_over", 78],
-  ["returned_to_merchant", 10],
-  ["canceled_returned", 8],
-  ["postpone", 9],
-  ["delivered", 16],
-  ["on_the_way_failed", 6],
-  ["on_the_way", 18],
-  ["assigned", 15],
-  ["unassigned", 20],
+  ["delivered_handed_over", 8],
+  ["returned_to_merchant", 1],
+  ["canceled_returned", 1],
+  ["postpone", 1],
+  ["delivered", 2],
+  ["on_the_way_failed", 1],
+  ["on_the_way", 3],
+  ["assigned", 1],
+  ["unassigned", 2],
 ];
 
 const maxPlanDaysAgo: Record<SeedPlan, number> = {
-  delivered_handed_over: 30,
-  returned_to_merchant: 20,
+  delivered_handed_over: 21,
+  returned_to_merchant: 14,
   canceled_returned: 10,
   postpone: 6,
   delivered: 3,
@@ -198,14 +180,6 @@ const maxPlanDaysAgo: Record<SeedPlan, number> = {
 };
 
 type SeededUser = { id: string; username: string };
-
-export function getSeededDemoUsernames() {
-  return new Set<string>([
-    DEMO_ACCOUNTS.admin.username,
-    ...merchantSeeds.map((merchant) => merchant.account.username),
-    ...riderSeeds.map((rider) => rider.account.username),
-  ]);
-}
 
 export type DemoSeedSummary = {
   parcels: number;
@@ -296,10 +270,9 @@ export async function seedDemoData(options: { now?: Date; seed?: string } = {}) 
       sql`select id from riders where user_id = ${user.id} limit 1`,
     );
     // Every rider covers a cluster of neighbouring townships, with some overlap.
+    // The demo rider covers every township; the others cover a few each.
     const servedTownships = townshipRows.filter(
-      (_, townshipIndex) =>
-        Math.floor(townshipIndex / 2) % riderSeeds.length === index ||
-        townshipIndex % riderSeeds.length === index,
+      (_, townshipIndex) => index === 0 || townshipIndex % riderSeeds.length === index,
     );
     await db
       .insert(riderServiceTownships)
@@ -324,7 +297,7 @@ export async function seedDemoData(options: { now?: Date; seed?: string } = {}) 
     }
   }
 
-  // The demo rider's queue should always have work in it.
+  // Most parcels go to the demo rider so their queue always has work in it.
   const demoRider = riders[0];
   // Create parcels oldest first so insertion order matches the timeline the
   // settlement and payout slices are cut from.
@@ -352,7 +325,7 @@ export async function seedDemoData(options: { now?: Date; seed?: string } = {}) 
       receiverAddress: `No. ${between(1, 250)}, ${pick(streets)}, ${township.name}`,
       specialNotes: random() < 0.2 ? pick(specialNotes) : undefined,
       desiredCreatedAt: new Date(now.getTime() - entry.daysAgo * DAY_MS - between(0, 8) * HOUR_MS),
-      rider: index % 3 === 0 && candidates.includes(demoRider) ? demoRider : pick(candidates),
+      rider: index % 3 !== 2 && candidates.includes(demoRider) ? demoRider : pick(candidates),
       failureNote: pick(failureNotes),
     };
   });
@@ -579,9 +552,10 @@ async function seedCashHandovers(input: {
   }
 }
 
-async function listEligibleSettlementItemIds(merchantId: string) {
+/** Eligible settlement items, grouped by parcel, oldest parcel first. */
+async function listEligibleSettlementItemsByParcel(merchantId: string) {
   const rows = await db
-    .select({ id: financialItems.id })
+    .select({ id: financialItems.id, parcelId: financialItems.parcelId })
     .from(financialItems)
     .leftJoin(parcels, eq(parcels.id, financialItems.parcelId))
     .where(
@@ -596,8 +570,14 @@ async function listEligibleSettlementItemIds(merchantId: string) {
       ),
     )
     .orderBy(parcels.createdAt, financialItems.id);
+  const itemIdsByParcel = new Map<string, string[]>();
 
-  return rows.map((row) => row.id);
+  for (const row of rows) {
+    const key = row.parcelId ?? row.id;
+    itemIdsByParcel.set(key, [...(itemIdsByParcel.get(key) ?? []), row.id]);
+  }
+
+  return [...itemIdsByParcel.values()];
 }
 
 async function seedMerchantSettlements(input: {
@@ -607,12 +587,14 @@ async function seedMerchantSettlements(input: {
   let count = 0;
 
   for (const merchant of input.merchants) {
-    const itemIds = await listEligibleSettlementItemIds(merchant.id);
+    const parcelItems = await listEligibleSettlementItemsByParcel(merchant.id);
 
-    // Oldest half is paid, the next slice waits for payment, the rest stays
-    // eligible so visitors can create a settlement themselves.
-    const paidSlice = itemIds.slice(0, Math.floor(itemIds.length * 0.5));
-    const pendingSlice = itemIds.slice(paidSlice.length, Math.floor(itemIds.length * 0.75));
+    // Oldest half of the parcels is paid, the next slice waits for payment,
+    // the rest stays eligible so visitors can create a settlement themselves.
+    const paidCount = Math.ceil(parcelItems.length * 0.5);
+    const pendingCount = Math.ceil(parcelItems.length * 0.75) - paidCount;
+    const paidSlice = parcelItems.slice(0, paidCount).flat();
+    const pendingSlice = parcelItems.slice(paidCount, paidCount + pendingCount).flat();
 
     for (const [slice, shouldPay] of [
       [paidSlice, true],

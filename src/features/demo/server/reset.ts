@@ -1,34 +1,28 @@
-import { ne, sql } from "drizzle-orm";
+import { ne } from "drizzle-orm";
 
 import { db } from "@/db";
 import { appUsers } from "@/db/schema";
-import {
-  getSeededDemoUsernames,
-  seedDemoData,
-  type DemoSeedSummary,
-} from "@/features/demo/server/seed";
+import snapshotData from "@/features/demo/data/snapshot.json";
 import { assertDemoResetIsSafe } from "@/features/demo/server/safety";
+import {
+  demoWipeStatements,
+  getSnapshotUsernames,
+  loadDemoSnapshot,
+  parseDemoSnapshot,
+} from "@/features/demo/server/snapshot";
 import { isDemoMode } from "@/lib/demo";
 
-// Same order as src/db/reset-development-data.ts, but super admins survive so
-// the owner's account and password are not reset with the demo data.
-const deleteStatements = [
-  sql`DELETE FROM financial_items`,
-  sql`DELETE FROM parcel_correction_logs`,
-  sql`DELETE FROM parcel_status_logs`,
-  sql`DELETE FROM parcels`,
-  sql`DELETE FROM merchant_settlements`,
-  sql`DELETE FROM rider_payouts`,
-  sql`DELETE FROM rider_service_townships`,
-  sql`DELETE FROM bank_accounts WHERE user_id IN (SELECT id FROM "user" WHERE role <> 'super_admin')`,
-  sql`DELETE FROM merchants`,
-  sql`DELETE FROM riders`,
-  sql`DELETE FROM townships`,
-  sql`DELETE FROM session WHERE user_id IN (SELECT id FROM "user" WHERE role <> 'super_admin')`,
-  sql`DELETE FROM account WHERE user_id IN (SELECT id FROM "user" WHERE role <> 'super_admin')`,
-  sql`DELETE FROM "user" WHERE role <> 'super_admin'`,
-  sql`DELETE FROM verification`,
-];
+export type DemoResetSummary = {
+  parcels: number;
+  settlements: number;
+  riderPayouts: number;
+};
+
+const demoSnapshot = parseDemoSnapshot(snapshotData);
+
+export function getSeededDemoUsernames() {
+  return getSnapshotUsernames(demoSnapshot);
+}
 
 export async function assertSafeToResetDemo(options: { force?: boolean } = {}) {
   const demoMode = isDemoMode();
@@ -50,16 +44,26 @@ export async function assertSafeToResetDemo(options: { force?: boolean } = {}) {
   });
 }
 
+/**
+ * Replaces all demo data with the committed snapshot in a single transaction,
+ * so visitors see either the old data or the fresh data, never a half-built mix.
+ */
 export async function resetDemoData(
   options: { force?: boolean; now?: Date } = {},
-): Promise<DemoSeedSummary> {
+): Promise<DemoResetSummary> {
   await assertSafeToResetDemo(options);
 
   await db.transaction(async (tx) => {
-    for (const statement of deleteStatements) {
+    for (const statement of demoWipeStatements) {
       await tx.execute(statement);
     }
+
+    await loadDemoSnapshot(tx, demoSnapshot, options.now ?? new Date());
   });
 
-  return seedDemoData({ now: options.now });
+  return {
+    parcels: demoSnapshot.tables.parcels.length,
+    settlements: demoSnapshot.tables.merchant_settlements.length,
+    riderPayouts: demoSnapshot.tables.rider_payouts.length,
+  };
 }
