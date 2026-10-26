@@ -6,6 +6,15 @@ import { DEMO_ACCOUNTS, isDemoMode, isDemoRole } from "@/lib/demo";
 import { createRateLimiter, getClientIp } from "@/lib/rate-limit";
 import { getRoleLandingPath } from "@/lib/session";
 
+/**
+ * 303 turns the form POST into a GET. The Location is relative because behind
+ * Railway's proxy `request.url` is the container address (localhost:8080), not
+ * the public host.
+ */
+function redirectTo(path: string) {
+  return new NextResponse(null, { status: 303, headers: { Location: path } });
+}
+
 const demoLoginLimiter = createRateLimiter({ capacity: 10, refillPerMinute: 5 });
 
 // POST only, so link prefetching and crawlers never create sessions.
@@ -36,11 +45,7 @@ export async function POST(request: Request, ctx: RouteContext<"/demo/[role]">) 
       returnHeaders: true,
     });
 
-    // 303 turns the form POST into a GET of the landing page.
-    const response = NextResponse.redirect(
-      new URL(getRoleLandingPath(account.role), request.url),
-      303,
-    );
+    const response = redirectTo(getRoleLandingPath(account.role));
 
     for (const cookie of headers.getSetCookie()) {
       response.headers.append("Set-Cookie", cookie);
@@ -54,6 +59,6 @@ export async function POST(request: Request, ctx: RouteContext<"/demo/[role]">) 
       Sentry.captureException(error);
     });
 
-    return NextResponse.redirect(new URL("/login", request.url), 303);
+    return redirectTo("/login");
   }
 }

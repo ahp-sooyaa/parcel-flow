@@ -39,6 +39,8 @@ import { createSeededRandom } from "@/lib/random";
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 const RIDER_FEE_PER_WAY = 1_000;
+// Matches the production database pool size in src/db/index.ts.
+const SEED_CONCURRENCY = 3;
 
 const townshipSeeds = [
   { name: "Kamayut", baseFee: 2_500 },
@@ -324,51 +326,60 @@ export async function seedDemoData(options: { now?: Date; seed?: string } = {}) 
 
   // The demo rider's queue should always have work in it.
   const demoRider = riders[0];
-  const parcelTargets: Array<{ id: string; desiredCreatedAt: Date }> = [];
-
   // Create parcels oldest first so insertion order matches the timeline the
   // settlement and payout slices are cut from.
   planned.sort((left, right) => right.daysAgo - left.daysAgo);
 
-  for (const [index, entry] of planned.entries()) {
+  // Draw every random choice up front, in order, so the data stays
+  // deterministic while the database work below runs in parallel.
+  const parcelPlans = planned.map((entry, index) => {
     const township = pick(townshipRows);
     const merchant = merchants[index % 2 === 0 ? 0 : between(0, merchants.length - 1)];
     const isCod = random() < 0.8;
     const weightKg = pick([0.5, 1, 1.5, 2, 3, 4, 5, 6]);
-    const deliveryFee = calculateDeliveryFee(
-      township.baseFee,
-      weightKg,
-      3,
-      township.extraWeightFee,
-    );
-    const codAmount = isCod ? between(8, 160) * 500 : 0;
+    const candidates = ridersForTownship(township.id);
 
-    const parcel = await createParcel({
-      merchantId: merchant.id,
+    return {
+      entry,
+      township,
+      merchant,
+      isCod,
+      weightKg,
+      deliveryFee: calculateDeliveryFee(township.baseFee, weightKg, 3, township.extraWeightFee),
+      codAmount: isCod ? between(8, 160) * 500 : 0,
       receiverName: `${pick(givenNames)} ${pick(familyNames)}`,
       receiverPhoneNumber: `09${between(400000000, 799999999)}`,
       receiverAddress: `No. ${between(1, 250)}, ${pick(streets)}, ${township.name}`,
       specialNotes: random() < 0.2 ? pick(specialNotes) : undefined,
-      townshipId: township.id,
-      parcelType: isCod ? "cod" : "non_cod",
-      codAmount,
-      deliveryFee,
-      weightKg,
-      isLargeParcel: weightKg >= 6,
+      desiredCreatedAt: new Date(now.getTime() - entry.daysAgo * DAY_MS - between(0, 8) * HOUR_MS),
+      rider: index % 3 === 0 && candidates.includes(demoRider) ? demoRider : pick(candidates),
+      failureNote: pick(failureNotes),
+    };
+  });
+
+  // The database may be an ocean away from the server, so each step costs a
+  // network round trip. Running a few parcels at once keeps the reset short.
+  const parcelTargets = await mapWithConcurrency(parcelPlans, SEED_CONCURRENCY, async (plan) => {
+    const { entry, rider } = plan;
+    const parcel = await createParcel({
+      merchantId: plan.merchant.id,
+      receiverName: plan.receiverName,
+      receiverPhoneNumber: plan.receiverPhoneNumber,
+      receiverAddress: plan.receiverAddress,
+      specialNotes: plan.specialNotes,
+      townshipId: plan.township.id,
+      parcelType: plan.isCod ? "cod" : "non_cod",
+      codAmount: plan.codAmount,
+      deliveryFee: plan.deliveryFee,
+      weightKg: plan.weightKg,
+      isLargeParcel: plan.weightKg >= 6,
       createdBy: officeAdmin.id,
     });
-
-    parcelTargets.push({
-      id: parcel.id,
-      desiredCreatedAt: new Date(now.getTime() - entry.daysAgo * DAY_MS - between(0, 8) * HOUR_MS),
-    });
+    const target = { id: parcel.id, desiredCreatedAt: plan.desiredCreatedAt };
 
     if (entry.plan === "unassigned") {
-      continue;
+      return target;
     }
-
-    const candidates = ridersForTownship(township.id);
-    const rider = index % 3 === 0 && candidates.includes(demoRider) ? demoRider : pick(candidates);
 
     await assignParcelsToRider({
       parcelIds: [parcel.id],
@@ -377,7 +388,7 @@ export async function seedDemoData(options: { now?: Date; seed?: string } = {}) 
     });
 
     if (entry.plan === "assigned") {
-      continue;
+      return target;
     }
 
     await startDeliveryForRiderParcels({
@@ -387,7 +398,7 @@ export async function seedDemoData(options: { now?: Date; seed?: string } = {}) 
     });
 
     if (entry.plan === "on_the_way") {
-      continue;
+      return target;
     }
 
     if (entry.plan === "delivered" || entry.plan === "delivered_handed_over") {
@@ -398,18 +409,18 @@ export async function seedDemoData(options: { now?: Date; seed?: string } = {}) 
         actorRole: "rider",
         createdBy: rider.userId,
       });
-      continue;
+      return target;
     }
 
     await reportDeliveryFailureForRiderParcel({
       parcelId: parcel.id,
-      note: pick(failureNotes),
+      note: plan.failureNote,
       riderUserId: rider.userId,
       actorRole: "rider",
     });
 
     if (entry.plan === "on_the_way_failed") {
-      continue;
+      return target;
     }
 
     await resolveFailedParcelByAdmin({
@@ -433,7 +444,9 @@ export async function seedDemoData(options: { now?: Date; seed?: string } = {}) 
         createdBy: rider.userId,
       });
     }
-  }
+
+    return target;
+  });
 
   await seedRiderCorrections({ riders, actorId: officeAdmin.id });
   await seedCashHandovers({ riders, plannedTargets: parcelTargets, actorId: officeAdmin.id });
@@ -449,6 +462,26 @@ export async function seedDemoData(options: { now?: Date; seed?: string } = {}) 
     settlements: settlementCount,
     riderPayouts: payoutCount,
   } satisfies DemoSeedSummary;
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  run: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = Array.from({ length: items.length });
+  let next = 0;
+
+  async function worker() {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await run(items[index]);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+  return results;
 }
 
 async function createDemoUser(input: {
