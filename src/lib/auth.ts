@@ -6,12 +6,38 @@ import { adminAc, userAc } from "better-auth/plugins/admin/access";
 
 import { db } from "@/db";
 
+function getAuthSecret() {
+  const secret = process.env.BETTER_AUTH_SECRET?.trim();
+
+  if (secret) {
+    return secret;
+  }
+
+  // The fallback is public in the repo, so a running production server must
+  // never sign sessions with it. `next build` imports this module without
+  // runtime secrets, so only enforce it outside the build phase.
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.NEXT_PHASE !== "phase-production-build"
+  ) {
+    throw new Error("BETTER_AUTH_SECRET must be set in production.");
+  }
+
+  return "parcel-flow-development-secret-please-replace-before-production";
+}
+
 export const auth = betterAuth({
   appName: "Parcel Flow",
   baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
-  secret:
-    process.env.BETTER_AUTH_SECRET ??
-    "parcel-flow-development-secret-please-replace-before-production",
+  secret: getAuthSecret(),
+  rateLimit: {
+    enabled: process.env.NODE_ENV === "production",
+    window: 60,
+    max: 100,
+    customRules: {
+      "/sign-in/username": { window: 60, max: 10 },
+    },
+  },
   database: drizzleAdapter(db, {
     provider: "pg",
   }),

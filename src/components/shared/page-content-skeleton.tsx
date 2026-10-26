@@ -22,7 +22,7 @@ export function PageContentSkeleton({
           {Array.from({ length: 8 }, (_, index) => (
             <div
               key={index}
-              className="h-12 border-b border-border/60 animate-pulse bg-muted/40 last:border-b-0"
+              className="h-12 animate-pulse border-b border-border/60 bg-muted/40 last:border-b-0"
             />
           ))}
         </div>

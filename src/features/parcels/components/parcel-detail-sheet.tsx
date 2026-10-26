@@ -13,6 +13,7 @@ import {
   Truck,
 } from "lucide-react";
 
+import { DemoUploadNotice } from "@/components/shared/demo-upload-notice";
 import { FormBanner, inputClassName, textareaClassName } from "@/components/shared/form-fields";
 import type { FormMessageState } from "@/components/shared/form-fields";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -37,6 +38,7 @@ import {
 } from "@/features/parcels/server/actions";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
 import type { RiderOptionDto } from "@/features/riders/server/dto";
+import { isDemoMode } from "@/lib/demo";
 import type { UserRole } from "@/lib/domain";
 import { parcelStatuses, parcelStatusLabels } from "@/lib/domain";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -451,7 +453,11 @@ function CorrectStatusDialog({
             />
           ) : null}
 
-          {targetStatus === "delivered" ? (
+          {targetStatus === "delivered" && isDemoMode() ? (
+            <DemoUploadNotice label="Delivery proof photo" item="delivery photo" />
+          ) : null}
+
+          {targetStatus === "delivered" && !isDemoMode() ? (
             <div className="space-y-3">
               <Label htmlFor={proofInputId}>Delivery proof photo</Label>
               <input

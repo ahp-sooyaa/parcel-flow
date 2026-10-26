@@ -36,6 +36,7 @@ import {
 import { userBanksTag, userProfileTag } from "@/lib/cache-tags";
 import { getFormFieldErrors } from "@/lib/form-action-errors";
 import { canCreateUser, canManageUser } from "@/lib/permissions";
+import { DEMO_RESTRICTED_MESSAGE, isDemoRestricted } from "@/lib/demo";
 import { requireCurrentUser } from "@/lib/session";
 
 type BankAccountActionResult =
@@ -55,6 +56,10 @@ export type AccountSettingsFormState = {
 
 export async function createUserAction(input: unknown) {
   const actor = await requireCurrentUser();
+
+  if (isDemoRestricted(actor)) {
+    return { ok: false as const, message: DEMO_RESTRICTED_MESSAGE };
+  }
   const parseResult = createUserInputSchema.safeParse(input);
 
   if (!parseResult.success) {
@@ -126,6 +131,10 @@ export async function createUserAction(input: unknown) {
 
 export async function updateUserAction(input: unknown) {
   const actor = await requireCurrentUser();
+
+  if (isDemoRestricted(actor)) {
+    return { ok: false as const, message: DEMO_RESTRICTED_MESSAGE };
+  }
   const parseResult = updateUserInputSchema.safeParse(input);
 
   if (!parseResult.success) {
@@ -175,6 +184,10 @@ export async function updateUserAction(input: unknown) {
 
 export async function updateOwnAccountAction(input: unknown) {
   const actor = await requireCurrentUser();
+
+  if (isDemoRestricted(actor)) {
+    return { ok: false as const, message: DEMO_RESTRICTED_MESSAGE };
+  }
   const parseResult = updateOwnAccountInputSchema.safeParse(input);
 
   if (!parseResult.success) {

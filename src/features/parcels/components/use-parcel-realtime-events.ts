@@ -77,7 +77,7 @@ export function useParcelRealtimeEvents({
       return undefined;
     }
 
-    const eventSource = new EventSource(`/api/realtime/parcels?surface=${surface}`);
+    let eventSource: EventSource | null = null;
     const onParcelUpsertMessage = (event: Event) => {
       if (event instanceof MessageEvent && typeof event.data === "string") {
         handleParcelUpsert(event);
@@ -94,12 +94,38 @@ export function useParcelRealtimeEvents({
       }
     };
 
-    eventSource.addEventListener("parcel-upsert", onParcelUpsertMessage);
-    eventSource.addEventListener("parcel-remove", onParcelRemoveEvent);
-    eventSource.addEventListener("stats-invalidated", onStatsInvalidatedEvent);
+    const open = () => {
+      if (eventSource) {
+        return;
+      }
+
+      eventSource = new EventSource(`/api/realtime/parcels?surface=${surface}`);
+      eventSource.addEventListener("parcel-upsert", onParcelUpsertMessage);
+      eventSource.addEventListener("parcel-remove", onParcelRemoveEvent);
+      eventSource.addEventListener("stats-invalidated", onStatsInvalidatedEvent);
+    };
+    const close = () => {
+      eventSource?.close();
+      eventSource = null;
+    };
+    // Background tabs hold a server stream and a Supabase channel for nothing,
+    // so drop the stream while hidden and reopen it when the tab is back.
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        close();
+      } else {
+        open();
+      }
+    };
+
+    if (document.visibilityState !== "hidden") {
+      open();
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
-      eventSource.close();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      close();
     };
   }, [surface]);
 }

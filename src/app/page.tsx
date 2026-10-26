@@ -3,6 +3,7 @@ import Link from "next/link";
 import { JetBrains_Mono } from "next/font/google";
 import { ArrowRight, ArrowUpRight, Check, Clock } from "lucide-react";
 
+import { isDemoMode, type DemoRole } from "@/lib/demo";
 import { cn } from "@/lib/utils";
 
 const mono = JetBrains_Mono({
@@ -14,6 +15,8 @@ const mono = JetBrains_Mono({
 const GITHUB_URL = "https://github.com/ahp-sooyaa/parcel-flow";
 const PORTFOLIO_URL = "https://aunghtetpaing.netlify.app";
 const ACCENT = "#c9b4fa";
+const roleCtaClassName =
+  "flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#1b1938] text-[15px] font-semibold text-white transition-colors hover:bg-[#0e0c1f]";
 
 type Pill = "office" | "way" | "done" | "post";
 
@@ -105,9 +108,17 @@ const steps: {
   },
 ];
 
-const roles = [
+const roles: Array<{
+  mark: string;
+  demoRole: DemoRole;
+  name: string;
+  sub: string;
+  cta: string;
+  items: string[];
+}> = [
   {
     mark: "A",
+    demoRole: "admin",
     name: "Admins",
     sub: "Super admin & office admin",
     cta: "Try as Admin",
@@ -120,6 +131,7 @@ const roles = [
   },
   {
     mark: "M",
+    demoRole: "merchant",
     name: "Merchants",
     sub: "Read-only view of their business",
     cta: "Try as Merchant",
@@ -132,6 +144,7 @@ const roles = [
   },
   {
     mark: "R",
+    demoRole: "rider",
     name: "Riders",
     sub: "Assigned parcels only",
     cta: "Try as Rider",
@@ -301,6 +314,8 @@ function SectionHeading({ className, children }: { className?: string; children:
 const monoText = "font-[family-name:var(--font-home-mono)] text-xs";
 
 export default function HomePage() {
+  const demoMode = isDemoMode();
+
   return (
     <main
       className={cn(
@@ -466,7 +481,7 @@ export default function HomePage() {
             Yangon. I modeled it on how small local couriers work: pickup arranged on Telegram, cash
             on delivery, township-based fees, and weekly settlements with merchants.{" "}
             <span className="text-[#73706d]">
-              The business plans changed, so it’s now an open-source portfolio project.
+              The business plans changed, so it’s now a source-available portfolio project.
             </span>
           </p>
         </div>
@@ -570,13 +585,19 @@ export default function HomePage() {
                     </li>
                   ))}
                 </ul>
-                <Link
-                  href="/login"
-                  className="mt-auto flex h-12 items-center justify-center gap-2 rounded-full bg-[#1b1938] text-[15px] font-semibold text-white transition-colors hover:bg-[#0e0c1f]"
-                >
-                  {role.cta}
-                  <ArrowRight className="size-4" strokeWidth={2.2} />
-                </Link>
+                {demoMode ? (
+                  <form method="post" action={`/demo/${role.demoRole}`} className="mt-auto">
+                    <button type="submit" className={roleCtaClassName}>
+                      {role.cta}
+                      <ArrowRight className="size-4" strokeWidth={2.2} />
+                    </button>
+                  </form>
+                ) : (
+                  <Link href="/login" className={cn(roleCtaClassName, "mt-auto")}>
+                    {role.cta}
+                    <ArrowRight className="size-4" strokeWidth={2.2} />
+                  </Link>
+                )}
               </article>
             ))}
           </div>

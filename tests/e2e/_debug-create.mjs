@@ -25,12 +25,18 @@ await page.waitForURL(/\/dashboard/);
 await page.goto(`${baseURL}/dashboard/parcels`);
 await page.getByRole("button", { name: /create parcel/i }).click();
 await page.getByLabel("Select merchant").fill("E2E Merchant Shop");
-await page.getByRole("option", { name: /E2E Merchant Shop/i }).first().click();
+await page
+  .getByRole("option", { name: /E2E Merchant Shop/i })
+  .first()
+  .click();
 await page.getByLabel("Receiver name").fill("Debug Receiver Y");
 await page.getByLabel("Receiver phone number").fill("09998887767");
 await page.getByLabel("Receiver address").fill("Debug address");
 await page.getByLabel("Select receiver township").fill("E2E Seed Township");
-await page.getByRole("option", { name: /E2E Seed Township/i }).first().click();
+await page
+  .getByRole("option", { name: /E2E Seed Township/i })
+  .first()
+  .click();
 await page.getByLabel("Delivery fee").fill("2000");
 await page.getByRole("checkbox", { name: "Cash on delivery" }).check();
 await page.getByLabel("COD amount").fill("15000");

@@ -13,6 +13,7 @@ import {
   canManageUser,
   canResolveMerchantSettlement,
   canRegeneratePassword,
+  canSettleRiderPayout,
 } from "@/lib/permissions";
 
 describe("permission utilities", () => {
@@ -65,5 +66,30 @@ describe("permission utilities", () => {
     expect(canChangeParcelStatus("rider", "postpone", "on_the_way")).toBe(false);
     expect(canChangeParcelStatus("office_admin", "postpone", "at_office")).toBe(true);
     expect(canChangeParcelStatus("merchant", "at_office", "on_the_way")).toBe(false);
+  });
+
+  test("lets the office admin pay out only in demo mode", () => {
+    expect(canSettleRiderPayout("office_admin")).toBe(false);
+
+    process.env.NEXT_PUBLIC_DEMO_MODE = "1";
+
+    try {
+      expect(canResolveMerchantSettlement("office_admin")).toBe(true);
+      expect(canSettleRiderPayout("office_admin")).toBe(true);
+      expect(canResolveMerchantSettlement("merchant")).toBe(false);
+      expect(canSettleRiderPayout("rider")).toBe(false);
+
+      // Nothing else widens for the demo office admin.
+      expect(canManageTownshipPricing("office_admin")).toBe(false);
+      expect(canManageMerchantProfiles("office_admin")).toBe(false);
+      expect(canManageRiderProfiles("office_admin")).toBe(false);
+      expect(canManageUser("office_admin", "super_admin")).toBe(false);
+      expect(canCreateUser("office_admin", "office_admin")).toBe(false);
+      expect(canEditDeliveryFee("office_admin", { status: "at_office", riderId: null })).toBe(
+        false,
+      );
+    } finally {
+      delete process.env.NEXT_PUBLIC_DEMO_MODE;
+    }
   });
 });

@@ -13,6 +13,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 
+import { DemoUploadNotice } from "@/components/shared/demo-upload-notice";
 import { FormBanner, type FormMessageState } from "@/components/shared/form-fields";
 import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -37,6 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { isDemoMode } from "@/lib/demo";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -464,7 +466,9 @@ export function RiderParcelCardList({
       return;
     }
 
-    if (!proofImage) {
+    const demoMode = isDemoMode();
+
+    if (!demoMode && !proofImage) {
       setSubmissionState({
         kind: "error",
         message: "Delivery proof photo is required.",
@@ -474,7 +478,9 @@ export function RiderParcelCardList({
 
     const formData = new FormData();
     formData.set("parcelId", deliveryParcel.id);
-    formData.set("proofImage", proofImage);
+    if (!demoMode && proofImage) {
+      formData.set("proofImage", proofImage);
+    }
 
     setSubmissionState(null);
     setDeliveryPending(true);
@@ -1015,41 +1021,45 @@ export function RiderParcelCardList({
               </div>
             </div>
 
-            <div className="space-y-3">
-              <Label htmlFor={proofInputId}>Delivery proof photo</Label>
-              <input
-                ref={proofInputRef}
-                id={proofInputId}
-                name="proofImage"
-                type="file"
-                accept="image/*"
-                capture="environment"
-                required
-                disabled={deliveryPending}
-                className="sr-only"
-                onChange={handleProofImageChange}
-              />
-              <Label
-                htmlFor={proofInputId}
-                className="flex min-h-36 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-white px-4 py-5 text-center transition-colors hover:bg-secondary/50"
-              >
-                {proofPreviewUrl ? (
-                  <div
-                    role="img"
-                    aria-label="Delivery proof preview"
-                    className="h-56 w-full rounded-md bg-contain bg-center bg-no-repeat"
-                    style={{ backgroundImage: `url(${proofPreviewUrl})` }}
-                  />
-                ) : (
-                  <>
-                    <Camera className="size-8 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">
-                      Take or choose delivery proof photo
-                    </span>
-                  </>
-                )}
-              </Label>
-            </div>
+            {isDemoMode() ? (
+              <DemoUploadNotice label="Delivery proof photo" item="delivery photo" />
+            ) : (
+              <div className="space-y-3">
+                <Label htmlFor={proofInputId}>Delivery proof photo</Label>
+                <input
+                  ref={proofInputRef}
+                  id={proofInputId}
+                  name="proofImage"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  required
+                  disabled={deliveryPending}
+                  className="sr-only"
+                  onChange={handleProofImageChange}
+                />
+                <Label
+                  htmlFor={proofInputId}
+                  className="flex min-h-36 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-white px-4 py-5 text-center transition-colors hover:bg-secondary/50"
+                >
+                  {proofPreviewUrl ? (
+                    <div
+                      role="img"
+                      aria-label="Delivery proof preview"
+                      className="h-56 w-full rounded-md bg-contain bg-center bg-no-repeat"
+                      style={{ backgroundImage: `url(${proofPreviewUrl})` }}
+                    />
+                  ) : (
+                    <>
+                      <Camera className="size-8 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">
+                        Take or choose delivery proof photo
+                      </span>
+                    </>
+                  )}
+                </Label>
+              </div>
+            )}
 
             <DialogFooter>
               <Button

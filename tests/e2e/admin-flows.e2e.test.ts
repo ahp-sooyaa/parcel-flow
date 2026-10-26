@@ -76,7 +76,9 @@ test("assigns a parcel to a rider and keeps the assignment after refresh", async
   await parcelSearch.fill("PF-E2E-SEED-001");
   await parcelSearch.press("Enter");
 
-  await expect(page.locator("tr", { hasText: "PF-E2E-SEED-001" }).getByText(/e2e/i).first()).toBeVisible({
+  await expect(
+    page.locator("tr", { hasText: "PF-E2E-SEED-001" }).getByText(/e2e/i).first(),
+  ).toBeVisible({
     timeout: 15_000,
   });
 });

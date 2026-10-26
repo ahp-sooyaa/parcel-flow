@@ -58,6 +58,7 @@ import type {
 import { useAppRouter } from "@/lib/client-navigation";
 import type { RiderWaySource, UserRole } from "@/lib/domain";
 import { formatDate, formatMoney } from "@/lib/format";
+import { canSettleRiderPayout } from "@/lib/permissions";
 
 type RiderPayoutWorkspaceProps = Readonly<{
   pageResult: RiderPayoutListPageDto;
@@ -521,7 +522,7 @@ function ManageRiderPayoutSheet({
           <SummaryMetric label="Total" value={`${formatMoney(payout.totalPayoutAmount)} MMK`} />
         </div>
 
-        {actorRole === "super_admin" ? (
+        {canSettleRiderPayout(actorRole) ? (
           <div className="space-y-2">
             <Label htmlFor="rider-payout-payment-note">Payment note (optional)</Label>
             <Textarea
@@ -539,7 +540,7 @@ function ManageRiderPayoutSheet({
         <Button variant="destructive" disabled={isPending} onClick={() => runAction("cancel")}>
           {isPending ? "Working..." : "Cancel Draft"}
         </Button>
-        {actorRole === "super_admin" ? (
+        {canSettleRiderPayout(actorRole) ? (
           <Button disabled={isPending} onClick={() => runAction("settle")}>
             {isPending ? "Working..." : "Mark as Paid"}
           </Button>

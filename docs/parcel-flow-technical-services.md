@@ -26,7 +26,7 @@ Parcel Flow is a Next.js-based internal delivery management system. The stack is
 | Linting / Formatting    | OXC             | Fast linting and formatting                               |
 | Code Quality            | SonarQube       | Code quality and maintainability checks                   |
 | Dependency Security     | Socket Security | Planned: dependency and supply chain security scanning    |
-| CI                      | GitHub Actions  | Planned: PR lint, typecheck, and test pipeline           |
+| CI                      | GitHub Actions  | PR lint, format, typecheck, and unit test pipeline       |
 
 ---
 
@@ -102,7 +102,7 @@ RLS policies on `public.parcels` remain enabled and must stay aligned with role 
 - Sensitive queries should not be exposed directly from the client.
 - Realtime publication is intentionally limited to `parcels` for the current scope.
 - `public.parcels` must remain in the `supabase_realtime` publication.
-- On the Supabase free tier, inactive projects pause after 7 days. A scheduled GitHub Action (`.github/workflows/keep-alive.yml`) pings `/api/health` every 3 days to run a lightweight DB query and keep the project awake. Configure the `HEALTH_CHECK_URL` repository secret to the production app base URL (for example `https://your-app.up.railway.app`).
+- On the Supabase free tier, inactive projects pause after 7 days. The nightly Demo Reset workflow (`.github/workflows/demo-reset.yml`) rewrites the demo data in staging and production, which keeps both projects awake. It needs the `DEMO_STAGING_URL`, `DEMO_STAGING_RESET_TOKEN`, `DEMO_PRODUCTION_URL` and `DEMO_PRODUCTION_RESET_TOKEN` repository secrets.
 
 ---
 
@@ -524,12 +524,12 @@ GitHub Actions CI will run automated checks on pull requests.
 
 ## Current automation
 
-- `.github/workflows/keep-alive.yml` only — pings production `/api/health` to keep the free-tier Supabase project awake.
+- `.github/workflows/ci.yml` runs lint, format check, typecheck and unit/component tests on pushes and pull requests to `dev` and `main`.
+- `.github/workflows/demo-reset.yml` resets the public demo data nightly at 00:00 Yangon time (17:30 UTC) through `POST /api/demo/reset`.
 
 ## Important Notes
 
-- Full PR CI is planned and should be added before relying on merge gates beyond SonarQube.
-- Do not assume lint/test CI already blocks merges until the workflow lands.
+- Integration and Playwright e2e tests need a database and are not in CI yet.
 
 ---
 

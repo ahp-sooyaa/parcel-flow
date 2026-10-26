@@ -4,7 +4,10 @@ import { redirect } from "next/navigation";
 
 import { AppNav, MobileAppNav } from "@/components/layout/app-nav";
 import { DashboardAccountMenu } from "@/components/shared/dashboard-account-menu";
+import { isDemoMode } from "@/lib/demo";
 import { getCurrentUser } from "@/lib/session";
+
+const GITHUB_URL = "https://github.com/ahp-sooyaa/parcel-flow";
 
 async function AuthGate() {
   const user = await getCurrentUser();
@@ -53,6 +56,26 @@ async function AccountMenu() {
   );
 }
 
+function DemoBanner() {
+  return (
+    <div
+      className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-[#1b1938] px-4 py-2 text-center text-xs text-[#d9d6e6] sm:text-sm"
+      data-testid="demo-banner"
+    >
+      <span>
+        <strong className="font-semibold text-white">Demo</strong> · data resets daily at 00:00
+        Yangon time · some actions are disabled
+      </span>
+      <a
+        href={GITHUB_URL}
+        className="font-medium text-[#c9b4fa] underline-offset-4 hover:underline"
+      >
+        View source on GitHub
+      </a>
+    </div>
+  );
+}
+
 export function DashboardShell({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <div className="flex min-h-svh bg-background" data-testid="dashboard-shell">
@@ -62,6 +85,7 @@ export function DashboardShell({ children }: Readonly<{ children: ReactNode }>) 
         <DesktopNav />
       </Suspense>
       <div className="min-w-0 flex-1">
+        {isDemoMode() ? <DemoBanner /> : null}
         <header className="flex h-16 items-center justify-between border-b bg-white px-4 sm:px-6">
           <div className="flex items-center gap-3">
             <Suspense fallback={null}>

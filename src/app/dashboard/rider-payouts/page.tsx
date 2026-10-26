@@ -6,6 +6,7 @@ import { RiderPayoutHeaderAction } from "@/features/rider-payouts/components/rid
 import { RiderPayoutWorkspace } from "@/features/rider-payouts/components/rider-payout-workspace";
 import { listRiderPayoutsPage } from "@/features/rider-payouts/server/dal";
 import { parseRiderPayoutListFilters } from "@/features/rider-payouts/server/dto";
+import { isAdminRole } from "@/lib/domain";
 import { requireCurrentUser } from "@/lib/session";
 
 type RiderPayoutsPageProps = {
@@ -15,6 +16,11 @@ type RiderPayoutsPageProps = {
 async function RiderPayoutsPageContent({ searchParams }: Readonly<RiderPayoutsPageProps>) {
   const filters = parseRiderPayoutListFilters((await searchParams) ?? {});
   const actor = await requireCurrentUser();
+
+  if (!isAdminRole(actor.role)) {
+    throw new Error("Admin access required.");
+  }
+
   const pageResult = await listRiderPayoutsPage(filters);
 
   return (

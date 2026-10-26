@@ -6,7 +6,9 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { auth } from "@/lib/auth";
+import { createRateLimiter, getClientIp } from "@/lib/rate-limit";
 import { getRoleLandingPath } from "@/lib/session";
+import { TEXT_LIMITS } from "@/lib/validation";
 
 export type LoginFormState = {
   username: string;
@@ -14,9 +16,11 @@ export type LoginFormState = {
 };
 
 const loginInputSchema = z.object({
-  username: z.string().trim().min(1, "Username is required."),
-  password: z.string().min(1, "Password is required."),
+  username: z.string().trim().min(1, "Username is required.").max(TEXT_LIMITS.username),
+  password: z.string().min(1, "Password is required.").max(TEXT_LIMITS.password),
 });
+
+const loginLimiter = createRateLimiter({ capacity: 10, refillPerMinute: 5 });
 
 const signedInUserSchema = z.looseObject({
   role: z.enum(["super_admin", "office_admin", "merchant", "rider"]),
@@ -43,6 +47,14 @@ export async function loginAction(
 
   const username = parseResult.data.username.trim().toLowerCase();
   const { password } = parseResult.data;
+  const requestHeaders = await headers();
+
+  if (!loginLimiter.take(getClientIp(requestHeaders))) {
+    return {
+      username,
+      message: "Too many sign-in attempts. Wait a minute and try again.",
+    };
+  }
 
   let landingPath: string;
 
@@ -52,7 +64,7 @@ export async function loginAction(
         username,
         password,
       },
-      headers: await headers(),
+      headers: requestHeaders,
     });
 
     const user = signedInUserSchema.parse(result.user);

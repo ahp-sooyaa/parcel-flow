@@ -29,10 +29,12 @@
     "perf:lighthouse": "bun --env-file=.env.test tests/performance/lighthouse.ts",
     "perf:compare": "bun --env-file=.env.test tests/performance/compare.ts",
     "perf:all": "bun --env-file=.env.test tests/performance/run-all.ts",
+    "typegen": "next typegen",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:reset:dev": "bun --env-file=.env.development src/db/reset-development-data.ts && bun run db:seed:super-admin",
+    "db:reset:demo": "bun --env-file=.env.development src/db/reset-demo-data.ts",
     "db:seed:super-admin": "bun --env-file=.env.development src/db/seed-super-admin.ts",
     "db:studio": "drizzle-kit studio"
   },

@@ -1,3 +1,4 @@
+import { isDemoMode } from "@/lib/demo";
 import type { CreatableUserRole, ParcelStatus, UserRole } from "@/lib/domain";
 
 type StatusTransition = `${ParcelStatus}->${ParcelStatus}`;
@@ -16,6 +17,16 @@ const officeAdminAllowedTransitions = new Set<StatusTransition>([
   "postpone->canceled_returned",
   "canceled_returned->returned_to_merchant",
 ]);
+
+/**
+ * Paying out money is super-admin only. The public demo has no super admin
+ * login, so its office admin may pay settlements and payouts there to finish
+ * the money loop. This widens nothing else: user, profile, pricing and fee
+ * changes stay super-admin only.
+ */
+function canPayOut(role: UserRole) {
+  return role === "super_admin" || (role === "office_admin" && isDemoMode());
+}
 
 function canOfficeAdminManageNonSuperAdmin(targetRole: UserRole) {
   return targetRole !== "super_admin";
@@ -74,7 +85,7 @@ export function canCancelRiderPayoutDraft(role: UserRole) {
 }
 
 export function canSettleRiderPayout(role: UserRole) {
-  return role === "super_admin";
+  return canPayOut(role);
 }
 
 export function canEditDeliveryFee(
@@ -107,5 +118,5 @@ export function canChangeParcelStatus(role: UserRole, from: ParcelStatus, to: Pa
 }
 
 export function canResolveMerchantSettlement(role: UserRole) {
-  return role === "super_admin";
+  return canPayOut(role);
 }
