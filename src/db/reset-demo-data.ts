@@ -1,17 +1,5 @@
-import { mock } from "bun:test";
-
-// The DAL imports Next's cache APIs, which need a Next request context. This
-// script runs outside Next, and the reset route revalidates caches itself.
-void mock.module("next/cache", () => ({
-  cacheLife: () => undefined,
-  cacheTag: () => undefined,
-  revalidatePath: () => undefined,
-  revalidateTag: () => undefined,
-  updateTag: () => undefined,
-}));
-
-const { closeDatabase } = await import("@/db");
-const { resetDemoData } = await import("@/features/demo/server/reset");
+import { closeDatabase } from "@/db";
+import { resetDemoData } from "@/features/demo/server/reset";
 
 async function main() {
   if (!process.env.DATABASE_URL) {
