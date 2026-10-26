@@ -78,32 +78,36 @@ function DemoBanner() {
 
 export function DashboardShell({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <div className="flex min-h-svh bg-background" data-testid="dashboard-shell">
-      <Suspense
-        fallback={<aside className="hidden w-64 shrink-0 border-r bg-[#fafaf8] lg:block" />}
-      >
-        <DesktopNav />
-      </Suspense>
-      <div className="min-w-0 flex-1">
-        {isDemoMode() ? <DemoBanner /> : null}
-        <header className="flex h-16 items-center justify-between border-b bg-white px-4 sm:px-6">
-          <div className="flex items-center gap-3">
+    <div className="min-h-svh bg-background" data-testid="dashboard-shell">
+      {isDemoMode() ? <DemoBanner /> : null}
+      <div className="flex">
+        <Suspense
+          fallback={
+            <aside className="hidden w-64 shrink-0 self-start border-r bg-[#fafaf8] lg:sticky lg:top-0 lg:block lg:h-svh" />
+          }
+        >
+          <DesktopNav />
+        </Suspense>
+        <div className="min-w-0 flex-1">
+          <header className="flex h-16 items-center justify-between border-b bg-white px-4 sm:px-6">
+            <div className="flex items-center gap-3">
+              <Suspense fallback={null}>
+                <MobileNav />
+              </Suspense>
+            </div>
+            <div className="flex items-center gap-3">
+              <Suspense fallback={<div className="h-8 w-28 animate-pulse rounded-md bg-muted" />}>
+                <AccountMenu />
+              </Suspense>
+            </div>
+          </header>
+          <main className="p-4 sm:p-6">
             <Suspense fallback={null}>
-              <MobileNav />
+              <AuthGate />
             </Suspense>
-          </div>
-          <div className="flex items-center gap-3">
-            <Suspense fallback={<div className="h-8 w-28 animate-pulse rounded-md bg-muted" />}>
-              <AccountMenu />
-            </Suspense>
-          </div>
-        </header>
-        <main className="p-4 sm:p-6">
-          <Suspense fallback={null}>
-            <AuthGate />
-          </Suspense>
-          {children}
-        </main>
+            {children}
+          </main>
+        </div>
       </div>
     </div>
   );
