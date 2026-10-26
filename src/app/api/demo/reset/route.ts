@@ -4,7 +4,8 @@ import * as Sentry from "@sentry/nextjs";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 
-import { DemoResetRefusedError, resetDemoData } from "@/features/demo/server/reset";
+import { resetDemoData } from "@/features/demo/server/reset";
+import { DemoResetRefusedError } from "@/features/demo/server/safety";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import { isDemoMode } from "@/lib/demo";
 

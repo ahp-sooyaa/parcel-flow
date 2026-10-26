@@ -1,16 +1,4 @@
-import { afterEach, describe, expect, mock, test } from "bun:test";
-
-const selectWhereMock = mock(async (): Promise<Array<{ username: string }>> => []);
-
-void mock.module("@/db", () => ({
-  db: {
-    select: () => ({ from: () => ({ where: selectWhereMock }) }),
-  },
-}));
-
-void mock.module("@/lib/auth", () => ({
-  auth: { api: {} },
-}));
+import { afterEach, describe, expect, test } from "bun:test";
 
 const {
   assertDemoAllowed,
@@ -21,21 +9,13 @@ const {
   pickDemoProofImageKey,
 } = await import("@/lib/demo");
 const { createRateLimiter, getClientIp } = await import("@/lib/rate-limit");
-const { assertSafeToResetDemo, DemoResetRefusedError } =
-  await import("@/features/demo/server/reset");
+const { assertDemoResetIsSafe, DemoResetRefusedError } =
+  await import("@/features/demo/server/safety");
 
-async function captureError(promise: Promise<unknown>) {
-  try {
-    await promise;
-    return null;
-  } catch (error) {
-    return error instanceof Error ? error : new Error(String(error));
-  }
-}
+const seededUsernames = new Set(["demo-admin", "demo-rider", "rider-nay-lin"]);
 
 afterEach(() => {
   delete process.env.NEXT_PUBLIC_DEMO_MODE;
-  selectWhereMock.mockReset();
 });
 
 describe("demo mode flag", () => {
@@ -121,32 +101,43 @@ describe("rate limiter", () => {
 });
 
 describe("demo reset safety check", () => {
-  test("refuses when demo mode is off", async () => {
-    expect(await captureError(assertSafeToResetDemo())).toBeInstanceOf(DemoResetRefusedError);
-    expect(selectWhereMock).not.toHaveBeenCalled();
+  test("refuses when demo mode is off", () => {
+    expect(() => assertDemoResetIsSafe({ demoMode: false, seededUsernames })).toThrow(
+      DemoResetRefusedError,
+    );
+    expect(() => assertDemoResetIsSafe({ demoMode: false, force: true, seededUsernames })).toThrow(
+      DemoResetRefusedError,
+    );
   });
 
-  test("refuses when an account the seed did not create exists", async () => {
-    process.env.NEXT_PUBLIC_DEMO_MODE = "1";
-    selectWhereMock.mockResolvedValue([{ username: "demo-rider" }, { username: "real-person" }]);
-
-    const error = await captureError(assertSafeToResetDemo());
-
-    expect(error).toBeInstanceOf(DemoResetRefusedError);
-    expect(error?.message).toContain("real-person");
+  test("refuses when an account the seed did not create exists", () => {
+    expect(() =>
+      assertDemoResetIsSafe({
+        demoMode: true,
+        existingUsernames: ["demo-rider", "real-person"],
+        seededUsernames,
+      }),
+    ).toThrow("real-person");
   });
 
-  test("passes when only seeded demo accounts exist", async () => {
-    process.env.NEXT_PUBLIC_DEMO_MODE = "1";
-    selectWhereMock.mockResolvedValue([{ username: "demo-admin" }, { username: "rider-nay-lin" }]);
-
-    expect(await captureError(assertSafeToResetDemo())).toBeNull();
+  test("passes when only seeded demo accounts exist", () => {
+    expect(() =>
+      assertDemoResetIsSafe({
+        demoMode: true,
+        existingUsernames: ["demo-admin", "rider-nay-lin"],
+        seededUsernames,
+      }),
+    ).not.toThrow();
   });
 
-  test("--force skips the account check", async () => {
-    process.env.NEXT_PUBLIC_DEMO_MODE = "1";
-
-    expect(await captureError(assertSafeToResetDemo({ force: true }))).toBeNull();
-    expect(selectWhereMock).not.toHaveBeenCalled();
+  test("--force skips the account check", () => {
+    expect(() =>
+      assertDemoResetIsSafe({
+        demoMode: true,
+        force: true,
+        existingUsernames: ["real-person"],
+        seededUsernames,
+      }),
+    ).not.toThrow();
   });
 });

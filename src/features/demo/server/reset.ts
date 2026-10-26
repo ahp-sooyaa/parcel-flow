@@ -7,6 +7,7 @@ import {
   seedDemoData,
   type DemoSeedSummary,
 } from "@/features/demo/server/seed";
+import { assertDemoResetIsSafe } from "@/features/demo/server/safety";
 import { isDemoMode } from "@/lib/demo";
 
 // Same order as src/db/reset-development-data.ts, but super admins survive so
@@ -29,41 +30,24 @@ const deleteStatements = [
   sql`DELETE FROM verification`,
 ];
 
-export class DemoResetRefusedError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "DemoResetRefusedError";
-  }
-}
-
-/**
- * Throws unless this database is safe to wipe: demo mode must be on, and every
- * non-super-admin account must be one the demo seed created. Anything else
- * means real people may be using this database.
- */
 export async function assertSafeToResetDemo(options: { force?: boolean } = {}) {
-  if (!isDemoMode()) {
-    throw new DemoResetRefusedError("Refusing to reset: NEXT_PUBLIC_DEMO_MODE is not enabled.");
-  }
+  const demoMode = isDemoMode();
+  const existingUsernames =
+    demoMode && !options.force
+      ? (
+          await db
+            .select({ username: appUsers.username })
+            .from(appUsers)
+            .where(ne(appUsers.role, "super_admin"))
+        ).map((user) => user.username)
+      : [];
 
-  if (options.force) {
-    return;
-  }
-
-  const seededUsernames = getSeededDemoUsernames();
-  const users = await db
-    .select({ username: appUsers.username })
-    .from(appUsers)
-    .where(ne(appUsers.role, "super_admin"));
-  const unknownUsernames = users
-    .map((user) => user.username)
-    .filter((username) => !seededUsernames.has(username));
-
-  if (unknownUsernames.length > 0) {
-    throw new DemoResetRefusedError(
-      `Refusing to reset: found ${unknownUsernames.length} account(s) the demo seed did not create (${unknownUsernames.slice(0, 5).join(", ")}). Pass --force if this database really is the demo.`,
-    );
-  }
+  assertDemoResetIsSafe({
+    demoMode,
+    force: options.force,
+    existingUsernames,
+    seededUsernames: getSeededDemoUsernames(),
+  });
 }
 
 export async function resetDemoData(
