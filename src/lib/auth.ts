@@ -3,8 +3,11 @@ import { nextCookies } from "better-auth/next-js";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, username } from "better-auth/plugins";
 import { adminAc, userAc } from "better-auth/plugins/admin/access";
+import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
+import { appUsers } from "@/db/schema";
+import { createActiveUserSessionGuard } from "@/lib/auth-session-guard";
 
 function getAuthSecret() {
   const secret = process.env.BETTER_AUTH_SECRET?.trim();
@@ -70,6 +73,21 @@ export const auth = betterAuth({
         type: "boolean",
         required: true,
         defaultValue: false,
+      },
+    },
+  },
+  databaseHooks: {
+    session: {
+      create: {
+        before: createActiveUserSessionGuard(async (userId) => {
+          const [user] = await db
+            .select({ isActive: appUsers.isActive })
+            .from(appUsers)
+            .where(eq(appUsers.id, userId))
+            .limit(1);
+
+          return user?.isActive ?? null;
+        }),
       },
     },
   },

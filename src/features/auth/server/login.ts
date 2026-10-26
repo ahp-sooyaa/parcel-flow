@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { auth } from "@/lib/auth";
+import { INACTIVE_ACCOUNT_MESSAGE } from "@/lib/auth-session-guard";
 import { createRateLimiter, getClientIp } from "@/lib/rate-limit";
 import { getRoleLandingPath } from "@/lib/session";
 import { TEXT_LIMITS } from "@/lib/validation";
@@ -69,10 +70,12 @@ export async function loginAction(
 
     const user = signedInUserSchema.parse(result.user);
 
+    // Better Auth refuses to create a session for inactive users, so this is
+    // only a fallback for a session that slipped through.
     if (user.isActive === false) {
       return {
         username,
-        message: "Your account is inactive. Contact an admin.",
+        message: INACTIVE_ACCOUNT_MESSAGE,
       };
     }
 
@@ -92,13 +95,15 @@ export async function loginAction(
     });
     Sentry.logger.error("login_failed", { username, betterAuthMessage });
 
-    return {
-      username,
-      message:
-        betterAuthMessage === "Username is invalid"
-          ? "Username must be lowercase letters, numbers, or hyphens."
-          : "Username or password is incorrect.",
-    };
+    let message = "Username or password is incorrect.";
+
+    if (betterAuthMessage === "Username is invalid") {
+      message = "Username must be lowercase letters, numbers, or hyphens.";
+    } else if (betterAuthMessage === INACTIVE_ACCOUNT_MESSAGE) {
+      message = INACTIVE_ACCOUNT_MESSAGE;
+    }
+
+    return { username, message };
   }
 
   return redirect(landingPath);
