@@ -4,6 +4,7 @@ import { useEffect, useId, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Camera, FileText } from "lucide-react";
 
+import { DemoUploadNotice } from "@/components/shared/demo-upload-notice";
 import { PaginationControls } from "@/components/shared/pagination-controls";
 import {
   FormBanner,
@@ -38,8 +39,10 @@ import type {
 } from "@/features/settlements/server/dto";
 import { resolveMerchantSettlementAction } from "@/features/settlements/server/actions";
 import { useAppRouter } from "@/lib/client-navigation";
+import { isDemoMode } from "@/lib/demo";
 import type { UserRole } from "@/lib/domain";
 import { formatDate, formatMoney } from "@/lib/format";
+import { canResolveMerchantSettlement } from "@/lib/permissions";
 
 type SettlementsTableProps = Readonly<{
   pageResult: SettlementListPageDto;
@@ -119,7 +122,7 @@ export function SettlementsTable({
                   </TableCell>
                   <TableCell>{formatDate(settlement.createdAt)}</TableCell>
                   <TableCell className="text-right">
-                    {actorRole === "super_admin" && settlement.status === "pending" ? (
+                    {canResolveMerchantSettlement(actorRole) && settlement.status === "pending" ? (
                       <Button
                         size="sm"
                         variant="outline"
@@ -196,7 +199,9 @@ function ResolveSettlementSheet({
   }, [receiptFile]);
 
   function submitResolution() {
-    if (!receiptFile) {
+    const demoMode = isDemoMode();
+
+    if (!demoMode && !receiptFile) {
       setSubmissionState({
         kind: "error",
         message: "Bank transfer receipt is required.",
@@ -210,7 +215,9 @@ function ResolveSettlementSheet({
       const formData = new FormData();
       formData.set("settlementId", settlement.id);
       formData.set("paymentNote", paymentNote);
-      formData.set("bankTransferReceipt", receiptFile);
+      if (!demoMode && receiptFile) {
+        formData.set("bankTransferReceipt", receiptFile);
+      }
 
       const result = await resolveMerchantSettlementAction(formData);
 
@@ -280,27 +287,31 @@ function ResolveSettlementSheet({
 
         <Card className="border-[#e7dfd8] bg-white py-4">
           <CardContent className="space-y-5 px-4">
-            <div className="space-y-3">
-              <Label htmlFor={receiptInputId}>Bank transfer receipt</Label>
-              <input
-                id={receiptInputId}
-                name="bankTransferReceipt"
-                type="file"
-                accept=".pdf,image/*"
-                disabled={isPending}
-                className="sr-only"
-                onChange={(event) => setReceiptFile(event.target.files?.[0] ?? null)}
-              />
-              <Label
-                htmlFor={receiptInputId}
-                className="flex min-h-36 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-white px-4 py-5 text-center transition-colors hover:bg-secondary/50"
-              >
-                {receiptUploadContent}
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Upload the transfer receipt as PDF, JPG, PNG, or WebP. Maximum 8MB.
-              </p>
-            </div>
+            {isDemoMode() ? (
+              <DemoUploadNotice label="Bank transfer receipt" item="receipt" />
+            ) : (
+              <div className="space-y-3">
+                <Label htmlFor={receiptInputId}>Bank transfer receipt</Label>
+                <input
+                  id={receiptInputId}
+                  name="bankTransferReceipt"
+                  type="file"
+                  accept=".pdf,image/*"
+                  disabled={isPending}
+                  className="sr-only"
+                  onChange={(event) => setReceiptFile(event.target.files?.[0] ?? null)}
+                />
+                <Label
+                  htmlFor={receiptInputId}
+                  className="flex min-h-36 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-white px-4 py-5 text-center transition-colors hover:bg-secondary/50"
+                >
+                  {receiptUploadContent}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Upload the transfer receipt as PDF, JPG, PNG, or WebP. Maximum 8MB.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="paymentNote">Payment note (optional)</Label>
@@ -321,7 +332,10 @@ function ResolveSettlementSheet({
         <Button variant="ghost" disabled={isPending} onClick={onClose}>
           Cancel
         </Button>
-        <Button disabled={isPending || receiptFile === null} onClick={submitResolution}>
+        <Button
+          disabled={isPending || (!isDemoMode() && receiptFile === null)}
+          onClick={submitResolution}
+        >
           {isPending ? "Resolving..." : "Mark as Paid"}
         </Button>
       </SheetFooter>

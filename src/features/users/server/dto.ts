@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { creatableUserRoles, userRoles, type UserRole } from "@/lib/domain";
+import { maxLengthMessage, TEXT_LIMITS } from "@/lib/validation";
 
 const optionalTrimmedString = z.preprocess((value) => {
   if (typeof value !== "string") {
@@ -10,7 +11,7 @@ const optionalTrimmedString = z.preprocess((value) => {
   const trimmedValue = value.trim();
 
   return trimmedValue.length === 0 ? undefined : trimmedValue;
-}, z.string().min(1).optional());
+}, z.string().min(1).max(TEXT_LIMITS.shopName).optional());
 
 const optionalAge = z.preprocess((value) => {
   if (value === "" || value == null) {
@@ -25,9 +26,17 @@ const optionalAge = z.preprocess((value) => {
 }, z.number().int().positive().optional());
 
 const userProfileInputSchema = z.object({
-  name: z.string().trim().min(1),
-  phoneNumber: z.string().trim().min(5),
-  address: z.string().trim().min(1),
+  name: z.string().trim().min(1).max(TEXT_LIMITS.name, maxLengthMessage("Name", TEXT_LIMITS.name)),
+  phoneNumber: z
+    .string()
+    .trim()
+    .min(5)
+    .max(TEXT_LIMITS.phoneNumber, maxLengthMessage("Phone number", TEXT_LIMITS.phoneNumber)),
+  address: z
+    .string()
+    .trim()
+    .min(1)
+    .max(TEXT_LIMITS.address, maxLengthMessage("Address", TEXT_LIMITS.address)),
   age: optionalAge,
   isActive: z.boolean(),
   shopName: optionalTrimmedString,
@@ -58,7 +67,10 @@ function validateRoleSpecificProfile(
 export const createUserInputSchema = userProfileInputSchema
   .extend({
     role: z.enum(creatableUserRoles),
-    password: z.string().min(8),
+    password: z
+      .string()
+      .min(8)
+      .max(TEXT_LIMITS.password, maxLengthMessage("Password", TEXT_LIMITS.password)),
   })
   .superRefine((value, ctx) => {
     validateRoleSpecificProfile(value, ctx);
@@ -74,16 +86,36 @@ export const updateUserInputSchema = userProfileInputSchema
   });
 
 export const updateOwnAccountInputSchema = z.object({
-  name: z.string().trim().min(1),
-  phoneNumber: z.string().trim().min(5),
-  address: z.string().trim().min(1),
+  name: z.string().trim().min(1).max(TEXT_LIMITS.name, maxLengthMessage("Name", TEXT_LIMITS.name)),
+  phoneNumber: z
+    .string()
+    .trim()
+    .min(5)
+    .max(TEXT_LIMITS.phoneNumber, maxLengthMessage("Phone number", TEXT_LIMITS.phoneNumber)),
+  address: z
+    .string()
+    .trim()
+    .min(1)
+    .max(TEXT_LIMITS.address, maxLengthMessage("Address", TEXT_LIMITS.address)),
   age: optionalAge,
 });
 
 export const bankAccountInputSchema = z.object({
-  bankName: z.string().trim().min(1, "Bank name is required."),
-  accountHolderName: z.string().trim().min(1, "Account holder name is required."),
-  accountNumber: z.string().trim().min(6, "Account number must be at least 6 characters."),
+  bankName: z
+    .string()
+    .trim()
+    .min(1, "Bank name is required.")
+    .max(TEXT_LIMITS.bankName, maxLengthMessage("Bank name", TEXT_LIMITS.bankName)),
+  accountHolderName: z
+    .string()
+    .trim()
+    .min(1, "Account holder name is required.")
+    .max(TEXT_LIMITS.name, maxLengthMessage("Account holder name", TEXT_LIMITS.name)),
+  accountNumber: z
+    .string()
+    .trim()
+    .min(6, "Account number must be at least 6 characters.")
+    .max(TEXT_LIMITS.accountNumber, maxLengthMessage("Account number", TEXT_LIMITS.accountNumber)),
   isCompanyAccount: z.boolean(),
   isPrimary: z.boolean(),
 });

@@ -112,7 +112,9 @@ test("runs the COD money loop from create through settlement and rider payout", 
     });
     await merchantRow.getByRole("button", { name: "Review" }).click();
     const settlementDialog = page.getByRole("dialog");
-    await expect(settlementDialog.getByRole("heading", { name: "Generate Settlement" })).toBeVisible({
+    await expect(
+      settlementDialog.getByRole("heading", { name: "Generate Settlement" }),
+    ).toBeVisible({
       timeout: 10_000,
     });
     await expect(settlementDialog.getByText(parcelCode, { exact: true })).toBeVisible({
@@ -168,10 +170,7 @@ test("runs the COD money loop from create through settlement and rider payout", 
   await expect(page.getByText("Settled").first()).toBeVisible({ timeout: 15_000 });
 });
 
-async function confirmOfficeHandover(
-  page: import("@playwright/test").Page,
-  parcelCode: string,
-) {
+async function confirmOfficeHandover(page: import("@playwright/test").Page, parcelCode: string) {
   // Settlement workspace summaries are cached; reload until this parcel appears.
   await expect(async () => {
     await page.goto("/dashboard");

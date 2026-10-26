@@ -33,6 +33,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:reset:dev": "bun --env-file=.env.development src/db/reset-development-data.ts && bun run db:seed:super-admin",
+    "db:reset:demo": "bun --env-file=.env.development src/db/reset-demo-data.ts",
     "db:seed:super-admin": "bun --env-file=.env.development src/db/seed-super-admin.ts",
     "db:studio": "drizzle-kit studio"
   },

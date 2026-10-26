@@ -1057,7 +1057,7 @@ type CorrectionFinancialItem = {
   updatedAt: Date;
 };
 
-function createFinancialItemsFingerprint(items: CorrectionFinancialItem[]) {
+export function createFinancialItemsFingerprint(items: CorrectionFinancialItem[]) {
   const normalizedItems = items
     .map((item) => ({
       id: item.id,

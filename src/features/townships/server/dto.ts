@@ -1,7 +1,12 @@
 import { z } from "zod";
+import { maxLengthMessage, TEXT_LIMITS } from "@/lib/validation";
 
 export const townshipInputSchema = z.object({
-  name: z.string().trim().min(1, "Township name is required."),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Township name is required.")
+    .max(TEXT_LIMITS.name, maxLengthMessage("Township name", TEXT_LIMITS.name)),
   baseFee: z.coerce.number().int().min(0),
   baseWeightKg: z.coerce.number().positive().default(3),
   extraWeightFee: z.coerce.number().int().min(0).default(0),

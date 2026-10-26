@@ -10,9 +10,13 @@
  * when set. The client only sees NEXT_PUBLIC_* values.
  */
 export function getSentryInitOptions() {
+  const environment =
+    process.env.SENTRY_ENVIRONMENT ?? process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? "development";
+
   return {
     dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-    environment:
-      process.env.SENTRY_ENVIRONMENT ?? process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? "development",
+    environment,
+    // Public demo traffic would use up the free trace quota at 100%.
+    tracesSampleRate: environment === "development" ? 1 : 0.1,
   };
 }

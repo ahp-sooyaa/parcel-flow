@@ -13,6 +13,7 @@ import {
 import {
   confirmRiderCashHandoverInputSchema,
   createMerchantSettlementInputSchema,
+  demoResolveMerchantSettlementInputSchema,
   resolveMerchantSettlementInputSchema,
 } from "@/features/settlements/server/dto";
 import { uploadSettlementReceipt } from "@/features/settlements/server/upload";
@@ -22,6 +23,7 @@ import {
   canCreateMerchantSettlement,
   canResolveMerchantSettlement,
 } from "@/lib/permissions";
+import { DEMO_ASSET_KEYS, isDemoMode } from "@/lib/demo";
 import { requireCurrentUser } from "@/lib/session";
 
 const merchantIdSchema = z.uuid("Merchant selection is invalid.");
@@ -125,9 +127,13 @@ export async function confirmRiderCashHandoverAction(input: unknown) {
 
 export async function resolveMerchantSettlementAction(input: unknown) {
   const actor = await requireCurrentUser();
-  const parseResult = resolveMerchantSettlementInputSchema.safeParse(
-    normalizeResolveSettlementInput(input),
-  );
+  const demoMode = isDemoMode();
+  const settlementSchema:
+    | typeof resolveMerchantSettlementInputSchema
+    | typeof demoResolveMerchantSettlementInputSchema = demoMode
+    ? demoResolveMerchantSettlementInputSchema
+    : resolveMerchantSettlementInputSchema;
+  const parseResult = settlementSchema.safeParse(normalizeResolveSettlementInput(input));
 
   if (!parseResult.success) {
     return {
@@ -144,10 +150,15 @@ export async function resolveMerchantSettlementAction(input: unknown) {
   }
 
   try {
-    const receiptKey = await uploadSettlementReceipt({
-      settlementId: parseResult.data.settlementId,
-      file: parseResult.data.bankTransferReceipt,
-    });
+    // The public demo never stores uploads; a seeded sample receipt stands in.
+    const receiptFile = parseResult.data.bankTransferReceipt;
+    const receiptKey =
+      demoMode || !receiptFile
+        ? DEMO_ASSET_KEYS.receipt
+        : await uploadSettlementReceipt({
+            settlementId: parseResult.data.settlementId,
+            file: receiptFile,
+          });
 
     await resolveMerchantSettlement({
       settlementId: parseResult.data.settlementId,
