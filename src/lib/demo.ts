@@ -10,7 +10,8 @@ export type DemoAccount = {
 };
 
 // Public on purpose: the login page shows these so visitors can sign in by hand.
-const demoPassword = "49ysuYQJbxty";
+// The accounts are throwaway demo users that are recreated every night.
+const demoPassword = "49ysuYQJbxty"; // NOSONAR: intentionally public demo credential
 
 export const DEMO_ACCOUNTS: Record<DemoRole, DemoAccount> = {
   admin: {

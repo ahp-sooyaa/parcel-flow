@@ -29,6 +29,7 @@
     "perf:lighthouse": "bun --env-file=.env.test tests/performance/lighthouse.ts",
     "perf:compare": "bun --env-file=.env.test tests/performance/compare.ts",
     "perf:all": "bun --env-file=.env.test tests/performance/run-all.ts",
+    "typegen": "next typegen",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
