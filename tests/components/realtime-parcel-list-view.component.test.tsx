@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
 import { act, render, screen, waitFor } from "@testing-library/react";
 
 import type {
@@ -33,6 +33,19 @@ class MockEventSource {
     }
   }
 }
+
+// Bun module mocks outlive this file, so keep the real module and put it back
+// afterwards; otherwise later files that render ParcelListView get this stub.
+const realParcelListViewModule = {
+  ...(await import("@/features/parcels/components/parcel-list-view")),
+};
+
+afterAll(() => {
+  void mock.module(
+    "@/features/parcels/components/parcel-list-view",
+    () => realParcelListViewModule,
+  );
+});
 
 void mock.module("@/features/parcels/components/parcel-list-view", () => ({
   ParcelListView: ({ pageResult }: { pageResult: AdminParcelListPageDto }) => (
