@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,17 +10,13 @@ import { getUserById, listBankAccountsForUser } from "@/features/users/server/da
 import type { UserListItemDto } from "@/features/users/server/dto";
 import { requireCurrentUser } from "@/lib/session";
 
-export default async function SettingsPage() {
+async function SettingsPageContent() {
   const currentUser = await requireCurrentUser();
   const settingsUser = (await getUserById(currentUser.id)) ?? buildSettingsUser(currentUser);
   const bankAccounts = await listBankAccountsForUser(settingsUser.id);
 
   return (
-    <>
-      <PageHeader
-        title="Settings"
-        description="Account details, bank accounts, delivery pricing, and office-level configuration."
-      />
+    <div data-testid="page-dynamic-content">
       <Tabs defaultValue="account" className="gap-4">
         <TabsList className="rounded-lg border border-border bg-[#f3f2ef] p-1">
           <TabsTrigger
@@ -55,7 +54,7 @@ export default async function SettingsPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </>
+    </div>
   );
 }
 
@@ -77,4 +76,18 @@ function buildSettingsUser(
     isActive: currentUser.isActive,
     mustResetPassword: currentUser.mustResetPassword,
   };
+}
+
+export default function SettingsPage() {
+  return (
+    <>
+      <PageHeader
+        title="Settings"
+        description="Account details, bank accounts, delivery pricing, and office-level configuration."
+      />
+      <Suspense fallback={<PageContentSkeleton variant="cards" />}>
+        <SettingsPageContent />
+      </Suspense>
+    </>
+  );
 }

@@ -1,9 +1,16 @@
 import { z } from "zod";
+import { maxLengthMessage, TEXT_LIMITS } from "@/lib/validation";
 
 export const upsertMerchantInputSchema = z.object({
   userId: z.uuid().optional(),
-  shopName: z.string().min(1),
-  address: z.string().min(1),
+  shopName: z
+    .string()
+    .min(1)
+    .max(TEXT_LIMITS.shopName, maxLengthMessage("Shop name", TEXT_LIMITS.shopName)),
+  address: z
+    .string()
+    .min(1)
+    .max(TEXT_LIMITS.address, maxLengthMessage("Address", TEXT_LIMITS.address)),
 });
 
 export type MerchantListItemDto = {

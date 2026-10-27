@@ -94,6 +94,21 @@ describe("login action", async () => {
     });
   });
 
+  test("shows the inactive-account message when Better Auth refuses the session", async () => {
+    signInUsernameMock.mockRejectedValue(new Error("Your account is inactive. Contact an admin."));
+    const formData = new FormData();
+    formData.set("username", "inactive-user");
+    formData.set("password", "password123");
+
+    const result = await loginAction({ username: "", message: null }, formData);
+
+    expect(result).toEqual({
+      username: "inactive-user",
+      message: "Your account is inactive. Contact an admin.",
+    });
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
   test("redirects successful logins to the role landing path", async () => {
     signInUsernameMock.mockResolvedValue({
       user: {

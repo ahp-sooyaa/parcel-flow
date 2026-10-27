@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
+import { invalidateStorageStatsCache } from "@/lib/cache-invalidation";
+
 import { getStorageStats } from "@/features/dashboard/server/dal";
 import type { RefreshStorageStatsActionResult } from "@/features/dashboard/server/dto";
 import { requireCurrentUser } from "@/lib/session";
@@ -16,6 +18,7 @@ export async function refreshStorageStatsAction(): Promise<RefreshStorageStatsAc
     };
   }
 
+  invalidateStorageStatsCache();
   const stats = await getStorageStats();
   const unavailableRows = stats.rows.filter((row) => row.fetchStatus === "unavailable");
 

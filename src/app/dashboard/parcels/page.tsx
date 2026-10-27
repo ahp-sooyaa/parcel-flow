@@ -1,13 +1,14 @@
-import { Plus } from "lucide-react";
+import { Suspense } from "react";
 
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { listMerchantOptions } from "@/features/merchants/server/dal";
-import { LazyCreateParcelForm } from "@/features/parcels/components/lazy-create-parcel-form";
+import { SheetFormFallback } from "@/components/shared/sheet-form-fallback";
+import { CreateParcelFormLoader } from "@/features/parcels/components/create-parcel-form-loader";
+import { CreateParcelSheet } from "@/features/parcels/components/create-parcel-sheet";
 import { RealtimeParcelListView } from "@/features/parcels/components/realtime-parcel-list-view";
 import { listAdminParcelsPage } from "@/features/parcels/server/dal";
 import { parseAdminParcelListFilters } from "@/features/parcels/server/dto";
+import { listMerchantOptions } from "@/features/merchants/server/dal";
 import { listRiderOptions } from "@/features/riders/server/dal";
 import { listTownships } from "@/features/townships/server/dal";
 import { isAdminRole } from "@/lib/domain";
@@ -17,7 +18,7 @@ type ParcelsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function ParcelsPage({ searchParams }: Readonly<ParcelsPageProps>) {
+async function ParcelsPageContent({ searchParams }: Readonly<ParcelsPageProps>) {
   const currentUser = await requireCurrentUser();
 
   if (!isAdminRole(currentUser.role)) {
@@ -33,24 +34,7 @@ export default async function ParcelsPage({ searchParams }: Readonly<ParcelsPage
   ]);
 
   return (
-    <>
-      <PageHeader
-        title="Parcels"
-        description="Search, filter, create, and batch assign parcels after they arrive at the office."
-        actions={
-          <Sheet>
-            <Button asChild>
-              <SheetTrigger>
-                <Plus className="size-4" />
-                Create Parcel
-              </SheetTrigger>
-            </Button>
-            <SheetContent className="overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[720px] data-[side=right]:sm:max-w-[720px]">
-              <LazyCreateParcelForm merchants={merchants} townships={townships} />
-            </SheetContent>
-          </Sheet>
-        }
-      />
+    <div data-testid="page-dynamic-content">
       <RealtimeParcelListView
         actorRole={currentUser.role}
         pageResult={pageResult}
@@ -59,6 +43,27 @@ export default async function ParcelsPage({ searchParams }: Readonly<ParcelsPage
         riders={riders}
         townships={townships}
       />
+    </div>
+  );
+}
+
+export default function ParcelsPage(props: Readonly<Parameters<typeof ParcelsPageContent>[0]>) {
+  return (
+    <>
+      <PageHeader
+        title="Parcels"
+        description="Search, filter, create, and batch assign parcels after they arrive at the office."
+        actions={
+          <CreateParcelSheet>
+            <Suspense fallback={<SheetFormFallback />}>
+              <CreateParcelFormLoader />
+            </Suspense>
+          </CreateParcelSheet>
+        }
+      />
+      <Suspense fallback={<PageContentSkeleton variant="table" />}>
+        <ParcelsPageContent {...props} />
+      </Suspense>
     </>
   );
 }

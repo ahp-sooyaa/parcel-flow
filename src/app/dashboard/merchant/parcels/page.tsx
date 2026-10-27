@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { RealtimeMerchantParcelBrowser } from "@/features/parcels/components/realtime-merchant-parcel-browser";
 import { listMerchantParcelsPageForUser } from "@/features/parcels/server/dal";
@@ -8,9 +11,7 @@ type MerchantParcelsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function MerchantParcelsPage({
-  searchParams,
-}: Readonly<MerchantParcelsPageProps>) {
+async function MerchantParcelsPageContent({ searchParams }: Readonly<MerchantParcelsPageProps>) {
   const currentUser = await requireCurrentUser();
 
   if (currentUser.role !== "merchant") {
@@ -21,12 +22,24 @@ export default async function MerchantParcelsPage({
   const parcels = await listMerchantParcelsPageForUser(currentUser.id, filters);
 
   return (
+    <div data-testid="page-dynamic-content">
+      <RealtimeMerchantParcelBrowser result={parcels} filters={filters} />
+    </div>
+  );
+}
+
+export default function MerchantParcelsPage(
+  props: Readonly<Parameters<typeof MerchantParcelsPageContent>[0]>,
+) {
+  return (
     <>
       <PageHeader
         title="My Parcels"
         description="Search and track parcel delivery progress for your merchant account."
       />
-      <RealtimeMerchantParcelBrowser result={parcels} filters={filters} />
+      <Suspense fallback={<PageContentSkeleton variant="table" />}>
+        <MerchantParcelsPageContent {...props} />
+      </Suspense>
     </>
   );
 }

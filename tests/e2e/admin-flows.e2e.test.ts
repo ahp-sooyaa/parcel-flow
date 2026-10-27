@@ -46,14 +46,26 @@ test("creates a parcel and persists it in the parcel list", async ({ page }) => 
   await page.getByLabel("Receiver address").fill("E2E receiver address");
   await selectComboboxOption(page, "Select receiver township", "E2E Seed Township");
   await page.getByLabel("Delivery fee").fill("2000");
-  await page.getByRole("button", { name: "Create Parcel" }).click();
+  await page.locator("form").getByRole("button", { name: "Create Parcel" }).click();
+  await expect(page.getByText(/parcel has been created/i).first()).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("heading", { name: "Create Parcel" })).toBeHidden({
+    timeout: 10_000,
+  });
 
   await expect(page.getByText(receiverName, { exact: true }).first()).toBeVisible();
 });
 
 test("assigns a parcel to a rider and keeps the assignment after refresh", async ({ page }) => {
   await page.goto("/dashboard/parcels");
-  await expect(page.getByLabel("Select PF-E2E-SEED-001")).toBeVisible();
+  const parcelSearch = page.getByPlaceholder(
+    "Search parcel code, receiver phone, receiver name, merchant",
+  );
+  await parcelSearch.fill("PF-E2E-SEED-001");
+  await parcelSearch.press("Enter");
+  await expect(page.getByLabel("Select PF-E2E-SEED-001")).toBeVisible({ timeout: 15_000 });
   await page.getByLabel("Select PF-E2E-SEED-001").check();
   await page.getByRole("button", { name: /assign rider/i }).click();
   await expect(page.getByRole("heading", { name: "Assign Rider" })).toBeVisible();
@@ -61,10 +73,15 @@ test("assigns a parcel to a rider and keeps the assignment after refresh", async
   await page.getByRole("option").first().click();
   await page.getByRole("button", { name: "Assign Rider" }).click();
   await page.reload();
+  await parcelSearch.fill("PF-E2E-SEED-001");
+  await parcelSearch.press("Enter");
 
-  await expect(page.getByText(/e2e/i).first()).toBeVisible();
+  await expect(
+    page.locator("tr", { hasText: "PF-E2E-SEED-001" }).getByText(/e2e/i).first(),
+  ).toBeVisible({
+    timeout: 15_000,
+  });
 });
-
 test("reviews a rider failure note and postpones the parcel", async ({ page }) => {
   await page.goto("/dashboard/parcels");
   await expect(page.getByRole("tab", { name: /need review/i })).toBeVisible();

@@ -25,6 +25,8 @@ const getSessionMock = mock(async () => buildSessionUser({ role: "super_admin" }
 const headersMock = mock(async () => new Headers());
 const getStorageStatsMock = mock(async () => readyStats);
 const revalidatePathMock = mock(() => undefined);
+const updateTagMock = mock(() => undefined);
+const revalidateTagMock = mock(() => undefined);
 
 void mock.module("@/lib/auth", () => ({
   auth: {
@@ -43,7 +45,11 @@ void mock.module("@/features/dashboard/server/dal", () => ({
 }));
 
 void mock.module("next/cache", () => ({
+  cacheLife: () => undefined,
+  cacheTag: () => undefined,
   revalidatePath: revalidatePathMock,
+  updateTag: updateTagMock,
+  revalidateTag: revalidateTagMock,
 }));
 
 describe("dashboard storage actions", async () => {
@@ -54,6 +60,8 @@ describe("dashboard storage actions", async () => {
     headersMock.mockReset();
     getStorageStatsMock.mockReset();
     revalidatePathMock.mockReset();
+    updateTagMock.mockReset();
+    revalidateTagMock.mockReset();
 
     getSessionMock.mockResolvedValue(buildSessionUser({ role: "super_admin" }));
     headersMock.mockResolvedValue(new Headers());

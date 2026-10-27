@@ -2,6 +2,8 @@ erDiagram
 %% `auth_users` represents the Better Auth user model with Parcel Flow custom fields.
 %% It is not a separate app-owned `app_users` table.
 %% The physical table name should follow the Better Auth configuration.
+%% Better Auth also creates session, account, and verification tables (not shown).
+%% `parcels.delivery_failure_note` is jsonb: [{ note, status: active|inactive }, ...].
 %% `financial_items.rider_way_source` uses `delivery_attempt`, `merchant_return`,
 %% or `legacy_delivery` for rider way payout rows.
 %% `rider_payouts.delivered_way_count` is the persisted legacy column name for
@@ -77,11 +79,12 @@ text parcel_code UK
     integer delivery_fee
 
     numeric weight_kg
+    boolean is_large_parcel
     numeric parcel_width_cm
     numeric parcel_height_cm
     numeric parcel_length_cm
     text special_notes
-    text delivery_failure_note
+    jsonb delivery_failure_note
 
     text status
 

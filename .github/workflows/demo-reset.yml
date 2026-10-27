@@ -1,0 +1,60 @@
+name: Demo Reset
+
+# Resets the public demo to fresh seed data every night at 00:00 Yangon time
+# (17:30 UTC). The app does the work; this job only calls its reset route, so
+# database and R2 credentials stay on Railway. The route answers 202 at once
+# and finishes the reset in the background.
+# The daily database write also keeps the free Supabase projects from pausing.
+on:
+  schedule:
+    - cron: "30 17 * * *"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Environment to reset"
+        type: choice
+        options: [both, staging, production]
+        default: both
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [staging, production]
+    steps:
+      - name: Call /api/demo/reset
+        if: github.event_name == 'schedule' || inputs.target == 'both' || inputs.target == matrix.target
+        env:
+          APP_URL: ${{ matrix.target == 'production' && secrets.DEMO_PRODUCTION_URL || secrets.DEMO_STAGING_URL }}
+          RESET_TOKEN: ${{ matrix.target == 'production' && secrets.DEMO_PRODUCTION_RESET_TOKEN || secrets.DEMO_STAGING_RESET_TOKEN }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$RESET_TOKEN" ]; then
+            echo "Secrets for $TARGET are not set; skipping."
+            exit 0
+          fi
+
+          url="${APP_URL%/}/api/demo/reset"
+          echo "Resetting $TARGET via $url"
+
+          # A cold app can take a while to answer the first request, so retry.
+          for attempt in 1 2 3; do
+            status="$(curl --silent --show-error --max-time 300 --output body.json \
+              --write-out "%{http_code}" -X POST \
+              -H "Authorization: Bearer $RESET_TOKEN" "$url" || echo 000)"
+            echo "Attempt $attempt: HTTP $status"
+            cat body.json 2>/dev/null || true
+            echo
+
+            case "$status" in
+              200|202) exit 0 ;;
+              401|404|409) exit 1 ;;
+            esac
+
+            sleep 30
+          done
+
+          exit 1

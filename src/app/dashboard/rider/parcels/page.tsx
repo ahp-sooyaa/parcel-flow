@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { RealtimeRiderParcelCardList } from "@/features/parcels/components/realtime-rider-parcel-card-list";
 import { listRiderParcelsPageForUser } from "@/features/parcels/server/dal";
@@ -9,7 +12,7 @@ type RiderParcelsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function RiderParcelsPage({ searchParams }: Readonly<RiderParcelsPageProps>) {
+async function RiderParcelsPageContent({ searchParams }: Readonly<RiderParcelsPageProps>) {
   const currentUser = await requireCurrentUser();
 
   if (currentUser.role !== "rider") {
@@ -23,16 +26,28 @@ export default async function RiderParcelsPage({ searchParams }: Readonly<RiderP
   ]);
 
   return (
-    <>
-      <PageHeader
-        title="Assigned Parcels"
-        description="Parcels currently assigned to your rider account."
-      />
+    <div data-testid="page-dynamic-content">
       <RealtimeRiderParcelCardList
         pageResult={pageResult}
         filters={filters}
         townships={townships}
       />
+    </div>
+  );
+}
+
+export default function RiderParcelsPage(
+  props: Readonly<Parameters<typeof RiderParcelsPageContent>[0]>,
+) {
+  return (
+    <>
+      <PageHeader
+        title="Assigned Parcels"
+        description="Parcels currently assigned to your rider account."
+      />
+      <Suspense fallback={<PageContentSkeleton variant="table" />}>
+        <RiderParcelsPageContent {...props} />
+      </Suspense>
     </>
   );
 }

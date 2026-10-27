@@ -10,21 +10,23 @@ Parcel Flow is a Next.js-based internal delivery management system. The stack is
 
 ## 2. Technical Stack Summary
 
-| Area | Tool / Service | Purpose |
-|---|---|---|
-| Hosting / Deployment | Railway | Deploy and host the web application |
-| Database Infrastructure | Supabase | PostgreSQL database and database hosting infrastructure |
-| Authentication | Better Auth | Username + password authentication and session management |
-| Frontend Framework | Next.js | Full-stack React framework |
-| UI Components | shadcn/ui | Reusable UI components |
-| Form State | React Hook Form | Controlled complex forms with server actions |
-| Styling | Tailwind CSS | Utility-first CSS styling |
-| ORM / Database Access | Drizzle ORM | Type-safe database schema and queries |
-| Validation | Zod | Runtime validation and form/schema validation |
-| Object Storage | Cloudflare R2 | Store parcel images and uploaded files |
-| Linting / Formatting | OXC | Fast linting and formatting |
-| Code Quality | SonarQube | Code quality and maintainability checks |
-| Dependency Security | Socket Security | Dependency and supply chain security scanning |
+| Area                    | Tool / Service  | Purpose                                                   |
+| ----------------------- | --------------- | --------------------------------------------------------- |
+| Hosting / Deployment    | Railway         | Deploy and host the web application                       |
+| Database Infrastructure | Supabase        | PostgreSQL database and database hosting infrastructure   |
+| Authentication          | Better Auth     | Username + password authentication and session management |
+| Frontend Framework      | Next.js         | Full-stack React framework                                |
+| UI Components           | shadcn/ui       | Reusable UI components                                    |
+| Form State              | React Hook Form | Controlled complex forms with server actions              |
+| Styling                 | Tailwind CSS    | Utility-first CSS styling                                 |
+| ORM / Database Access   | Drizzle ORM     | Type-safe database schema and queries                     |
+| Validation              | Zod             | Runtime validation and form/schema validation             |
+| Object Storage          | Cloudflare R2   | Store parcel images and uploaded files                    |
+| Error Monitoring        | Sentry          | Runtime error and performance monitoring                  |
+| Linting / Formatting    | OXC             | Fast linting and formatting                               |
+| Code Quality            | SonarQube       | Code quality and maintainability checks                   |
+| Dependency Security     | Socket Security | Planned: dependency and supply chain security scanning    |
+| CI                      | GitHub Actions  | PR lint, format, typecheck, and unit test pipeline       |
 
 ---
 
@@ -75,8 +77,21 @@ Supabase is used for:
 - Storing Parcel Flow domain tables
 - Storing Better Auth tables in the same database as the domain tables
 - Database migrations through Drizzle
-- Supabase Realtime publication for the `parcels` table
-- Row Level Security policies that scope authenticated parcel visibility for admin, merchant, and rider realtime access
+- Supabase Realtime publication for the `parcels` table (`postgres_changes`)
+- Row Level Security on `public.parcels` as defense-in-depth for the database
+
+## Parcel realtime path
+
+Browsers do **not** subscribe to Supabase Realtime directly with the publishable key.
+
+Current delivery path:
+
+1. Authenticated UI opens an `EventSource` to `GET /api/realtime/parcels?surface=…`.
+2. The Next.js route authenticates the session, loads role scope, and subscribes server-side with the Supabase **secret/service** client.
+3. Incoming `parcels` `postgres_changes` events are filtered in app code for the caller's surface (admin, merchant, or rider).
+4. Matching events are forwarded to the browser as Server-Sent Events (SSE).
+
+RLS policies on `public.parcels` remain enabled and must stay aligned with role visibility, but live scoping for the UI is enforced in the SSE bridge, not by client-side Realtime RLS alone.
 
 ## Important Notes
 
@@ -85,10 +100,9 @@ Supabase is used for:
 - The app uses username and password login through Better Auth.
 - Database access from the app should go through controlled server-side logic.
 - Sensitive queries should not be exposed directly from the client.
-- Parcel realtime delivery is driven from Supabase `postgres_changes` on `public.parcels`.
 - Realtime publication is intentionally limited to `parcels` for the current scope.
 - `public.parcels` must remain in the `supabase_realtime` publication.
-- `public.parcels` RLS must remain enabled so authenticated realtime access stays aligned with role scope.
+- On the Supabase free tier, inactive projects pause after 7 days. The nightly Demo Reset workflow (`.github/workflows/demo-reset.yml`) rewrites the demo data in staging and production, which keeps both projects awake. It needs the `DEMO_STAGING_URL`, `DEMO_STAGING_RESET_TOKEN`, `DEMO_PRODUCTION_URL` and `DEMO_PRODUCTION_RESET_TOKEN` repository secrets.
 
 ---
 
@@ -154,6 +168,7 @@ Next.js is used for:
 - Authentication-protected routes
 - Role and permission checks
 - Admin, merchant, and rider dashboards
+- Parcel realtime SSE bridge (`/api/realtime/parcels`)
 
 ## Important Notes
 
@@ -162,6 +177,7 @@ Next.js is used for:
 - UI hiding alone is not enough for security.
 - Route protection should be enforced for dashboard routes.
 - Use `proxy.ts`, not `middleware.ts`.
+- Cache Components are enabled (`cacheComponents` in `next.config.ts`). Cached reads use `"use cache"` with `cacheLife` / `cacheTag`; Bun tests mock `next/cache` outside a Next request store.
 - Do not introduce extra backend services or extra architectural layers unless explicitly requested.
 
 ---
@@ -332,6 +348,8 @@ Drizzle is used for:
 - Parcel status correction must not create a missing delivery-attempt event; correcting to delivered requires an existing attempt item, and a corrected rider may receive only the latest pending, unreserved attempt item.
 - `is_received_by_office` is modeled as a boolean field.
 - Rider delivery failure reports should use the parcel `delivery_failure_note` field, not `special_notes`.
+- `delivery_failure_note` is jsonb: an array of `{ note, status }` where `status` is `active` or `inactive`.
+- `is_large_parcel` is a boolean on `parcels` and drives whether dimensions are required for fee calculation.
 
 ---
 
@@ -431,7 +449,7 @@ SonarQube is used for:
 
 ## Important Notes
 
-- SonarQube runs automatically when a pull request is pushed or updated.
+- SonarQube runs on pull requests when the Sonar project is connected.
 - SonarQube does not need to run inside the application CI pipeline.
 - Pull requests should pass the quality gate before merging.
 - Common issues should be fixed early, not after features are complete.
@@ -439,57 +457,105 @@ SonarQube is used for:
 
 ---
 
-## 14. Socket Security
+## 14. Sentry
 
 ## Purpose
 
-Socket Security is used for dependency and supply chain security.
+Sentry is used for runtime error and performance monitoring.
+
+## Why We Use It
+
+It captures production and staging exceptions with environment tagging and source maps from Railway builds.
+
+## Usage in Parcel Flow
+
+Sentry is used for:
+
+- Client, server, and edge instrumentation via `@sentry/nextjs`
+- Environment-tagged events (`NEXT_PUBLIC_SENTRY_ENVIRONMENT` / `SENTRY_ENVIRONMENT`)
+- Build-time source map upload with `SENTRY_AUTH_TOKEN`
+
+## Important Notes
+
+- Configure DSN and auth token in Railway (and local env files for debugging).
+- Do not commit Sentry auth tokens.
+- Tag events by environment so staging and production stay separable.
+
+---
+
+## 15. Socket Security (planned)
+
+## Purpose
+
+Socket Security will be used for dependency and supply chain security.
 
 ## Why We Use It
 
 It helps detect risky, malicious, or suspicious packages before they enter the project.
 
-## Usage in Parcel Flow
+## Planned usage in Parcel Flow
 
-Socket Security is used for:
-
-- Dependency security checks
-- Pull request package review
+- Dependency security checks on pull requests
 - Supply chain risk detection
 - Alerting on suspicious package behavior
 
 ## Important Notes
 
-- Review Socket alerts before merging dependency changes.
-- Dependabot updates should still pass Socket checks.
-- Do not ignore high-risk dependency warnings without checking.
+- Not wired in the repository yet; treat as a near-term addition alongside CI.
+- When enabled, review Socket alerts before merging dependency changes.
 - Socket and SonarQube solve different problems:
   - Socket checks dependencies.
   - SonarQube checks code quality and code security issues.
 
 ---
 
-## 15. Service Responsibilities
+## 16. CI (planned)
 
-| Responsibility | Tool / Service |
-|---|---|
-| Web application framework | Next.js |
-| Deployment | Railway |
-| Database | Supabase PostgreSQL |
-| Authentication | Better Auth |
-| UI components | shadcn/ui |
-| Form state | React Hook Form |
-| Styling | Tailwind CSS |
-| ORM and migrations | Drizzle |
-| Input validation | Zod |
-| Image/file storage | Cloudflare R2 |
-| Linting and formatting | OXC |
-| Code quality | SonarQube |
-| Dependency security | Socket Security |
+## Purpose
+
+GitHub Actions CI will run automated checks on pull requests.
+
+## Planned checks
+
+- Lint (`bun run lint`)
+- Format check (`bun run format:check`)
+- Typecheck (`bun run typecheck`)
+- Unit and integration tests (and optionally Playwright e2e when credentials allow)
+
+## Current automation
+
+- `.github/workflows/ci.yml` runs lint, format check, typecheck and unit/component tests on pushes and pull requests to `dev` and `main`.
+- `.github/workflows/demo-reset.yml` resets the public demo data nightly at 00:00 Yangon time (17:30 UTC) through `POST /api/demo/reset`.
+
+## Important Notes
+
+- Integration and Playwright e2e tests need a database and are not in CI yet.
 
 ---
 
-## 16. Development Workflow
+## 17. Service Responsibilities
+
+| Responsibility            | Tool / Service      |
+| ------------------------- | ------------------- |
+| Web application framework | Next.js             |
+| Deployment                | Railway             |
+| Database                  | Supabase PostgreSQL |
+| Authentication            | Better Auth         |
+| UI components             | shadcn/ui           |
+| Form state                | React Hook Form     |
+| Styling                   | Tailwind CSS        |
+| ORM and migrations        | Drizzle             |
+| Input validation          | Zod                 |
+| Image/file storage        | Cloudflare R2       |
+| Error monitoring          | Sentry              |
+| Linting and formatting    | OXC                 |
+| Code quality              | SonarQube           |
+| Dependency security       | Socket Security (planned) |
+| PR automation             | GitHub Actions CI (planned) |
+
+---
+
+## 18. Development Workflow
 
 Recommended development workflow:
 
@@ -501,14 +567,14 @@ Recommended development workflow:
 6. Validate all form/server inputs with Zod.
 7. Use server actions or server-side functions for protected operations.
 8. Run OXC lint and format checks.
-9. Run typecheck.
+9. Run typecheck and relevant tests (`bun run test`, integration/e2e as needed).
 10. Open pull request.
-11. Confirm CI, automatic SonarQube pull request checks, and Socket Security checks.
+11. Confirm SonarQube quality gate. When CI and Socket Security are enabled, confirm those checks as well.
 12. Deploy through Railway after merge.
 
 ---
 
-## 17. Security Rules
+## 19. Security Rules
 
 Important security rules:
 
@@ -528,7 +594,7 @@ Important security rules:
 
 ---
 
-## 18. Environment Variables
+## 20. Environment Variables
 
 The project should define environment variables for:
 
@@ -537,29 +603,45 @@ DATABASE_URL
 BETTER_AUTH_SECRET
 BETTER_AUTH_URL
 
-SUPABASE_URL
-SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY
+FIRST_SUPER_ADMIN_USERNAME
+FIRST_SUPER_ADMIN_PASSWORD
+FIRST_SUPER_ADMIN_NAME
+FIRST_SUPER_ADMIN_PHONE_NUMBER
+FIRST_SUPER_ADMIN_ADDRESS
+FIRST_SUPER_ADMIN_AGE
 
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_PROJECT_ID
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+SUPABASE_SECRET_KEY
+SUPABASE_DATABASE_REFERENCE_BYTES
+
+CLOUDFLARE_R2_API_TOKEN
 CLOUDFLARE_R2_ACCOUNT_ID
 CLOUDFLARE_R2_ACCESS_KEY_ID
 CLOUDFLARE_R2_SECRET_ACCESS_KEY
 CLOUDFLARE_R2_BUCKET_NAME
-CLOUDFLARE_R2_PUBLIC_URL_OR_CUSTOM_DOMAIN
+CLOUDFLARE_R2_REFERENCE_BYTES
+
+NEXT_PUBLIC_SENTRY_DSN
+NEXT_PUBLIC_SENTRY_ENVIRONMENT
+SENTRY_ENVIRONMENT
+SENTRY_AUTH_TOKEN
 ```
 
-Actual variable names may change based on implementation.
+See `.env.example` for the canonical list.
 
 Rules:
 
 - Never commit real secrets.
-- Use `.env.local` for local development.
+- Use `.env.development` for local `next dev` / app runs.
+- Use `.env.test` for integration, e2e, and performance test runs.
 - Use Railway environment variables for production.
 - Use separate credentials for development and production if possible.
 
 ---
 
-## 19. Out of Scope
+## 21. Out of Scope
 
 This document does not define:
 

@@ -1,9 +1,7 @@
 {
   "name": "listParcelsForRiderUser",
   "sql": "select \"parcels\".\"id\", \"parcels\".\"parcel_code\", \"parcels\".\"merchant_id\", \"merchants\".\"shop_name\", \"parcels\".\"receiver_name\", \"parcels\".\"receiver_phone_number\", \"parcels\".\"receiver_address\", \"parcels\".\"special_notes\", \"parcels\".\"delivery_failure_note\", \"parcels\".\"township_id\", \"townships\".\"name\", \"parcels\".\"parcel_type\", \"parcels\".\"cod_amount\", \"parcels\".\"delivery_fee\", \"parcels\".\"weight_kg\", \"parcels\".\"parcel_width_cm\", \"parcels\".\"parcel_height_cm\", \"parcels\".\"parcel_length_cm\", \"parcels\".\"proof_of_delivery_images_keys\", \"parcels\".\"rider_id\", \"user\".\"name\", \"parcels\".\"status\", \"parcels\".\"created_at\" from \"parcels\" inner join \"merchants\" on \"merchants\".\"id\" = \"parcels\".\"merchant_id\" inner join \"townships\" on \"townships\".\"id\" = \"parcels\".\"township_id\" left join \"riders\" on \"riders\".\"id\" = \"parcels\".\"rider_id\" left join \"user\" on \"user\".\"id\" = \"riders\".\"user_id\" where (\"parcels\".\"deleted_at\" is null and \"riders\".\"user_id\" = $1)",
-  "params": [
-    "67dc12f8-b701-47db-8139-189b20177651"
-  ],
+  "params": ["67dc12f8-b701-47db-8139-189b20177651"],
   "plan": [
     {
       "Plan": {

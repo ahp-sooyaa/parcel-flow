@@ -10,12 +10,28 @@ import {
   type ParcelRealtimeRow,
 } from "@/features/parcels/server/realtime";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
+import { getClientIp } from "@/lib/rate-limit";
 import { requireCurrentUser } from "@/lib/session";
 
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
-
 const encoder = new TextEncoder();
+
+// All streams share one Supabase socket, and the free plan allows 100 channels
+// per socket. Past the cap a page still works; it just stops live-updating.
+const MAX_OPEN_STREAMS = 80;
+const MAX_OPEN_STREAMS_PER_IP = 4;
+const openStreamsByIp = new Map<string, number>();
+let openStreams = 0;
+
+function releaseStream(ip: string) {
+  openStreams = Math.max(0, openStreams - 1);
+  const remaining = (openStreamsByIp.get(ip) ?? 1) - 1;
+
+  if (remaining > 0) {
+    openStreamsByIp.set(ip, remaining);
+  } else {
+    openStreamsByIp.delete(ip);
+  }
+}
 
 export async function GET(request: Request) {
   const currentUser = await requireCurrentUser();
@@ -29,7 +45,35 @@ export async function GET(request: Request) {
     );
   }
 
-  const scope = await loadParcelRealtimeScopeContext(currentUser);
+  const ip = getClientIp(request.headers);
+
+  if (
+    openStreams >= MAX_OPEN_STREAMS ||
+    (openStreamsByIp.get(ip) ?? 0) >= MAX_OPEN_STREAMS_PER_IP
+  ) {
+    // 204 tells EventSource to stop reconnecting instead of retrying in a loop.
+    return new Response(null, { status: 204 });
+  }
+
+  openStreams += 1;
+  openStreamsByIp.set(ip, (openStreamsByIp.get(ip) ?? 0) + 1);
+  let released = false;
+  const release = () => {
+    if (!released) {
+      released = true;
+      releaseStream(ip);
+    }
+  };
+
+  let scope: Awaited<ReturnType<typeof loadParcelRealtimeScopeContext>>;
+
+  try {
+    scope = await loadParcelRealtimeScopeContext(currentUser);
+  } catch (error) {
+    release();
+    throw error;
+  }
+
   const supabase = getSupabaseAdminClient();
   const channel = supabase.channel(
     `parcel-flow:parcels:${surface}:${currentUser.id}:${randomUUID()}`,
@@ -54,6 +98,7 @@ export async function GET(request: Request) {
         }
 
         closed = true;
+        release();
 
         if (heartbeat) {
           clearInterval(heartbeat);
@@ -119,6 +164,7 @@ export async function GET(request: Request) {
     },
     cancel() {
       closed = true;
+      release();
 
       if (heartbeat) {
         clearInterval(heartbeat);

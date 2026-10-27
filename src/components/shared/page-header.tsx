@@ -12,6 +12,7 @@ type PageHeaderProps = {
 export function PageHeader({ title, description, actions, className }: Readonly<PageHeaderProps>) {
   return (
     <div
+      data-testid="page-shell-marker"
       className={cn(
         "mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between",
         className,
@@ -23,7 +24,11 @@ export function PageHeader({ title, description, actions, className }: Readonly<
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{description}</p>
         ) : null}
       </div>
-      {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+      {actions ? (
+        <div className="flex shrink-0 items-center gap-2" data-testid="page-header-actions">
+          {actions}
+        </div>
+      ) : null}
     </div>
   );
 }

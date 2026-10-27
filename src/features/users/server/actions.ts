@@ -1,7 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 
 import { eq } from "drizzle-orm";
 
@@ -27,8 +27,16 @@ import {
 } from "@/features/users/server/dto";
 import { buildInternalEmail, normalizePhoneNumber } from "@/features/users/server/utils";
 import { auth } from "@/lib/auth";
+import {
+  invalidateMerchantListCaches,
+  invalidateRiderListCaches,
+  invalidateTownshipCaches,
+  invalidateUserListCaches,
+} from "@/lib/cache-invalidation";
+import { userBanksTag, userProfileTag } from "@/lib/cache-tags";
 import { getFormFieldErrors } from "@/lib/form-action-errors";
 import { canCreateUser, canManageUser } from "@/lib/permissions";
+import { DEMO_RESTRICTED_MESSAGE, isDemoRestricted } from "@/lib/demo";
 import { requireCurrentUser } from "@/lib/session";
 
 type BankAccountActionResult =
@@ -48,6 +56,10 @@ export type AccountSettingsFormState = {
 
 export async function createUserAction(input: unknown) {
   const actor = await requireCurrentUser();
+
+  if (isDemoRestricted(actor)) {
+    return { ok: false as const, message: DEMO_RESTRICTED_MESSAGE };
+  }
   const parseResult = createUserInputSchema.safeParse(input);
 
   if (!parseResult.success) {
@@ -99,6 +111,10 @@ export async function createUserAction(input: unknown) {
   revalidatePath("/dashboard/users");
   revalidatePath("/dashboard/merchants");
   revalidatePath("/dashboard/riders");
+  invalidateUserListCaches();
+  invalidateMerchantListCaches();
+  invalidateRiderListCaches();
+  invalidateTownshipCaches();
 
   return {
     ok: true as const,
@@ -115,6 +131,10 @@ export async function createUserAction(input: unknown) {
 
 export async function updateUserAction(input: unknown) {
   const actor = await requireCurrentUser();
+
+  if (isDemoRestricted(actor)) {
+    return { ok: false as const, message: DEMO_RESTRICTED_MESSAGE };
+  }
   const parseResult = updateUserInputSchema.safeParse(input);
 
   if (!parseResult.success) {
@@ -150,6 +170,10 @@ export async function updateUserAction(input: unknown) {
   revalidatePath("/dashboard/users");
   revalidatePath("/dashboard/merchants");
   revalidatePath("/dashboard/riders");
+  invalidateUserListCaches();
+  invalidateMerchantListCaches();
+  invalidateRiderListCaches();
+  updateTag(userProfileTag(validatedInput.id));
 
   return {
     ok: true as const,
@@ -160,6 +184,10 @@ export async function updateUserAction(input: unknown) {
 
 export async function updateOwnAccountAction(input: unknown) {
   const actor = await requireCurrentUser();
+
+  if (isDemoRestricted(actor)) {
+    return { ok: false as const, message: DEMO_RESTRICTED_MESSAGE };
+  }
   const parseResult = updateOwnAccountInputSchema.safeParse(input);
 
   if (!parseResult.success) {
@@ -184,6 +212,10 @@ export async function updateOwnAccountAction(input: unknown) {
     .where(eq(appUsers.id, actor.id));
 
   revalidatePath("/dashboard/settings");
+  updateTag(userProfileTag(actor.id));
+  invalidateUserListCaches();
+  invalidateMerchantListCaches();
+  invalidateRiderListCaches();
 
   return {
     ok: true as const,
@@ -243,6 +275,7 @@ export async function createOwnBankAccountAction(input: unknown): Promise<BankAc
   });
 
   revalidatePath("/dashboard/settings");
+  updateTag(userBanksTag(actor.id));
 
   return {
     ok: true as const,
@@ -284,6 +317,7 @@ export async function updateOwnBankAccountAction(input: unknown): Promise<BankAc
   }
 
   revalidatePath("/dashboard/settings");
+  updateTag(userBanksTag(actor.id));
 
   return {
     ok: true as const,
@@ -327,6 +361,8 @@ export async function createUserBankAccountAction(input: unknown) {
   });
 
   revalidatePath("/dashboard/users");
+  updateTag(userBanksTag(validatedInput.userId));
+  invalidateUserListCaches();
 
   return {
     ok: true as const,
@@ -377,6 +413,8 @@ export async function updateUserBankAccountAction(input: unknown) {
   }
 
   revalidatePath("/dashboard/users");
+  updateTag(userBanksTag(validatedInput.userId));
+  invalidateUserListCaches();
 
   return {
     ok: true as const,

@@ -5,7 +5,7 @@ import { appUsers } from "@/db/schema";
 import { buildInternalEmail, normalizePhoneNumber } from "@/features/users/server/utils";
 import { auth } from "@/lib/auth";
 
-const username = getRequiredEnv("FIRST_SUPER_ADMIN_USERNAME");
+const username = getRequiredEnv("FIRST_SUPER_ADMIN_USERNAME").toLowerCase();
 const password = getRequiredEnv("FIRST_SUPER_ADMIN_PASSWORD");
 const displayName = process.env.FIRST_SUPER_ADMIN_NAME?.trim() || "Super Admin";
 const phoneNumber = normalizePhoneNumber(

@@ -14,6 +14,8 @@ const changePasswordMock = mock(async () => undefined);
 const setUserPasswordMock = mock(async () => undefined);
 const headersMock = mock(async () => new Headers());
 const revalidatePathMock = mock(() => undefined);
+const updateTagMock = mock(() => undefined);
+const revalidateTagMock = mock(() => undefined);
 const dbWhereMock = mock(async () => undefined);
 const dbSetMock = mock(() => ({ where: dbWhereMock }));
 const dbUpdateMock = mock(() => ({ set: dbSetMock }));
@@ -45,7 +47,11 @@ void mock.module("next/headers", () => ({
 }));
 
 void mock.module("next/cache", () => ({
+  cacheLife: () => undefined,
+  cacheTag: () => undefined,
   revalidatePath: revalidatePathMock,
+  updateTag: updateTagMock,
+  revalidateTag: revalidateTagMock,
 }));
 
 void mock.module("@/db", () => ({
@@ -82,6 +88,8 @@ describe("auth server actions", async () => {
     setUserPasswordMock.mockReset();
     headersMock.mockReset();
     revalidatePathMock.mockReset();
+    updateTagMock.mockReset();
+    revalidateTagMock.mockReset();
     dbWhereMock.mockReset();
     dbSetMock.mockReset();
     dbUpdateMock.mockReset();
@@ -98,6 +106,55 @@ describe("auth server actions", async () => {
     dbWhereMock.mockResolvedValue(undefined);
     dbSetMock.mockReturnValue({ where: dbWhereMock });
     dbUpdateMock.mockReturnValue({ set: dbSetMock });
+  });
+
+  test("blocks own-password changes for demo visitors", async () => {
+    process.env.NEXT_PUBLIC_DEMO_MODE = "1";
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "actor-id", role: "rider" }));
+
+    try {
+      const result = await updateOwnPasswordAction({
+        currentPassword: "current-password",
+        newPassword: "new-password-123",
+      });
+
+      expect(result.ok).toBe(false);
+      expect(result.message).toContain("disabled in the public demo");
+      expect(changePasswordMock).not.toHaveBeenCalled();
+    } finally {
+      delete process.env.NEXT_PUBLIC_DEMO_MODE;
+    }
+  });
+
+  test("blocks password regeneration for demo admins", async () => {
+    process.env.NEXT_PUBLIC_DEMO_MODE = "1";
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "actor-id", role: "office_admin" }));
+
+    try {
+      await expectPromiseToRejectWith(
+        regeneratePasswordAction({ targetUserId: "target-user-id" }),
+        "This action is disabled in the public demo. Clone the repo to try it yourself.",
+      );
+      expect(setUserPasswordMock).not.toHaveBeenCalled();
+    } finally {
+      delete process.env.NEXT_PUBLIC_DEMO_MODE;
+    }
+  });
+
+  test("still lets the super admin change their password in demo mode", async () => {
+    process.env.NEXT_PUBLIC_DEMO_MODE = "1";
+
+    try {
+      const result = await updateOwnPasswordAction({
+        currentPassword: "current-password",
+        newPassword: "new-password-123",
+      });
+
+      expect(result).toEqual({ ok: true, message: "Password updated." });
+      expect(changePasswordMock).toHaveBeenCalledTimes(1);
+    } finally {
+      delete process.env.NEXT_PUBLIC_DEMO_MODE;
+    }
   });
 
   test("rejects invalid own-password updates before calling auth", async () => {

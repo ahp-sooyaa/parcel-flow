@@ -39,6 +39,13 @@ export const resolveMerchantSettlementInputSchema = z.object({
     ),
 });
 
+// The public demo never stores uploads, so the receipt file is not required.
+export const demoResolveMerchantSettlementInputSchema = resolveMerchantSettlementInputSchema.extend(
+  {
+    bankTransferReceipt: z.unknown().transform(() => undefined),
+  },
+);
+
 export type SettlementEligibleFinancialItemDto = {
   id: string;
   parcelId: string | null;

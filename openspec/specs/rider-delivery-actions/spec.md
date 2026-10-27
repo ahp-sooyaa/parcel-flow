@@ -1,8 +1,11 @@
 # rider-delivery-actions Specification
 
 ## Purpose
+
 TBD - created by archiving change rider-delivery-actions. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Rider reports delivery failure
 
 The system SHALL allow an active rider to report delivery failure for a parcel assigned to their rider profile when the parcel status is `on_the_way`.
@@ -52,13 +55,14 @@ The system SHALL allow an active rider to report delivery failure for a parcel a
 - **AND** the rider assignment remains unchanged
 - **AND** the expanded rider parcel card can again show `Report Failure` and `Mark Delivered`
 
-#### Scenario: Failure report has no delivery side effects
+#### Scenario: Failure report has no additional delivery side effects
 
 - **WHEN** a rider reports delivery failure for an assigned `on_the_way` parcel
 - **THEN** the system does not set `delivered_at`
 - **AND** the system does not update `collected_amount`
 - **AND** the system does not create merchant settlement financial items
-- **AND** the system does not create rider payout financial items
+- **AND** the system does not create an additional rider payout financial item
+- **AND** any existing pending `delivery_attempt` rider way payout item remains linked to the rider assigned for that attempt
 
 #### Scenario: Unauthorized failure report is rejected
 
@@ -140,25 +144,27 @@ The system SHALL persist successful rider delivery completion by updating the pa
 
 ### Requirement: Delivered parcel financial items are generated
 
-The system SHALL generate pending financial items when a rider successfully marks a parcel delivered.
+The system SHALL preserve the rider delivery-attempt payout item and avoid duplicate rider payout financial items when a rider successfully marks a parcel delivered.
 
-#### Scenario: COD delivered parcel creates settlement and payout items
+#### Scenario: COD delivered parcel preserves attempt payout item
 
-- **WHEN** an active rider marks their assigned COD `on_the_way` parcel delivered with a valid proof photo
-- **THEN** the system creates one `financial_items` row with `item_type = cod_remit`, `amount = parcel.cod_amount`, `status = pending`, `merchant_id = parcel.merchant_id`, and `parcel_id = parcel.id`
-- **AND** the system creates one `financial_items` row with `item_type = rider_way_payout`, `amount = 1`, `status = pending`, `merchant_id = parcel.merchant_id`, `rider_id = parcel.rider_id`, and `parcel_id = parcel.id`
+- **WHEN** an active rider marks their assigned COD `on_the_way` parcel delivered with a valid proof photo after starting delivery
+- **THEN** the system does not create a duplicate `rider_way_payout` financial item
+- **AND** the existing `delivery_attempt` rider way payout item remains `pending`, has `amount = 1`, and remains linked to the rider assigned for the attempt
+- **AND** the system does not create a `cod_remit` financial item until office cash handover is confirmed
 
-#### Scenario: Non-COD delivered parcel creates only payout item
+#### Scenario: Non-COD delivered parcel preserves attempt payout item
 
-- **WHEN** an active rider marks their assigned non-COD `on_the_way` parcel delivered with a valid proof photo
-- **THEN** the system does not create a `cod_remit` financial item
-- **AND** the system creates one `financial_items` row with `item_type = rider_way_payout`, `amount = 1`, `status = pending`, `merchant_id = parcel.merchant_id`, `rider_id = parcel.rider_id`, and `parcel_id = parcel.id`
+- **WHEN** an active rider marks their assigned non-COD `on_the_way` parcel delivered with a valid proof photo after starting delivery
+- **THEN** the system does not create a duplicate `rider_way_payout` financial item
+- **AND** the existing `delivery_attempt` rider way payout item remains `pending`, has `amount = 1`, and remains linked to the rider assigned for the attempt
+- **AND** the system does not create a `cod_remit` financial item
 
 #### Scenario: Delivery completion is atomic
 
-- **WHEN** any required parcel update or financial item creation fails during mark delivered
+- **WHEN** any required parcel update or financial item consistency check fails during mark delivered
 - **THEN** the system does not persist a partially delivered parcel state
-- **AND** the system does not persist partial financial item rows
+- **AND** the system does not persist partial financial item changes
 
 ### Requirement: Delivery action storage fields exist
 
@@ -174,4 +180,3 @@ The system SHALL provide parcel storage fields for rider delivery failure notes 
 - **WHEN** the application persists delivery proof after mark delivered
 - **THEN** the `parcels` table has a JSON image key collection column available through the Drizzle schema
 - **AND** the application stores object storage keys rather than public raw URLs
-

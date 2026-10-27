@@ -20,6 +20,7 @@ import {
   canCreateRiderPayoutDraft,
   canSettleRiderPayout,
 } from "@/lib/permissions";
+import { invalidateRiderPayoutCaches } from "@/lib/cache-invalidation";
 import { requireCurrentUser } from "@/lib/session";
 
 function validationFailure(error: z.ZodError) {
@@ -41,6 +42,7 @@ function validationFailure(error: z.ZodError) {
 }
 
 function revalidateRiderPayoutPaths() {
+  invalidateRiderPayoutCaches();
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/parcels");
   revalidatePath("/dashboard/rider-payouts");

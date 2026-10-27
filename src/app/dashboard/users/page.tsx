@@ -1,9 +1,10 @@
-import { Plus } from "lucide-react";
+import { Suspense } from "react";
 
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { CreateUserForm } from "@/features/users/components/create-user-form";
+import { SheetFormFallback } from "@/components/shared/sheet-form-fallback";
+import { CreateUserFormLoader } from "@/features/users/components/create-user-form-loader";
+import { CreateUserSheet } from "@/features/users/components/create-user-sheet";
 import { UserListTable } from "@/features/users/components/user-list-table";
 import { listBankAccountsForUserIds, listUsersPage } from "@/features/users/server/dal";
 import { parseUserListFilters } from "@/features/users/server/dto";
@@ -15,7 +16,7 @@ type UsersPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function UsersPage({ searchParams }: Readonly<UsersPageProps>) {
+async function UsersPageContent({ searchParams }: Readonly<UsersPageProps>) {
   const currentUser = await requireCurrentUser();
 
   if (!isAdminRole(currentUser.role)) {
@@ -24,37 +25,40 @@ export default async function UsersPage({ searchParams }: Readonly<UsersPageProp
 
   const filters = parseUserListFilters((await searchParams) ?? {});
   const [pageResult, townships] = await Promise.all([listUsersPage(filters), listTownships()]);
-  const bankAccountsByUserId = Object.fromEntries(
-    (await listBankAccountsForUserIds(pageResult.users.map((user) => user.id))).entries(),
+  const bankAccountsByUserId = await listBankAccountsForUserIds(
+    pageResult.users.map((user) => user.id),
   );
 
+  return (
+    <div data-testid="page-dynamic-content">
+      <UserListTable
+        pageResult={pageResult}
+        filters={filters}
+        bankAccountsByUserId={bankAccountsByUserId}
+        townships={townships}
+        currentUserPhoneNumber={currentUser.phoneNumber}
+      />
+    </div>
+  );
+}
+
+export default function UsersPage(props: Readonly<Parameters<typeof UsersPageContent>[0]>) {
   return (
     <>
       <PageHeader
         title="Users"
         description="Admin-created user accounts for super admins, office admins, merchants, and riders."
         actions={
-          <Sheet>
-            <Button asChild>
-              <SheetTrigger>
-                <Plus className="size-4" />
-                Create User
-              </SheetTrigger>
-            </Button>
-            <SheetContent className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:w-[500px] data-[side=right]:sm:max-w-[500px]">
-              <CreateUserForm townships={townships} />
-            </SheetContent>
-          </Sheet>
+          <CreateUserSheet triggerLabel="Create User">
+            <Suspense fallback={<SheetFormFallback />}>
+              <CreateUserFormLoader />
+            </Suspense>
+          </CreateUserSheet>
         }
       />
-
-      <UserListTable
-        pageResult={pageResult}
-        filters={filters}
-        bankAccountsByUserId={bankAccountsByUserId}
-        townships={townships}
-        currentUserPhoneNumber={currentUser?.phoneNumber ?? null}
-      />
+      <Suspense fallback={<PageContentSkeleton variant="table" />}>
+        <UsersPageContent {...props} />
+      </Suspense>
     </>
   );
 }

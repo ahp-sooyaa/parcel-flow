@@ -33,6 +33,8 @@ const updateBankAccountForUserMock = mock(
 const createUserMock = mock(async () => ({ user: { id: "created-user-id" } }));
 const headersMock = mock(async () => new Headers());
 const revalidatePathMock = mock(() => undefined);
+const updateTagMock = mock(() => undefined);
+const revalidateTagMock = mock(() => undefined);
 const dbWhereMock = mock(async () => undefined);
 const dbSetMock = mock(() => ({ where: dbWhereMock }));
 const dbUpdateMock = mock(() => ({ set: dbSetMock }));
@@ -60,7 +62,11 @@ void mock.module("next/headers", () => ({
 }));
 
 void mock.module("next/cache", () => ({
+  cacheLife: () => undefined,
+  cacheTag: () => undefined,
   revalidatePath: revalidatePathMock,
+  updateTag: updateTagMock,
+  revalidateTag: revalidateTagMock,
 }));
 
 void mock.module("@/db", () => ({
@@ -92,6 +98,8 @@ describe("user server actions", async () => {
     createUserMock.mockReset();
     headersMock.mockReset();
     revalidatePathMock.mockReset();
+    updateTagMock.mockReset();
+    revalidateTagMock.mockReset();
     dbWhereMock.mockReset();
     dbSetMock.mockReset();
     dbUpdateMock.mockReset();

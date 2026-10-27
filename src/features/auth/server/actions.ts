@@ -12,13 +12,18 @@ import { auth } from "@/lib/auth";
 import { getFormFieldErrors } from "@/lib/form-action-errors";
 import { canRegeneratePassword } from "@/lib/permissions";
 import { generateTemporaryPassword } from "@/lib/password";
+import { assertDemoAllowed, DEMO_RESTRICTED_MESSAGE, isDemoRestricted } from "@/lib/demo";
 import { requireCurrentUser } from "@/lib/session";
 import { eq } from "drizzle-orm";
+import { maxLengthMessage, TEXT_LIMITS } from "@/lib/validation";
 
 const updateOwnPasswordSchema = z
   .object({
-    currentPassword: z.string().min(1, "Current password is required."),
-    newPassword: z.string().min(8, "New password must be at least 8 characters."),
+    currentPassword: z.string().min(1, "Current password is required.").max(TEXT_LIMITS.password),
+    newPassword: z
+      .string()
+      .min(8, "New password must be at least 8 characters.")
+      .max(TEXT_LIMITS.password, maxLengthMessage("New password", TEXT_LIMITS.password)),
   })
   .superRefine((value, ctx) => {
     if (value.currentPassword === value.newPassword) {
@@ -42,6 +47,10 @@ export type PasswordSettingsFormState = {
 
 export async function updateOwnPasswordAction(input: unknown) {
   const actor = await requireCurrentUser();
+
+  if (isDemoRestricted(actor)) {
+    return { ok: false as const, message: DEMO_RESTRICTED_MESSAGE, fieldErrors: undefined };
+  }
   const parsedInput = updateOwnPasswordSchema.safeParse(input);
 
   if (!parsedInput.success) {
@@ -101,6 +110,7 @@ export async function updateOwnPasswordFormAction(
 
 export async function regeneratePasswordAction(input: unknown) {
   const actor = await requireCurrentUser();
+  assertDemoAllowed(actor);
   const parseResult = regeneratePasswordSchema.safeParse(input);
 
   if (!parseResult.success) {

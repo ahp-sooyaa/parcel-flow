@@ -4,21 +4,31 @@ import { z } from "zod";
 
 import { markRiderParcelDelivered } from "@/features/parcels/server/dal";
 import { uploadDeliveryProofImage } from "@/features/parcels/server/upload";
+import { revalidateParcelWriteCaches } from "@/lib/cache-invalidation";
+import { isDemoMode, pickDemoProofImageKey } from "@/lib/demo";
 import { canChangeParcelStatus } from "@/lib/permissions";
+import { createRateLimiter } from "@/lib/rate-limit";
 import { requireCurrentUser } from "@/lib/session";
-
-export const runtime = "nodejs";
 
 const maxProofImageSize = 5 * 1024 * 1024;
 const allowedProofImageTypes = ["image/jpeg", "image/png", "image/webp"];
 
+const deliverLimiter = createRateLimiter({ capacity: 30, refillPerMinute: 30 });
+
+const proofImageSchema = z
+  .file("Delivery proof photo is required.")
+  .min(1, "Delivery proof photo is required.")
+  .max(maxProofImageSize, "Delivery proof photo must be 5MB or smaller.")
+  .mime(allowedProofImageTypes, "Delivery proof photo must be a JPG, PNG, or WebP image.");
+
 const markDeliveredInputSchema = z.object({
   parcelId: z.uuid("Invalid parcel selection."),
-  proofImage: z
-    .file("Delivery proof photo is required.")
-    .min(1, "Delivery proof photo is required.")
-    .max(maxProofImageSize, "Delivery proof photo must be 5MB or smaller.")
-    .mime(allowedProofImageTypes, "Delivery proof photo must be a JPG, PNG, or WebP image."),
+  proofImage: proofImageSchema,
+});
+
+// The public demo never stores uploads; a seeded sample photo stands in.
+const demoMarkDeliveredInputSchema = markDeliveredInputSchema.extend({
+  proofImage: z.unknown().transform(() => undefined),
 });
 
 export async function POST(request: Request) {
@@ -42,6 +52,13 @@ export async function POST(request: Request) {
     );
   }
 
+  if (isDemoMode() && !deliverLimiter.take(actor.id)) {
+    return NextResponse.json(
+      { ok: false, message: "Too many requests. Try again in a minute." },
+      { status: 429 },
+    );
+  }
+
   let formData: FormData;
 
   try {
@@ -53,7 +70,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const parseResult = markDeliveredInputSchema.safeParse({
+  const demoMode = isDemoMode();
+  const inputSchema: typeof markDeliveredInputSchema | typeof demoMarkDeliveredInputSchema =
+    demoMode ? demoMarkDeliveredInputSchema : markDeliveredInputSchema;
+  const parseResult = inputSchema.safeParse({
     parcelId: formData.get("parcelId"),
     proofImage: formData.get("proofImage"),
   });
@@ -69,10 +89,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const proofImageKey = await uploadDeliveryProofImage({
-      parcelId: parseResult.data.parcelId,
-      file: parseResult.data.proofImage,
-    });
+    const proofImage = parseResult.data.proofImage;
+    const proofImageKey =
+      demoMode || !proofImage
+        ? pickDemoProofImageKey(parseResult.data.parcelId)
+        : await uploadDeliveryProofImage({
+            parcelId: parseResult.data.parcelId,
+            file: proofImage,
+          });
 
     await markRiderParcelDelivered({
       parcelId: parseResult.data.parcelId,
@@ -91,6 +115,7 @@ export async function POST(request: Request) {
     );
   }
 
+  revalidateParcelWriteCaches({ riderUserId: actor.id });
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/parcels");
   revalidatePath("/dashboard/rider/parcels");

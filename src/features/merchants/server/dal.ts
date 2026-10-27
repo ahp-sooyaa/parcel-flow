@@ -1,4 +1,5 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
+import { cacheLife, cacheTag } from "next/cache";
 
 import { db } from "@/db";
 import { appUsers, merchants, merchantSettlements, parcels } from "@/db/schema";
@@ -7,6 +8,7 @@ import type {
   MerchantOptionDto,
   MerchantOverviewSummaryDto,
 } from "@/features/merchants/server/dto";
+import { CACHE_TAGS, merchantOverviewTag } from "@/lib/cache-tags";
 import { coerceSqlNumber } from "@/lib/format";
 
 async function loadMerchantParcelAggregations() {
@@ -34,6 +36,10 @@ async function loadMerchantParcelAggregations() {
 }
 
 export async function listMerchants(): Promise<MerchantListItemDto[]> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(CACHE_TAGS.merchants, CACHE_TAGS.parcels);
+
   const rows = await db
     .select({
       id: merchants.id,
@@ -60,6 +66,10 @@ export async function listMerchants(): Promise<MerchantListItemDto[]> {
 }
 
 export async function listMerchantOptions(): Promise<MerchantOptionDto[]> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(CACHE_TAGS.merchantOptions, CACHE_TAGS.merchants);
+
   return db
     .select({
       id: merchants.id,
@@ -75,6 +85,10 @@ export async function listMerchantOptions(): Promise<MerchantOptionDto[]> {
 export async function getMerchantOverviewSummary(
   merchantUserId: string,
 ): Promise<MerchantOverviewSummaryDto> {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(merchantOverviewTag(merchantUserId), CACHE_TAGS.parcels, CACHE_TAGS.settlements);
+
   const [parcelSummaryRow, settledSettlementRows] = await Promise.all([
     db
       .select({

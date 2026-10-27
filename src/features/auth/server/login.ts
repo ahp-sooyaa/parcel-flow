@@ -6,7 +6,10 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { auth } from "@/lib/auth";
+import { INACTIVE_ACCOUNT_MESSAGE } from "@/lib/auth-session-guard";
+import { createRateLimiter, getClientIp } from "@/lib/rate-limit";
 import { getRoleLandingPath } from "@/lib/session";
+import { TEXT_LIMITS } from "@/lib/validation";
 
 export type LoginFormState = {
   username: string;
@@ -14,9 +17,11 @@ export type LoginFormState = {
 };
 
 const loginInputSchema = z.object({
-  username: z.string().trim().min(1, "Username is required."),
-  password: z.string().min(1, "Password is required."),
+  username: z.string().trim().min(1, "Username is required.").max(TEXT_LIMITS.username),
+  password: z.string().min(1, "Password is required.").max(TEXT_LIMITS.password),
 });
+
+const loginLimiter = createRateLimiter({ capacity: 10, refillPerMinute: 5 });
 
 const signedInUserSchema = z.looseObject({
   role: z.enum(["super_admin", "office_admin", "merchant", "rider"]),
@@ -41,7 +46,16 @@ export async function loginAction(
     };
   }
 
-  const { username, password } = parseResult.data;
+  const username = parseResult.data.username.trim().toLowerCase();
+  const { password } = parseResult.data;
+  const requestHeaders = await headers();
+
+  if (!loginLimiter.take(getClientIp(requestHeaders))) {
+    return {
+      username,
+      message: "Too many sign-in attempts. Wait a minute and try again.",
+    };
+  }
 
   let landingPath: string;
 
@@ -51,34 +65,45 @@ export async function loginAction(
         username,
         password,
       },
-      headers: await headers(),
+      headers: requestHeaders,
     });
 
     const user = signedInUserSchema.parse(result.user);
 
+    // Better Auth refuses to create a session for inactive users, so this is
+    // only a fallback for a session that slipped through.
     if (user.isActive === false) {
       return {
         username,
-        message: "Your account is inactive. Contact an admin.",
+        message: INACTIVE_ACCOUNT_MESSAGE,
       };
     }
 
     landingPath = getRoleLandingPath(user.role);
   } catch (error) {
+    const betterAuthMessage =
+      error instanceof Error && error.message.trim().length > 0 ? error.message : null;
+
     Sentry.withScope((scope) => {
       scope.setTag("auth.flow", "login");
       scope.setContext("login", {
         username,
         betterAuthUrlSet: Boolean(process.env.BETTER_AUTH_URL),
+        betterAuthMessage,
       });
       Sentry.captureException(error);
     });
-    Sentry.logger.error("login_failed", { username });
+    Sentry.logger.error("login_failed", { username, betterAuthMessage });
 
-    return {
-      username,
-      message: "Username or password is incorrect.",
-    };
+    let message = "Username or password is incorrect.";
+
+    if (betterAuthMessage === "Username is invalid") {
+      message = "Username must be lowercase letters, numbers, or hyphens.";
+    } else if (betterAuthMessage === INACTIVE_ACCOUNT_MESSAGE) {
+      message = INACTIVE_ACCOUNT_MESSAGE;
+    }
+
+    return { username, message };
   }
 
   return redirect(landingPath);

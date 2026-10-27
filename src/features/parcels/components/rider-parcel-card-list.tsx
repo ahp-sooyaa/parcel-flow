@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import type { ChangeEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -13,7 +13,9 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 
+import { DemoUploadNotice } from "@/components/shared/demo-upload-notice";
 import { FormBanner, type FormMessageState } from "@/components/shared/form-fields";
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,6 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { isDemoMode } from "@/lib/demo";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -113,8 +116,10 @@ export function RiderParcelCardList({
   const parcels = pageResult.parcels;
   const [searchTerm, setSearchTerm] = useState(filters.searchTerm);
   const [selectedStatuses, setSelectedStatuses] = useState<ParcelStatus[]>(filters.statuses);
+  const [activeTab, setActiveTab] = useState(filters.tab);
   const [selectedParcelIds, setSelectedParcelIds] = useState<string[]>([]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isFilterPending, startFilterTransition] = useTransition();
   const [viewingParcel, setViewingParcel] = useState<ParcelListItemDto | null>(null);
   const [failureParcel, setFailureParcel] = useState<ParcelListItemDto | null>(null);
   const [deliveryParcel, setDeliveryParcel] = useState<ParcelListItemDto | null>(null);
@@ -200,6 +205,10 @@ export function RiderParcelCardList({
     setSelectedParcelIds((current) => current.filter((id) => eligibleParcelIds.includes(id)));
   }, [eligibleParcelIds]);
 
+  useEffect(() => {
+    setActiveTab(filters.tab);
+  }, [filters.tab]);
+
   const paginatedParcels = parcels;
   const totalPages = pageResult.totalPages;
   const safeCurrentPage = pageResult.page;
@@ -241,7 +250,9 @@ export function RiderParcelCardList({
     }
 
     const queryString = params.toString();
-    nextRouter.push(queryString ? `${pathname}?${queryString}` : pathname);
+    startFilterTransition(() => {
+      nextRouter.push(queryString ? `${pathname}?${queryString}` : pathname);
+    });
   }
 
   useEffect(() => {
@@ -455,7 +466,9 @@ export function RiderParcelCardList({
       return;
     }
 
-    if (!proofImage) {
+    const demoMode = isDemoMode();
+
+    if (!demoMode && !proofImage) {
       setSubmissionState({
         kind: "error",
         message: "Delivery proof photo is required.",
@@ -465,7 +478,9 @@ export function RiderParcelCardList({
 
     const formData = new FormData();
     formData.set("parcelId", deliveryParcel.id);
-    formData.set("proofImage", proofImage);
+    if (!demoMode && proofImage) {
+      formData.set("proofImage", proofImage);
+    }
 
     setSubmissionState(null);
     setDeliveryPending(true);
@@ -717,9 +732,10 @@ export function RiderParcelCardList({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <Tabs
-          value={filters.tab}
+          value={activeTab}
           onValueChange={(value) => {
             if (isRiderParcelTab(value)) {
+              setActiveTab(value);
               updateFilters({ tab: value, page: 1 });
             }
           }}
@@ -896,7 +912,13 @@ export function RiderParcelCardList({
         </div>
       ) : null}
 
-      {renderParcelContent()}
+      {isFilterPending ? (
+        <div aria-busy={true}>
+          <PageContentSkeleton variant="cards" />
+        </div>
+      ) : (
+        renderParcelContent()
+      )}
 
       <Sheet
         open={viewingParcel !== null}
@@ -999,41 +1021,45 @@ export function RiderParcelCardList({
               </div>
             </div>
 
-            <div className="space-y-3">
-              <Label htmlFor={proofInputId}>Delivery proof photo</Label>
-              <input
-                ref={proofInputRef}
-                id={proofInputId}
-                name="proofImage"
-                type="file"
-                accept="image/*"
-                capture="environment"
-                required
-                disabled={deliveryPending}
-                className="sr-only"
-                onChange={handleProofImageChange}
-              />
-              <Label
-                htmlFor={proofInputId}
-                className="flex min-h-36 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-white px-4 py-5 text-center transition-colors hover:bg-secondary/50"
-              >
-                {proofPreviewUrl ? (
-                  <div
-                    role="img"
-                    aria-label="Delivery proof preview"
-                    className="h-56 w-full rounded-md bg-contain bg-center bg-no-repeat"
-                    style={{ backgroundImage: `url(${proofPreviewUrl})` }}
-                  />
-                ) : (
-                  <>
-                    <Camera className="size-8 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">
-                      Take or choose delivery proof photo
-                    </span>
-                  </>
-                )}
-              </Label>
-            </div>
+            {isDemoMode() ? (
+              <DemoUploadNotice label="Delivery proof photo" item="delivery photo" />
+            ) : (
+              <div className="space-y-3">
+                <Label htmlFor={proofInputId}>Delivery proof photo</Label>
+                <input
+                  ref={proofInputRef}
+                  id={proofInputId}
+                  name="proofImage"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  required
+                  disabled={deliveryPending}
+                  className="sr-only"
+                  onChange={handleProofImageChange}
+                />
+                <Label
+                  htmlFor={proofInputId}
+                  className="flex min-h-36 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-white px-4 py-5 text-center transition-colors hover:bg-secondary/50"
+                >
+                  {proofPreviewUrl ? (
+                    <div
+                      role="img"
+                      aria-label="Delivery proof preview"
+                      className="h-56 w-full rounded-md bg-contain bg-center bg-no-repeat"
+                      style={{ backgroundImage: `url(${proofPreviewUrl})` }}
+                    />
+                  ) : (
+                    <>
+                      <Camera className="size-8 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">
+                        Take or choose delivery proof photo
+                      </span>
+                    </>
+                  )}
+                </Label>
+              </div>
+            )}
 
             <DialogFooter>
               <Button

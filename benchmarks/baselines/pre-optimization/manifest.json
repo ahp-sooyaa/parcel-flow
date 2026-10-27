@@ -6,11 +6,5 @@
   "perfScale": "medium",
   "perfSeed": "42",
   "resultDir": "/Users/aunghtet/Personal/parcel-flow-v2/benchmarks/results/2026-06-29T13-55-14Z",
-  "commands": [
-    "perf:all",
-    "perf:dal",
-    "perf:explain",
-    "perf:pages",
-    "perf:lighthouse"
-  ]
+  "commands": ["perf:all", "perf:dal", "perf:explain", "perf:pages", "perf:lighthouse"]
 }

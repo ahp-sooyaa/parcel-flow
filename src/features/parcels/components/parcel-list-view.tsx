@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState, useTransition } from "reac
 import { usePathname, useRouter } from "next/navigation";
 import { Check, ChevronDown, Route, Search, SlidersHorizontal } from "lucide-react";
 
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { PaginationControls } from "@/components/shared/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -72,11 +73,13 @@ export function ParcelListView({
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState(filters.searchTerm);
   const [selectedStatuses, setSelectedStatuses] = useState<ParcelStatus[]>(filters.statuses);
+  const [activeAssignment, setActiveAssignment] = useState(filters.assignment);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [selectedParcelIds, setSelectedParcelIds] = useState<string[]>([]);
   const [editingParcel, setEditingParcel] = useState<ParcelListItemDto | null>(null);
   const [viewingParcel, setViewingParcel] = useState<ParcelListItemDto | null>(null);
+  const [isFilterPending, startFilterTransition] = useTransition();
   const [, startParcelDetailTransition] = useTransition();
   const parcels = pageResult.parcels;
   const filterRef = useRef<HTMLDivElement>(null);
@@ -90,6 +93,10 @@ export function ParcelListView({
   useEffect(() => {
     setSelectedStatuses(filters.statuses);
   }, [filters.statuses]);
+
+  useEffect(() => {
+    setActiveAssignment(filters.assignment);
+  }, [filters.assignment]);
 
   const selectableParcelIds = useMemo(
     () =>
@@ -206,7 +213,9 @@ export function ParcelListView({
     }
 
     const queryString = params.toString();
-    router.push(queryString ? `${pathname}?${queryString}` : pathname);
+    startFilterTransition(() => {
+      router.push(queryString ? `${pathname}?${queryString}` : pathname);
+    });
   }
 
   function toggleStatus(status: ParcelStatus) {
@@ -244,9 +253,10 @@ export function ParcelListView({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
         <Tabs
-          value={filters.assignment}
+          value={activeAssignment}
           onValueChange={(value) => {
             if (isAssignmentFilter(value)) {
+              setActiveAssignment(value);
               updateFilters({ assignment: value, page: 1 });
             }
           }}
@@ -432,21 +442,29 @@ export function ParcelListView({
         </div>
       ) : null}
 
-      <ParcelTable
-        parcels={parcels}
-        selectedParcelIds={selectedParcelIds}
-        onSelectedParcelIdsChange={setSelectedParcelIds}
-        onView={handleViewParcel}
-        onEdit={handleEditParcel}
-        enableSelection
-        enableFailureReview
-      />
+      <div aria-busy={isFilterPending}>
+        {isFilterPending ? (
+          <PageContentSkeleton variant="table" />
+        ) : (
+          <>
+            <ParcelTable
+              parcels={parcels}
+              selectedParcelIds={selectedParcelIds}
+              onSelectedParcelIdsChange={setSelectedParcelIds}
+              onView={handleViewParcel}
+              onEdit={handleEditParcel}
+              enableSelection
+              enableFailureReview
+            />
 
-      <PaginationControls
-        page={pageResult.page}
-        totalPages={pageResult.totalPages}
-        onPageChange={(page) => updateFilters({ page })}
-      />
+            <PaginationControls
+              page={pageResult.page}
+              totalPages={pageResult.totalPages}
+              onPageChange={(page) => updateFilters({ page })}
+            />
+          </>
+        )}
+      </div>
 
       <AssignRiderDialog
         open={isAssignDialogOpen}

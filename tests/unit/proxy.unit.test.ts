@@ -76,6 +76,20 @@ describe("dashboard proxy", async () => {
     expect(blockedResponse.headers.get("location")).toBe("http://localhost/dashboard/parcels");
   });
 
+  test("matches whole path segments for role-scoped sections", async () => {
+    getSessionMock.mockResolvedValue(buildSessionUser({ role: "office_admin" }));
+    expect((await proxy(makeRequest("/dashboard/rider-payouts"))).status).toBe(200);
+    expect((await proxy(makeRequest("/dashboard/merchants"))).status).toBe(200);
+
+    getSessionMock.mockResolvedValue(buildSessionUser({ role: "rider" }));
+    const riderResponse = await proxy(makeRequest("/dashboard/rider-payouts"));
+    expect(riderResponse.status).toBe(307);
+    expect(riderResponse.headers.get("location")).toBe("http://localhost/dashboard/rider/parcels");
+
+    getSessionMock.mockResolvedValue(buildSessionUser({ role: "merchant" }));
+    expect((await proxy(makeRequest("/dashboard/merchants"))).status).toBe(307);
+  });
+
   test("allows merchants and riders to access settings", async () => {
     getSessionMock.mockResolvedValue(buildSessionUser({ role: "merchant" }));
     const merchantResponse = await proxy(makeRequest("/dashboard/settings"));

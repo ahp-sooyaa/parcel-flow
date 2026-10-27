@@ -1,40 +1,40 @@
-import { Plus } from "lucide-react";
+import { Suspense } from "react";
 
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { TownshipForm } from "@/features/townships/components/township-form";
+import { CreateTownshipHeaderAction } from "@/features/townships/components/create-township-header-action";
 import { TownshipManagement } from "@/features/townships/components/township-management";
 import { listTownships } from "@/features/townships/server/dal";
 import { canManageTownshipPricing } from "@/lib/permissions";
 import { getCurrentUser } from "@/lib/session";
 
-export default async function TownshipsPage() {
-  const [townships, currentUser] = await Promise.all([listTownships(), getCurrentUser()]);
+async function TownshipsPageContent() {
+  const currentUser = await getCurrentUser();
+  const townships = await listTownships();
   const canManagePricing = currentUser ? canManageTownshipPricing(currentUser.role) : false;
 
+  return (
+    <div data-testid="page-dynamic-content">
+      <TownshipManagement townships={townships} canManagePricing={canManagePricing} />
+    </div>
+  );
+}
+
+export default function TownshipsPage() {
   return (
     <>
       <PageHeader
         title="Townships"
         description="Township-based delivery pricing used to auto-fill parcel delivery fees."
         actions={
-          canManagePricing ? (
-            <Sheet>
-              <Button asChild>
-                <SheetTrigger>
-                  <Plus className="size-4" />
-                  Create Township
-                </SheetTrigger>
-              </Button>
-              <SheetContent className="overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:w-[720px] data-[side=right]:sm:max-w-[720px]">
-                <TownshipForm mode="create" />
-              </SheetContent>
-            </Sheet>
-          ) : undefined
+          <Suspense fallback={null}>
+            <CreateTownshipHeaderAction />
+          </Suspense>
         }
       />
-      <TownshipManagement townships={townships} canManagePricing={canManagePricing} />
+      <Suspense fallback={<PageContentSkeleton variant="table" />}>
+        <TownshipsPageContent />
+      </Suspense>
     </>
   );
 }

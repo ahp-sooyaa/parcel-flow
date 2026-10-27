@@ -1,9 +1,11 @@
 import { eq, asc } from "drizzle-orm";
+import { cacheLife, cacheTag } from "next/cache";
 import type { z } from "zod";
 
 import { db } from "@/db";
 import { townships } from "@/db/schema";
 import type { TownshipListItemDto, townshipInputSchema } from "@/features/townships/server/dto";
+import { CACHE_TAGS } from "@/lib/cache-tags";
 
 type TownshipInput = z.infer<typeof townshipInputSchema>;
 
@@ -23,12 +25,20 @@ function mapTownship(row: typeof townships.$inferSelect): TownshipListItemDto {
 }
 
 export async function listTownships() {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(CACHE_TAGS.townships);
+
   const rows = await db.select().from(townships).orderBy(asc(townships.name));
 
   return rows.map(mapTownship);
 }
 
 export async function listActiveTownships() {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(CACHE_TAGS.townships);
+
   const rows = await db
     .select()
     .from(townships)

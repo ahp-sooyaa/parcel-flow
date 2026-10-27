@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+
+import { PageContentSkeleton } from "@/components/shared/page-content-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { RealtimeMerchantOverviewSummaryCards } from "@/features/merchants/components/realtime-merchant-overview-summary-cards";
 import { getMerchantOverviewSummary } from "@/features/merchants/server/dal";
@@ -10,9 +13,7 @@ type MerchantOverviewPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function MerchantOverviewPage({
-  searchParams,
-}: Readonly<MerchantOverviewPageProps>) {
+async function MerchantOverviewPageContent({ searchParams }: Readonly<MerchantOverviewPageProps>) {
   const currentUser = await requireCurrentUser();
 
   if (currentUser.role !== "merchant") {
@@ -26,15 +27,27 @@ export default async function MerchantOverviewPage({
   ]);
 
   return (
+    <div data-testid="page-dynamic-content">
+      <div className="space-y-6">
+        <RealtimeMerchantOverviewSummaryCards summary={summary} />
+        <MerchantSettlementHistoryTable history={history} filters={filters} />
+      </div>
+    </div>
+  );
+}
+
+export default function MerchantOverviewPage(
+  props: Readonly<Parameters<typeof MerchantOverviewPageContent>[0]>,
+) {
+  return (
     <>
       <PageHeader
         title="Overview"
         description="Track COD performance, paid remittances, and settled settlement history for your merchant account."
       />
-      <div className="space-y-6">
-        <RealtimeMerchantOverviewSummaryCards summary={summary} />
-        <MerchantSettlementHistoryTable history={history} filters={filters} />
-      </div>
+      <Suspense fallback={<PageContentSkeleton variant="cards" />}>
+        <MerchantOverviewPageContent {...props} />
+      </Suspense>
     </>
   );
 }

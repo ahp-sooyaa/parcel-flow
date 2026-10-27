@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import type { ParcelFailureNoteEntry } from "@/features/parcels/server/failure-notes";
 import { isParcelStatus, parcelStatuses, type ParcelStatus, type ParcelType } from "@/lib/domain";
+import { maxLengthMessage, TEXT_LIMITS } from "@/lib/validation";
 
 function isNonNegativeIntegerString(value: string) {
   const numberValue = Number(value);
@@ -32,12 +33,31 @@ const parcelDimensionsInputSchema = z.object({
 });
 
 const baseParcelFormInputSchema = z.object({
-  merchantId: z.string().min(1, "Merchant is required."),
-  receiverName: z.string().trim().min(1, "Receiver name is required."),
-  receiverPhoneNumber: z.string().trim().min(5, "Receiver phone number is required."),
-  receiverAddress: z.string().trim().min(1, "Receiver address is required."),
-  specialNotes: z.string().trim().optional(),
-  townshipId: z.string().min(1, "Receiver township is required."),
+  merchantId: z.string().min(1, "Merchant is required.").max(TEXT_LIMITS.id),
+  receiverName: z
+    .string()
+    .trim()
+    .min(1, "Receiver name is required.")
+    .max(TEXT_LIMITS.name, maxLengthMessage("Receiver name", TEXT_LIMITS.name)),
+  receiverPhoneNumber: z
+    .string()
+    .trim()
+    .min(5, "Receiver phone number is required.")
+    .max(
+      TEXT_LIMITS.phoneNumber,
+      maxLengthMessage("Receiver phone number", TEXT_LIMITS.phoneNumber),
+    ),
+  receiverAddress: z
+    .string()
+    .trim()
+    .min(1, "Receiver address is required.")
+    .max(TEXT_LIMITS.address, maxLengthMessage("Receiver address", TEXT_LIMITS.address)),
+  specialNotes: z
+    .string()
+    .trim()
+    .max(TEXT_LIMITS.note, maxLengthMessage("Special notes", TEXT_LIMITS.note))
+    .optional(),
+  townshipId: z.string().min(1, "Receiver township is required.").max(TEXT_LIMITS.id),
   deliveryFee: z
     .string()
     .trim()
@@ -114,7 +134,11 @@ const optionalCorrectionRiderIdSchema = z.preprocess(
   z.uuid("Invalid rider selection.").nullable().optional(),
 );
 
-const correctionReasonSchema = z.string().trim().min(1, "Correction reason is required.");
+const correctionReasonSchema = z
+  .string()
+  .trim()
+  .min(1, "Correction reason is required.")
+  .max(TEXT_LIMITS.note, maxLengthMessage("Correction reason", TEXT_LIMITS.note));
 
 export const correctParcelStatusInputSchema = z.object({
   parcelId: z.uuid("Invalid parcel selection."),

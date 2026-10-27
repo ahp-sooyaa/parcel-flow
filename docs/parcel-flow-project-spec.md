@@ -600,7 +600,7 @@ When rider cannot complete delivery:
 
 - `status` remains `on_the_way`
 - Rider enters a failure note
-- Failure note is stored in `parcels.delivery_failure_note`
+- Failure note is stored in `parcels.delivery_failure_note` as a jsonb array of `{ note, status }` entries (`active` / `inactive`)
 - `rider_id` remains set until admin or super admin reviews the report
 - No additional financial items, settlement records, rider payout records, delivered timestamps, or return timestamps are created
 - The existing `delivery_attempt` rider way remains pending for the rider who made the attempt
@@ -1108,6 +1108,11 @@ Required behavior:
 - Merchant overview summary cards should refresh after relevant parcel changes without reimplementing merchant summary calculations in the client.
 - Realtime freshness must be additive only. Existing assignment logic, rider delivery logic, settlement logic, payout logic, permissions, and status rules must stay unchanged.
 - Realtime parcel visibility must remain role-scoped. Riders only receive assigned parcel updates, merchants only receive their own parcel updates, and admins only receive the operational parcel updates they are already allowed to view.
+
+Implementation note:
+
+- Live updates use a Next.js SSE bridge (`/api/realtime/parcels`) that authenticates the session, subscribes to Supabase `parcels` `postgres_changes` with the server secret client, and filters events in application code before forwarding them to the browser.
+- Clients must not open a direct browser Supabase Realtime subscription for parcel freshness.
 
 ---
 

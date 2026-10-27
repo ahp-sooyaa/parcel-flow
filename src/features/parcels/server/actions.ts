@@ -31,10 +31,13 @@ import {
   mapCreateParcelFormInputToCreateParcelInput,
   mapUpdateParcelFormInputToUpdateParcelInput,
 } from "@/features/parcels/server/utils";
+import { invalidateParcelWriteCaches } from "@/lib/cache-invalidation";
 import { getFormFieldErrors } from "@/lib/form-action-errors";
 import { isAdminRole } from "@/lib/domain";
 import { canChangeParcelStatus, canCreateParcel } from "@/lib/permissions";
+import { isDemoMode, pickDemoProofImageKey } from "@/lib/demo";
 import { requireCurrentUser } from "@/lib/session";
+import { maxLengthMessage, TEXT_LIMITS } from "@/lib/validation";
 
 const assignParcelsInputSchema = z.object({
   parcelIds: z.array(z.string().min(1)).min(1, "Select at least one parcel."),
@@ -47,7 +50,11 @@ const startDeliveryInputSchema = z.object({
 
 const reportDeliveryFailureInputSchema = z.object({
   parcelId: z.uuid("Invalid parcel selection."),
-  note: z.string().trim().min(1, "Failure note is required."),
+  note: z
+    .string()
+    .trim()
+    .min(1, "Failure note is required.")
+    .max(TEXT_LIMITS.note, maxLengthMessage("Failure note", TEXT_LIMITS.note)),
 });
 
 const deleteDeliveryFailureInputSchema = z.object({
@@ -56,7 +63,11 @@ const deleteDeliveryFailureInputSchema = z.object({
 
 const updateDeliveryFailureInputSchema = z.object({
   parcelId: z.uuid("Invalid parcel selection."),
-  note: z.string().trim().min(1, "Failure note is required."),
+  note: z
+    .string()
+    .trim()
+    .min(1, "Failure note is required.")
+    .max(TEXT_LIMITS.note, maxLengthMessage("Failure note", TEXT_LIMITS.note)),
 });
 
 const resolveFailedParcelInputSchema = z.object({
@@ -135,6 +146,7 @@ export async function createParcelAction(input: unknown) {
     createdBy: actor.id,
   });
 
+  invalidateParcelWriteCaches();
   revalidatePath("/dashboard/parcels");
 
   return {
@@ -183,11 +195,7 @@ export async function updateParcelAction(input: unknown) {
     };
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/parcels");
-  revalidatePath("/dashboard/riders");
-  revalidatePath("/dashboard/merchant/parcels");
-  revalidatePath("/dashboard/rider/parcels");
+  revalidateParcelOperationalPaths();
 
   return {
     ok: true as const,
@@ -222,6 +230,7 @@ export async function assignParcelsToRiderAction(input: unknown) {
     };
   }
 
+  invalidateParcelWriteCaches();
   revalidatePath("/dashboard/parcels");
   revalidatePath("/dashboard/riders");
   revalidatePath("/dashboard/rider/parcels");
@@ -233,11 +242,21 @@ export async function assignParcelsToRiderAction(input: unknown) {
 }
 
 function revalidateParcelCorrectionPaths() {
+  invalidateParcelWriteCaches();
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/parcels");
   revalidatePath("/dashboard/riders");
   revalidatePath("/dashboard/settlements");
   revalidatePath("/dashboard/rider-payouts");
+  revalidatePath("/dashboard/merchant/parcels");
+  revalidatePath("/dashboard/rider/parcels");
+}
+
+function revalidateParcelOperationalPaths() {
+  invalidateParcelWriteCaches();
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/parcels");
+  revalidatePath("/dashboard/riders");
   revalidatePath("/dashboard/merchant/parcels");
   revalidatePath("/dashboard/rider/parcels");
 }
@@ -267,8 +286,14 @@ export async function correctParcelStatusAction(input: unknown) {
 
   try {
     const { proofImage, ...correctionInput } = parseResult.data;
+    const isDeliveredCorrection = correctionInput.targetStatus === "delivered";
+    // The public demo never stores uploads; a seeded sample photo stands in.
+    const demoProofImageKey =
+      isDemoMode() && isDeliveredCorrection
+        ? pickDemoProofImageKey(correctionInput.parcelId)
+        : undefined;
     uploadedProofImageKey =
-      proofImage && correctionInput.targetStatus === "delivered"
+      !demoProofImageKey && proofImage && isDeliveredCorrection
         ? await uploadDeliveryProofImage({
             parcelId: correctionInput.parcelId,
             file: proofImage,
@@ -277,7 +302,7 @@ export async function correctParcelStatusAction(input: unknown) {
 
     await correctParcelStatus({
       ...correctionInput,
-      proofImageKey: uploadedProofImageKey,
+      proofImageKey: demoProofImageKey ?? uploadedProofImageKey,
       actorId: actor.id,
       actorRole: actor.role,
     });
@@ -375,10 +400,7 @@ async function resolveFailedParcelAction(
     };
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/parcels");
-  revalidatePath("/dashboard/riders");
-  revalidatePath("/dashboard/rider/parcels");
+  revalidateParcelOperationalPaths();
 
   return {
     ok: true as const,
@@ -428,9 +450,7 @@ export async function startDeliveryForRiderParcelsAction(input: unknown) {
     };
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/parcels");
-  revalidatePath("/dashboard/rider/parcels");
+  revalidateParcelOperationalPaths();
 
   return {
     ok: true as const,
@@ -473,9 +493,7 @@ export async function reportDeliveryFailureForRiderParcelAction(input: unknown) 
     };
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/parcels");
-  revalidatePath("/dashboard/rider/parcels");
+  revalidateParcelOperationalPaths();
 
   return {
     ok: true as const,
@@ -514,9 +532,7 @@ export async function deleteDeliveryFailureForRiderParcelAction(input: unknown) 
     };
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/parcels");
-  revalidatePath("/dashboard/rider/parcels");
+  revalidateParcelOperationalPaths();
 
   return {
     ok: true as const,
@@ -556,9 +572,7 @@ export async function updateDeliveryFailureForRiderParcelAction(input: unknown) 
     };
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/parcels");
-  revalidatePath("/dashboard/rider/parcels");
+  revalidateParcelOperationalPaths();
 
   return {
     ok: true as const,
@@ -601,9 +615,7 @@ export async function markRiderParcelReturnedToMerchantAction(input: unknown) {
     };
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/parcels");
-  revalidatePath("/dashboard/rider/parcels");
+  revalidateParcelOperationalPaths();
 
   return {
     ok: true as const,

@@ -17,6 +17,8 @@ const cancelRiderPayoutDraftMock = mock(async () => undefined);
 const listEligibleRiderPayoutRiderSummariesMock = mock(async () => []);
 const getEligibleRiderPayoutItemsByRiderIdMock = mock(async () => []);
 const revalidatePathMock = mock(() => undefined);
+const updateTagMock = mock(() => undefined);
+const revalidateTagMock = mock(() => undefined);
 
 void mock.module("@/lib/auth", () => ({
   auth: {
@@ -39,7 +41,11 @@ void mock.module("@/features/rider-payouts/server/dal", () => ({
 }));
 
 void mock.module("next/cache", () => ({
+  cacheLife: () => undefined,
+  cacheTag: () => undefined,
   revalidatePath: revalidatePathMock,
+  updateTag: updateTagMock,
+  revalidateTag: revalidateTagMock,
 }));
 
 describe("rider payout server actions", async () => {
@@ -53,6 +59,8 @@ describe("rider payout server actions", async () => {
     settleRiderPayoutMock.mockReset();
     cancelRiderPayoutDraftMock.mockReset();
     revalidatePathMock.mockReset();
+    updateTagMock.mockReset();
+    revalidateTagMock.mockReset();
 
     getSessionMock.mockResolvedValue(buildSessionUser({ id: actorId, role: "super_admin" }));
     headersMock.mockResolvedValue(new Headers());

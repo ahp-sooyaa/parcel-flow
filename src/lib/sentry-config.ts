@@ -5,11 +5,18 @@
  * environment tag as the server. Set these per Railway environment:
  * - staging: NEXT_PUBLIC_SENTRY_ENVIRONMENT=staging
  * - production: NEXT_PUBLIC_SENTRY_ENVIRONMENT=production
+ *
+ * On the server, SENTRY_ENVIRONMENT overrides NEXT_PUBLIC_SENTRY_ENVIRONMENT
+ * when set. The client only sees NEXT_PUBLIC_* values.
  */
 export function getSentryInitOptions() {
+  const environment =
+    process.env.SENTRY_ENVIRONMENT ?? process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? "development";
+
   return {
     dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-    environment:
-      process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? process.env.SENTRY_ENVIRONMENT ?? "development",
+    environment,
+    // Public demo traffic would use up the free trace quota at 100%.
+    tracesSampleRate: environment === "development" ? 1 : 0.1,
   };
 }

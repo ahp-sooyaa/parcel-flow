@@ -4,12 +4,18 @@ import { revalidatePath } from "next/cache";
 
 import { createTownship, updateTownship } from "@/features/townships/server/dal";
 import { townshipInputSchema, updateTownshipInputSchema } from "@/features/townships/server/dto";
+import { invalidateTownshipCaches } from "@/lib/cache-invalidation";
 import { getFormFieldErrors } from "@/lib/form-action-errors";
 import { canManageTownshipPricing } from "@/lib/permissions";
+import { DEMO_RESTRICTED_MESSAGE, isDemoRestricted } from "@/lib/demo";
 import { requireCurrentUser } from "@/lib/session";
 
 export async function createTownshipAction(input: unknown) {
   const actor = await requireCurrentUser();
+
+  if (isDemoRestricted(actor)) {
+    return { ok: false as const, message: DEMO_RESTRICTED_MESSAGE };
+  }
   const parseResult = townshipInputSchema.safeParse(input);
 
   if (!parseResult.success) {
@@ -31,6 +37,7 @@ export async function createTownshipAction(input: unknown) {
 
   const township = await createTownship(validatedInput);
 
+  invalidateTownshipCaches();
   revalidatePath("/dashboard/townships");
   revalidatePath("/dashboard/parcels");
 
@@ -43,6 +50,10 @@ export async function createTownshipAction(input: unknown) {
 
 export async function updateTownshipAction(input: unknown) {
   const actor = await requireCurrentUser();
+
+  if (isDemoRestricted(actor)) {
+    return { ok: false as const, message: DEMO_RESTRICTED_MESSAGE };
+  }
   const parseResult = updateTownshipInputSchema.safeParse(input);
 
   if (!parseResult.success) {
@@ -71,6 +82,7 @@ export async function updateTownshipAction(input: unknown) {
     };
   }
 
+  invalidateTownshipCaches();
   revalidatePath("/dashboard/townships");
   revalidatePath("/dashboard/parcels");
 
