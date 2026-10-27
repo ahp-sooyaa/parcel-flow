@@ -217,7 +217,9 @@ export async function listBankAccountsForUserIds(
   cacheLife("minutes");
 
   // Stable key so the same page of users hits one cache entry.
-  const uniqueUserIds = Array.from(new Set(userIds)).sort();
+  const uniqueUserIds = Array.from(new Set(userIds)).toSorted((left, right) =>
+    left.localeCompare(right),
+  );
   cacheTag(CACHE_TAGS.users, ...uniqueUserIds.map(userBanksTag));
 
   if (uniqueUserIds.length === 0) {

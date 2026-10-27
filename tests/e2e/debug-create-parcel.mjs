@@ -39,5 +39,5 @@ await page.waitForTimeout(4000);
 const sheet = page.locator("[data-slot=sheet-content]").first();
 console.log("---SHEET TEXT---");
 console.log(await sheet.innerText().catch(() => "no sheet"));
-await page.screenshot({ path: "/tmp/ml-create.png", fullPage: true });
+await page.screenshot({ path: "test-results/ml-create.png", fullPage: true });
 await browser.close();
