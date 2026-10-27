@@ -55,8 +55,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message: "Demo reset failed." }, { status: 500 });
   }
 
-  // The database is far from the server, so a reset takes minutes. Reply now
-  // and finish in the background rather than hold the scheduler's request open.
+  // The database can be in another region, so reply now and finish in the
+  // background rather than hold the scheduler's request open.
   resetInProgress = true;
   after(async () => {
     const startedAt = Date.now();
