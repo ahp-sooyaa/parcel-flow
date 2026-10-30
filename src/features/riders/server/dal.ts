@@ -8,15 +8,21 @@ import { CACHE_TAGS } from "@/lib/cache-tags";
 
 const riderParcelAggregationSelect = {
   riderId: parcels.riderId,
-  activeParcelCount: sql<number>`count(*) filter (where ${parcels.status} in ('at_office', 'on_the_way'))`,
+  activeParcelCount:
+    sql<number>`count(*) filter (where ${parcels.status} in ('at_office', 'on_the_way'))`.mapWith(
+      Number,
+    ),
   expectedCollection: sql<number>`coalesce(sum(
     case
       when ${parcels.status} in ('at_office', 'on_the_way') then
         case when ${parcels.parcelType} = 'cod' then ${parcels.codAmount} + ${parcels.deliveryFee} else ${parcels.deliveryFee} end
       else 0
     end
-  ), 0)`,
-  actualCollection: sql<number>`coalesce(sum(${parcels.collectedAmount}) filter (where ${parcels.status} = 'delivered'), 0)`,
+  ), 0)`.mapWith(Number),
+  actualCollection:
+    sql<number>`coalesce(sum(${parcels.collectedAmount}) filter (where ${parcels.status} = 'delivered'), 0)`.mapWith(
+      Number,
+    ),
 };
 
 async function loadRiderParcelAggregations(riderIds: string[]) {

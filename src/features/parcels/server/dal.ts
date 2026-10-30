@@ -174,13 +174,13 @@ export async function listMerchantParcelsPageForUser(
 
   const [hasAnyParcelsRow, totalCountRow] = await Promise.all([
     db
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
       .from(parcels)
       .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
       .where(hasAnyParcelsWhere)
       .then((rows) => rows[0]),
     db
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
       .from(parcels)
       .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
       .where(filteredWhere)
@@ -356,10 +356,13 @@ async function getAdminParcelAssignmentCounts(
   const sharedWhere = buildAdminParcelSharedWhere(filters);
   const [countsRow] = await db
     .select({
-      all: sql<number>`count(*)`,
-      unassigned: sql<number>`count(*) filter (where ${parcels.riderId} is null)`,
-      assigned: sql<number>`count(*) filter (where ${parcels.riderId} is not null)`,
-      needReview: sql<number>`count(*) filter (where ${parcels.status} = 'on_the_way' and ${parcels.riderId} is not null and ${parcels.deliveryFailureNote} @> '[{"status":"active"}]'::jsonb)`,
+      all: sql<number>`count(*)`.mapWith(Number),
+      unassigned: sql<number>`count(*) filter (where ${parcels.riderId} is null)`.mapWith(Number),
+      assigned: sql<number>`count(*) filter (where ${parcels.riderId} is not null)`.mapWith(Number),
+      needReview:
+        sql<number>`count(*) filter (where ${parcels.status} = 'on_the_way' and ${parcels.riderId} is not null and ${parcels.deliveryFailureNote} @> '[{"status":"active"}]'::jsonb)`.mapWith(
+          Number,
+        ),
     })
     .from(parcels)
     .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
@@ -391,12 +394,12 @@ export async function listAdminParcelsPage(
 
   const [hasAnyParcelsRow, totalCountRow, assignmentCounts] = await Promise.all([
     db
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
       .from(parcels)
       .where(hasAnyParcelsWhere)
       .then((rows) => rows[0]),
     db
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
       .from(parcels)
       .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
       .innerJoin(townships, eq(townships.id, parcels.townshipId))
@@ -471,9 +474,17 @@ async function getRiderParcelTabCounts(
   } as RiderParcelListFiltersDto);
   const [countsRow] = await db
     .select({
-      toDeliver: sql<number>`count(*) filter (where ${parcels.status} in ('at_office', 'on_the_way', 'canceled_returned'))`,
-      delivered: sql<number>`count(*) filter (where ${parcels.status} = 'delivered')`,
-      returned: sql<number>`count(*) filter (where ${parcels.status} = 'returned_to_merchant')`,
+      toDeliver:
+        sql<number>`count(*) filter (where ${parcels.status} in ('at_office', 'on_the_way', 'canceled_returned'))`.mapWith(
+          Number,
+        ),
+      delivered: sql<number>`count(*) filter (where ${parcels.status} = 'delivered')`.mapWith(
+        Number,
+      ),
+      returned:
+        sql<number>`count(*) filter (where ${parcels.status} = 'returned_to_merchant')`.mapWith(
+          Number,
+        ),
     })
     .from(parcels)
     .innerJoin(riders, eq(riders.id, parcels.riderId))
@@ -505,13 +516,13 @@ export async function listRiderParcelsPageForUser(
 
   const [hasAnyParcelsRow, totalCountRow, tabCounts] = await Promise.all([
     db
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
       .from(parcels)
       .innerJoin(riders, eq(riders.id, parcels.riderId))
       .where(hasAnyParcelsWhere)
       .then((rows) => rows[0]),
     db
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
       .from(parcels)
       .innerJoin(riders, eq(riders.id, parcels.riderId))
       .innerJoin(townships, eq(townships.id, parcels.townshipId))
@@ -885,17 +896,23 @@ export async function getParcelSummary(): Promise<ParcelSummaryDto> {
 
   const [summaryRow] = await db
     .select({
-      totalParcels: sql<number>`count(*)`,
-      atOffice: sql<number>`count(*) filter (where ${parcels.status} = 'at_office')`,
-      onTheWay: sql<number>`count(*) filter (where ${parcels.status} = 'on_the_way')`,
-      delivered: sql<number>`count(*) filter (where ${parcels.status} = 'delivered')`,
+      totalParcels: sql<number>`count(*)`.mapWith(Number),
+      atOffice: sql<number>`count(*) filter (where ${parcels.status} = 'at_office')`.mapWith(
+        Number,
+      ),
+      onTheWay: sql<number>`count(*) filter (where ${parcels.status} = 'on_the_way')`.mapWith(
+        Number,
+      ),
+      delivered: sql<number>`count(*) filter (where ${parcels.status} = 'delivered')`.mapWith(
+        Number,
+      ),
       expectedCollection: sql<number>`coalesce(sum(
         case
           when ${parcels.riderId} is not null and ${parcels.status} in ('at_office', 'on_the_way') then
             case when ${parcels.parcelType} = 'cod' then ${parcels.codAmount} + ${parcels.deliveryFee} else ${parcels.deliveryFee} end
           else 0
         end
-      ), 0)`,
+      ), 0)`.mapWith(Number),
     })
     .from(parcels)
     .where(isNull(parcels.deletedAt));

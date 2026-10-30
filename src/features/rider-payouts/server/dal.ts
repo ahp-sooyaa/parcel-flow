@@ -26,7 +26,7 @@ export async function listRiderPayoutsPage(
   cacheTag(CACHE_TAGS.riderPayouts);
 
   const totalCountRow = await db
-    .select({ count: sql<number>`count(*)` })
+    .select({ count: sql<number>`count(*)`.mapWith(Number) })
     .from(riderPayouts)
     .then((rows) => rows[0]);
 
@@ -109,7 +109,7 @@ export async function listEligibleRiderPayoutRiderSummaries(): Promise<
     .select({
       riderId: riders.id,
       riderName: appUsers.name,
-      eligibleItemCount: sql<number>`count(*)`,
+      eligibleItemCount: sql<number>`count(*)`.mapWith(Number),
     })
     .from(financialItems)
     .innerJoin(riders, eq(riders.id, financialItems.riderId))
