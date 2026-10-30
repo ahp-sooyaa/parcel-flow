@@ -9,16 +9,15 @@ import type {
   MerchantOverviewSummaryDto,
 } from "@/features/merchants/server/dto";
 import { CACHE_TAGS, merchantOverviewTag } from "@/lib/cache-tags";
-import { coerceSqlNumber } from "@/lib/format";
 
 async function loadMerchantParcelAggregations() {
   const aggregationRows = await db
     .select({
       merchantId: parcels.merchantId,
-      parcelCount: sql<number>`count(*)`,
+      parcelCount: sql<number>`count(*)`.mapWith(Number),
       pendingPayment: sql<number>`coalesce(sum(
         case when ${parcels.status} = 'delivered' then ${parcels.codAmount} - ${parcels.deliveryFee} else 0 end
-      ), 0)`,
+      ), 0)`.mapWith(Number),
     })
     .from(parcels)
     .where(isNull(parcels.deletedAt))
@@ -28,8 +27,8 @@ async function loadMerchantParcelAggregations() {
     aggregationRows.map((row) => [
       row.merchantId,
       {
-        parcelCount: coerceSqlNumber(row.parcelCount),
-        pendingPayment: coerceSqlNumber(row.pendingPayment),
+        parcelCount: row.parcelCount,
+        pendingPayment: row.pendingPayment,
       },
     ]),
   );
@@ -92,9 +91,11 @@ export async function getMerchantOverviewSummary(
   const [parcelSummaryRow, settledSettlementRows] = await Promise.all([
     db
       .select({
-        totalParcels: sql<number>`count(*)`,
-        onTheWayParcels: sql<number>`count(*) filter (where ${parcels.status} = 'on_the_way')`,
-        deliveredParcels: sql<number>`count(*) filter (where ${parcels.status} = 'delivered')`,
+        totalParcels: sql<number>`count(*)`.mapWith(Number),
+        onTheWayParcels:
+          sql<number>`count(*) filter (where ${parcels.status} = 'on_the_way')`.mapWith(Number),
+        deliveredParcels:
+          sql<number>`count(*) filter (where ${parcels.status} = 'delivered')`.mapWith(Number),
         totalCodCollected: sql<number>`coalesce(sum(
           case
             when ${parcels.status} = 'delivered'
@@ -103,7 +104,7 @@ export async function getMerchantOverviewSummary(
             then ${parcels.codAmount}
             else 0
           end
-        ), 0)`,
+        ), 0)`.mapWith(Number),
       })
       .from(parcels)
       .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
@@ -119,13 +120,13 @@ export async function getMerchantOverviewSummary(
   ]);
 
   return {
-    totalCodCollected: coerceSqlNumber(parcelSummaryRow?.totalCodCollected),
+    totalCodCollected: parcelSummaryRow?.totalCodCollected ?? 0,
     paidToYou: settledSettlementRows.reduce(
       (total, settlement) => total + settlement.netPaymentAmount,
       0,
     ),
-    totalParcels: coerceSqlNumber(parcelSummaryRow?.totalParcels),
-    onTheWayParcels: coerceSqlNumber(parcelSummaryRow?.onTheWayParcels),
-    deliveredParcels: coerceSqlNumber(parcelSummaryRow?.deliveredParcels),
+    totalParcels: parcelSummaryRow?.totalParcels ?? 0,
+    onTheWayParcels: parcelSummaryRow?.onTheWayParcels ?? 0,
+    deliveredParcels: parcelSummaryRow?.deliveredParcels ?? 0,
   };
 }
