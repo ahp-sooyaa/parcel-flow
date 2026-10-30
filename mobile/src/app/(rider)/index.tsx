@@ -1,106 +1,195 @@
+import type { MobileRiderParcelPageDto, MobileRiderParcelTab } from "@parcel-flow/contract";
+import { router, Stack } from "expo-router";
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 
-import { useMe } from "@/api/me";
-import { signOutRider } from "@/auth/session";
+import { useRiderParcels } from "@/api/parcels";
 import { Button } from "@/components/button";
 import { LoadingScreen } from "@/components/loading-screen";
 import { Notice } from "@/components/notice";
-import { Screen } from "@/components/screen";
+import { ParcelCard } from "@/components/parcel-card";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
-// Placeholder home until the parcel list replaces it (slice 3).
-export default function RiderHomeScreen() {
-  const me = useMe();
-  const [signingOut, setSigningOut] = useState(false);
+const tabs: { key: MobileRiderParcelTab; label: string; emptyMessage: string }[] = [
+  { key: "to_deliver", label: "To deliver", emptyMessage: "No parcels to deliver right now." },
+  { key: "delivered", label: "Delivered", emptyMessage: "No delivered parcels yet." },
+  { key: "returned", label: "Returned", emptyMessage: "No returned parcels." },
+];
 
-  async function handleSignOut() {
-    setSigningOut(true);
-    await signOutRider();
-  }
+export default function ParcelListScreen() {
+  const [tab, setTab] = useState<MobileRiderParcelTab>("to_deliver");
+  const [refreshing, setRefreshing] = useState(false);
+  const parcels = useRiderParcels(tab);
+  const activeTab = tabs.find((item) => item.key === tab) ?? tabs[0];
+  // Counts come with every page; the first page is enough and is always loaded.
+  const tabCounts: MobileRiderParcelPageDto["tabCounts"] | undefined =
+    parcels.data?.pages[0]?.tabCounts;
+  const items = parcels.data?.pages.flatMap((page) => page.parcels) ?? [];
 
-  if (me.isPending) {
-    return <LoadingScreen />;
+  async function handleRefresh() {
+    setRefreshing(true);
+    await parcels.refetch();
+    setRefreshing(false);
   }
 
   return (
-    <Screen>
-      {me.isError ? (
-        <>
-          <Notice message={me.error.message} />
-          <Button label="Try again" onPress={() => void me.refetch()} variant="secondary" />
-        </>
-      ) : (
-        <>
-          <View style={styles.header}>
-            <Text style={styles.greeting}>Hello, {me.data.name}</Text>
-            <Text style={styles.caption}>Your parcels will show here.</Text>
-          </View>
+    <View style={styles.screen}>
+      <Stack.Screen options={{ headerRight: ProfileHeaderButton }} />
 
-          {me.data.mustResetPassword ? (
-            <Notice
-              message="An admin reset your password. Change it from the web dashboard settings."
-              tone="warning"
-            />
-          ) : null}
+      <View accessibilityRole="tablist" style={styles.tabs}>
+        {tabs.map((item) => {
+          const selected = item.key === tab;
+          const count = tabCounts?.[item.key];
 
-          <View style={styles.card}>
-            <ProfileRow label="Username" value={me.data.username} />
-            <ProfileRow label="Phone" value={me.data.phoneNumber} />
-          </View>
-        </>
-      )}
-
-      <View style={styles.footer}>
-        <Button busy={signingOut} label="Sign out" onPress={handleSignOut} variant="secondary" />
+          return (
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected }}
+              key={item.key}
+              onPress={() => setTab(item.key)}
+              style={[styles.tab, selected && styles.tabSelected]}
+            >
+              <Text style={[styles.tabLabel, selected && styles.tabLabelSelected]}>
+                {count === undefined ? item.label : `${item.label} (${count})`}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
-    </Screen>
-  );
-}
 
-function ProfileRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
+      {parcels.isPending ? (
+        <LoadingScreen />
+      ) : parcels.isError ? (
+        <View style={styles.message}>
+          <Notice message={parcels.error.message} />
+          <Button label="Try again" onPress={() => void parcels.refetch()} variant="secondary" />
+        </View>
+      ) : (
+        <FlatList
+          contentContainerStyle={styles.list}
+          data={items}
+          keyExtractor={(parcel) => parcel.id}
+          ListEmptyComponent={<Text style={styles.empty}>{activeTab.emptyMessage}</Text>}
+          ListFooterComponent={
+            <ListFooter
+              failed={parcels.isFetchNextPageError}
+              loading={parcels.isFetchingNextPage}
+              onRetry={() => void parcels.fetchNextPage()}
+            />
+          }
+          onEndReached={() => {
+            if (
+              parcels.hasNextPage &&
+              !parcels.isFetchingNextPage &&
+              !parcels.isFetchNextPageError
+            ) {
+              void parcels.fetchNextPage();
+            }
+          }}
+          onEndReachedThreshold={0.5}
+          refreshControl={
+            <RefreshControl
+              colors={[colors.primary]}
+              onRefresh={handleRefresh}
+              refreshing={refreshing}
+            />
+          }
+          renderItem={({ item }) => (
+            <ParcelCard
+              onPress={() =>
+                router.push({ pathname: "/parcels/[parcelId]", params: { parcelId: item.id } })
+              }
+              parcel={item}
+            />
+          )}
+        />
+      )}
     </View>
   );
 }
 
+function ProfileHeaderButton() {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      hitSlop={spacing.sm}
+      onPress={() => router.push("/profile")}
+    >
+      <Text style={styles.headerLink}>Profile</Text>
+    </Pressable>
+  );
+}
+
+function ListFooter({
+  failed,
+  loading,
+  onRetry,
+}: {
+  failed: boolean;
+  loading: boolean;
+  onRetry: () => void;
+}) {
+  if (failed) {
+    return <Button label="Couldn't load more. Try again" onPress={onRetry} variant="secondary" />;
+  }
+
+  return loading ? <Text style={styles.footer}>Loading more…</Text> : null;
+}
+
 const styles = StyleSheet.create({
-  header: {
-    gap: spacing.xs,
-    marginTop: spacing.xl,
+  screen: {
+    flex: 1,
+    backgroundColor: colors.canvasSoft,
   },
-  greeting: {
-    ...typography.displayMd,
-    color: colors.ink,
-  },
-  caption: {
+  headerLink: {
     ...typography.caption,
-    color: colors.inkMute,
+    color: colors.primary,
+    fontWeight: "600",
   },
-  card: {
-    backgroundColor: colors.canvas,
-    borderColor: colors.hairline,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    paddingHorizontal: spacing.lg,
-  },
-  row: {
+  tabs: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: spacing.md,
+    gap: spacing.xs,
+    backgroundColor: colors.canvas,
+    borderBottomColor: colors.hairline,
+    borderBottomWidth: 1,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
   },
-  rowLabel: {
-    ...typography.caption,
+  tab: {
+    flex: 1,
+    alignItems: "center",
+    borderRadius: radii.md,
+    paddingVertical: spacing.sm,
+  },
+  tabSelected: {
+    backgroundColor: colors.primary,
+  },
+  tabLabel: {
+    ...typography.micro,
     color: colors.inkMute,
   },
-  rowValue: {
+  tabLabelSelected: {
+    color: colors.onPrimary,
+  },
+  list: {
+    flexGrow: 1,
+    gap: spacing.md,
+    padding: spacing.lg,
+  },
+  message: {
+    gap: spacing.md,
+    padding: spacing.lg,
+  },
+  empty: {
     ...typography.bodyMd,
-    color: colors.ink,
+    color: colors.inkMute,
+    marginTop: spacing.xxl,
+    textAlign: "center",
   },
   footer: {
-    marginTop: "auto",
+    ...typography.caption,
+    color: colors.inkMute,
+    paddingVertical: spacing.md,
+    textAlign: "center",
   },
 });
