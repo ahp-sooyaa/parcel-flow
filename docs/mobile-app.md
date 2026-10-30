@@ -163,7 +163,7 @@ Each slice is one OpenSpec change, built end to end (API, app screen, tests), in
 | #   | OpenSpec change                    | Summary                                                                      | Status      |
 | --- | ---------------------------------- | ---------------------------------------------------------------------------- | ----------- |
 | 1   | `add-mobile-auth-foundation`       | Better Auth Expo plugin, trusted origins, `GET /api/mobile/v1/me`, contract  | Archived (ahp-sooyaa/parcel-flow#7) |
-| 2   | `scaffold-expo-rider-app`          | `mobile/` app, login, secure session, sign out, tooling exclusions, CI job   | In review   |
+| 2   | `scaffold-expo-rider-app`          | `mobile/` app, login, secure session, sign out, tooling exclusions, CI job   | Archived (ahp-sooyaa/parcel-flow#9) |
 | 3   | `mobile-rider-parcel-list`         | Paginated rider parcels API, card list, detail, pull-to-refresh              | Planned     |
 | 4   | `mobile-rider-start-delivery`      | Shared start-delivery operation, multi-select start delivery                 | Planned     |
 | 5   | `mobile-rider-mark-delivered`      | Shared deliver operation, camera proof photo, compression                    | Planned     |
