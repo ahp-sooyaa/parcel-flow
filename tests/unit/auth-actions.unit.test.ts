@@ -20,15 +20,25 @@ const dbWhereMock = mock(async () => undefined);
 const dbSetMock = mock(() => ({ where: dbWhereMock }));
 const dbUpdateMock = mock(() => ({ set: dbSetMock }));
 
+// Bun keeps module mocks for later test files, so keep the real exports and
+// only replace what this file needs; otherwise later importers of the users
+// DAL fail depending on file order.
+const actualUsersDal = await import("@/features/users/server/dal");
+const actualPermissions = await import("@/lib/permissions");
+const actualPassword = await import("@/lib/password");
+
 void mock.module("@/features/users/server/dal", () => ({
+  ...actualUsersDal,
   getUserById: getUserByIdMock,
 }));
 
 void mock.module("@/lib/permissions", () => ({
+  ...actualPermissions,
   canRegeneratePassword: canRegeneratePasswordMock,
 }));
 
 void mock.module("@/lib/password", () => ({
+  ...actualPassword,
   generateTemporaryPassword: generateTemporaryPasswordMock,
 }));
 
