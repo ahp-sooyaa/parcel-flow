@@ -7,6 +7,8 @@ export default defineConfig({
     "coverage/**",
     "dist/**",
     "docs/**",
+    // The Expo app has its own format config and CI job.
+    "mobile/**",
     "node_modules/**",
     "DESIGN.md",
     "README.md",
