@@ -1,6 +1,7 @@
 // Design tokens from the front matter of DESIGN.md, the same system the web app
-// uses. The danger and warning colors are not in DESIGN.md: danger matches the
-// web app's `--destructive`, and warning is a quiet amber for notices.
+// uses. The status colors are not in DESIGN.md: danger matches the web app's
+// `--destructive`, warning is a quiet amber, success uses DESIGN.md's teal, and
+// progress is a pale tint of the primary indigo.
 export const colors = {
   primary: "#1b1938",
   primaryDeep: "#0e0c1f",
@@ -15,6 +16,9 @@ export const colors = {
   dangerSoft: "#fdecec",
   warningInk: "#92400e",
   warningSoft: "#fef3c7",
+  successInk: "#155555",
+  successSoft: "#e3f1ec",
+  progressSoft: "#e8e6f5",
 } as const;
 
 export const spacing = {

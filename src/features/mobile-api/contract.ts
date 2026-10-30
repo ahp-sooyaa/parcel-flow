@@ -41,3 +41,74 @@ export const mobileMeSchema = z.object({
 export type MobileMeDto = z.infer<typeof mobileMeSchema>;
 
 export const mobileMeResponseSchema = mobileSuccessResponseSchema(mobileMeSchema);
+
+// These lists mirror `parcelStatuses`, `parcelTypes` (src/lib/domain.ts) and
+// `riderParcelTabs` (src/features/parcels/server/dto.ts). This file can't import
+// them, so src/features/mobile-api/server/parcels.ts checks they stay equal.
+export const mobileParcelStatuses = [
+  "at_office",
+  "on_the_way",
+  "delivered",
+  "postpone",
+  "canceled_returned",
+  "returned_to_merchant",
+] as const;
+export const mobileParcelTypes = ["cod", "non_cod"] as const;
+export const mobileRiderParcelTabs = ["to_deliver", "delivered", "returned"] as const;
+
+export const mobileParcelStatusSchema = z.enum(mobileParcelStatuses);
+export const mobileParcelTypeSchema = z.enum(mobileParcelTypes);
+export const mobileRiderParcelTabSchema = z.enum(mobileRiderParcelTabs);
+
+export type MobileParcelStatus = z.infer<typeof mobileParcelStatusSchema>;
+export type MobileRiderParcelTab = z.infer<typeof mobileRiderParcelTabSchema>;
+
+export const mobileRiderParcelListItemSchema = z.object({
+  id: z.string(),
+  parcelCode: z.string(),
+  status: mobileParcelStatusSchema,
+  statusLabel: z.string(),
+  receiverName: z.string(),
+  receiverPhoneNumber: z.string(),
+  receiverAddress: z.string(),
+  townshipName: z.string(),
+  // What the rider collects from the receiver, in whole MMK.
+  amountToCollect: z.number().int(),
+  hasActiveFailureNote: z.boolean(),
+});
+
+export type MobileRiderParcelListItemDto = z.infer<typeof mobileRiderParcelListItemSchema>;
+
+export const mobileRiderParcelDetailSchema = mobileRiderParcelListItemSchema.extend({
+  merchantName: z.string(),
+  parcelType: mobileParcelTypeSchema,
+  codAmount: z.number().int(),
+  deliveryFee: z.number().int(),
+  weightKg: z.number(),
+  specialNotes: z.string().nullable(),
+  activeFailureNote: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+export type MobileRiderParcelDetailDto = z.infer<typeof mobileRiderParcelDetailSchema>;
+
+export const mobileRiderParcelPageSchema = z.object({
+  parcels: z.array(mobileRiderParcelListItemSchema),
+  page: z.number().int(),
+  totalPages: z.number().int(),
+  totalCount: z.number().int(),
+  tabCounts: z.object({
+    to_deliver: z.number().int(),
+    delivered: z.number().int(),
+    returned: z.number().int(),
+  }),
+});
+
+export type MobileRiderParcelPageDto = z.infer<typeof mobileRiderParcelPageSchema>;
+
+export const mobileRiderParcelPageResponseSchema = mobileSuccessResponseSchema(
+  mobileRiderParcelPageSchema,
+);
+export const mobileRiderParcelDetailResponseSchema = mobileSuccessResponseSchema(
+  mobileRiderParcelDetailSchema,
+);
