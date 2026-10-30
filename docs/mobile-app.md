@@ -109,15 +109,18 @@ The envelope matches the existing `src/app/api/rider/parcels/deliver/route.ts`. 
 
 | Area            | Tool                                                   |
 | --------------- | ------------------------------------------------------ |
-| Framework       | Expo SDK (latest stable), React Native                 |
-| Navigation      | Expo Router                                            |
+| Framework       | Expo SDK 58, React Native 0.88                         |
+| Navigation      | Expo Router (routes in `mobile/src/app/`)              |
 | Language        | TypeScript (strict)                                    |
 | Server state    | TanStack Query                                         |
-| Styling         | NativeWind, with tokens taken from `DESIGN.md`         |
-| Auth            | Better Auth Expo client                                |
+| Styling         | React Native `StyleSheet` + tokens from `DESIGN.md`    |
+| Auth            | Better Auth Expo client (pinned to the server version) |
 | Secure storage  | `expo-secure-store`                                    |
 | Camera / photos | `expo-image-picker`, `expo-image-manipulator` (resize) |
+| Tests           | Jest (`jest-expo`) + React Native Testing Library      |
 | Builds          | EAS Build (APK for preview, AAB for Play Store)        |
+
+Styling uses plain `StyleSheet` with the `DESIGN.md` tokens in `mobile/src/theme/tokens.ts`, not NativeWind. NativeWind 4 needs Tailwind 3 and extra Babel/Metro setup, while the web is on Tailwind 4. For a handful of screens, tokens are less setup and nothing to keep in step with SDK upgrades.
 
 ---
 
@@ -126,17 +129,30 @@ The envelope matches the existing `src/app/api/rider/parcels/deliver/route.ts`. 
 ```text
 parcel-flow/
 ├── src/                 # Next.js web app and API (unchanged location)
-├── mobile/              # Expo app, own package.json and lockfile
-│   ├── app/             # Expo Router screens
-│   ├── src/             # API client, hooks, components
+├── mobile/              # Expo app, own package.json and bun.lock
+│   ├── src/app/         # Expo Router screens (routes only)
+│   ├── src/api/         # API client and TanStack Query hooks
+│   ├── src/auth/        # Better Auth client, sign-in, sign-out
+│   ├── src/components/  # UI primitives
+│   ├── src/__tests__/   # screen tests (kept out of src/app so they aren't routes)
 │   └── app.json
 ├── docs/mobile-app.md   # this document
 └── openspec/            # one change per slice
 ```
 
-- The root `tsconfig.json`, `oxlint.config.ts`, `oxfmt.config.ts`, and `bun test` paths exclude `mobile/`.
-- `mobile/` has its own typecheck and lint scripts, run by a separate job in `.github/workflows/ci.yml`.
-- The Railway deploy builds only the web app.
+- The root `tsconfig.json`, `oxlint.config.ts` and `oxfmt.config.ts` exclude `mobile/`. The root `bun test` paths never include it.
+- `mobile/` has its own `lint`, `format:check`, `typecheck` and `test` scripts, run by the `mobile` job in `.github/workflows/ci.yml`.
+- The Railway deploy builds only the web app; it never installs `mobile/` dependencies.
+- The app imports the shared contract as `@parcel-flow/contract`. `mobile/metro.config.js`, `mobile/tsconfig.json` and `mobile/jest.config.js` map it to `src/features/mobile-api/contract.ts`, and resolve its `zod` import from `mobile/node_modules`, so the bundle carries one copy.
+
+### Run the app (Expo Go on an Android phone)
+
+1. Install **Expo Go** from the Play Store. The phone and the Mac must be on the same Wi-Fi.
+2. Start the web app with `bun run dev`. `next dev` listens on all interfaces (`0.0.0.0`) by default, so the phone can reach it.
+3. Copy `mobile/.env.example` to `mobile/.env` and set `EXPO_PUBLIC_API_URL` to the Mac's LAN address, for example `http://192.168.1.20:3000`. On macOS, `ipconfig getifaddr en0` prints it.
+4. `cd mobile && bun install && bun run start`, then scan the QR code with Expo Go.
+
+Expo Go sends an `exp://<lan-ip>:8081` origin, not `parcelflow://`. In development the Better Auth Expo plugin already trusts `exp://`, so local dev needs no extra setup (checked with curl: Expo Go origins get 200, an unknown origin gets 403). To test Expo Go against a deployed environment, set `MOBILE_TRUSTED_ORIGINS=exp://` there.
 
 ---
 
@@ -147,7 +163,7 @@ Each slice is one OpenSpec change, built end to end (API, app screen, tests), in
 | #   | OpenSpec change                    | Summary                                                                      | Status      |
 | --- | ---------------------------------- | ---------------------------------------------------------------------------- | ----------- |
 | 1   | `add-mobile-auth-foundation`       | Better Auth Expo plugin, trusted origins, `GET /api/mobile/v1/me`, contract  | Archived (ahp-sooyaa/parcel-flow#7) |
-| 2   | `scaffold-expo-rider-app`          | `mobile/` app, login, secure session, sign out, tooling exclusions, CI job   | Planned     |
+| 2   | `scaffold-expo-rider-app`          | `mobile/` app, login, secure session, sign out, tooling exclusions, CI job   | In review   |
 | 3   | `mobile-rider-parcel-list`         | Paginated rider parcels API, card list, detail, pull-to-refresh              | Planned     |
 | 4   | `mobile-rider-start-delivery`      | Shared start-delivery operation, multi-select start delivery                 | Planned     |
 | 5   | `mobile-rider-mark-delivered`      | Shared deliver operation, camera proof photo, compression                    | Planned     |
