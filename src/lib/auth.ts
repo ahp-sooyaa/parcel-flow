@@ -1,3 +1,4 @@
+import { expo } from "@better-auth/expo";
 import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -8,6 +9,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { appUsers } from "@/db/schema";
 import { createActiveUserSessionGuard } from "@/lib/auth-session-guard";
+import { getMobileTrustedOrigins } from "@/lib/auth-trusted-origins";
 
 function getAuthSecret() {
   const secret = process.env.BETTER_AUTH_SECRET?.trim();
@@ -33,6 +35,7 @@ export const auth = betterAuth({
   appName: "Parcel Flow",
   baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
   secret: getAuthSecret(),
+  trustedOrigins: getMobileTrustedOrigins(),
   rateLimit: {
     enabled: process.env.NODE_ENV === "production",
     window: 60,
@@ -97,6 +100,8 @@ export const auth = betterAuth({
   },
   plugins: [
     nextCookies(),
+    // Lets the Expo rider app sign in: it sends `expo-origin` instead of a browser Origin.
+    expo(),
     username({
       minUsernameLength: 3,
       usernameValidator: (value) => /^[a-z0-9-]+$/.test(value),
