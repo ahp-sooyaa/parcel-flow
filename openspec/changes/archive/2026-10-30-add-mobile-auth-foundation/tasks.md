@@ -27,4 +27,4 @@
 
 - [x] 5.1 Run `bun run typecheck`, `bun run lint`, `bun run format:check`, `bun run test:unit`, and `bun run test:integration`.
 - [x] 5.2 Manual check with `curl` against the local dev server: sign in with the expo origin header, call `/api/mobile/v1/me`, confirm an untrusted origin gets 403 on a cookie-bearing request, then sign out → 401.
-- [ ] 5.3 Mark slice 1 in the roadmap table in `docs/mobile-app.md` as done after archive.
+- [x] 5.3 Mark slice 1 in the roadmap table in `docs/mobile-app.md` as done after archive.
