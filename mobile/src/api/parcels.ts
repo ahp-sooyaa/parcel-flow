@@ -1,12 +1,13 @@
 import {
   mobileRiderParcelDetailResponseSchema,
   mobileRiderParcelPageResponseSchema,
+  mobileStartDeliveryResponseSchema,
   type MobileRiderParcelPageDto,
   type MobileRiderParcelTab,
 } from "@parcel-flow/contract";
-import { useInfiniteQuery, useQuery, type InfiniteData } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, type InfiniteData } from "@tanstack/react-query";
 
-import { apiGet } from "@/api/client";
+import { apiGet, apiPost } from "@/api/client";
 import { queryClient } from "@/api/query-client";
 
 // Long enough that switching tabs doesn't refetch every time, short enough that
@@ -64,4 +65,24 @@ export function useRiderParcel(parcelId: string) {
   });
 
   return { ...query, preview: findCachedListItem(parcelId) };
+}
+
+/**
+ * Starts delivery for the given `at_office` parcels. Whatever the outcome, the
+ * lists and those parcels' details refetch: on success they've moved tabs, and
+ * a 404 or 409 means the screen was showing a stale state.
+ */
+export function useStartDelivery() {
+  return useMutation({
+    mutationFn: (parcelIds: string[]) =>
+      apiPost("/rider/parcels/start-delivery", { parcelIds }, mobileStartDeliveryResponseSchema),
+    onSettled: async (_data, _error, parcelIds) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["rider-parcels"] }),
+        ...parcelIds.map((parcelId) =>
+          queryClient.invalidateQueries({ queryKey: riderParcelQueryKey(parcelId) }),
+        ),
+      ]);
+    },
+  });
 }

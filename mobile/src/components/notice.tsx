@@ -4,20 +4,13 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 type NoticeProps = {
   message: string;
-  tone?: "danger" | "warning";
+  tone?: "danger" | "warning" | "success";
 };
 
 export function Notice({ message, tone = "danger" }: NoticeProps) {
-  const isDanger = tone === "danger";
-
   return (
-    <View
-      accessibilityRole="alert"
-      style={[styles.notice, isDanger ? styles.dangerNotice : styles.warningNotice]}
-    >
-      <Text style={[styles.message, isDanger ? styles.dangerText : styles.warningText]}>
-        {message}
-      </Text>
+    <View accessibilityRole="alert" style={[styles.notice, toneStyles[tone].notice]}>
+      <Text style={[styles.message, toneStyles[tone].text]}>{message}</Text>
     </View>
   );
 }
@@ -40,4 +33,16 @@ const styles = StyleSheet.create({
   warningText: {
     color: colors.warningInk,
   },
+  successNotice: {
+    backgroundColor: colors.successSoft,
+  },
+  successText: {
+    color: colors.successInk,
+  },
 });
+
+const toneStyles = {
+  danger: { notice: styles.dangerNotice, text: styles.dangerText },
+  warning: { notice: styles.warningNotice, text: styles.warningText },
+  success: { notice: styles.successNotice, text: styles.successText },
+};

@@ -73,6 +73,7 @@ describe("parcel server actions", async () => {
     postponeFailedParcelAction,
     reportDeliveryFailureForRiderParcelAction,
     returnFailedParcelToMerchantAction,
+    startDeliveryForRiderParcelsAction,
     updateDeliveryFailureForRiderParcelAction,
     updateParcelAction,
   } = await import("@/features/parcels/server/actions");
@@ -519,6 +520,78 @@ describe("parcel server actions", async () => {
     expect(result).toEqual({
       ok: false,
       message: "This failure report has already been handled.",
+    });
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  test("starts delivery for one rider parcel and revalidates affected read models", async () => {
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "rider-user-id", role: "rider" }));
+
+    const result = await startDeliveryForRiderParcelsAction({
+      parcelIds: ["00000000-0000-4000-8000-000000000001"],
+    });
+
+    expect(result).toEqual({ ok: true, message: "Parcel moved to on the way." });
+    expect(startDeliveryForRiderParcelsMock).toHaveBeenCalledWith({
+      parcelIds: ["00000000-0000-4000-8000-000000000001"],
+      riderUserId: "rider-user-id",
+      actorRole: "rider",
+    });
+    // Server Actions read their own writes through updateTag, not stale-while-revalidate.
+    expect(updateTagMock).toHaveBeenCalledWith("rider-parcels:rider-user-id");
+    expect(revalidateTagMock).not.toHaveBeenCalled();
+    expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/rider/parcels");
+  });
+
+  test("starts delivery for several rider parcels", async () => {
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "rider-user-id", role: "rider" }));
+
+    const result = await startDeliveryForRiderParcelsAction({
+      parcelIds: ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"],
+    });
+
+    expect(result).toEqual({ ok: true, message: "Selected parcels moved to on the way." });
+  });
+
+  test("rejects invalid start delivery input before persistence", async () => {
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "rider-user-id", role: "rider" }));
+
+    expect(await startDeliveryForRiderParcelsAction({ parcelIds: [] })).toEqual({
+      ok: false,
+      message: "Select at least one parcel.",
+    });
+    expect(await startDeliveryForRiderParcelsAction({ parcelIds: ["not-a-uuid"] })).toEqual({
+      ok: false,
+      message: "Invalid parcel selection.",
+    });
+    expect(startDeliveryForRiderParcelsMock).not.toHaveBeenCalled();
+  });
+
+  test("rejects start delivery from non-rider users", async () => {
+    const result = await startDeliveryForRiderParcelsAction({
+      parcelIds: ["00000000-0000-4000-8000-000000000001"],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message: "You do not have permission to start delivery.",
+    });
+    expect(startDeliveryForRiderParcelsMock).not.toHaveBeenCalled();
+  });
+
+  test("returns DAL start delivery errors to the caller", async () => {
+    getSessionMock.mockResolvedValue(buildSessionUser({ id: "rider-user-id", role: "rider" }));
+    startDeliveryForRiderParcelsMock.mockRejectedValue(
+      new Error("Only assigned at-office parcels can be started for delivery."),
+    );
+
+    const result = await startDeliveryForRiderParcelsAction({
+      parcelIds: ["00000000-0000-4000-8000-000000000001"],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message: "Only assigned at-office parcels can be started for delivery.",
     });
     expect(revalidatePathMock).not.toHaveBeenCalled();
   });

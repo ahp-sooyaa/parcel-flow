@@ -1,6 +1,6 @@
-import { mobileMeResponseSchema } from "@parcel-flow/contract";
+import { mobileMeResponseSchema, mobileStartDeliveryResponseSchema } from "@parcel-flow/contract";
 
-import { apiGet, MobileApiError, NETWORK_ERROR_MESSAGE } from "@/api/client";
+import { apiGet, apiPost, MobileApiError, NETWORK_ERROR_MESSAGE } from "@/api/client";
 import { queryClient } from "@/api/query-client";
 import { authClient } from "@/auth/client";
 
@@ -96,5 +96,72 @@ describe("apiGet", () => {
       status: 200,
       message: "Unexpected response from Parcel Flow. Try again.",
     });
+  });
+});
+
+describe("apiPost", () => {
+  it("sends the body as JSON with the session cookie and returns the data", async () => {
+    const fetchMock = mockFetchResponse(200, {
+      ok: true,
+      message: "Parcel moved to on the way.",
+      data: { parcelIds: ["p1"] },
+    });
+
+    await expect(
+      apiPost(
+        "/rider/parcels/start-delivery",
+        { parcelIds: ["p1"] },
+        mobileStartDeliveryResponseSchema,
+      ),
+    ).resolves.toEqual({ parcelIds: ["p1"] });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://parcel-flow.test/api/mobile/v1/rider/parcels/start-delivery",
+      {
+        method: "POST",
+        body: JSON.stringify({ parcelIds: ["p1"] }),
+        credentials: "omit",
+        headers: {
+          Accept: "application/json",
+          Cookie: "better-auth.session_token=abc",
+          "Content-Type": "application/json",
+        },
+      },
+    );
+  });
+
+  it("maps an error envelope to MobileApiError", async () => {
+    mockFetchResponse(409, {
+      ok: false,
+      message: "Only assigned at-office parcels can be started.",
+    });
+
+    const error = await captureError(
+      apiPost(
+        "/rider/parcels/start-delivery",
+        { parcelIds: ["p1"] },
+        mobileStartDeliveryResponseSchema,
+      ),
+    );
+
+    expect(error).toBeInstanceOf(MobileApiError);
+    expect(error).toMatchObject({
+      status: 409,
+      message: "Only assigned at-office parcels can be started.",
+    });
+  });
+
+  it("signs the rider out on 401", async () => {
+    mockFetchResponse(401, { ok: false, message: "Authentication required." });
+
+    await captureError(
+      apiPost(
+        "/rider/parcels/start-delivery",
+        { parcelIds: ["p1"] },
+        mobileStartDeliveryResponseSchema,
+      ),
+    );
+
+    expect(authClient.signOut).toHaveBeenCalled();
   });
 });

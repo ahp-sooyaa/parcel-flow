@@ -1,8 +1,9 @@
 import { router, useLocalSearchParams } from "expo-router";
+import { useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { MobileApiError } from "@/api/client";
-import { useRiderParcel } from "@/api/parcels";
+import { useRiderParcel, useStartDelivery } from "@/api/parcels";
 import { Button } from "@/components/button";
 import { LoadingScreen } from "@/components/loading-screen";
 import { Notice } from "@/components/notice";
@@ -16,6 +17,11 @@ const parcelTypeLabels = { cod: "Cash on delivery", non_cod: "Prepaid" } as cons
 export default function ParcelDetailScreen() {
   const { parcelId } = useLocalSearchParams<{ parcelId: string }>();
   const parcel = useRiderParcel(parcelId);
+  const startDelivery = useStartDelivery();
+  const [startResult, setStartResult] = useState<{
+    tone: "success" | "danger";
+    message: string;
+  } | null>(null);
   const detail = parcel.data;
   // The list row shows right away; the full detail fills in when it arrives.
   const summary = detail ?? parcel.preview;
@@ -42,12 +48,26 @@ export default function ParcelDetailScreen() {
     return <LoadingScreen />;
   }
 
+  function start() {
+    setStartResult(null);
+    startDelivery.mutate([parcelId], {
+      onSuccess: () => setStartResult({ tone: "success", message: "Parcel moved to on the way." }),
+      onError: (error) => setStartResult({ tone: "danger", message: error.message }),
+    });
+  }
+
   return (
     <Screen>
       <View style={styles.header}>
         <Text style={styles.code}>{summary.parcelCode}</Text>
         <StatusBadge label={summary.statusLabel} status={summary.status} />
       </View>
+
+      {startResult ? <Notice message={startResult.message} tone={startResult.tone} /> : null}
+
+      {summary.status === "at_office" ? (
+        <Button busy={startDelivery.isPending} label="Start delivery" onPress={start} />
+      ) : null}
 
       {detail?.activeFailureNote ? (
         <Notice message={`Failure note: ${detail.activeFailureNote}`} tone="warning" />

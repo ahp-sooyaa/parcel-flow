@@ -1,6 +1,7 @@
 import type { MobileRiderParcelListItemDto } from "@parcel-flow/contract";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { Button } from "@/components/button";
 import { StatusBadge } from "@/components/status-badge";
 import { formatMmk } from "@/format";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
@@ -8,9 +9,13 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
 type ParcelCardProps = {
   parcel: MobileRiderParcelListItemDto;
   onPress: () => void;
+  /** A checkbox for picking the parcel for a batch start delivery. */
+  selection?: { checked: boolean; disabled: boolean; onToggle: () => void };
+  /** A "Start delivery" button for this parcel alone. */
+  startDelivery?: { starting: boolean; disabled: boolean; onPress: () => void };
 };
 
-export function ParcelCard({ parcel, onPress }: ParcelCardProps) {
+export function ParcelCard({ parcel, onPress, selection, startDelivery }: ParcelCardProps) {
   return (
     <Pressable
       accessibilityHint="Opens the parcel details"
@@ -20,7 +25,26 @@ export function ParcelCard({ parcel, onPress }: ParcelCardProps) {
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
       <View style={styles.header}>
-        <Text style={styles.code}>{parcel.parcelCode}</Text>
+        <View style={styles.headerStart}>
+          {selection ? (
+            <Pressable
+              accessibilityLabel={`Select ${parcel.parcelCode}`}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: selection.checked, disabled: selection.disabled }}
+              disabled={selection.disabled}
+              hitSlop={spacing.sm}
+              onPress={selection.onToggle}
+              style={[
+                styles.checkbox,
+                selection.checked && styles.checkboxChecked,
+                selection.disabled && styles.checkboxDisabled,
+              ]}
+            >
+              {selection.checked ? <Text style={styles.checkmark}>✓</Text> : null}
+            </Pressable>
+          ) : null}
+          <Text style={styles.code}>{parcel.parcelCode}</Text>
+        </View>
         <StatusBadge label={parcel.statusLabel} status={parcel.status} />
       </View>
 
@@ -37,6 +61,17 @@ export function ParcelCard({ parcel, onPress }: ParcelCardProps) {
         <Text style={styles.amountLabel}>Amount to collect</Text>
         <Text style={styles.amount}>{formatMmk(parcel.amountToCollect)}</Text>
       </View>
+
+      {startDelivery ? (
+        <View style={styles.actions}>
+          <Button
+            busy={startDelivery.starting}
+            disabled={startDelivery.disabled}
+            label="Start delivery"
+            onPress={startDelivery.onPress}
+          />
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -60,6 +95,33 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
+  },
+  headerStart: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 1,
+    gap: spacing.sm,
+  },
+  checkbox: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 22,
+    height: 22,
+    borderColor: colors.inkMute,
+    borderRadius: radii.sm,
+    borderWidth: 1.5,
+  },
+  checkboxChecked: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  checkboxDisabled: {
+    opacity: 0.5,
+  },
+  checkmark: {
+    ...typography.caption,
+    color: colors.onPrimary,
+    fontWeight: "700",
   },
   code: {
     ...typography.caption,
@@ -102,5 +164,9 @@ const styles = StyleSheet.create({
     ...typography.bodyMd,
     color: colors.ink,
     fontWeight: "700",
+  },
+  actions: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
   },
 });
