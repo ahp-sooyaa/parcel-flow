@@ -147,44 +147,13 @@ export default function MarkDeliveredScreen() {
       <View style={styles.photoSection}>
         <Text style={styles.sectionTitle}>Delivery proof photo</Text>
 
-        {preparing ? (
-          <View style={styles.preparing}>
-            <ActivityIndicator color={colors.primary} />
-            <Text style={styles.muted}>Preparing photo…</Text>
-          </View>
-        ) : photo ? (
-          <>
-            <Image
-              accessibilityLabel="Delivery proof preview"
-              resizeMode="cover"
-              source={{ uri: photo.uri }}
-              style={styles.preview}
-            />
-            <Button
-              disabled={saving}
-              label="Retake"
-              onPress={() => void pickPhoto(takeProofPhoto)}
-              variant="secondary"
-            />
-          </>
-        ) : (
-          <>
-            {cameraDenied ? (
-              <View style={styles.denied}>
-                <Notice
-                  message="Parcel Flow needs camera access to take the proof photo."
-                  tone="warning"
-                />
-                <Button
-                  label="Open settings"
-                  onPress={() => void Linking.openSettings()}
-                  variant="secondary"
-                />
-              </View>
-            ) : null}
-            <Button label="Take photo" onPress={() => void pickPhoto(takeProofPhoto)} />
-          </>
-        )}
+        <PhotoPicker
+          cameraDenied={cameraDenied}
+          onTake={() => void pickPhoto(takeProofPhoto)}
+          photo={photo}
+          preparing={preparing}
+          saving={saving}
+        />
 
         {!preparing && !saving ? (
           <Pressable
@@ -207,7 +176,69 @@ export default function MarkDeliveredScreen() {
   );
 }
 
-function NotEligible({ message, options }: { message: string; options: React.ReactNode }) {
+type PhotoPickerProps = {
+  photo: ProofPhoto | null;
+  preparing: boolean;
+  saving: boolean;
+  cameraDenied: boolean;
+  onTake: () => void;
+};
+
+/** The photo preview with "Retake", or "Take photo" (with the camera-denied notice). */
+function PhotoPicker({
+  photo,
+  preparing,
+  saving,
+  cameraDenied,
+  onTake,
+}: Readonly<PhotoPickerProps>) {
+  if (preparing) {
+    return (
+      <View style={styles.preparing}>
+        <ActivityIndicator color={colors.primary} />
+        <Text style={styles.muted}>Preparing photo…</Text>
+      </View>
+    );
+  }
+
+  if (photo) {
+    return (
+      <>
+        <Image
+          accessibilityLabel="Delivery proof preview"
+          resizeMode="cover"
+          source={{ uri: photo.uri }}
+          style={styles.preview}
+        />
+        <Button disabled={saving} label="Retake" onPress={onTake} variant="secondary" />
+      </>
+    );
+  }
+
+  return (
+    <>
+      {cameraDenied ? (
+        <View style={styles.denied}>
+          <Notice
+            message="Parcel Flow needs camera access to take the proof photo."
+            tone="warning"
+          />
+          <Button
+            label="Open settings"
+            onPress={() => void Linking.openSettings()}
+            variant="secondary"
+          />
+        </View>
+      ) : null}
+      <Button label="Take photo" onPress={onTake} />
+    </>
+  );
+}
+
+function NotEligible({
+  message,
+  options,
+}: Readonly<{ message: string; options: React.ReactNode }>) {
   return (
     <Screen>
       {options}

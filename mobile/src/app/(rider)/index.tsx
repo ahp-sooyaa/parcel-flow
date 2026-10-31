@@ -125,14 +125,16 @@ export default function ParcelListScreen() {
         </View>
       ) : null}
 
-      {parcels.isPending ? (
-        <LoadingScreen />
-      ) : parcels.isError ? (
+      {parcels.isPending ? <LoadingScreen /> : null}
+
+      {parcels.isError ? (
         <View style={styles.message}>
           <Notice message={parcels.error.message} />
           <Button label="Try again" onPress={() => void parcels.refetch()} variant="secondary" />
         </View>
-      ) : (
+      ) : null}
+
+      {parcels.isSuccess ? (
         <FlatList
           contentContainerStyle={styles.list}
           data={items}
@@ -204,7 +206,7 @@ export default function ParcelListScreen() {
             );
           }}
         />
-      )}
+      ) : null}
 
       {canStart && selectedParcels.length > 0 ? (
         <View style={styles.selectionBar}>

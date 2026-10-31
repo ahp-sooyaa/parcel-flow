@@ -209,17 +209,16 @@ describe("mobile rider mark delivered integration", async () => {
   test("the DAL itself rejects delivery while a failure note is active", async () => {
     const seed = await seedTwoRiders();
 
-    const attempt = markRiderParcelDelivered({
+    const error: unknown = await markRiderParcelDelivered({
       parcelId: seed.aWithFailureNote.id,
       proofImageKey: "parcels/x/proof.jpg",
       riderUserId: seed.riderAUserId,
       actorRole: "rider",
       createdBy: seed.riderAUserId,
-    });
+    }).catch((caught: unknown) => caught);
 
-    expect(attempt).rejects.toBeInstanceOf(ParcelOperationError);
-    expect(attempt).rejects.toMatchObject({ code: "conflict" });
-    await attempt.catch(() => undefined);
+    expect(error).toBeInstanceOf(ParcelOperationError);
+    expect(error).toMatchObject({ code: "conflict" });
     expect((await parcelRow(seed.aWithFailureNote.id))?.status).toBe("on_the_way");
   });
 });

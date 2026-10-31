@@ -23,7 +23,7 @@ export function ParcelCard({
   selection,
   startDelivery,
   onMarkDelivered,
-}: ParcelCardProps) {
+}: Readonly<ParcelCardProps>) {
   return (
     <Pressable
       accessibilityHint="Opens the parcel details"
