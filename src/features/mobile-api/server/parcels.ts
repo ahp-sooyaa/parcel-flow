@@ -11,6 +11,7 @@ import {
   type ParcelListItemDto,
   type RiderParcelListPageDto,
 } from "@/features/parcels/server/dto";
+import { calculateAmountToCollect } from "@/features/parcels/server/utils";
 import { parcelStatuses, parcelStatusLabels, parcelTypes } from "@/lib/domain";
 
 // The contract spells these lists out (it can't import server code). Checking
@@ -25,14 +26,6 @@ void (riderParcelTabs satisfies readonly (typeof mobileRiderParcelTabs)[number][
 // The app scrolls instead of paging, so it asks for more than the web's 12.
 export const MOBILE_RIDER_PARCEL_PAGE_SIZE = 20;
 
-/**
- * What the rider collects at the door: COD plus the delivery fee. Same rule as
- * the web rider card (src/features/parcels/components/rider-parcel-card-list.tsx).
- */
-export function getAmountToCollect(parcel: Pick<ParcelListItemDto, "codAmount" | "deliveryFee">) {
-  return parcel.codAmount + parcel.deliveryFee;
-}
-
 export function toMobileRiderParcelListItem(
   parcel: ParcelListItemDto,
 ): MobileRiderParcelListItemDto {
@@ -45,7 +38,7 @@ export function toMobileRiderParcelListItem(
     receiverPhoneNumber: parcel.receiverPhoneNumber,
     receiverAddress: parcel.receiverAddress,
     townshipName: parcel.townshipName,
-    amountToCollect: getAmountToCollect(parcel),
+    amountToCollect: calculateAmountToCollect(parcel),
     hasActiveFailureNote: parcel.activeFailureNote !== null,
   };
 }

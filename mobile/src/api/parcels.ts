@@ -1,14 +1,16 @@
 import {
   mobileRiderParcelDetailResponseSchema,
   mobileRiderParcelPageResponseSchema,
+  mobileMarkDeliveredResponseSchema,
   mobileStartDeliveryResponseSchema,
   type MobileRiderParcelPageDto,
   type MobileRiderParcelTab,
 } from "@parcel-flow/contract";
 import { useInfiniteQuery, useMutation, useQuery, type InfiniteData } from "@tanstack/react-query";
 
-import { apiGet, apiPost } from "@/api/client";
+import { apiGet, apiPost, apiPostForm } from "@/api/client";
 import { queryClient } from "@/api/query-client";
+import { proofPhotoUploadPart, type ProofPhoto } from "@/delivery/proof-photo";
 
 // Long enough that switching tabs doesn't refetch every time, short enough that
 // coming back to the app shows fresh data.
@@ -82,6 +84,32 @@ export function useStartDelivery() {
         ...parcelIds.map((parcelId) =>
           queryClient.invalidateQueries({ queryKey: riderParcelQueryKey(parcelId) }),
         ),
+      ]);
+    },
+  });
+}
+
+/**
+ * Marks the parcel delivered with its proof photo. Like `useStartDelivery`, the
+ * lists and the parcel's detail refetch whatever the outcome.
+ */
+export function useMarkDelivered(parcelId: string) {
+  return useMutation({
+    mutationFn: (photo: ProofPhoto) => {
+      const formData = new FormData();
+      // Expo's fetch sends any part with `bytes()` as a file; it isn't a real Blob.
+      formData.append("proofImage", proofPhotoUploadPart(photo) as unknown as Blob);
+
+      return apiPostForm(
+        `/rider/parcels/${encodeURIComponent(parcelId)}/deliver`,
+        formData,
+        mobileMarkDeliveredResponseSchema,
+      );
+    },
+    onSettled: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["rider-parcels"] }),
+        queryClient.invalidateQueries({ queryKey: riderParcelQueryKey(parcelId) }),
       ]);
     },
   });

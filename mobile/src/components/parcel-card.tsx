@@ -13,9 +13,17 @@ type ParcelCardProps = {
   selection?: { checked: boolean; disabled: boolean; onToggle: () => void };
   /** A "Start delivery" button for this parcel alone. */
   startDelivery?: { starting: boolean; disabled: boolean; onPress: () => void };
+  /** A "Mark delivered" button that opens the Mark delivered screen. */
+  onMarkDelivered?: () => void;
 };
 
-export function ParcelCard({ parcel, onPress, selection, startDelivery }: ParcelCardProps) {
+export function ParcelCard({
+  parcel,
+  onPress,
+  selection,
+  startDelivery,
+  onMarkDelivered,
+}: Readonly<ParcelCardProps>) {
   return (
     <Pressable
       accessibilityHint="Opens the parcel details"
@@ -70,6 +78,12 @@ export function ParcelCard({ parcel, onPress, selection, startDelivery }: Parcel
             label="Start delivery"
             onPress={startDelivery.onPress}
           />
+        </View>
+      ) : null}
+
+      {onMarkDelivered ? (
+        <View style={styles.actions}>
+          <Button label="Mark delivered" onPress={onMarkDelivered} />
         </View>
       ) : null}
     </Pressable>

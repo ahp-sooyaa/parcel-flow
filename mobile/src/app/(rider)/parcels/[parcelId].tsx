@@ -69,6 +69,15 @@ export default function ParcelDetailScreen() {
         <Button busy={startDelivery.isPending} label="Start delivery" onPress={start} />
       ) : null}
 
+      {summary.status === "on_the_way" && !summary.hasActiveFailureNote ? (
+        <Button
+          label="Mark delivered"
+          onPress={() =>
+            router.push({ pathname: "/deliver/[parcelId]", params: { parcelId: summary.id } })
+          }
+        />
+      ) : null}
+
       {detail?.activeFailureNote ? (
         <Notice message={`Failure note: ${detail.activeFailureNote}`} tone="warning" />
       ) : null}

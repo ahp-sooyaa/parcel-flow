@@ -43,10 +43,22 @@ export function apiPost<TData>(
   return request(path, schema, { method: "POST", body: JSON.stringify(body) });
 }
 
+/**
+ * POSTs `formData` as `multipart/form-data` to a `/api/mobile/v1` path. Same
+ * errors and sign-out as `apiGet`.
+ */
+export function apiPostForm<TData>(
+  path: string,
+  formData: FormData,
+  schema: z.ZodType<MobileSuccessResponse<TData>>,
+): Promise<TData> {
+  return request(path, schema, { method: "POST", body: formData });
+}
+
 async function request<TData>(
   path: string,
   schema: z.ZodType<MobileSuccessResponse<TData>>,
-  write?: { method: "POST"; body: string },
+  write?: { method: "POST"; body: string | FormData },
 ): Promise<TData> {
   let response: Response;
   const headers: Record<string, string> = {
@@ -57,7 +69,11 @@ async function request<TData>(
   try {
     response = await fetch(`${apiUrl}${MOBILE_API_BASE_PATH}${path}`, {
       ...(write && { method: write.method, body: write.body }),
-      headers: write ? { ...headers, "Content-Type": "application/json" } : headers,
+      // fetch sets the multipart Content-Type itself, boundary included.
+      headers:
+        typeof write?.body === "string"
+          ? { ...headers, "Content-Type": "application/json" }
+          : headers,
       // The session travels in the Cookie header above, not the platform cookie jar.
       credentials: "omit",
     });

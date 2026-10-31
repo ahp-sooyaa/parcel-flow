@@ -28,6 +28,10 @@ export default function RiderLayout() {
     >
       <Stack.Screen name="index" options={{ title: "Parcels" }} />
       <Stack.Screen name="parcels/[parcelId]" options={{ title: "Parcel" }} />
+      <Stack.Screen
+        name="deliver/[parcelId]"
+        options={{ title: "Mark delivered", presentation: "modal" }}
+      />
       <Stack.Screen name="profile" options={{ title: "Profile" }} />
     </Stack>
   );

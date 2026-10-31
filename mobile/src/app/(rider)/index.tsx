@@ -125,14 +125,16 @@ export default function ParcelListScreen() {
         </View>
       ) : null}
 
-      {parcels.isPending ? (
-        <LoadingScreen />
-      ) : parcels.isError ? (
+      {parcels.isPending ? <LoadingScreen /> : null}
+
+      {parcels.isError ? (
         <View style={styles.message}>
           <Notice message={parcels.error.message} />
           <Button label="Try again" onPress={() => void parcels.refetch()} variant="secondary" />
         </View>
-      ) : (
+      ) : null}
+
+      {parcels.isSuccess ? (
         <FlatList
           contentContainerStyle={styles.list}
           data={items}
@@ -164,6 +166,8 @@ export default function ParcelListScreen() {
           }
           renderItem={({ item }) => {
             const startable = canStart && item.status === "at_office";
+            const deliverable =
+              canStart && item.status === "on_the_way" && !item.hasActiveFailureNote;
 
             return (
               <ParcelCard
@@ -189,11 +193,20 @@ export default function ParcelListScreen() {
                       }
                     : undefined
                 }
+                onMarkDelivered={
+                  deliverable
+                    ? () =>
+                        router.push({
+                          pathname: "/deliver/[parcelId]",
+                          params: { parcelId: item.id },
+                        })
+                    : undefined
+                }
               />
             );
           }}
         />
-      )}
+      ) : null}
 
       {canStart && selectedParcels.length > 0 ? (
         <View style={styles.selectionBar}>
