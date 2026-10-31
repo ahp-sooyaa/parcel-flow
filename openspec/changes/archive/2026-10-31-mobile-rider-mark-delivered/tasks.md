@@ -47,4 +47,4 @@
 - [x] 9.1 Run the root checks (`lint`, `format:check`, `typecheck`, `test:unit`, `test:integration`) and the `mobile/` checks.
 - [x] 9.2 curl against the `test-db` dev server with the seeded e2e rider: deliver an on-the-way parcel with a small JPEG (200), repeat it (409), another rider's or a random parcel (404), no photo (400), and a parcel with a failure note (409). If `.env.test` has no working R2 credentials, use the `demo-local` server for the success path. (Ran against the `test-db` server; `.env.test` R2 credentials worked, so the success path uploaded a real photo.)
 - [x] 9.3 On the user's phone in Expo Go: deliver from a card and from the detail screen with the camera, once from the gallery, deny then allow camera permission, check the photo size in R2 is small, and check the web rider page and tab counts agree. (The first try found Expo's `fetch` rejecting React Native's `{ uri, name, type }` part; fixed with `proofPhotoUploadPart`, then everything passed.)
-- [ ] 9.4 Update the roadmap status in `docs/mobile-app.md`.
+- [x] 9.4 Update the roadmap status in `docs/mobile-app.md`.

@@ -76,12 +76,17 @@ The system SHALL allow an active rider to report delivery failure for a parcel a
 
 ### Requirement: Rider marks parcel delivered with proof
 
-The system SHALL allow an active rider to mark an assigned `on_the_way` parcel as `delivered` only after providing delivery proof photo data.
+The system SHALL allow an active rider to mark an assigned `on_the_way` parcel as `delivered` only after providing delivery proof photo data, and only while the parcel has no active delivery failure note. The web rider page and the mobile API SHALL apply the same rules through one shared operation.
 
 #### Scenario: Mark delivered is unavailable while failure note exists
 
 - **WHEN** an assigned `on_the_way` parcel has a stored `delivery_failure_note`
 - **THEN** the expanded rider parcel card does not show `Mark Delivered`
+
+#### Scenario: Server rejects delivery while failure note is active
+
+- **WHEN** a mark delivered request targets an assigned `on_the_way` parcel that has an active delivery failure note
+- **THEN** the system rejects the request without storing a proof photo, changing parcel data, or creating financial items
 
 #### Scenario: Rider opens mark delivered dialog
 
@@ -110,6 +115,16 @@ The system SHALL allow an active rider to mark an assigned `on_the_way` parcel a
 
 - **WHEN** a non-rider user, inactive rider, unrelated rider, or rider for a parcel not in `on_the_way` status submits a mark delivered request
 - **THEN** the system rejects the request without changing parcel data or creating financial items
+
+#### Scenario: Ineligible request stores no photo
+
+- **WHEN** a mark delivered request is rejected because the parcel is missing, assigned to someone else, not `on_the_way`, or has an active failure note
+- **THEN** the system rejects it before storing the proof photo
+
+#### Scenario: Stored photo is removed when delivery fails
+
+- **WHEN** the proof photo was stored but saving the delivery then fails
+- **THEN** the system deletes that stored photo and reports the failure
 
 ### Requirement: Delivered parcel state is persisted
 
