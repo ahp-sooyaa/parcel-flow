@@ -1,6 +1,7 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react-native";
+import { Alert } from "react-native";
 
-import { apiGet, MobileApiError } from "@/api/client";
+import { apiGet, apiPost, MobileApiError } from "@/api/client";
 import { queryClient } from "@/api/query-client";
 import ParcelListScreen from "@/app/(rider)/index";
 import { buildListItem, renderWithQueryClient } from "./test-utils";
@@ -13,9 +14,11 @@ jest.mock("expo-router", () => ({
 jest.mock("@/api/client", () => ({
   ...jest.requireActual("@/api/client"),
   apiGet: jest.fn(),
+  apiPost: jest.fn(),
 }));
 
 const apiGetMock = jest.mocked(apiGet);
+const apiPostMock = jest.mocked(apiPost);
 const tabCounts = { to_deliver: 2, delivered: 7, returned: 0 };
 
 function respondWith(parcels: ReturnType<typeof buildListItem>[], extra = {}) {
@@ -25,6 +28,7 @@ function respondWith(parcels: ReturnType<typeof buildListItem>[], extra = {}) {
 beforeEach(() => {
   queryClient.clear();
   apiGetMock.mockReset();
+  apiPostMock.mockReset();
 });
 
 describe("ParcelListScreen", () => {
@@ -97,5 +101,151 @@ describe("ParcelListScreen", () => {
     await fireEvent.press(screen.getByRole("button", { name: "Try again" }));
 
     await waitFor(() => expect(screen.getByText("Daw Mya")).toBeOnTheScreen());
+  });
+});
+
+describe("ParcelListScreen start delivery", () => {
+  const atOfficeA = buildListItem({
+    id: "a1",
+    parcelCode: "PF-A1",
+    receiverName: "Daw Mya",
+    status: "at_office",
+    statusLabel: "At Office",
+    amountToCollect: 10_000,
+  });
+  const atOfficeB = buildListItem({
+    id: "a2",
+    parcelCode: "PF-A2",
+    receiverName: "U Ba",
+    status: "at_office",
+    statusLabel: "At Office",
+    amountToCollect: 5_000,
+  });
+  const onTheWay = buildListItem({ id: "w1", parcelCode: "PF-W1", receiverName: "Ko Zaw" });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  async function renderList() {
+    apiGetMock.mockResolvedValue(respondWith([atOfficeA, atOfficeB, onTheWay]));
+    await renderWithQueryClient(<ParcelListScreen />);
+    await screen.findByText("Daw Mya");
+  }
+
+  it("offers start delivery and selection only on at-office cards", async () => {
+    await renderList();
+
+    expect(screen.getAllByRole("button", { name: "Start delivery" })).toHaveLength(2);
+    expect(screen.getByRole("checkbox", { name: "Select PF-A1" })).toBeOnTheScreen();
+    expect(screen.getByRole("checkbox", { name: "Select PF-A2" })).toBeOnTheScreen();
+    expect(screen.queryByRole("checkbox", { name: "Select PF-W1" })).not.toBeOnTheScreen();
+  });
+
+  it("starts one parcel from its card without confirming, then refetches", async () => {
+    const alertSpy = jest.spyOn(Alert, "alert");
+    apiPostMock.mockResolvedValue({ parcelIds: ["a1"] });
+    await renderList();
+    const callsBefore = apiGetMock.mock.calls.length;
+
+    await fireEvent.press(screen.getAllByRole("button", { name: "Start delivery" })[0]);
+
+    expect(await screen.findByText("Parcel moved to on the way.")).toBeOnTheScreen();
+    expect(apiPostMock).toHaveBeenCalledWith(
+      "/rider/parcels/start-delivery",
+      { parcelIds: ["a1"] },
+      expect.anything(),
+    );
+    expect(alertSpy).not.toHaveBeenCalled();
+    await waitFor(() => expect(apiGetMock.mock.calls.length).toBeGreaterThan(callsBefore));
+  });
+
+  it("shows the selected count and total, and confirms before starting several", async () => {
+    const alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+    apiPostMock.mockResolvedValue({ parcelIds: ["a1", "a2"] });
+    await renderList();
+
+    await fireEvent.press(screen.getByRole("checkbox", { name: "Select PF-A1" }));
+    await fireEvent.press(screen.getByRole("checkbox", { name: "Select PF-A2" }));
+
+    expect(screen.getByText("2 selected · 15,000 MMK to collect")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole("button", { name: "Start delivery (2)" }));
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      "Start delivery for 2 parcels?",
+      "15,000 MMK to collect.",
+      expect.any(Array),
+    );
+    expect(apiPostMock).not.toHaveBeenCalled();
+
+    const buttons = alertSpy.mock.calls[0]?.[2] ?? [];
+    await act(async () => {
+      buttons.find((button) => button.text === "Start")?.onPress?.();
+    });
+
+    expect(apiPostMock).toHaveBeenCalledWith(
+      "/rider/parcels/start-delivery",
+      { parcelIds: ["a1", "a2"] },
+      expect.anything(),
+    );
+    expect(await screen.findByText("Selected parcels moved to on the way.")).toBeOnTheScreen();
+  });
+
+  it("sends nothing when the confirmation is cancelled", async () => {
+    const alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+    await renderList();
+
+    await fireEvent.press(screen.getByRole("checkbox", { name: "Select PF-A1" }));
+    await fireEvent.press(screen.getByRole("checkbox", { name: "Select PF-A2" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Start delivery (2)" }));
+
+    const buttons = alertSpy.mock.calls[0]?.[2] ?? [];
+    await act(async () => {
+      buttons.find((button) => button.text === "Cancel")?.onPress?.();
+    });
+
+    expect(apiPostMock).not.toHaveBeenCalled();
+    expect(screen.getByText("2 selected · 15,000 MMK to collect")).toBeOnTheScreen();
+  });
+
+  it("starts a single selected parcel from the bar without confirming", async () => {
+    const alertSpy = jest.spyOn(Alert, "alert");
+    apiPostMock.mockResolvedValue({ parcelIds: ["a2"] });
+    await renderList();
+
+    await fireEvent.press(screen.getByRole("checkbox", { name: "Select PF-A2" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Start delivery (1)" }));
+
+    expect(alertSpy).not.toHaveBeenCalled();
+    expect(apiPostMock).toHaveBeenCalledWith(
+      "/rider/parcels/start-delivery",
+      { parcelIds: ["a2"] },
+      expect.anything(),
+    );
+  });
+
+  it("shows the server's message when a start is rejected", async () => {
+    apiPostMock.mockRejectedValue(
+      new MobileApiError(409, "Only assigned at-office parcels can be started for delivery."),
+    );
+    await renderList();
+
+    await fireEvent.press(screen.getAllByRole("button", { name: "Start delivery" })[0]);
+
+    expect(
+      await screen.findByText("Only assigned at-office parcels can be started for delivery."),
+    ).toBeOnTheScreen();
+  });
+
+  it("clears the selection when switching tabs", async () => {
+    await renderList();
+    await fireEvent.press(screen.getByRole("checkbox", { name: "Select PF-A1" }));
+    expect(screen.getByText("1 selected · 10,000 MMK to collect")).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole("tab", { name: "Delivered (7)" }));
+    await fireEvent.press(await screen.findByRole("tab", { name: "To deliver (2)" }));
+    await screen.findByText("Daw Mya");
+
+    expect(screen.queryByText(/selected ·/)).not.toBeOnTheScreen();
   });
 });

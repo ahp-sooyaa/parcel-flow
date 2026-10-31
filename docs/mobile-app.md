@@ -95,7 +95,7 @@ When a slice exposes a rider action to mobile, it moves the body of the existing
 | Prefix         | `/api/mobile/v1`                                                            |
 | Body (success) | `{ ok: true, message, data? }`                                              |
 | Body (error)   | `{ ok: false, message }`                                                    |
-| Status codes   | 200, 400 (validation), 401 (no session), 403 (wrong role), 429, 500         |
+| Status codes   | 200, 400 (validation), 401 (no session), 403 (wrong role), 404 (not found or not yours), 409 (state changed), 429, 500 |
 | Uploads        | `multipart/form-data`, the same limits as the web (5 MB, JPG/PNG/WebP)      |
 | Validation     | Zod on the server for every request                                         |
 | Contract       | Shared request/response schemas and types in a module with no server imports |
@@ -165,7 +165,7 @@ Each slice is one OpenSpec change, built end to end (API, app screen, tests), in
 | 1   | `add-mobile-auth-foundation`       | Better Auth Expo plugin, trusted origins, `GET /api/mobile/v1/me`, contract  | Archived (ahp-sooyaa/parcel-flow#7) |
 | 2   | `scaffold-expo-rider-app`          | `mobile/` app, login, secure session, sign out, tooling exclusions, CI job   | Archived (ahp-sooyaa/parcel-flow#9) |
 | 3   | `mobile-rider-parcel-list`         | Paginated rider parcels API, card list, detail, pull-to-refresh              | Archived (ahp-sooyaa/parcel-flow#11) |
-| 4   | `mobile-rider-start-delivery`      | Shared start-delivery operation, multi-select start delivery                 | Planned     |
+| 4   | `mobile-rider-start-delivery`      | Shared start-delivery operation, multi-select start delivery                 | In progress |
 | 5   | `mobile-rider-mark-delivered`      | Shared deliver operation, camera proof photo, compression                    | Planned     |
 | 6   | `mobile-rider-delivery-failure`    | Report, edit, delete failure notes                                           | Planned     |
 | 7   | `mobile-rider-return-to-merchant`  | Complete merchant returns                                                    | Planned     |

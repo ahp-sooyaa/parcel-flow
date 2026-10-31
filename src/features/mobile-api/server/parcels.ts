@@ -12,7 +12,6 @@ import {
   type RiderParcelListPageDto,
 } from "@/features/parcels/server/dto";
 import { parcelStatuses, parcelStatusLabels, parcelTypes } from "@/lib/domain";
-import { coerceSqlNumber } from "@/lib/format";
 
 // The contract spells these lists out (it can't import server code). Checking
 // both directions makes the build fail if either side gains or loses a value.
@@ -66,17 +65,11 @@ export function toMobileRiderParcelDetail(parcel: ParcelListItemDto): MobileRide
 }
 
 export function toMobileRiderParcelPage(page: RiderParcelListPageDto): MobileRiderParcelPageDto {
-  // postgres-js returns `count(*)` (bigint) as a string, although the DAL types
-  // its counts as numbers. The mobile contract is strict, so convert here.
   return {
     parcels: page.parcels.map(toMobileRiderParcelListItem),
     page: page.page,
     totalPages: page.totalPages,
-    totalCount: coerceSqlNumber(page.totalCount),
-    tabCounts: {
-      to_deliver: coerceSqlNumber(page.tabCounts.to_deliver),
-      delivered: coerceSqlNumber(page.tabCounts.delivered),
-      returned: coerceSqlNumber(page.tabCounts.returned),
-    },
+    totalCount: page.totalCount,
+    tabCounts: page.tabCounts,
   };
 }

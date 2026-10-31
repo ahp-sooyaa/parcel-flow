@@ -33,6 +33,7 @@ import type {
   RiderParcelTabCountsDto,
   UpdateParcelInputDto,
 } from "@/features/parcels/server/dto";
+import { ParcelOperationError } from "@/features/parcels/server/errors";
 import { getRiderParcelTabStatuses, riderParcelPageSize } from "@/features/parcels/server/dto";
 import {
   appendActiveParcelFailureNote,
@@ -1789,7 +1790,7 @@ export async function startDeliveryForRiderParcels(input: {
   actorRole: "rider";
 }) {
   if (!canChangeParcelStatus(input.actorRole, "at_office", "on_the_way")) {
-    throw new Error("You do not have permission to start delivery.");
+    throw new ParcelOperationError("forbidden", "You do not have permission to start delivery.");
   }
 
   const uniqueParcelIds = Array.from(new Set(input.parcelIds));
@@ -1803,7 +1804,7 @@ export async function startDeliveryForRiderParcels(input: {
       .limit(1);
 
     if (!rider?.userIsActive) {
-      throw new Error("Active rider profile was not found.");
+      throw new ParcelOperationError("forbidden", "Active rider profile was not found.");
     }
 
     const selectedParcels = await tx
@@ -1819,19 +1820,25 @@ export async function startDeliveryForRiderParcels(input: {
       .for("update");
 
     if (selectedParcels.length !== uniqueParcelIds.length) {
-      throw new Error("One or more selected parcels were not found.");
+      throw new ParcelOperationError("not_found", "One or more selected parcels were not found.");
     }
 
     const unrelatedParcel = selectedParcels.find((parcel) => parcel.riderId !== rider.id);
 
     if (unrelatedParcel) {
-      throw new Error("You can only start delivery for parcels assigned to your rider account.");
+      throw new ParcelOperationError(
+        "not_assigned",
+        "You can only start delivery for parcels assigned to your rider account.",
+      );
     }
 
     const ineligibleParcel = selectedParcels.find((parcel) => parcel.status !== "at_office");
 
     if (ineligibleParcel) {
-      throw new Error("Only assigned at-office parcels can be started for delivery.");
+      throw new ParcelOperationError(
+        "conflict",
+        "Only assigned at-office parcels can be started for delivery.",
+      );
     }
 
     const startedAt = new Date();
@@ -1851,7 +1858,10 @@ export async function startDeliveryForRiderParcels(input: {
       .returning({ id: parcels.id });
 
     if (updatedParcels.length !== uniqueParcelIds.length) {
-      throw new Error("One or more selected parcels are no longer eligible to start delivery.");
+      throw new ParcelOperationError(
+        "conflict",
+        "One or more selected parcels are no longer eligible to start delivery.",
+      );
     }
 
     await tx.insert(financialItems).values(

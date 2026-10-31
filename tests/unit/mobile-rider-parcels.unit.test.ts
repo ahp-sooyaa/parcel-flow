@@ -193,13 +193,11 @@ describe("mobile rider parcel routes", async () => {
       expect(JSON.stringify(body)).not.toContain("Ko Aung");
     });
 
-    test("converts the DAL's string counts (postgres bigint) to numbers", async () => {
+    test("passes the DAL's numeric counts through", async () => {
       signInAs("rider");
-      // What postgres-js really returns for count(*), despite the DAL's types.
-      const databaseCounts = JSON.parse(
-        '{"totalCount":"41","tabCounts":{"to_deliver":"5","delivered":"41","returned":"0"}}',
+      listRiderParcelsPageForUserMock.mockResolvedValue(
+        buildPage({ totalCount: 41, tabCounts: { to_deliver: 5, delivered: 41, returned: 0 } }),
       );
-      listRiderParcelsPageForUserMock.mockResolvedValue(buildPage(databaseCounts));
 
       const response = await getList(listRequest());
       const body = mobileRiderParcelPageResponseSchema.parse(await response.json());

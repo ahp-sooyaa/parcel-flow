@@ -112,3 +112,23 @@ export const mobileRiderParcelPageResponseSchema = mobileSuccessResponseSchema(
 export const mobileRiderParcelDetailResponseSchema = mobileSuccessResponseSchema(
   mobileRiderParcelDetailSchema,
 );
+
+// Mirrors `startDeliveryInputSchema` (src/features/parcels/server/rider-operations.ts),
+// which the server validates with; a unit test checks the two agree.
+export const MOBILE_START_DELIVERY_MAX_PARCELS = 50;
+
+export const mobileStartDeliveryRequestSchema = z.object({
+  parcelIds: z.array(z.uuid()).min(1).max(MOBILE_START_DELIVERY_MAX_PARCELS),
+});
+
+export type MobileStartDeliveryRequest = z.infer<typeof mobileStartDeliveryRequestSchema>;
+
+export const mobileStartDeliveryResultSchema = z.object({
+  parcelIds: z.array(z.string()),
+});
+
+export type MobileStartDeliveryResultDto = z.infer<typeof mobileStartDeliveryResultSchema>;
+
+export const mobileStartDeliveryResponseSchema = mobileSuccessResponseSchema(
+  mobileStartDeliveryResultSchema,
+);

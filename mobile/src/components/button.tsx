@@ -22,6 +22,8 @@ export function Button({
 
   return (
     <Pressable
+      // Keeps the button's name while the spinner replaces its text.
+      accessibilityLabel={label}
       accessibilityRole="button"
       accessibilityState={{ disabled: isDisabled, busy }}
       disabled={isDisabled}

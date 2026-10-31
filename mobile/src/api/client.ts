@@ -27,15 +27,37 @@ export class MobileApiError extends Error {
  * response `data`, checked against the shared contract schema. Throws
  * `MobileApiError` (status 0 for network failures) and signs the rider out on 401.
  */
-export async function apiGet<TData>(
+export function apiGet<TData>(
   path: string,
   schema: z.ZodType<MobileSuccessResponse<TData>>,
 ): Promise<TData> {
+  return request(path, schema);
+}
+
+/** POSTs `body` as JSON to a `/api/mobile/v1` path. Same errors and sign-out as `apiGet`. */
+export function apiPost<TData>(
+  path: string,
+  body: unknown,
+  schema: z.ZodType<MobileSuccessResponse<TData>>,
+): Promise<TData> {
+  return request(path, schema, { method: "POST", body: JSON.stringify(body) });
+}
+
+async function request<TData>(
+  path: string,
+  schema: z.ZodType<MobileSuccessResponse<TData>>,
+  write?: { method: "POST"; body: string },
+): Promise<TData> {
   let response: Response;
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    Cookie: authClient.getCookie(),
+  };
 
   try {
     response = await fetch(`${apiUrl}${MOBILE_API_BASE_PATH}${path}`, {
-      headers: { Accept: "application/json", Cookie: authClient.getCookie() },
+      ...(write && { method: write.method, body: write.body }),
+      headers: write ? { ...headers, "Content-Type": "application/json" } : headers,
       // The session travels in the Cookie header above, not the platform cookie jar.
       credentials: "omit",
     });

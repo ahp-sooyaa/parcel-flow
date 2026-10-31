@@ -1,7 +1,7 @@
 import { fireEvent, screen } from "@testing-library/react-native";
 import { Linking } from "react-native";
 
-import { apiGet, MobileApiError } from "@/api/client";
+import { apiGet, apiPost, MobileApiError } from "@/api/client";
 import { riderParcelsQueryKey } from "@/api/parcels";
 import { queryClient } from "@/api/query-client";
 import ParcelDetailScreen from "@/app/(rider)/parcels/[parcelId]";
@@ -17,13 +17,16 @@ jest.mock("expo-router", () => ({
 jest.mock("@/api/client", () => ({
   ...jest.requireActual("@/api/client"),
   apiGet: jest.fn(),
+  apiPost: jest.fn(),
 }));
 
 const apiGetMock = jest.mocked(apiGet);
+const apiPostMock = jest.mocked(apiPost);
 
 beforeEach(() => {
   queryClient.clear();
   apiGetMock.mockReset();
+  apiPostMock.mockReset();
 });
 
 describe("ParcelDetailScreen", () => {
@@ -90,5 +93,50 @@ describe("ParcelDetailScreen", () => {
       }),
     ).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Back to parcels" })).toBeOnTheScreen();
+  });
+});
+
+describe("ParcelDetailScreen start delivery", () => {
+  it("shows start delivery only for an at-office parcel", async () => {
+    apiGetMock.mockResolvedValue(buildDetail());
+
+    await renderWithQueryClient(<ParcelDetailScreen />);
+    await screen.findByText("Golden Leaf Tea");
+
+    expect(screen.queryByRole("button", { name: "Start delivery" })).not.toBeOnTheScreen();
+  });
+
+  it("starts the parcel and refetches its detail", async () => {
+    apiGetMock.mockResolvedValue(buildDetail({ status: "at_office", statusLabel: "At Office" }));
+    apiPostMock.mockResolvedValue({ parcelIds: [parcelId] });
+    await renderWithQueryClient(<ParcelDetailScreen />);
+    await screen.findByText("Golden Leaf Tea");
+
+    apiGetMock.mockResolvedValue(buildDetail());
+    await fireEvent.press(screen.getByRole("button", { name: "Start delivery" }));
+
+    expect(await screen.findByText("Parcel moved to on the way.")).toBeOnTheScreen();
+    expect(apiPostMock).toHaveBeenCalledWith(
+      "/rider/parcels/start-delivery",
+      { parcelIds: [parcelId] },
+      expect.anything(),
+    );
+    expect(await screen.findByText("On The Way")).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Start delivery" })).not.toBeOnTheScreen();
+  });
+
+  it("shows the server's message when the start is rejected", async () => {
+    apiGetMock.mockResolvedValue(buildDetail({ status: "at_office", statusLabel: "At Office" }));
+    apiPostMock.mockRejectedValue(
+      new MobileApiError(409, "Only assigned at-office parcels can be started for delivery."),
+    );
+    await renderWithQueryClient(<ParcelDetailScreen />);
+    await screen.findByText("Golden Leaf Tea");
+
+    await fireEvent.press(screen.getByRole("button", { name: "Start delivery" }));
+
+    expect(
+      await screen.findByText("Only assigned at-office parcels can be started for delivery."),
+    ).toBeOnTheScreen();
   });
 });

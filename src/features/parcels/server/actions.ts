@@ -13,7 +13,6 @@ import {
   markRiderParcelReturnedToMerchant,
   reportDeliveryFailureForRiderParcel,
   resolveFailedParcelByAdmin,
-  startDeliveryForRiderParcels,
   updateDeliveryFailureForRiderParcel,
   updateParcel,
 } from "@/features/parcels/server/dal";
@@ -23,6 +22,7 @@ import {
   createParcelFormInputSchema,
   updateParcelFormInputSchema,
 } from "@/features/parcels/server/dto";
+import { startRiderDelivery } from "@/features/parcels/server/rider-operations";
 import {
   deleteDeliveryProofImage,
   uploadDeliveryProofImage,
@@ -31,7 +31,10 @@ import {
   mapCreateParcelFormInputToCreateParcelInput,
   mapUpdateParcelFormInputToUpdateParcelInput,
 } from "@/features/parcels/server/utils";
-import { invalidateParcelWriteCaches } from "@/lib/cache-invalidation";
+import {
+  invalidateParcelWriteCaches,
+  revalidateParcelOperationalPaths,
+} from "@/lib/cache-invalidation";
 import { getFormFieldErrors } from "@/lib/form-action-errors";
 import { isAdminRole } from "@/lib/domain";
 import { canChangeParcelStatus, canCreateParcel } from "@/lib/permissions";
@@ -42,10 +45,6 @@ import { maxLengthMessage, TEXT_LIMITS } from "@/lib/validation";
 const assignParcelsInputSchema = z.object({
   parcelIds: z.array(z.string().min(1)).min(1, "Select at least one parcel."),
   riderId: z.string().min(1, "Rider is required."),
-});
-
-const startDeliveryInputSchema = z.object({
-  parcelIds: z.array(z.uuid("Invalid parcel selection.")).min(1, "Select at least one parcel."),
 });
 
 const reportDeliveryFailureInputSchema = z.object({
@@ -195,7 +194,7 @@ export async function updateParcelAction(input: unknown) {
     };
   }
 
-  revalidateParcelOperationalPaths();
+  revalidateParcelOperationalPaths({ caller: "server-action" });
 
   return {
     ok: true as const,
@@ -248,15 +247,6 @@ function revalidateParcelCorrectionPaths() {
   revalidatePath("/dashboard/riders");
   revalidatePath("/dashboard/settlements");
   revalidatePath("/dashboard/rider-payouts");
-  revalidatePath("/dashboard/merchant/parcels");
-  revalidatePath("/dashboard/rider/parcels");
-}
-
-function revalidateParcelOperationalPaths() {
-  invalidateParcelWriteCaches();
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/parcels");
-  revalidatePath("/dashboard/riders");
   revalidatePath("/dashboard/merchant/parcels");
   revalidatePath("/dashboard/rider/parcels");
 }
@@ -400,7 +390,7 @@ async function resolveFailedParcelAction(
     };
   }
 
-  revalidateParcelOperationalPaths();
+  revalidateParcelOperationalPaths({ caller: "server-action" });
 
   return {
     ok: true as const,
@@ -421,44 +411,11 @@ export async function returnFailedParcelToMerchantAction(input: unknown) {
 
 export async function startDeliveryForRiderParcelsAction(input: unknown) {
   const actor = await requireCurrentUser();
-  const parseResult = startDeliveryInputSchema.safeParse(input);
+  const result = await startRiderDelivery(actor, input, { caller: "server-action" });
 
-  if (!parseResult.success) {
-    return {
-      ok: false as const,
-      message: parseResult.error.issues[0]?.message ?? "Invalid start delivery details.",
-    };
-  }
-
-  if (actor.role !== "rider" || !canChangeParcelStatus(actor.role, "at_office", "on_the_way")) {
-    return {
-      ok: false as const,
-      message: "You do not have permission to start delivery.",
-    };
-  }
-
-  try {
-    await startDeliveryForRiderParcels({
-      parcelIds: parseResult.data.parcelIds,
-      riderUserId: actor.id,
-      actorRole: actor.role,
-    });
-  } catch (error) {
-    return {
-      ok: false as const,
-      message: error instanceof Error ? error.message : "Unable to start delivery.",
-    };
-  }
-
-  revalidateParcelOperationalPaths();
-
-  return {
-    ok: true as const,
-    message:
-      parseResult.data.parcelIds.length === 1
-        ? "Parcel moved to on the way."
-        : "Selected parcels moved to on the way.",
-  };
+  return result.ok
+    ? { ok: true as const, message: result.message }
+    : { ok: false as const, message: result.message };
 }
 
 export async function reportDeliveryFailureForRiderParcelAction(input: unknown) {
@@ -493,7 +450,7 @@ export async function reportDeliveryFailureForRiderParcelAction(input: unknown) 
     };
   }
 
-  revalidateParcelOperationalPaths();
+  revalidateParcelOperationalPaths({ caller: "server-action" });
 
   return {
     ok: true as const,
@@ -532,7 +489,7 @@ export async function deleteDeliveryFailureForRiderParcelAction(input: unknown) 
     };
   }
 
-  revalidateParcelOperationalPaths();
+  revalidateParcelOperationalPaths({ caller: "server-action" });
 
   return {
     ok: true as const,
@@ -572,7 +529,7 @@ export async function updateDeliveryFailureForRiderParcelAction(input: unknown) 
     };
   }
 
-  revalidateParcelOperationalPaths();
+  revalidateParcelOperationalPaths({ caller: "server-action" });
 
   return {
     ok: true as const,
@@ -615,7 +572,7 @@ export async function markRiderParcelReturnedToMerchantAction(input: unknown) {
     };
   }
 
-  revalidateParcelOperationalPaths();
+  revalidateParcelOperationalPaths({ caller: "server-action" });
 
   return {
     ok: true as const,
