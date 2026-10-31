@@ -132,3 +132,18 @@ export type MobileStartDeliveryResultDto = z.infer<typeof mobileStartDeliveryRes
 export const mobileStartDeliveryResponseSchema = mobileSuccessResponseSchema(
   mobileStartDeliveryResultSchema,
 );
+
+// Mirror the server's proof photo rules (src/features/parcels/server/rider-operations.ts);
+// a unit test checks they stay equal.
+export const MOBILE_PROOF_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+export const mobileProofImageTypes = ["image/jpeg", "image/png", "image/webp"] as const;
+
+export const mobileMarkDeliveredResultSchema = z.object({
+  parcelId: z.string(),
+});
+
+export type MobileMarkDeliveredResultDto = z.infer<typeof mobileMarkDeliveredResultSchema>;
+
+export const mobileMarkDeliveredResponseSchema = mobileSuccessResponseSchema(
+  mobileMarkDeliveredResultSchema,
+);

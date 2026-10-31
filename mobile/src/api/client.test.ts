@@ -1,6 +1,10 @@
-import { mobileMeResponseSchema, mobileStartDeliveryResponseSchema } from "@parcel-flow/contract";
+import {
+  mobileMarkDeliveredResponseSchema,
+  mobileMeResponseSchema,
+  mobileStartDeliveryResponseSchema,
+} from "@parcel-flow/contract";
 
-import { apiGet, apiPost, MobileApiError, NETWORK_ERROR_MESSAGE } from "@/api/client";
+import { apiGet, apiPost, apiPostForm, MobileApiError, NETWORK_ERROR_MESSAGE } from "@/api/client";
 import { queryClient } from "@/api/query-client";
 import { authClient } from "@/auth/client";
 
@@ -163,5 +167,31 @@ describe("apiPost", () => {
     );
 
     expect(authClient.signOut).toHaveBeenCalled();
+  });
+});
+
+describe("apiPostForm", () => {
+  it("sends the form with the session cookie and lets fetch set the multipart type", async () => {
+    const fetchMock = mockFetchResponse(200, {
+      ok: true,
+      message: "Parcel marked delivered.",
+      data: { parcelId: "p1" },
+    });
+    const formData = new FormData();
+    formData.append("proofImage", "photo");
+
+    await expect(
+      apiPostForm("/rider/parcels/p1/deliver", formData, mobileMarkDeliveredResponseSchema),
+    ).resolves.toEqual({ parcelId: "p1" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://parcel-flow.test/api/mobile/v1/rider/parcels/p1/deliver",
+      {
+        method: "POST",
+        body: formData,
+        credentials: "omit",
+        headers: { Accept: "application/json", Cookie: "better-auth.session_token=abc" },
+      },
+    );
   });
 });

@@ -164,6 +164,8 @@ export default function ParcelListScreen() {
           }
           renderItem={({ item }) => {
             const startable = canStart && item.status === "at_office";
+            const deliverable =
+              canStart && item.status === "on_the_way" && !item.hasActiveFailureNote;
 
             return (
               <ParcelCard
@@ -187,6 +189,15 @@ export default function ParcelListScreen() {
                         disabled: startDelivery.isPending,
                         onPress: () => runStart([item.id]),
                       }
+                    : undefined
+                }
+                onMarkDelivered={
+                  deliverable
+                    ? () =>
+                        router.push({
+                          pathname: "/deliver/[parcelId]",
+                          params: { parcelId: item.id },
+                        })
                     : undefined
                 }
               />

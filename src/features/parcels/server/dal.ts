@@ -2087,7 +2087,10 @@ export async function markRiderParcelDelivered(input: {
   createdBy: string;
 }) {
   if (!canChangeParcelStatus(input.actorRole, "on_the_way", "delivered")) {
-    throw new Error("You do not have permission to mark parcels delivered.");
+    throw new ParcelOperationError(
+      "forbidden",
+      "You do not have permission to mark parcels delivered.",
+    );
   }
 
   await db.transaction(async (tx) => {
@@ -2099,7 +2102,7 @@ export async function markRiderParcelDelivered(input: {
       .limit(1);
 
     if (!rider?.userIsActive) {
-      throw new Error("Active rider profile was not found.");
+      throw new ParcelOperationError("forbidden", "Active rider profile was not found.");
     }
 
     const [parcel] = await tx
@@ -2111,6 +2114,7 @@ export async function markRiderParcelDelivered(input: {
         parcelType: parcels.parcelType,
         codAmount: parcels.codAmount,
         deliveryFee: parcels.deliveryFee,
+        deliveryFailureNote: parcels.deliveryFailureNote,
       })
       .from(parcels)
       .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
@@ -2118,15 +2122,28 @@ export async function markRiderParcelDelivered(input: {
       .for("update");
 
     if (!parcel) {
-      throw new Error("Parcel was not found.");
+      throw new ParcelOperationError("not_found", "Parcel was not found.");
     }
 
     if (parcel.riderId !== rider.id) {
-      throw new Error("You can only mark parcels assigned to your rider account delivered.");
+      throw new ParcelOperationError(
+        "not_assigned",
+        "You can only mark parcels assigned to your rider account delivered.",
+      );
     }
 
     if (parcel.status !== "on_the_way") {
-      throw new Error("Only on-the-way parcels can be marked delivered.");
+      throw new ParcelOperationError(
+        "conflict",
+        "Only on-the-way parcels can be marked delivered.",
+      );
+    }
+
+    if (getActiveParcelFailureNote(parseParcelFailureNotes(parcel.deliveryFailureNote))) {
+      throw new ParcelOperationError(
+        "conflict",
+        "Resolve the delivery failure note before marking this parcel delivered.",
+      );
     }
 
     const deliveredAt = new Date();
@@ -2158,7 +2175,10 @@ export async function markRiderParcelDelivered(input: {
       .returning({ id: parcels.id });
 
     if (!deliveredParcel) {
-      throw new Error("Only on-the-way parcels can be marked delivered.");
+      throw new ParcelOperationError(
+        "conflict",
+        "Only on-the-way parcels can be marked delivered.",
+      );
     }
 
     await tx.insert(parcelStatusLogs).values({

@@ -10,7 +10,7 @@ import { buildDetail, buildListItem, renderWithQueryClient } from "./test-utils"
 const parcelId = "0f7a3c2e-2222-4b1c-8d9e-000000000001";
 
 jest.mock("expo-router", () => ({
-  router: { back: jest.fn() },
+  router: { back: jest.fn(), push: jest.fn() },
   useLocalSearchParams: () => ({ parcelId: "0f7a3c2e-2222-4b1c-8d9e-000000000001" }),
 }));
 
@@ -138,5 +138,31 @@ describe("ParcelDetailScreen start delivery", () => {
     expect(
       await screen.findByText("Only assigned at-office parcels can be started for delivery."),
     ).toBeOnTheScreen();
+  });
+});
+
+describe("ParcelDetailScreen mark delivered", () => {
+  it("opens the Mark delivered screen for an on-the-way parcel", async () => {
+    const { router } = jest.requireMock<{ router: { push: jest.Mock } }>("expo-router");
+    apiGetMock.mockResolvedValue(buildDetail({ id: parcelId, status: "on_the_way" }));
+    await renderWithQueryClient(<ParcelDetailScreen />);
+    await screen.findByText("Golden Leaf Tea");
+
+    await fireEvent.press(screen.getByRole("button", { name: "Mark delivered" }));
+
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: "/deliver/[parcelId]",
+      params: { parcelId },
+    });
+  });
+
+  it("hides Mark delivered while a failure note is active", async () => {
+    apiGetMock.mockResolvedValue(
+      buildDetail({ status: "on_the_way", hasActiveFailureNote: true, activeFailureNote: "Out" }),
+    );
+    await renderWithQueryClient(<ParcelDetailScreen />);
+    await screen.findByText("Golden Leaf Tea");
+
+    expect(screen.queryByRole("button", { name: "Mark delivered" })).not.toBeOnTheScreen();
   });
 });

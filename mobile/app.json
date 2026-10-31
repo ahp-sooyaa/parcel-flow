@@ -25,6 +25,14 @@
       "expo-router",
       "expo-secure-store",
       [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Parcel Flow uses the camera to take delivery proof photos.",
+          "photosPermission": "Parcel Flow lets you choose a delivery proof photo from your gallery.",
+          "microphonePermission": false
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#1b1938",

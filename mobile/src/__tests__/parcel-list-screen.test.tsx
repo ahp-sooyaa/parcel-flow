@@ -249,3 +249,39 @@ describe("ParcelListScreen start delivery", () => {
     expect(screen.queryByText(/selected ·/)).not.toBeOnTheScreen();
   });
 });
+
+describe("ParcelListScreen mark delivered", () => {
+  it("offers Mark delivered only on on-the-way cards without a failure note", async () => {
+    const { router } = jest.requireMock<{ router: { push: jest.Mock } }>("expo-router");
+    router.push.mockClear();
+    apiGetMock.mockResolvedValue(
+      respondWith([
+        buildListItem({ id: "w1", parcelCode: "PF-W1", receiverName: "Ko Zaw" }),
+        buildListItem({
+          id: "w2",
+          parcelCode: "PF-W2",
+          receiverName: "Ma Hla",
+          hasActiveFailureNote: true,
+        }),
+        buildListItem({
+          id: "a1",
+          parcelCode: "PF-A1",
+          receiverName: "Daw Mya",
+          status: "at_office",
+          statusLabel: "At Office",
+        }),
+      ]),
+    );
+    await renderWithQueryClient(<ParcelListScreen />);
+    await screen.findByText("Ko Zaw");
+
+    const buttons = screen.getAllByRole("button", { name: "Mark delivered" });
+    expect(buttons).toHaveLength(1);
+
+    await fireEvent.press(buttons[0]);
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: "/deliver/[parcelId]",
+      params: { parcelId: "w1" },
+    });
+  });
+});

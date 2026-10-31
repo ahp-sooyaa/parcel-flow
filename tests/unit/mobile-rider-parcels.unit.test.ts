@@ -286,6 +286,18 @@ describe("mobile rider parcel routes", async () => {
   });
 });
 
+describe("toMobileRiderParcelListItem", async () => {
+  const { toMobileRiderParcelListItem } = await import("@/features/mobile-api/server/parcels");
+
+  test("a prepaid parcel's amount to collect is the delivery fee only", () => {
+    const item = toMobileRiderParcelListItem(
+      buildParcelListItem({ parcelType: "non_cod", codAmount: 9_000, deliveryFee: 2_500 }),
+    );
+
+    expect(item.amountToCollect).toBe(2_500);
+  });
+});
+
 describe("mobile contract enums", () => {
   test("match the server's domain lists", () => {
     expect([...mobileParcelStatuses].toSorted()).toEqual([...parcelStatuses].toSorted());

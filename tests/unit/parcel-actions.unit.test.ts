@@ -34,7 +34,11 @@ void mock.module("next/headers", () => ({
   headers: headersMock,
 }));
 
+// Bun keeps module mocks for later test files, so keep the real DAL exports.
+const actualParcelsDal = await import("@/features/parcels/server/dal");
+
 void mock.module("@/features/parcels/server/dal", () => ({
+  ...actualParcelsDal,
   assignParcelsToRider: assignParcelsToRiderMock,
   correctParcelRider: correctParcelRiderMock,
   correctParcelStatus: correctParcelStatusMock,
