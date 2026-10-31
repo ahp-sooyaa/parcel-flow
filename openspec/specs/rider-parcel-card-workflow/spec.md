@@ -123,7 +123,7 @@ The system SHALL allow riders to select one or more eligible assigned parcel car
 
 ### Requirement: Rider can start delivery
 
-The system SHALL allow a rider to move one or more of their assigned parcels from `at_office` to `on_the_way` and create one delivery-attempt rider way credit for each parcel.
+The system SHALL allow a rider to move one or more of their assigned parcels from `at_office` to `on_the_way` and create one delivery-attempt rider way credit for each parcel. The web rider page and the mobile API SHALL apply the same validation, permission and eligibility rules through one shared operation, and a single request SHALL start at most 50 parcels.
 
 #### Scenario: Start delivery from expanded card
 
@@ -165,6 +165,16 @@ The system SHALL allow a rider to move one or more of their assigned parcels fro
 
 - **WHEN** any parcel status update or rider way item creation fails during start delivery
 - **THEN** the system does not persist partial parcel status changes or partial rider way financial items
+
+#### Scenario: Reject oversized batch
+
+- **WHEN** a start-delivery request lists more than 50 parcels
+- **THEN** the system rejects it with "Select up to 50 parcels at a time." before writing data
+
+#### Scenario: Web result unchanged
+
+- **WHEN** the web rider page starts delivery through the shared operation
+- **THEN** the server action returns the same `{ ok, message }` shape and messages as before, and the web rider, admin and merchant parcel views show the new status on their next render
 
 ### Requirement: Future status action affordances
 
