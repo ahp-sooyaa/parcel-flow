@@ -1,10 +1,19 @@
 import {
+  mobileFailureNoteResponseSchema,
   mobileMarkDeliveredResponseSchema,
   mobileMeResponseSchema,
   mobileStartDeliveryResponseSchema,
 } from "@parcel-flow/contract";
 
-import { apiGet, apiPost, apiPostForm, MobileApiError, NETWORK_ERROR_MESSAGE } from "@/api/client";
+import {
+  apiDelete,
+  apiGet,
+  apiPatch,
+  apiPost,
+  apiPostForm,
+  MobileApiError,
+  NETWORK_ERROR_MESSAGE,
+} from "@/api/client";
 import { queryClient } from "@/api/query-client";
 import { authClient } from "@/auth/client";
 
@@ -193,5 +202,78 @@ describe("apiPostForm", () => {
         headers: { Accept: "application/json", Cookie: "better-auth.session_token=abc" },
       },
     );
+  });
+});
+
+const failureNoteBody = {
+  ok: true,
+  message: "Delivery failure note updated.",
+  data: { parcelId: "parcel-1", activeFailureNote: "Wrong address." },
+};
+
+describe("apiPatch", () => {
+  it("sends the body as JSON with the session cookie and returns the data", async () => {
+    const fetchMock = mockFetchResponse(200, failureNoteBody);
+
+    await expect(
+      apiPatch(
+        "/rider/parcels/parcel-1/failure-note",
+        { note: "Wrong address." },
+        mobileFailureNoteResponseSchema,
+      ),
+    ).resolves.toEqual(failureNoteBody.data);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://parcel-flow.test/api/mobile/v1/rider/parcels/parcel-1/failure-note",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ note: "Wrong address." }),
+        credentials: "omit",
+        headers: {
+          Accept: "application/json",
+          Cookie: "better-auth.session_token=abc",
+          "Content-Type": "application/json",
+        },
+      },
+    );
+  });
+
+  it("maps a 409 envelope to MobileApiError", async () => {
+    mockFetchResponse(409, { ok: false, message: "No active failure note was found." });
+
+    const error = await captureError(
+      apiPatch("/rider/parcels/p/failure-note", { note: "x" }, mobileFailureNoteResponseSchema),
+    );
+
+    expect(error).toEqual(new MobileApiError(409, "No active failure note was found."));
+  });
+});
+
+describe("apiDelete", () => {
+  it("sends no body or Content-Type and returns the data", async () => {
+    const fetchMock = mockFetchResponse(200, {
+      ...failureNoteBody,
+      data: { parcelId: "parcel-1", activeFailureNote: null },
+    });
+
+    await expect(
+      apiDelete("/rider/parcels/parcel-1/failure-note", mobileFailureNoteResponseSchema),
+    ).resolves.toEqual({ parcelId: "parcel-1", activeFailureNote: null });
+
+    const [, init] = fetchMock.mock.calls[0] ?? [];
+    expect(init?.method).toBe("DELETE");
+    expect(init?.body).toBeUndefined();
+    expect(init?.headers).toEqual({
+      Accept: "application/json",
+      Cookie: "better-auth.session_token=abc",
+    });
+  });
+
+  it("signs the rider out on 401", async () => {
+    mockFetchResponse(401, { ok: false, message: "Sign in again." });
+
+    await captureError(apiDelete("/rider/parcels/p/failure-note", mobileFailureNoteResponseSchema));
+
+    expect(authClient.signOut).toHaveBeenCalled();
   });
 });

@@ -147,3 +147,24 @@ export type MobileMarkDeliveredResultDto = z.infer<typeof mobileMarkDeliveredRes
 export const mobileMarkDeliveredResponseSchema = mobileSuccessResponseSchema(
   mobileMarkDeliveredResultSchema,
 );
+
+// Mirrors `TEXT_LIMITS.note` (src/lib/validation.ts), which the server's
+// `failureNoteSchema` uses; a unit test checks they stay equal.
+export const MOBILE_FAILURE_NOTE_MAX_LENGTH = 500;
+
+export const mobileFailureNoteRequestSchema = z.object({
+  note: z.string().trim().min(1).max(MOBILE_FAILURE_NOTE_MAX_LENGTH),
+});
+
+export type MobileFailureNoteRequest = z.infer<typeof mobileFailureNoteRequestSchema>;
+
+export const mobileFailureNoteResultSchema = z.object({
+  parcelId: z.string(),
+  activeFailureNote: z.string().nullable(),
+});
+
+export type MobileFailureNoteResultDto = z.infer<typeof mobileFailureNoteResultSchema>;
+
+export const mobileFailureNoteResponseSchema = mobileSuccessResponseSchema(
+  mobileFailureNoteResultSchema,
+);

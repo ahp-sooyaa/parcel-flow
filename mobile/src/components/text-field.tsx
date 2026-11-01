@@ -15,7 +15,7 @@ export function TextField({ label, ...inputProps }: TextFieldProps) {
         autoCapitalize="none"
         autoCorrect={false}
         placeholderTextColor={colors.inkFaint}
-        style={styles.input}
+        style={[styles.input, inputProps.multiline && styles.multiline]}
         {...inputProps}
       />
     </View>
@@ -41,5 +41,9 @@ const styles = StyleSheet.create({
     color: colors.ink,
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
+  },
+  multiline: {
+    minHeight: 120,
+    textAlignVertical: "top",
   },
 });

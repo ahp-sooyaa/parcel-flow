@@ -6,9 +6,12 @@ import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
 import {
+  deleteDeliveryFailureForRiderParcel,
   getParcelByIdForRealtimeScope,
   markRiderParcelDelivered as markRiderParcelDeliveredInDatabase,
+  reportDeliveryFailureForRiderParcel,
   startDeliveryForRiderParcels,
+  updateDeliveryFailureForRiderParcel,
 } from "@/features/parcels/server/dal";
 import { ParcelOperationError } from "@/features/parcels/server/errors";
 import {
@@ -23,6 +26,7 @@ import { isDemoMode, pickDemoProofImageKey } from "@/lib/demo";
 import { canChangeParcelStatus } from "@/lib/permissions";
 import { createRateLimiter } from "@/lib/rate-limit";
 import type { CurrentUser } from "@/lib/session";
+import { maxLengthMessage, TEXT_LIMITS } from "@/lib/validation";
 
 export const MAX_START_DELIVERY_PARCELS = 50;
 
@@ -266,6 +270,128 @@ async function checkParcelDeliverable(
   }
 
   return null;
+}
+
+export const failureNoteSchema = z
+  .string()
+  .trim()
+  .min(1, "Failure note is required.")
+  .max(TEXT_LIMITS.note, maxLengthMessage("Failure note", TEXT_LIMITS.note));
+
+const failureNoteInputSchema = z.object({
+  parcelId: z.uuid("Invalid parcel selection."),
+  note: failureNoteSchema,
+});
+
+const deleteFailureNoteInputSchema = z.object({
+  parcelId: z.uuid("Invalid parcel selection."),
+});
+
+export type RiderFailureNoteResult =
+  | { ok: true; message: string; parcelId: string; activeFailureNote: string | null }
+  | RiderOperationFailure;
+
+type FailureNoteWrite<TInput extends { parcelId: string }> = {
+  schema: z.ZodType<TInput>;
+  messages: { invalid: string; forbidden: string; failed: string; success: string };
+  write: (input: TInput, riderUserId: string) => Promise<void>;
+  activeFailureNote: (input: TInput) => string | null;
+};
+
+async function writeFailureNote<TInput extends { parcelId: string }>(
+  actor: CurrentUser,
+  input: unknown,
+  options: { caller: ParcelOperationCaller },
+  spec: FailureNoteWrite<TInput>,
+): Promise<RiderFailureNoteResult> {
+  const parseResult = spec.schema.safeParse(input);
+
+  if (!parseResult.success) {
+    return {
+      ok: false,
+      reason: "invalid",
+      message: parseResult.error.issues[0]?.message ?? spec.messages.invalid,
+    };
+  }
+
+  if (actor.role !== "rider") {
+    return { ok: false, reason: "forbidden", message: spec.messages.forbidden };
+  }
+
+  try {
+    await spec.write(parseResult.data, actor.id);
+  } catch (error) {
+    return toFailure(error, spec.messages.failed);
+  }
+
+  revalidateParcelOperationalPaths({ caller: options.caller, riderUserId: actor.id });
+
+  return {
+    ok: true,
+    message: spec.messages.success,
+    parcelId: parseResult.data.parcelId,
+    activeFailureNote: spec.activeFailureNote(parseResult.data),
+  };
+}
+
+/** Adds an active failure note to the rider's assigned `on_the_way` parcel. */
+export async function reportRiderDeliveryFailure(
+  actor: CurrentUser,
+  input: unknown,
+  options: { caller: ParcelOperationCaller },
+): Promise<RiderFailureNoteResult> {
+  return writeFailureNote(actor, input, options, {
+    schema: failureNoteInputSchema,
+    messages: {
+      invalid: "Invalid failure report details.",
+      forbidden: "You do not have permission to report delivery failure.",
+      failed: "Unable to report delivery failure.",
+      success: "Delivery failure reported.",
+    },
+    write: ({ parcelId, note }, riderUserId) =>
+      reportDeliveryFailureForRiderParcel({ parcelId, note, riderUserId, actorRole: "rider" }),
+    activeFailureNote: ({ note }) => note,
+  });
+}
+
+/** Replaces the text of the active failure note on the rider's `on_the_way` parcel. */
+export async function updateRiderDeliveryFailure(
+  actor: CurrentUser,
+  input: unknown,
+  options: { caller: ParcelOperationCaller },
+): Promise<RiderFailureNoteResult> {
+  return writeFailureNote(actor, input, options, {
+    schema: failureNoteInputSchema,
+    messages: {
+      invalid: "Invalid failure note details.",
+      forbidden: "You do not have permission to update delivery failure notes.",
+      failed: "Unable to update delivery failure note.",
+      success: "Delivery failure note updated.",
+    },
+    write: ({ parcelId, note }, riderUserId) =>
+      updateDeliveryFailureForRiderParcel({ parcelId, note, riderUserId, actorRole: "rider" }),
+    activeFailureNote: ({ note }) => note,
+  });
+}
+
+/** Removes the active failure note, so the parcel can be delivered again. */
+export async function deleteRiderDeliveryFailure(
+  actor: CurrentUser,
+  input: unknown,
+  options: { caller: ParcelOperationCaller },
+): Promise<RiderFailureNoteResult> {
+  return writeFailureNote(actor, input, options, {
+    schema: deleteFailureNoteInputSchema,
+    messages: {
+      invalid: "Invalid failure note details.",
+      forbidden: "You do not have permission to delete delivery failure notes.",
+      failed: "Unable to delete delivery failure note.",
+      success: "Delivery failure note deleted.",
+    },
+    write: ({ parcelId }, riderUserId) =>
+      deleteDeliveryFailureForRiderParcel({ parcelId, riderUserId, actorRole: "rider" }),
+    activeFailureNote: () => null,
+  });
 }
 
 async function removeOrphanedProofImage(objectKey: string) {

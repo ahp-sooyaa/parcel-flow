@@ -1,14 +1,17 @@
 import {
+  mobileFailureNoteResponseSchema,
   mobileRiderParcelDetailResponseSchema,
   mobileRiderParcelPageResponseSchema,
   mobileMarkDeliveredResponseSchema,
   mobileStartDeliveryResponseSchema,
+  type MobileFailureNoteResultDto,
+  type MobileRiderParcelDetailDto,
   type MobileRiderParcelPageDto,
   type MobileRiderParcelTab,
 } from "@parcel-flow/contract";
 import { useInfiniteQuery, useMutation, useQuery, type InfiniteData } from "@tanstack/react-query";
 
-import { apiGet, apiPost, apiPostForm } from "@/api/client";
+import { apiDelete, apiGet, apiPatch, apiPost, apiPostForm } from "@/api/client";
 import { queryClient } from "@/api/query-client";
 import { proofPhotoUploadPart, type ProofPhoto } from "@/delivery/proof-photo";
 
@@ -112,5 +115,62 @@ export function useMarkDelivered(parcelId: string) {
         queryClient.invalidateQueries({ queryKey: riderParcelQueryKey(parcelId) }),
       ]);
     },
+  });
+}
+
+function failureNotePath(parcelId: string) {
+  return `/rider/parcels/${encodeURIComponent(parcelId)}/failure-note`;
+}
+
+/**
+ * Shared settle behaviour for the failure note mutations: the cached detail
+ * takes the saved note at once, so the screen underneath the modal is right
+ * when it closes, and the lists and detail refetch whatever the outcome.
+ */
+function failureNoteMutationOptions(parcelId: string) {
+  return {
+    onSuccess: (result: MobileFailureNoteResultDto) => {
+      queryClient.setQueryData<MobileRiderParcelDetailDto>(
+        riderParcelQueryKey(parcelId),
+        (detail) =>
+          detail && {
+            ...detail,
+            activeFailureNote: result.activeFailureNote,
+            hasActiveFailureNote: result.activeFailureNote !== null,
+          },
+      );
+    },
+    onSettled: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["rider-parcels"] }),
+        queryClient.invalidateQueries({ queryKey: riderParcelQueryKey(parcelId) }),
+      ]);
+    },
+  };
+}
+
+/** Reports a delivery failure on the parcel with the rider's note. */
+export function useReportFailure(parcelId: string) {
+  return useMutation({
+    mutationFn: (note: string) =>
+      apiPost(failureNotePath(parcelId), { note }, mobileFailureNoteResponseSchema),
+    ...failureNoteMutationOptions(parcelId),
+  });
+}
+
+/** Replaces the text of the parcel's active failure note. */
+export function useUpdateFailureNote(parcelId: string) {
+  return useMutation({
+    mutationFn: (note: string) =>
+      apiPatch(failureNotePath(parcelId), { note }, mobileFailureNoteResponseSchema),
+    ...failureNoteMutationOptions(parcelId),
+  });
+}
+
+/** Deletes the parcel's active failure note, so it can be delivered again. */
+export function useDeleteFailureNote(parcelId: string) {
+  return useMutation({
+    mutationFn: () => apiDelete(failureNotePath(parcelId), mobileFailureNoteResponseSchema),
+    ...failureNoteMutationOptions(parcelId),
   });
 }

@@ -55,10 +55,27 @@ export function apiPostForm<TData>(
   return request(path, schema, { method: "POST", body: formData });
 }
 
+/** PATCHes `body` as JSON to a `/api/mobile/v1` path. Same errors and sign-out as `apiGet`. */
+export function apiPatch<TData>(
+  path: string,
+  body: unknown,
+  schema: z.ZodType<MobileSuccessResponse<TData>>,
+): Promise<TData> {
+  return request(path, schema, { method: "PATCH", body: JSON.stringify(body) });
+}
+
+/** DELETEs a `/api/mobile/v1` path, with no body. Same errors and sign-out as `apiGet`. */
+export function apiDelete<TData>(
+  path: string,
+  schema: z.ZodType<MobileSuccessResponse<TData>>,
+): Promise<TData> {
+  return request(path, schema, { method: "DELETE" });
+}
+
 async function request<TData>(
   path: string,
   schema: z.ZodType<MobileSuccessResponse<TData>>,
-  write?: { method: "POST"; body: string | FormData },
+  write?: { method: "POST" | "PATCH" | "DELETE"; body?: string | FormData },
 ): Promise<TData> {
   let response: Response;
   const headers: Record<string, string> = {

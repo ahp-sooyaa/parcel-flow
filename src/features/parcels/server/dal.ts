@@ -1896,7 +1896,10 @@ export async function reportDeliveryFailureForRiderParcel(input: {
   actorRole: "rider";
 }) {
   if (input.actorRole !== "rider") {
-    throw new Error("You do not have permission to report delivery failure.");
+    throw new ParcelOperationError(
+      "forbidden",
+      "You do not have permission to report delivery failure.",
+    );
   }
 
   await db.transaction(async (tx) => {
@@ -1908,7 +1911,7 @@ export async function reportDeliveryFailureForRiderParcel(input: {
       .limit(1);
 
     if (!rider?.userIsActive) {
-      throw new Error("Active rider profile was not found.");
+      throw new ParcelOperationError("forbidden", "Active rider profile was not found.");
     }
 
     const [parcel] = await tx
@@ -1924,21 +1927,27 @@ export async function reportDeliveryFailureForRiderParcel(input: {
       .for("update");
 
     if (!parcel) {
-      throw new Error("Parcel was not found.");
+      throw new ParcelOperationError("not_found", "Parcel was not found.");
     }
 
     if (parcel.riderId !== rider.id) {
-      throw new Error("You can only report failure for parcels assigned to your rider account.");
+      throw new ParcelOperationError(
+        "not_assigned",
+        "You can only report failure for parcels assigned to your rider account.",
+      );
     }
 
     if (parcel.status !== "on_the_way") {
-      throw new Error("Only on-the-way parcels can be reported as failed.");
+      throw new ParcelOperationError(
+        "conflict",
+        "Only on-the-way parcels can be reported as failed.",
+      );
     }
 
     const currentFailureNotes = parseParcelFailureNotes(parcel.deliveryFailureNote);
 
     if (getActiveParcelFailureNote(currentFailureNotes)) {
-      throw new Error("This parcel already has an active failure note.");
+      throw new ParcelOperationError("conflict", "This parcel already has an active failure note.");
     }
 
     await tx
@@ -1958,7 +1967,10 @@ export async function updateDeliveryFailureForRiderParcel(input: {
   actorRole: "rider";
 }) {
   if (input.actorRole !== "rider") {
-    throw new Error("You do not have permission to update delivery failure notes.");
+    throw new ParcelOperationError(
+      "forbidden",
+      "You do not have permission to update delivery failure notes.",
+    );
   }
 
   await db.transaction(async (tx) => {
@@ -1970,7 +1982,7 @@ export async function updateDeliveryFailureForRiderParcel(input: {
       .limit(1);
 
     if (!rider?.userIsActive) {
-      throw new Error("Active rider profile was not found.");
+      throw new ParcelOperationError("forbidden", "Active rider profile was not found.");
     }
 
     const [parcel] = await tx
@@ -1986,24 +1998,31 @@ export async function updateDeliveryFailureForRiderParcel(input: {
       .for("update");
 
     if (!parcel) {
-      throw new Error("Parcel was not found.");
+      throw new ParcelOperationError("not_found", "Parcel was not found.");
     }
 
     if (parcel.riderId !== rider.id) {
-      throw new Error(
+      throw new ParcelOperationError(
+        "not_assigned",
         "You can only update failure notes for parcels assigned to your rider account.",
       );
     }
 
     if (parcel.status !== "on_the_way") {
-      throw new Error("Only on-the-way parcel failure notes can be updated.");
+      throw new ParcelOperationError(
+        "conflict",
+        "Only on-the-way parcel failure notes can be updated.",
+      );
     }
 
     const currentFailureNotes = parseParcelFailureNotes(parcel.deliveryFailureNote);
     const nextFailureNotes = updateLatestActiveParcelFailureNote(currentFailureNotes, input.note);
 
     if (!nextFailureNotes) {
-      throw new Error("No active failure note was found for this parcel.");
+      throw new ParcelOperationError(
+        "conflict",
+        "No active failure note was found for this parcel.",
+      );
     }
 
     await tx
@@ -2022,7 +2041,10 @@ export async function deleteDeliveryFailureForRiderParcel(input: {
   actorRole: "rider";
 }) {
   if (input.actorRole !== "rider") {
-    throw new Error("You do not have permission to delete delivery failure notes.");
+    throw new ParcelOperationError(
+      "forbidden",
+      "You do not have permission to delete delivery failure notes.",
+    );
   }
 
   await db.transaction(async (tx) => {
@@ -2034,7 +2056,7 @@ export async function deleteDeliveryFailureForRiderParcel(input: {
       .limit(1);
 
     if (!rider?.userIsActive) {
-      throw new Error("Active rider profile was not found.");
+      throw new ParcelOperationError("forbidden", "Active rider profile was not found.");
     }
 
     const [parcel] = await tx
@@ -2046,27 +2068,35 @@ export async function deleteDeliveryFailureForRiderParcel(input: {
       })
       .from(parcels)
       .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
-      .limit(1);
+      .limit(1)
+      .for("update");
 
     if (!parcel) {
-      throw new Error("Parcel was not found.");
+      throw new ParcelOperationError("not_found", "Parcel was not found.");
     }
 
     if (parcel.riderId !== rider.id) {
-      throw new Error(
+      throw new ParcelOperationError(
+        "not_assigned",
         "You can only delete failure notes for parcels assigned to your rider account.",
       );
     }
 
     if (parcel.status !== "on_the_way") {
-      throw new Error("Only on-the-way parcel failure notes can be deleted.");
+      throw new ParcelOperationError(
+        "conflict",
+        "Only on-the-way parcel failure notes can be deleted.",
+      );
     }
 
     const currentFailureNotes = parseParcelFailureNotes(parcel.deliveryFailureNote);
     const nextFailureNotes = removeLatestActiveParcelFailureNote(currentFailureNotes);
 
     if (!nextFailureNotes) {
-      throw new Error("No active failure note was found for this parcel.");
+      throw new ParcelOperationError(
+        "conflict",
+        "No active failure note was found for this parcel.",
+      );
     }
 
     await tx

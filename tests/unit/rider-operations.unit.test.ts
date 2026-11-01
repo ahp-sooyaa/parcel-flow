@@ -6,6 +6,9 @@ import { buildCurrentUser, buildParcelListItem } from "../fixtures/builders";
 
 const startDeliveryForRiderParcelsMock = mock(async (): Promise<void> => undefined);
 const markRiderParcelDeliveredMock = mock(async (): Promise<void> => undefined);
+const reportDeliveryFailureMock = mock(async (): Promise<void> => undefined);
+const updateDeliveryFailureMock = mock(async (): Promise<void> => undefined);
+const deleteDeliveryFailureMock = mock(async (): Promise<void> => undefined);
 const getParcelByIdForRealtimeScopeMock = mock(async (): Promise<ParcelListItemDto | null> => null);
 const uploadDeliveryProofImageMock = mock(async (): Promise<string> => "parcels/p/proof.jpg");
 const deleteDeliveryProofImageMock = mock(async (): Promise<void> => undefined);
@@ -30,6 +33,9 @@ void mock.module("@/features/parcels/server/dal", () => ({
   startDeliveryForRiderParcels: startDeliveryForRiderParcelsMock,
   markRiderParcelDelivered: markRiderParcelDeliveredMock,
   getParcelByIdForRealtimeScope: getParcelByIdForRealtimeScopeMock,
+  reportDeliveryFailureForRiderParcel: reportDeliveryFailureMock,
+  updateDeliveryFailureForRiderParcel: updateDeliveryFailureMock,
+  deleteDeliveryFailureForRiderParcel: deleteDeliveryFailureMock,
 }));
 
 void mock.module("@/features/parcels/server/upload", () => ({
@@ -363,5 +369,140 @@ describe("markRiderParcelDelivered operation", async () => {
       message: "Couldn't save the delivery photo. Try again.",
     });
     expect(markRiderParcelDeliveredMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("failure note operations", async () => {
+  const { deleteRiderDeliveryFailure, reportRiderDeliveryFailure, updateRiderDeliveryFailure } =
+    await import("@/features/parcels/server/rider-operations");
+
+  const operations = [
+    {
+      name: "report",
+      run: reportRiderDeliveryFailure,
+      dal: reportDeliveryFailureMock,
+      takesNote: true,
+      forbidden: "You do not have permission to report delivery failure.",
+      success: "Delivery failure reported.",
+    },
+    {
+      name: "update",
+      run: updateRiderDeliveryFailure,
+      dal: updateDeliveryFailureMock,
+      takesNote: true,
+      forbidden: "You do not have permission to update delivery failure notes.",
+      success: "Delivery failure note updated.",
+    },
+    {
+      name: "delete",
+      run: deleteRiderDeliveryFailure,
+      dal: deleteDeliveryFailureMock,
+      takesNote: false,
+      forbidden: "You do not have permission to delete delivery failure notes.",
+      success: "Delivery failure note deleted.",
+    },
+  ] as const;
+
+  beforeEach(() => {
+    for (const operation of operations) {
+      operation.dal.mockReset();
+      operation.dal.mockResolvedValue(undefined);
+    }
+    revalidatePathMock.mockReset();
+    revalidateTagMock.mockReset();
+    updateTagMock.mockReset();
+  });
+
+  describe.each([...operations])("$name", (operation) => {
+    const validInput = { parcelId: parcelA, note: "  Receiver didn't answer.  " };
+
+    test("rejects an invalid parcel id", async () => {
+      const result = await operation.run(
+        rider,
+        { ...validInput, parcelId: "nope" },
+        { caller: "route-handler" },
+      );
+
+      expect(result).toEqual({
+        ok: false,
+        reason: "invalid",
+        message: "Invalid parcel selection.",
+      });
+      expect(operation.dal).not.toHaveBeenCalled();
+    });
+
+    test("rejects non-rider actors before the DAL", async () => {
+      const admin = buildCurrentUser({ role: "office_admin" });
+
+      const result = await operation.run(admin, validInput, { caller: "route-handler" });
+
+      expect(result).toEqual({ ok: false, reason: "forbidden", message: operation.forbidden });
+      expect(operation.dal).not.toHaveBeenCalled();
+    });
+
+    test("saves, returns the active note, and expires caches for route handlers", async () => {
+      const result = await operation.run(rider, validInput, { caller: "route-handler" });
+
+      expect(result).toEqual({
+        ok: true,
+        message: operation.success,
+        parcelId: parcelA,
+        activeFailureNote: operation.takesNote ? "Receiver didn't answer." : null,
+      });
+      expect(operation.dal).toHaveBeenCalledWith({
+        parcelId: parcelA,
+        ...(operation.takesNote && { note: "Receiver didn't answer." }),
+        riderUserId,
+        actorRole: "rider",
+      });
+      expect(revalidateTagMock).toHaveBeenCalledWith(`rider-parcels:${riderUserId}`, { expire: 0 });
+      expect(updateTagMock).not.toHaveBeenCalled();
+    });
+
+    test("uses updateTag for server actions", async () => {
+      await operation.run(rider, validInput, { caller: "server-action" });
+
+      expect(updateTagMock).toHaveBeenCalledWith(`rider-parcels:${riderUserId}`);
+      expect(revalidateTagMock).not.toHaveBeenCalled();
+    });
+
+    test.each([
+      ["forbidden", "forbidden"],
+      ["not_found", "not_found"],
+      ["not_assigned", "not_found"],
+      ["conflict", "conflict"],
+    ] as const)("maps the %s DAL error to %s", async (code, reason) => {
+      operation.dal.mockRejectedValue(new ParcelOperationError(code, "Rule message."));
+
+      const result = await operation.run(rider, validInput, { caller: "route-handler" });
+
+      expect(result).toEqual({ ok: false, reason, message: "Rule message." });
+      expect(revalidateTagMock).not.toHaveBeenCalled();
+    });
+
+    test("reports unexpected errors as failed", async () => {
+      operation.dal.mockRejectedValue(new Error("connection reset"));
+
+      const result = await operation.run(rider, validInput, { caller: "route-handler" });
+
+      expect(result).toEqual({ ok: false, reason: "failed", message: "connection reset" });
+    });
+  });
+
+  describe.each([operations[0], operations[1]])("$name note validation", (operation) => {
+    test.each([
+      ["   ", "Failure note is required."],
+      ["x".repeat(501), "Failure note must be 500 characters or fewer."],
+      [undefined, "Invalid input: expected string, received undefined"],
+    ])("rejects note %#", async (note, message) => {
+      const result = await operation.run(
+        rider,
+        { parcelId: parcelA, note },
+        { caller: "route-handler" },
+      );
+
+      expect(result).toEqual({ ok: false, reason: "invalid", message });
+      expect(operation.dal).not.toHaveBeenCalled();
+    });
   });
 });
