@@ -42,4 +42,4 @@
 - [x] 7.1 Run the root checks (`lint`, `format:check`, `typecheck`, `test:unit`, `test:integration`) and the `mobile/` checks.
 - [x] 7.2 curl against the `test-db` dev server with the seeded e2e rider: the detail of a return parcel has the contact; return it (200); repeat (409); a random parcel (404); an on-the-way parcel (409). Seed a `canceled_returned` parcel for the e2e rider first if the seed has none, and remove it afterwards. (Skipped: the user's own `next dev` held port 3000 and Next.js allows one dev server per folder. The integration test covers these routes against the local database. The return was then checked end to end on the phone.)
 - [x] 7.3 On the user's phone in Expo Go: open a return from its card and detail, call the merchant, cancel and then confirm a return, check it moves to the Returned tab, and check the web rider page and admin parcel views agree. (The first try hit a stale dev-server build of rider-operations.ts; a restart fixed it.)
-- [ ] 7.4 Update the roadmap status in `docs/mobile-app.md`.
+- [x] 7.4 Update the roadmap status in `docs/mobile-app.md`.

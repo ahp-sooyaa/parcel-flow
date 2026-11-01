@@ -33,7 +33,7 @@ The system SHALL provide `GET /api/mobile/v1/rider/parcels`, which returns one p
 #### Scenario: List item fields
 
 - **WHEN** the list returns a parcel
-- **THEN** it includes the parcel id, code, status, status label, receiver name, phone, address, township, whether it has an active failure note, and the amount to collect (COD amount plus delivery fee), and it does not include proof image keys, correction data, or other riders' details
+- **THEN** it includes the parcel id, code, status, status label, merchant name, receiver name, phone, address, township, whether it has an active failure note, and the amount to collect (COD amount plus delivery fee), and it does not include proof image keys, correction data, or other riders' details
 
 ### Requirement: Rider parcel detail API
 
@@ -42,7 +42,13 @@ The system SHALL provide `GET /api/mobile/v1/rider/parcels/{parcelId}`, which re
 #### Scenario: Rider opens an assigned parcel
 
 - **WHEN** an active rider requests a parcel assigned to them
-- **THEN** the system responds with HTTP 200 and the list item fields plus merchant name, parcel type, COD amount, delivery fee, weight, special notes, the active failure note, and the created time
+- **THEN** the system responds with HTTP 200 and the list item fields plus parcel type, COD amount, delivery fee, weight, special notes, the active failure note, the merchant return contact, and the created time
+
+#### Scenario: Merchant return contact
+
+- **WHEN** an active rider requests their assigned parcel with status `canceled_returned`
+- **THEN** `merchantReturnContact` contains the merchant's address and phone number, with `null` for a phone number the merchant does not have
+- **AND** for every other status `merchantReturnContact` is `null`
 
 #### Scenario: Parcel not assigned to the rider
 
@@ -67,6 +73,7 @@ The mobile app SHALL show the signed-in rider's parcels as the home screen, grou
 
 - **WHEN** a parcel card is shown
 - **THEN** it shows the parcel code, status label, receiver name, township, phone, address, and amount to collect in MMK
+- **AND** for a `canceled_returned` parcel it shows "Return to" with the merchant name instead of the amount to collect
 
 #### Scenario: Switching tabs
 
@@ -106,6 +113,7 @@ The mobile app SHALL show a parcel's details when the rider taps its card.
 
 - **WHEN** the rider taps a parcel card
 - **THEN** the app opens the parcel detail screen with the receiver, address, township, merchant, parcel type, COD amount, delivery fee, amount to collect, weight, special notes, and any active failure note
+- **AND** for a `canceled_returned` parcel it shows the merchant's return contact instead of the collection amounts
 
 #### Scenario: Call the receiver
 

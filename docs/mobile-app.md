@@ -168,7 +168,7 @@ Each slice is one OpenSpec change, built end to end (API, app screen, tests), in
 | 4   | `mobile-rider-start-delivery`      | Shared start-delivery operation, multi-select start delivery                 | Archived (ahp-sooyaa/parcel-flow#12) |
 | 5   | `mobile-rider-mark-delivered`      | Shared deliver operation, camera proof photo, compression                    | Archived (ahp-sooyaa/parcel-flow#13) |
 | 6   | `mobile-rider-delivery-failure`    | Report, edit, delete failure notes                                           | Archived (ahp-sooyaa/parcel-flow#14) |
-| 7   | `mobile-rider-return-to-merchant`  | Complete merchant returns                                                    | Planned     |
+| 7   | `mobile-rider-return-to-merchant`  | Complete merchant returns                                                    | Archived (ahp-sooyaa/parcel-flow#15) |
 | 8   | `mobile-realtime-parcel-updates`   | SSE client on `/api/realtime/parcels`, paused in background                  | Planned     |
 | 9   | `android-release-build`            | EAS profiles, icon/splash, versioning, Play Console internal testing         | Planned     |
 
