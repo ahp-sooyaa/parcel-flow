@@ -41,4 +41,4 @@
 - [x] 8.1 Run the root checks (`lint`, `format:check`, `typecheck`, `test:unit`, `test:integration`) and the `mobile/` checks.
 - [x] 8.2 curl against the `test-db` dev server with the seeded e2e rider: report (200), report again (409), edit (200), empty note (400), delete (200), delete again (409), another rider's or a random parcel (404), and an at-office parcel (409).
 - [x] 8.3 On the user's phone in Expo Go: report with a quick reason and edited text, check the card and detail, check the web rider page and the admin `Need review` tab show it, edit, delete, then mark the parcel delivered. (The first try found the keyboard covering the note field on Android; fixed in `Screen` for every screen.)
-- [ ] 8.4 Update the roadmap status in `docs/mobile-app.md`.
+- [x] 8.4 Update the roadmap status in `docs/mobile-app.md`.

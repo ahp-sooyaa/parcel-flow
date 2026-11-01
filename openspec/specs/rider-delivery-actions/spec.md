@@ -8,7 +8,7 @@ TBD - created by archiving change rider-delivery-actions. Update Purpose after a
 
 ### Requirement: Rider reports delivery failure
 
-The system SHALL allow an active rider to report delivery failure for a parcel assigned to their rider profile when the parcel status is `on_the_way`.
+The system SHALL allow an active rider to report delivery failure for a parcel assigned to their rider profile when the parcel status is `on_the_way`. The web rider page and the mobile API SHALL report, edit and delete failure notes through one shared operation per action, and each action SHALL lock the parcel row while it reads and writes the note.
 
 #### Scenario: Rider opens failure dialog
 
@@ -50,7 +50,7 @@ The system SHALL allow an active rider to report delivery failure for a parcel a
 #### Scenario: Rider deletes existing failure note
 
 - **WHEN** a rider clicks delete in the failure note dialog for their assigned `on_the_way` parcel
-- **THEN** the system clears `parcels.delivery_failure_note`
+- **THEN** the system removes the active entry from `parcels.delivery_failure_note`, keeping inactive history entries
 - **AND** the parcel status remains `on_the_way`
 - **AND** the rider assignment remains unchanged
 - **AND** the expanded rider parcel card can again show `Report Failure` and `Mark Delivered`
@@ -69,10 +69,25 @@ The system SHALL allow an active rider to report delivery failure for a parcel a
 - **WHEN** a non-rider user, inactive rider, unrelated rider, or rider for a parcel not in `on_the_way` status submits a failure report
 - **THEN** the system rejects the request without changing parcel data
 
+#### Scenario: Unauthorized failure note update is rejected
+
+- **WHEN** a non-rider user, inactive rider, unrelated rider, or rider for a parcel not in `on_the_way` status submits an update failure note request
+- **THEN** the system rejects the request without changing parcel data
+
 #### Scenario: Unauthorized failure note deletion is rejected
 
 - **WHEN** a non-rider user, inactive rider, unrelated rider, or rider for a parcel not in `on_the_way` status submits a delete failure note request
 - **THEN** the system rejects the request without changing parcel data
+
+#### Scenario: Concurrent failure note writes are serialized
+
+- **WHEN** a failure note delete runs at the same time as an edit, an admin failure resolution, or a delivery on the same parcel
+- **THEN** the writes apply one after another under the parcel row lock, and neither silently overwrites the other's result
+
+#### Scenario: Web and mobile share failure note rules
+
+- **WHEN** a rider reports, edits, or deletes a failure note from the web rider page or the mobile app
+- **THEN** the same validation, ownership, status and active-note rules apply, with the same messages
 
 ### Requirement: Rider marks parcel delivered with proof
 
