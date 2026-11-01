@@ -15,7 +15,7 @@ Riders already use the mobile-friendly parcel cards at `/dashboard/rider/parcels
 | Platform       | Android first. iOS later from the same Expo codebase                |
 | Framework      | Expo (React Native), TypeScript                                     |
 | Roles in v1    | Rider only                                                          |
-| Live updates   | Pull-to-refresh and refetch when the screen regains focus. SSE later |
+| Live updates   | SSE stream at `/api/mobile/v1/rider/parcels/events` while the app is open, plus pull-to-refresh and refetch on focus |
 | Repo layout    | Same repository, `mobile/` folder with its own `package.json`       |
 | Backend        | The existing Next.js app, through a versioned HTTP API              |
 
@@ -169,7 +169,7 @@ Each slice is one OpenSpec change, built end to end (API, app screen, tests), in
 | 5   | `mobile-rider-mark-delivered`      | Shared deliver operation, camera proof photo, compression                    | Archived (ahp-sooyaa/parcel-flow#13) |
 | 6   | `mobile-rider-delivery-failure`    | Report, edit, delete failure notes                                           | Archived (ahp-sooyaa/parcel-flow#14) |
 | 7   | `mobile-rider-return-to-merchant`  | Complete merchant returns                                                    | Archived (ahp-sooyaa/parcel-flow#15) |
-| 8   | `mobile-realtime-parcel-updates`   | SSE client on `/api/realtime/parcels`, paused in background                  | Planned     |
+| 8   | `mobile-realtime-parcel-updates`   | Rider events stream (`/api/mobile/v1/rider/parcels/events`), paused in background | Archived (ahp-sooyaa/parcel-flow#16) |
 | 9   | `android-release-build`            | EAS profiles, icon/splash, versioning, Play Console internal testing         | Planned     |
 
 ### Workflow per slice
