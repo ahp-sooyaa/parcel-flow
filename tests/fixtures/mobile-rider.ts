@@ -1,10 +1,11 @@
 // Shared setup for the mobile rider write-route integration tests: a stubbed
 // session lookup, and a seed of two riders with parcels to act on.
-import { mock } from "bun:test";
+import { afterAll, afterEach, mock } from "bun:test";
 
 import type { ParcelStatus } from "@/lib/domain";
 import { buildSessionUser } from "./builders";
-import type { createTestDatabase } from "./db";
+import { cleanupTestRecords } from "./cleanup";
+import { closeTestDatabase, createTestDatabase } from "./db";
 import {
   seedTestMerchant,
   seedTestParcel,
@@ -24,7 +25,7 @@ export async function mockMobileRiderSession() {
   let sessionUserId: string | null = null;
 
   void mock.module("next/headers", () => ({
-    headers: async () => new Headers(),
+    headers: () => Promise.resolve(new Headers()),
   }));
 
   const actualAuth = { ...(await import("@/lib/auth")) };
@@ -37,9 +38,9 @@ export async function mockMobileRiderSession() {
       ...realAuth,
       api: {
         ...realAuth.api,
-        getSession: async (...args: Parameters<typeof realGetSession>) =>
+        getSession: (...args: Parameters<typeof realGetSession>) =>
           sessionUserId
-            ? buildSessionUser({ id: sessionUserId, role: "rider" })
+            ? Promise.resolve(buildSessionUser({ id: sessionUserId, role: "rider" }))
             : realGetSession(...args),
       },
     },
@@ -51,6 +52,8 @@ export async function mockMobileRiderSession() {
     },
   };
 }
+
+type MobileRiderSession = Awaited<ReturnType<typeof mockMobileRiderSession>>;
 
 export type SeededIds = {
   userIds: string[];
@@ -67,9 +70,32 @@ export function createSeededIds(): SeededIds {
 type ParcelSeedOverrides = NonNullable<Parameters<typeof seedTestParcel>[1]>;
 
 /**
- * Seeds riders A and B in one township, and returns `parcelFor` to seed COD
- * parcels (20,000 MMK plus a 3,000 MMK fee) assigned to either of them. Every
- * id is recorded in `seededIds` for cleanup.
+ * The test database for a describe block. After each test it signs the rider
+ * out and removes what was seeded; after the block it closes the connection.
+ */
+export function useMobileRiderTestDb(session: MobileRiderSession) {
+  const testDb = createTestDatabase();
+  const seededIds = createSeededIds();
+
+  afterEach(async () => {
+    session.signInAs(null);
+    await cleanupTestRecords(testDb.db, seededIds);
+    for (const ids of Object.values(seededIds)) {
+      ids.length = 0;
+    }
+  });
+
+  afterAll(async () => {
+    await closeTestDatabase(testDb.client);
+  });
+
+  return { testDb, seededIds };
+}
+
+/**
+ * Seeds riders A and B in one township, and returns `parcelFor` to seed
+ * parcels (COD, 20,000 MMK plus a 3,000 MMK fee, unless overridden) for either
+ * of them, or unassigned. Every id is recorded in `seededIds` for cleanup.
  */
 export async function seedTwoRiders(
   testDb: ReturnType<typeof createTestDatabase>,
@@ -92,9 +118,9 @@ export async function seedTwoRiders(
   seededIds.riderIds.push(riderA.rider.id, riderB.rider.id);
 
   async function parcelFor(
-    riderId: string,
+    riderId: string | undefined,
     status: ParcelStatus,
-    deliveryFailureNote: ParcelSeedOverrides["deliveryFailureNote"] = null,
+    overrides: ParcelSeedOverrides = {},
   ) {
     const { parcel } = await seedTestParcel(testDb.db, {
       riderId,
@@ -105,7 +131,7 @@ export async function seedTwoRiders(
       parcelType: "cod",
       codAmount: 20_000,
       deliveryFee: 3_000,
-      deliveryFailureNote,
+      ...overrides,
     });
     seededIds.parcelIds.push(parcel.id);
     return parcel;
@@ -114,6 +140,7 @@ export async function seedTwoRiders(
   return {
     riderAId: riderA.rider.id,
     riderAUserId: riderA.user?.id ?? "",
+    riderBUserId: riderB.user?.id ?? "",
     riderBId: riderB.rider.id,
     parcelFor,
   };

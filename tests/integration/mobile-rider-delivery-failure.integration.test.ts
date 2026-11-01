@@ -1,13 +1,15 @@
-import { afterAll, afterEach, describe, expect, mock, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import { eq } from "drizzle-orm";
 
 import { financialItems, parcels } from "@/db/schema";
 import { mobileFailureNoteResponseSchema } from "@/features/mobile-api/contract";
 import { ParcelOperationError } from "@/features/parcels/server/errors";
 import { buildCurrentUser } from "../fixtures/builders";
-import { cleanupTestRecords } from "../fixtures/cleanup";
-import { closeTestDatabase, createTestDatabase } from "../fixtures/db";
-import { createSeededIds, mockMobileRiderSession, seedTwoRiders } from "../fixtures/mobile-rider";
+import {
+  mockMobileRiderSession,
+  seedTwoRiders,
+  useMobileRiderTestDb,
+} from "../fixtures/mobile-rider";
 
 // The real operations, DAL and database run. The session lookup is stubbed so
 // each test picks the rider, and R2 uploads are stubbed for the delivery check.
@@ -21,26 +23,12 @@ void mock.module("@/features/parcels/server/upload", () => ({
   deleteDeliveryProofImage: async () => undefined,
 }));
 
-const seededIds = createSeededIds();
-
 describe("mobile rider delivery failure integration", async () => {
-  const testDb = createTestDatabase();
+  const { testDb, seededIds } = useMobileRiderTestDb(session);
   const route = await import("@/app/api/mobile/v1/rider/parcels/[parcelId]/failure-note/route");
   const { markRiderParcelDelivered } = await import("@/features/parcels/server/rider-operations");
   const { deleteDeliveryFailureForRiderParcel, reportDeliveryFailureForRiderParcel } =
     await import("@/features/parcels/server/dal");
-
-  afterEach(async () => {
-    session.signInAs(null);
-    await cleanupTestRecords(testDb.db, seededIds);
-    for (const ids of Object.values(seededIds)) {
-      ids.length = 0;
-    }
-  });
-
-  afterAll(async () => {
-    await closeTestDatabase(testDb.client);
-  });
 
   async function seedTwoRiderParcels() {
     const seed = await seedTwoRiders(testDb, seededIds);
@@ -50,10 +38,12 @@ describe("mobile rider delivery failure integration", async () => {
       riderAUserId: seed.riderAUserId,
       aOnTheWay: await seed.parcelFor(seed.riderAId, "on_the_way"),
       aAtOffice: await seed.parcelFor(seed.riderAId, "at_office"),
-      aWithHistory: await seed.parcelFor(seed.riderAId, "on_the_way", [
-        { note: "Resolved earlier.", status: "inactive" },
-        { note: "Receiver not home.", status: "active" },
-      ]),
+      aWithHistory: await seed.parcelFor(seed.riderAId, "on_the_way", {
+        deliveryFailureNote: [
+          { note: "Resolved earlier.", status: "inactive" },
+          { note: "Receiver not home.", status: "active" },
+        ],
+      }),
       bOnTheWay: await seed.parcelFor(seed.riderBId, "on_the_way"),
     };
   }

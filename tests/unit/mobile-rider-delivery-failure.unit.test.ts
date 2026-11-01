@@ -7,26 +7,14 @@ import {
 } from "@/features/mobile-api/contract";
 import { ParcelOperationError } from "@/features/parcels/server/errors";
 import { TEXT_LIMITS } from "@/lib/validation";
-import { buildSessionUser } from "../fixtures/builders";
+import { mockMobileRouteSession } from "../fixtures/mobile-route-session";
 
-const getSessionMock = mock(async (): Promise<unknown> => null);
-const headersMock = mock(async () => new Headers());
+const riderId = "8b3c5d4e-1111-4a2b-9c3d-000000000001";
+const session = mockMobileRouteSession(riderId);
 const reportDeliveryFailureMock = mock(async (): Promise<void> => undefined);
 const updateDeliveryFailureMock = mock(async (): Promise<void> => undefined);
 const deleteDeliveryFailureMock = mock(async (): Promise<void> => undefined);
 const revalidateTagMock = mock(() => undefined);
-
-void mock.module("@/lib/auth", () => ({
-  auth: {
-    api: {
-      getSession: getSessionMock,
-    },
-  },
-}));
-
-void mock.module("next/headers", () => ({
-  headers: headersMock,
-}));
 
 // Bun keeps module mocks for later test files, so keep the real exports.
 const actualNextCache = await import("next/cache");
@@ -44,14 +32,9 @@ void mock.module("@/features/parcels/server/dal", () => ({
   deleteDeliveryFailureForRiderParcel: deleteDeliveryFailureMock,
 }));
 
-const riderId = "8b3c5d4e-1111-4a2b-9c3d-000000000001";
 const parcelId = "0f7a3c2e-2222-4b1c-8d9e-000000000002";
 const otherParcelId = "0f7a3c2e-2222-4b1c-8d9e-000000000003";
 const routePath = `http://localhost:3000/api/mobile/v1/rider/parcels/${parcelId}/failure-note`;
-
-function signInAs(role: "rider" | "merchant", isActive = true) {
-  getSessionMock.mockResolvedValue(buildSessionUser({ id: riderId, role, isActive }));
-}
 
 function noteRequest(method: "POST" | "PATCH" | "DELETE", body?: unknown) {
   return new Request(routePath, {
@@ -102,8 +85,7 @@ describe("/api/mobile/v1/rider/parcels/{parcelId}/failure-note", async () => {
   ] as const;
 
   beforeEach(() => {
-    getSessionMock.mockReset();
-    getSessionMock.mockResolvedValue(null);
+    session.signOut();
     for (const verb of verbs) {
       verb.dal.mockReset();
       verb.dal.mockResolvedValue(undefined);
@@ -128,16 +110,16 @@ describe("/api/mobile/v1/rider/parcels/{parcelId}/failure-note", async () => {
     });
 
     test("returns 403 for inactive and non-rider users", async () => {
-      signInAs("rider", false);
+      session.signInAs("rider", false);
       expect((await send()).status).toBe(403);
 
-      signInAs("merchant");
+      session.signInAs("merchant");
       expect((await send()).status).toBe(403);
       expect(verb.dal).not.toHaveBeenCalled();
     });
 
     test("returns 400 for a parcel id that isn't a UUID", async () => {
-      signInAs("rider");
+      session.signInAs("rider");
 
       const response = await send(verb.body, "nope");
 
@@ -146,7 +128,7 @@ describe("/api/mobile/v1/rider/parcels/{parcelId}/failure-note", async () => {
     });
 
     test("saves, returns the active note, and expires caches immediately", async () => {
-      signInAs("rider");
+      session.signInAs("rider");
 
       const response = await send();
       const body = mobileFailureNoteResponseSchema.parse(await response.json());
@@ -161,7 +143,7 @@ describe("/api/mobile/v1/rider/parcels/{parcelId}/failure-note", async () => {
     });
 
     test("returns 404 with one message for a missing or another rider's parcel", async () => {
-      signInAs("rider");
+      session.signInAs("rider");
 
       for (const code of ["not_found", "not_assigned"] as const) {
         verb.dal.mockRejectedValueOnce(new ParcelOperationError(code, "Internal wording."));
@@ -174,7 +156,7 @@ describe("/api/mobile/v1/rider/parcels/{parcelId}/failure-note", async () => {
     });
 
     test("returns 409 with the rule's message", async () => {
-      signInAs("rider");
+      session.signInAs("rider");
       verb.dal.mockRejectedValue(
         new ParcelOperationError("conflict", "Only on-the-way parcels can be reported as failed."),
       );
@@ -188,7 +170,7 @@ describe("/api/mobile/v1/rider/parcels/{parcelId}/failure-note", async () => {
     });
 
     test("returns 500 without internal details", async () => {
-      signInAs("rider");
+      session.signInAs("rider");
       verb.dal.mockRejectedValue(new Error("connection reset by 10.0.0.4"));
 
       const response = await send();
@@ -200,7 +182,7 @@ describe("/api/mobile/v1/rider/parcels/{parcelId}/failure-note", async () => {
 
   describe.each([verbs[0], verbs[1]])("$method body", (verb) => {
     test("returns 400 for a body that isn't JSON", async () => {
-      signInAs("rider");
+      session.signInAs("rider");
 
       const response = await verb.handler(noteRequest(verb.method, "note=hi"), context());
 
@@ -211,7 +193,7 @@ describe("/api/mobile/v1/rider/parcels/{parcelId}/failure-note", async () => {
     test.each([{}, { note: "   " }, { note: "x".repeat(501) }, null])(
       "returns 400 for an invalid note %#",
       async (body) => {
-        signInAs("rider");
+        session.signInAs("rider");
 
         const response = await verb.handler(noteRequest(verb.method, body), context());
 
@@ -221,7 +203,7 @@ describe("/api/mobile/v1/rider/parcels/{parcelId}/failure-note", async () => {
     );
 
     test("acts on the path's parcel, not one in the body", async () => {
-      signInAs("rider");
+      session.signInAs("rider");
 
       await verb.handler(
         noteRequest(verb.method, { note: "Wrong address.", parcelId: otherParcelId }),
@@ -233,7 +215,7 @@ describe("/api/mobile/v1/rider/parcels/{parcelId}/failure-note", async () => {
   });
 
   test("DELETE ignores a request body", async () => {
-    signInAs("rider");
+    session.signInAs("rider");
 
     const response = await route.DELETE(
       noteRequest("DELETE", { parcelId: otherParcelId }),

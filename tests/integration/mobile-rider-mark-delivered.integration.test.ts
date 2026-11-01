@@ -1,12 +1,14 @@
-import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { eq } from "drizzle-orm";
 
 import { parcels } from "@/db/schema";
 import { mobileMarkDeliveredResponseSchema } from "@/features/mobile-api/contract";
 import { ParcelOperationError } from "@/features/parcels/server/errors";
-import { cleanupTestRecords } from "../fixtures/cleanup";
-import { closeTestDatabase, createTestDatabase } from "../fixtures/db";
-import { createSeededIds, mockMobileRiderSession, seedTwoRiders } from "../fixtures/mobile-rider";
+import {
+  mockMobileRiderSession,
+  seedTwoRiders,
+  useMobileRiderTestDb,
+} from "../fixtures/mobile-rider";
 
 // The real operation, DAL and database run. The session lookup is stubbed so
 // each test picks the rider, and R2 uploads are stubbed to a fixed key.
@@ -24,27 +26,13 @@ void mock.module("@/features/parcels/server/upload", () => ({
   deleteDeliveryProofImage: async () => undefined,
 }));
 
-const seededIds = createSeededIds();
-
 describe("mobile rider mark delivered integration", async () => {
-  const testDb = createTestDatabase();
+  const { testDb, seededIds } = useMobileRiderTestDb(session);
   const { POST } = await import("@/app/api/mobile/v1/rider/parcels/[parcelId]/deliver/route");
   const { markRiderParcelDelivered } = await import("@/features/parcels/server/dal");
 
   beforeEach(() => {
     uploadedKeys.length = 0;
-  });
-
-  afterEach(async () => {
-    session.signInAs(null);
-    await cleanupTestRecords(testDb.db, seededIds);
-    for (const ids of Object.values(seededIds)) {
-      ids.length = 0;
-    }
-  });
-
-  afterAll(async () => {
-    await closeTestDatabase(testDb.client);
   });
 
   async function seedTwoRiderParcels() {
@@ -55,7 +43,9 @@ describe("mobile rider mark delivered integration", async () => {
       riderAUserId: seed.riderAUserId,
       aOnTheWay: await seed.parcelFor(seed.riderAId, "on_the_way"),
       aAtOffice: await seed.parcelFor(seed.riderAId, "at_office"),
-      aWithFailureNote: await seed.parcelFor(seed.riderAId, "on_the_way", "Receiver not home"),
+      aWithFailureNote: await seed.parcelFor(seed.riderAId, "on_the_way", {
+        deliveryFailureNote: "Receiver not home",
+      }),
       bOnTheWay: await seed.parcelFor(seed.riderBId, "on_the_way"),
     };
   }

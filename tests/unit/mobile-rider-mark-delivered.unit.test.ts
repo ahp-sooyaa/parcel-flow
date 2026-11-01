@@ -6,27 +6,16 @@ import {
 } from "@/features/mobile-api/contract";
 import type { ParcelListItemDto } from "@/features/parcels/server/dto";
 import { ParcelOperationError } from "@/features/parcels/server/errors";
-import { buildParcelListItem, buildSessionUser } from "../fixtures/builders";
+import { buildParcelListItem } from "../fixtures/builders";
+import { mockMobileRouteSession } from "../fixtures/mobile-route-session";
 
-const getSessionMock = mock(async (): Promise<unknown> => null);
-const headersMock = mock(async () => new Headers());
+const riderId = "8b3c5d4e-1111-4a2b-9c3d-000000000001";
+const session = mockMobileRouteSession(riderId);
 const markRiderParcelDeliveredMock = mock(async (): Promise<void> => undefined);
 const getParcelByIdForRealtimeScopeMock = mock(async (): Promise<ParcelListItemDto | null> => null);
 const uploadDeliveryProofImageMock = mock(async (): Promise<string> => "parcels/p/proof.jpg");
 const deleteDeliveryProofImageMock = mock(async (): Promise<void> => undefined);
 const revalidateTagMock = mock(() => undefined);
-
-void mock.module("@/lib/auth", () => ({
-  auth: {
-    api: {
-      getSession: getSessionMock,
-    },
-  },
-}));
-
-void mock.module("next/headers", () => ({
-  headers: headersMock,
-}));
 
 // Bun keeps module mocks for later test files, so keep the real exports.
 const actualNextCache = await import("next/cache");
@@ -50,12 +39,7 @@ void mock.module("@/features/parcels/server/upload", () => ({
   deleteDeliveryProofImage: deleteDeliveryProofImageMock,
 }));
 
-const riderId = "8b3c5d4e-1111-4a2b-9c3d-000000000001";
 const parcelId = "0f7a3c2e-2222-4b1c-8d9e-000000000002";
-
-function signInAs(role: "rider" | "merchant", isActive = true) {
-  getSessionMock.mockResolvedValue(buildSessionUser({ id: riderId, role, isActive }));
-}
 
 function deliverRequest(proofImage: File | null, multipart = true) {
   const body = new FormData();
@@ -86,8 +70,7 @@ describe("POST /api/mobile/v1/rider/parcels/[parcelId]/deliver", async () => {
   const { POST } = await import("@/app/api/mobile/v1/rider/parcels/[parcelId]/deliver/route");
 
   beforeEach(() => {
-    getSessionMock.mockReset();
-    getSessionMock.mockResolvedValue(null);
+    session.signOut();
     markRiderParcelDeliveredMock.mockReset();
     markRiderParcelDeliveredMock.mockResolvedValue(undefined);
     getParcelByIdForRealtimeScopeMock.mockReset();
@@ -104,10 +87,10 @@ describe("POST /api/mobile/v1/rider/parcels/[parcelId]/deliver", async () => {
   test("returns 401 without a session and 403 for inactive or non-rider users", async () => {
     expect((await POST(deliverRequest(photo()), context())).status).toBe(401);
 
-    signInAs("rider", false);
+    session.signInAs("rider", false);
     expect((await POST(deliverRequest(photo()), context())).status).toBe(403);
 
-    signInAs("merchant");
+    session.signInAs("merchant");
     expect((await POST(deliverRequest(photo()), context())).status).toBe(403);
     expect(uploadDeliveryProofImageMock).not.toHaveBeenCalled();
   });
@@ -118,7 +101,7 @@ describe("POST /api/mobile/v1/rider/parcels/[parcelId]/deliver", async () => {
     ["a GIF", deliverRequest(photo("image/gif")), parcelId],
     ["a bad parcel id", deliverRequest(photo()), "nope"],
   ])("returns 400 for %s", async (_label, request, id) => {
-    signInAs("rider");
+    session.signInAs("rider");
 
     const response = await POST(request, context(id));
 
@@ -127,7 +110,7 @@ describe("POST /api/mobile/v1/rider/parcels/[parcelId]/deliver", async () => {
   });
 
   test("delivers the parcel and expires caches immediately", async () => {
-    signInAs("rider");
+    session.signInAs("rider");
 
     const response = await POST(deliverRequest(photo()), context());
     const body = mobileMarkDeliveredResponseSchema.parse(await response.json());
@@ -142,7 +125,7 @@ describe("POST /api/mobile/v1/rider/parcels/[parcelId]/deliver", async () => {
   });
 
   test("returns 404 for a parcel that isn't the rider's", async () => {
-    signInAs("rider");
+    session.signInAs("rider");
     getParcelByIdForRealtimeScopeMock.mockResolvedValue(null);
 
     const response = await POST(deliverRequest(photo()), context());
@@ -152,7 +135,7 @@ describe("POST /api/mobile/v1/rider/parcels/[parcelId]/deliver", async () => {
   });
 
   test("returns the same 404 when the DAL finds another rider's parcel", async () => {
-    signInAs("rider");
+    session.signInAs("rider");
     markRiderParcelDeliveredMock.mockRejectedValue(
       new ParcelOperationError(
         "not_assigned",
@@ -168,7 +151,7 @@ describe("POST /api/mobile/v1/rider/parcels/[parcelId]/deliver", async () => {
   });
 
   test("returns 409 for a parcel with an active failure note", async () => {
-    signInAs("rider");
+    session.signInAs("rider");
     getParcelByIdForRealtimeScopeMock.mockResolvedValue(
       buildParcelListItem({
         id: parcelId,
@@ -186,7 +169,7 @@ describe("POST /api/mobile/v1/rider/parcels/[parcelId]/deliver", async () => {
   });
 
   test("hides unexpected errors but passes on the photo upload message", async () => {
-    signInAs("rider");
+    session.signInAs("rider");
     markRiderParcelDeliveredMock.mockRejectedValue(new Error("connection details"));
 
     const failedSave = await POST(deliverRequest(photo()), context());

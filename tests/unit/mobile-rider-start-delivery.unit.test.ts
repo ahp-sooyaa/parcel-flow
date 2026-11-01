@@ -7,24 +7,12 @@ import {
 } from "@/features/mobile-api/contract";
 import { ParcelOperationError } from "@/features/parcels/server/errors";
 import { startDeliveryInputSchema } from "@/features/parcels/server/rider-operations";
-import { buildSessionUser } from "../fixtures/builders";
+import { mockMobileRouteSession } from "../fixtures/mobile-route-session";
 
-const getSessionMock = mock(async (): Promise<unknown> => null);
-const headersMock = mock(async () => new Headers());
+const riderId = "8b3c5d4e-1111-4a2b-9c3d-000000000001";
+const session = mockMobileRouteSession(riderId);
 const startDeliveryForRiderParcelsMock = mock(async (): Promise<void> => undefined);
 const revalidateTagMock = mock(() => undefined);
-
-void mock.module("@/lib/auth", () => ({
-  auth: {
-    api: {
-      getSession: getSessionMock,
-    },
-  },
-}));
-
-void mock.module("next/headers", () => ({
-  headers: headersMock,
-}));
 
 // Bun keeps module mocks for later test files, so keep the real exports.
 const actualNextCache = await import("next/cache");
@@ -40,13 +28,8 @@ void mock.module("@/features/parcels/server/dal", () => ({
   startDeliveryForRiderParcels: startDeliveryForRiderParcelsMock,
 }));
 
-const riderId = "8b3c5d4e-1111-4a2b-9c3d-000000000001";
 const parcelA = "0f7a3c2e-2222-4b1c-8d9e-000000000002";
 const parcelB = "0f7a3c2e-2222-4b1c-8d9e-000000000003";
-
-function signInAs(role: "rider" | "merchant" | "office_admin", isActive = true) {
-  getSessionMock.mockResolvedValue(buildSessionUser({ id: riderId, role, isActive }));
-}
 
 function startRequest(body: unknown) {
   return new Request("http://localhost:3000/api/mobile/v1/rider/parcels/start-delivery", {
@@ -64,8 +47,7 @@ describe("POST /api/mobile/v1/rider/parcels/start-delivery", async () => {
   const { POST } = await import("@/app/api/mobile/v1/rider/parcels/start-delivery/route");
 
   beforeEach(() => {
-    getSessionMock.mockReset();
-    getSessionMock.mockResolvedValue(null);
+    session.signOut();
     startDeliveryForRiderParcelsMock.mockReset();
     startDeliveryForRiderParcelsMock.mockResolvedValue(undefined);
     revalidateTagMock.mockReset();
@@ -79,16 +61,16 @@ describe("POST /api/mobile/v1/rider/parcels/start-delivery", async () => {
   });
 
   test("returns 403 for inactive and non-rider users", async () => {
-    signInAs("rider", false);
+    session.signInAs("rider", false);
     expect((await POST(startRequest({ parcelIds: [parcelA] }))).status).toBe(403);
 
-    signInAs("merchant");
+    session.signInAs("merchant");
     expect((await POST(startRequest({ parcelIds: [parcelA] }))).status).toBe(403);
     expect(startDeliveryForRiderParcelsMock).not.toHaveBeenCalled();
   });
 
   test("returns 400 for a body that isn't JSON", async () => {
-    signInAs("rider");
+    session.signInAs("rider");
 
     const response = await POST(startRequest("parcelIds=1"));
 
@@ -99,7 +81,7 @@ describe("POST /api/mobile/v1/rider/parcels/start-delivery", async () => {
   test.each([{}, { parcelIds: [] }, { parcelIds: ["nope"] }])(
     "returns 400 for an invalid body %#",
     async (body) => {
-      signInAs("rider");
+      session.signInAs("rider");
 
       const response = await POST(startRequest(body));
 
@@ -109,7 +91,7 @@ describe("POST /api/mobile/v1/rider/parcels/start-delivery", async () => {
   );
 
   test("starts the rider's parcels and expires caches immediately", async () => {
-    signInAs("rider");
+    session.signInAs("rider");
 
     const response = await POST(startRequest({ parcelIds: [parcelA, parcelB] }));
     const body = mobileStartDeliveryResponseSchema.parse(await response.json());
@@ -129,7 +111,7 @@ describe("POST /api/mobile/v1/rider/parcels/start-delivery", async () => {
     ["not_found", "One or more selected parcels were not found."],
     ["not_assigned", "You can only start delivery for parcels assigned to your rider account."],
   ] as const)("returns the same 404 for %s", async (code, dalMessage) => {
-    signInAs("rider");
+    session.signInAs("rider");
     startDeliveryForRiderParcelsMock.mockRejectedValue(new ParcelOperationError(code, dalMessage));
 
     const response = await POST(startRequest({ parcelIds: [parcelA] }));
@@ -139,7 +121,7 @@ describe("POST /api/mobile/v1/rider/parcels/start-delivery", async () => {
   });
 
   test("returns 409 when a parcel is no longer at the office", async () => {
-    signInAs("rider");
+    session.signInAs("rider");
     startDeliveryForRiderParcelsMock.mockRejectedValue(
       new ParcelOperationError(
         "conflict",
@@ -157,7 +139,7 @@ describe("POST /api/mobile/v1/rider/parcels/start-delivery", async () => {
   });
 
   test("returns 403 when the DAL finds no active rider profile", async () => {
-    signInAs("rider");
+    session.signInAs("rider");
     startDeliveryForRiderParcelsMock.mockRejectedValue(
       new ParcelOperationError("forbidden", "Active rider profile was not found."),
     );
@@ -168,7 +150,7 @@ describe("POST /api/mobile/v1/rider/parcels/start-delivery", async () => {
   });
 
   test("returns a generic 500 for unexpected errors", async () => {
-    signInAs("rider");
+    session.signInAs("rider");
     startDeliveryForRiderParcelsMock.mockRejectedValue(new Error("connection details"));
 
     const response = await POST(startRequest({ parcelIds: [parcelA] }));
