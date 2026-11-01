@@ -1,4 +1,4 @@
-import { afterAll, afterEach, describe, expect, mock, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { inArray } from "drizzle-orm";
 
 import { financialItems, parcels } from "@/db/schema";
@@ -6,95 +6,30 @@ import {
   mobileErrorResponseSchema,
   mobileStartDeliveryResponseSchema,
 } from "@/features/mobile-api/contract";
-import type { ParcelStatus } from "@/lib/domain";
-import { buildSessionUser } from "../fixtures/builders";
-import { cleanupTestRecords } from "../fixtures/cleanup";
-import { closeTestDatabase, createTestDatabase } from "../fixtures/db";
 import {
-  seedTestMerchant,
-  seedTestParcel,
-  seedTestRider,
-  seedTestTownship,
-  seedTestUser,
-} from "../fixtures/seed";
+  mockMobileRiderSession,
+  seedTwoRiders,
+  useMobileRiderTestDb,
+} from "../fixtures/mobile-rider";
 
 // The real operation, DAL and database run; only the session lookup is stubbed,
 // so each test picks which rider is signed in. next/cache is stubbed by the preload.
-let sessionUserId: string | null = null;
-
-void mock.module("@/lib/auth", () => ({
-  auth: {
-    api: {
-      getSession: async () =>
-        sessionUserId ? buildSessionUser({ id: sessionUserId, role: "rider" }) : null,
-    },
-  },
-}));
-
-void mock.module("next/headers", () => ({
-  headers: async () => new Headers(),
-}));
-
-const seededIds = {
-  userIds: [] as string[],
-  merchantIds: [] as string[],
-  riderIds: [] as string[],
-  townshipIds: [] as string[],
-  parcelIds: [] as string[],
-};
+const session = await mockMobileRiderSession();
 
 describe("mobile rider start delivery integration", async () => {
-  const testDb = createTestDatabase();
+  const { testDb, seededIds } = useMobileRiderTestDb(session);
   const { POST } = await import("@/app/api/mobile/v1/rider/parcels/start-delivery/route");
 
-  afterEach(async () => {
-    sessionUserId = null;
-    await cleanupTestRecords(testDb.db, seededIds);
-    for (const ids of Object.values(seededIds)) {
-      ids.length = 0;
-    }
-  });
-
-  afterAll(async () => {
-    await closeTestDatabase(testDb.client);
-  });
-
-  async function seedTwoRiders() {
-    const township = await seedTestTownship(testDb.db);
-    const creator = await seedTestUser(testDb.db, { role: "super_admin" });
-    const merchantSeed = await seedTestMerchant(testDb.db);
-    const riderA = await seedTestRider(testDb.db, { townshipId: township.id });
-    const riderB = await seedTestRider(testDb.db, { townshipId: township.id });
-
-    seededIds.townshipIds.push(township.id);
-    seededIds.userIds.push(
-      creator.id,
-      merchantSeed.user?.id ?? "",
-      riderA.user?.id ?? "",
-      riderB.user?.id ?? "",
-    );
-    seededIds.merchantIds.push(merchantSeed.merchant.id);
-    seededIds.riderIds.push(riderA.rider.id, riderB.rider.id);
-
-    async function parcelFor(riderId: string, status: ParcelStatus) {
-      const { parcel } = await seedTestParcel(testDb.db, {
-        riderId,
-        status,
-        merchantId: merchantSeed.merchant.id,
-        townshipId: township.id,
-        createdBy: creator.id,
-      });
-      seededIds.parcelIds.push(parcel.id);
-      return parcel;
-    }
+  async function seedTwoRiderParcels() {
+    const seed = await seedTwoRiders(testDb, seededIds);
 
     return {
-      riderAUserId: riderA.user?.id ?? "",
-      riderAId: riderA.rider.id,
-      aAtOffice1: await parcelFor(riderA.rider.id, "at_office"),
-      aAtOffice2: await parcelFor(riderA.rider.id, "at_office"),
-      aOnTheWay: await parcelFor(riderA.rider.id, "on_the_way"),
-      bAtOffice: await parcelFor(riderB.rider.id, "at_office"),
+      riderAUserId: seed.riderAUserId,
+      riderAId: seed.riderAId,
+      aAtOffice1: await seed.parcelFor(seed.riderAId, "at_office"),
+      aAtOffice2: await seed.parcelFor(seed.riderAId, "at_office"),
+      aOnTheWay: await seed.parcelFor(seed.riderAId, "on_the_way"),
+      bAtOffice: await seed.parcelFor(seed.riderBId, "at_office"),
     };
   }
 
@@ -130,8 +65,8 @@ describe("mobile rider start delivery integration", async () => {
   }
 
   test("the rider's own at-office parcels move to on the way, with one payout each", async () => {
-    const seed = await seedTwoRiders();
-    sessionUserId = seed.riderAUserId;
+    const seed = await seedTwoRiderParcels();
+    session.signInAs(seed.riderAUserId);
     const ids = [seed.aAtOffice1.id, seed.aAtOffice2.id];
 
     const response = await start(ids);
@@ -157,8 +92,8 @@ describe("mobile rider start delivery integration", async () => {
   });
 
   test("a batch with another rider's parcel is a 404 and changes nothing", async () => {
-    const seed = await seedTwoRiders();
-    sessionUserId = seed.riderAUserId;
+    const seed = await seedTwoRiderParcels();
+    session.signInAs(seed.riderAUserId);
     const ids = [seed.aAtOffice1.id, seed.bAtOffice.id];
 
     const response = await start(ids);
@@ -175,8 +110,8 @@ describe("mobile rider start delivery integration", async () => {
   });
 
   test("a parcel already on the way is a 409, and a repeated start is too", async () => {
-    const seed = await seedTwoRiders();
-    sessionUserId = seed.riderAUserId;
+    const seed = await seedTwoRiderParcels();
+    session.signInAs(seed.riderAUserId);
 
     expect((await start([seed.aOnTheWay.id])).status).toBe(409);
 

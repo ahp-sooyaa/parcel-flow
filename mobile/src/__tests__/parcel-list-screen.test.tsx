@@ -277,6 +277,8 @@ describe("ParcelListScreen mark delivered", () => {
 
     const buttons = screen.getAllByRole("button", { name: "Mark delivered" });
     expect(buttons).toHaveLength(1);
+    // The card with a failure note says why it has no Mark delivered.
+    expect(screen.getAllByText("Failure reported")).toHaveLength(1);
 
     await fireEvent.press(buttons[0]);
     expect(router.push).toHaveBeenCalledWith({

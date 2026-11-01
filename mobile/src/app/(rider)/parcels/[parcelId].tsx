@@ -56,6 +56,10 @@ export default function ParcelDetailScreen() {
     });
   }
 
+  function openFailureNote() {
+    router.push({ pathname: "/failure/[parcelId]", params: { parcelId } });
+  }
+
   return (
     <Screen>
       <View style={styles.header}>
@@ -70,16 +74,26 @@ export default function ParcelDetailScreen() {
       ) : null}
 
       {summary.status === "on_the_way" && !summary.hasActiveFailureNote ? (
-        <Button
-          label="Mark delivered"
-          onPress={() =>
-            router.push({ pathname: "/deliver/[parcelId]", params: { parcelId: summary.id } })
-          }
-        />
+        <>
+          <Button
+            label="Mark delivered"
+            onPress={() =>
+              router.push({ pathname: "/deliver/[parcelId]", params: { parcelId: summary.id } })
+            }
+          />
+          <Button label="Report failure" onPress={openFailureNote} variant="secondary" />
+        </>
       ) : null}
 
-      {detail?.activeFailureNote ? (
-        <Notice message={`Failure note: ${detail.activeFailureNote}`} tone="warning" />
+      {summary.status === "on_the_way" && detail?.activeFailureNote ? (
+        <View style={[styles.section, styles.failureSection]}>
+          <Text style={styles.sectionTitle}>Failure reported</Text>
+          <Text style={styles.bodyText}>{detail.activeFailureNote}</Text>
+          <Text style={styles.mutedText}>
+            An admin will review this parcel. Delete the note if you can still deliver it.
+          </Text>
+          <Button label="Edit note" onPress={openFailureNote} variant="secondary" />
+        </View>
       ) : null}
 
       <Section title="Receiver">
@@ -162,6 +176,11 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     borderWidth: 1,
     padding: spacing.lg,
+  },
+  failureSection: {
+    gap: spacing.sm,
+    backgroundColor: colors.warningSoft,
+    borderColor: colors.warningSoft,
   },
   sectionTitle: {
     ...typography.micro,

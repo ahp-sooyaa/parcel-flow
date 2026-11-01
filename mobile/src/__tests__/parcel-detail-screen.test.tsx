@@ -47,7 +47,7 @@ describe("ParcelDetailScreen", () => {
     expect(screen.getByText("Cash on delivery")).toBeOnTheScreen();
     expect(screen.getByText("1.5 kg")).toBeOnTheScreen();
     expect(screen.getByText("Call before arriving")).toBeOnTheScreen();
-    expect(screen.getByText("Failure note: Not home")).toBeOnTheScreen();
+    expect(screen.getByText("Not home")).toBeOnTheScreen();
     expect(apiGetMock).toHaveBeenCalledWith(`/rider/parcels/${parcelId}`, expect.anything());
   });
 
@@ -164,5 +164,58 @@ describe("ParcelDetailScreen mark delivered", () => {
     await screen.findByText("Golden Leaf Tea");
 
     expect(screen.queryByRole("button", { name: "Mark delivered" })).not.toBeOnTheScreen();
+  });
+});
+
+describe("ParcelDetailScreen failure notes", () => {
+  it("offers Report failure for an on-the-way parcel without a note", async () => {
+    const { router } = jest.requireMock<{ router: { push: jest.Mock } }>("expo-router");
+    router.push.mockClear();
+    apiGetMock.mockResolvedValue(buildDetail({ id: parcelId, status: "on_the_way" }));
+    await renderWithQueryClient(<ParcelDetailScreen />);
+    await screen.findByText("Golden Leaf Tea");
+
+    expect(screen.queryByRole("button", { name: "Edit note" })).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole("button", { name: "Report failure" }));
+
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: "/failure/[parcelId]",
+      params: { parcelId },
+    });
+  });
+
+  it("shows the active note with Edit note instead of the delivery actions", async () => {
+    const { router } = jest.requireMock<{ router: { push: jest.Mock } }>("expo-router");
+    router.push.mockClear();
+    apiGetMock.mockResolvedValue(
+      buildDetail({
+        id: parcelId,
+        status: "on_the_way",
+        hasActiveFailureNote: true,
+        activeFailureNote: "Receiver not home.",
+      }),
+    );
+    await renderWithQueryClient(<ParcelDetailScreen />);
+    await screen.findByText("Golden Leaf Tea");
+
+    expect(screen.getByText("Failure reported")).toBeOnTheScreen();
+    expect(screen.getByText("Receiver not home.")).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Report failure" })).not.toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Mark delivered" })).not.toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole("button", { name: "Edit note" }));
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: "/failure/[parcelId]",
+      params: { parcelId },
+    });
+  });
+
+  it("offers neither for a parcel that isn't on the way", async () => {
+    apiGetMock.mockResolvedValue(buildDetail({ status: "delivered", statusLabel: "Delivered" }));
+    await renderWithQueryClient(<ParcelDetailScreen />);
+    await screen.findByText("Golden Leaf Tea");
+
+    expect(screen.queryByRole("button", { name: "Report failure" })).not.toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Edit note" })).not.toBeOnTheScreen();
   });
 });

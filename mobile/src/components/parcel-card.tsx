@@ -15,6 +15,8 @@ type ParcelCardProps = {
   startDelivery?: { starting: boolean; disabled: boolean; onPress: () => void };
   /** A "Mark delivered" button that opens the Mark delivered screen. */
   onMarkDelivered?: () => void;
+  /** Says a failure was reported, where "Mark delivered" would otherwise be. */
+  failureReported?: boolean;
 };
 
 export function ParcelCard({
@@ -23,6 +25,7 @@ export function ParcelCard({
   selection,
   startDelivery,
   onMarkDelivered,
+  failureReported = false,
 }: Readonly<ParcelCardProps>) {
   return (
     <Pressable
@@ -84,6 +87,12 @@ export function ParcelCard({
       {onMarkDelivered ? (
         <View style={styles.actions}>
           <Button label="Mark delivered" onPress={onMarkDelivered} />
+        </View>
+      ) : null}
+
+      {failureReported ? (
+        <View style={styles.actions}>
+          <Text style={styles.failureReported}>Failure reported</Text>
         </View>
       ) : null}
     </Pressable>
@@ -182,5 +191,15 @@ const styles = StyleSheet.create({
   actions: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
+  },
+  failureReported: {
+    ...typography.caption,
+    backgroundColor: colors.warningSoft,
+    borderRadius: radii.md,
+    color: colors.warningInk,
+    fontWeight: "600",
+    overflow: "hidden",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
 });

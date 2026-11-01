@@ -168,6 +168,8 @@ export default function ParcelListScreen() {
             const startable = canStart && item.status === "at_office";
             const deliverable =
               canStart && item.status === "on_the_way" && !item.hasActiveFailureNote;
+            const failureReported =
+              canStart && item.status === "on_the_way" && item.hasActiveFailureNote;
 
             return (
               <ParcelCard
@@ -202,6 +204,7 @@ export default function ParcelListScreen() {
                         })
                     : undefined
                 }
+                failureReported={failureReported}
               />
             );
           }}

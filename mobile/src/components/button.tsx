@@ -5,7 +5,8 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
 type ButtonProps = {
   label: string;
   onPress: () => void;
-  variant?: "primary" | "secondary";
+  /** `danger` looks like `secondary` with a red label, for destructive actions. */
+  variant?: "primary" | "secondary" | "danger";
   busy?: boolean;
   disabled?: boolean;
 };
@@ -19,6 +20,11 @@ export function Button({
 }: ButtonProps) {
   const isPrimary = variant === "primary";
   const isDisabled = disabled || busy;
+  const labelStyle = {
+    primary: styles.primaryLabel,
+    secondary: styles.secondaryLabel,
+    danger: styles.dangerLabel,
+  }[variant];
 
   return (
     <Pressable
@@ -36,11 +42,9 @@ export function Button({
       ]}
     >
       {busy ? (
-        <ActivityIndicator color={isPrimary ? colors.onPrimary : colors.ink} />
+        <ActivityIndicator color={labelStyle.color} />
       ) : (
-        <Text style={[styles.label, isPrimary ? styles.primaryLabel : styles.secondaryLabel]}>
-          {label}
-        </Text>
+        <Text style={[styles.label, labelStyle]}>{label}</Text>
       )}
     </Pressable>
   );
@@ -75,5 +79,8 @@ const styles = StyleSheet.create({
   },
   secondaryLabel: {
     color: colors.ink,
+  },
+  dangerLabel: {
+    color: colors.danger,
   },
 });

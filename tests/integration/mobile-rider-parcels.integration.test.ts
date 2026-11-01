@@ -1,105 +1,38 @@
-import { afterAll, afterEach, describe, expect, mock, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 
 import {
   mobileRiderParcelDetailResponseSchema,
   mobileRiderParcelPageResponseSchema,
 } from "@/features/mobile-api/contract";
-import type { ParcelStatus } from "@/lib/domain";
-import { buildSessionUser } from "../fixtures/builders";
-import { cleanupTestRecords } from "../fixtures/cleanup";
-import { closeTestDatabase, createTestDatabase } from "../fixtures/db";
 import {
-  seedTestMerchant,
-  seedTestParcel,
-  seedTestRider,
-  seedTestTownship,
-  seedTestUser,
-} from "../fixtures/seed";
+  mockMobileRiderSession,
+  seedTwoRiders,
+  useMobileRiderTestDb,
+} from "../fixtures/mobile-rider";
 
 // The real DAL and database run; only the session lookup is stubbed, so each
 // test picks which rider is signed in.
-let sessionUserId: string | null = null;
-
-void mock.module("@/lib/auth", () => ({
-  auth: {
-    api: {
-      getSession: async () =>
-        sessionUserId ? buildSessionUser({ id: sessionUserId, role: "rider" }) : null,
-    },
-  },
-}));
-
-void mock.module("next/headers", () => ({
-  headers: async () => new Headers(),
-}));
-
-const seededIds = {
-  userIds: [] as string[],
-  merchantIds: [] as string[],
-  riderIds: [] as string[],
-  townshipIds: [] as string[],
-  parcelIds: [] as string[],
-};
+const session = await mockMobileRiderSession();
 
 describe("mobile rider parcels integration", async () => {
-  const testDb = createTestDatabase();
+  const { testDb, seededIds } = useMobileRiderTestDb(session);
   const { GET: getList } = await import("@/app/api/mobile/v1/rider/parcels/route");
   const { GET: getDetail } = await import("@/app/api/mobile/v1/rider/parcels/[parcelId]/route");
 
-  afterEach(async () => {
-    sessionUserId = null;
-    await cleanupTestRecords(testDb.db, seededIds);
-    for (const ids of Object.values(seededIds)) {
-      ids.length = 0;
-    }
-  });
-
-  afterAll(async () => {
-    await closeTestDatabase(testDb.client);
-  });
-
   async function seedTwoRidersWithParcels() {
-    const township = await seedTestTownship(testDb.db);
-    const creator = await seedTestUser(testDb.db, { role: "super_admin" });
-    const merchantSeed = await seedTestMerchant(testDb.db);
-    const riderA = await seedTestRider(testDb.db, { townshipId: township.id });
-    const riderB = await seedTestRider(testDb.db, { townshipId: township.id });
-
-    seededIds.townshipIds.push(township.id);
-    seededIds.userIds.push(
-      creator.id,
-      merchantSeed.user?.id ?? "",
-      riderA.user?.id ?? "",
-      riderB.user?.id ?? "",
-    );
-    seededIds.merchantIds.push(merchantSeed.merchant.id);
-    seededIds.riderIds.push(riderA.rider.id, riderB.rider.id);
-
-    async function parcelFor(riderId: string | undefined, status: ParcelStatus) {
-      const { parcel } = await seedTestParcel(testDb.db, {
-        riderId,
-        status,
-        merchantId: merchantSeed.merchant.id,
-        townshipId: township.id,
-        createdBy: creator.id,
-        codAmount: 20_000,
-        deliveryFee: 3_000,
-      });
-      seededIds.parcelIds.push(parcel.id);
-      return parcel;
-    }
+    const seed = await seedTwoRiders(testDb, seededIds);
 
     const aParcels = {
-      atOffice: await parcelFor(riderA.rider.id, "at_office"),
-      onTheWay: await parcelFor(riderA.rider.id, "on_the_way"),
-      canceled: await parcelFor(riderA.rider.id, "canceled_returned"),
-      delivered: await parcelFor(riderA.rider.id, "delivered"),
-      returned: await parcelFor(riderA.rider.id, "returned_to_merchant"),
+      atOffice: await seed.parcelFor(seed.riderAId, "at_office"),
+      onTheWay: await seed.parcelFor(seed.riderAId, "on_the_way"),
+      canceled: await seed.parcelFor(seed.riderAId, "canceled_returned"),
+      delivered: await seed.parcelFor(seed.riderAId, "delivered"),
+      returned: await seed.parcelFor(seed.riderAId, "returned_to_merchant"),
     };
-    const bParcel = await parcelFor(riderB.rider.id, "on_the_way");
-    const unassigned = await parcelFor(undefined, "at_office");
+    const bParcel = await seed.parcelFor(seed.riderBId, "on_the_way");
+    const unassigned = await seed.parcelFor(undefined, "at_office");
 
-    return { riderAUserId: riderA.user?.id ?? "", aParcels, bParcel, unassigned };
+    return { riderAUserId: seed.riderAUserId, aParcels, bParcel, unassigned };
   }
 
   async function listTab(tab: string) {
@@ -112,7 +45,7 @@ describe("mobile rider parcels integration", async () => {
 
   test("each tab lists only the signed-in rider's parcels, with matching counts", async () => {
     const { riderAUserId, aParcels, bParcel, unassigned } = await seedTwoRidersWithParcels();
-    sessionUserId = riderAUserId;
+    session.signInAs(riderAUserId);
 
     const toDeliver = await listTab("to_deliver");
     const delivered = await listTab("delivered");
@@ -135,7 +68,7 @@ describe("mobile rider parcels integration", async () => {
 
   test("the detail works for the rider's own parcel and is a 404 for anyone else's", async () => {
     const { riderAUserId, aParcels, bParcel, unassigned } = await seedTwoRidersWithParcels();
-    sessionUserId = riderAUserId;
+    session.signInAs(riderAUserId);
 
     const detail = (id: string) =>
       getDetail(new Request("http://localhost"), { params: Promise.resolve({ parcelId: id }) });
