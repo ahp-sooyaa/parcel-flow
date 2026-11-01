@@ -4,7 +4,7 @@ import { Alert } from "react-native";
 import { apiGet, apiPost, MobileApiError } from "@/api/client";
 import { queryClient } from "@/api/query-client";
 import ParcelListScreen from "@/app/(rider)/index";
-import { buildListItem, renderWithQueryClient } from "./test-utils";
+import { buildListItem, pressAlertButton, renderWithQueryClient } from "./test-utils";
 
 jest.mock("expo-router", () => ({
   router: { push: jest.fn() },
@@ -285,5 +285,85 @@ describe("ParcelListScreen mark delivered", () => {
       pathname: "/deliver/[parcelId]",
       params: { parcelId: "w1" },
     });
+  });
+});
+
+async function renderWithReturn() {
+  apiGetMock.mockResolvedValue(
+    respondWith([
+      buildListItem({
+        id: "r1",
+        parcelCode: "PF-R1",
+        receiverName: "Ko Zaw",
+        status: "canceled_returned",
+        statusLabel: "Canceled",
+        merchantName: "Golden Leaf Tea",
+        amountToCollect: 28_000,
+      }),
+      buildListItem({ id: "w1", parcelCode: "PF-W1", receiverName: "Ma Hla" }),
+    ]),
+  );
+  await renderWithQueryClient(<ParcelListScreen />);
+  await screen.findByText("Ko Zaw");
+}
+
+describe("ParcelListScreen return to merchant", () => {
+  it("shows where a return goes instead of an amount, with Mark returned", async () => {
+    await renderWithReturn();
+
+    expect(screen.getByText("Return to")).toBeOnTheScreen();
+    expect(screen.getByText("Golden Leaf Tea")).toBeOnTheScreen();
+    // Only the on-the-way card shows an amount to collect.
+    expect(screen.getAllByText("Amount to collect")).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Mark returned" })).toHaveLength(1);
+  });
+
+  it("confirms, returns the parcel and shows the result", async () => {
+    apiPostMock.mockResolvedValue({ parcelId: "r1" });
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+    await renderWithReturn();
+
+    await fireEvent.press(screen.getByRole("button", { name: "Mark returned" }));
+
+    expect(alert.mock.calls[0]?.[0]).toBe("Mark PF-R1 returned?");
+    expect(alert.mock.calls[0]?.[1]).toContain("Golden Leaf Tea");
+    expect(apiPostMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      pressAlertButton(alert, "Mark returned");
+    });
+
+    expect(await screen.findByText("Parcel returned to merchant.")).toBeOnTheScreen();
+    expect(apiPostMock.mock.calls[0]?.[0]).toBe("/rider/parcels/r1/return");
+    alert.mockRestore();
+  });
+
+  it("sends nothing when the return is cancelled", async () => {
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+    await renderWithReturn();
+
+    await fireEvent.press(screen.getByRole("button", { name: "Mark returned" }));
+    pressAlertButton(alert, "Cancel");
+
+    expect(apiPostMock).not.toHaveBeenCalled();
+    alert.mockRestore();
+  });
+
+  it("shows the server's message when a return is rejected", async () => {
+    apiPostMock.mockRejectedValue(
+      new MobileApiError(409, "Only canceled-returned parcels can be completed as returned."),
+    );
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+    await renderWithReturn();
+
+    await fireEvent.press(screen.getByRole("button", { name: "Mark returned" }));
+    await act(async () => {
+      pressAlertButton(alert, "Mark returned");
+    });
+
+    expect(
+      await screen.findByText("Only canceled-returned parcels can be completed as returned."),
+    ).toBeOnTheScreen();
+    alert.mockRestore();
   });
 });

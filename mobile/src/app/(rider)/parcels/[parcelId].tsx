@@ -1,27 +1,31 @@
+import type {
+  MobileRiderParcelDetailDto,
+  MobileRiderParcelListItemDto,
+} from "@parcel-flow/contract";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { MobileApiError } from "@/api/client";
-import { useRiderParcel, useStartDelivery } from "@/api/parcels";
+import { useReturnToMerchant, useRiderParcel, useStartDelivery } from "@/api/parcels";
 import { Button } from "@/components/button";
 import { LoadingScreen } from "@/components/loading-screen";
 import { Notice } from "@/components/notice";
+import { PhoneLink } from "@/components/phone-link";
 import { Screen } from "@/components/screen";
 import { StatusBadge } from "@/components/status-badge";
+import { confirmReturn } from "@/delivery/return-to-merchant";
 import { formatMmk } from "@/format";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
 const parcelTypeLabels = { cod: "Cash on delivery", non_cod: "Prepaid" } as const;
 
+type ActionResult = { tone: "success" | "danger"; message: string };
+
 export default function ParcelDetailScreen() {
   const { parcelId } = useLocalSearchParams<{ parcelId: string }>();
   const parcel = useRiderParcel(parcelId);
-  const startDelivery = useStartDelivery();
-  const [startResult, setStartResult] = useState<{
-    tone: "success" | "danger";
-    message: string;
-  } | null>(null);
+  const [actionResult, setActionResult] = useState<ActionResult | null>(null);
   const detail = parcel.data;
   // The list row shows right away; the full detail fills in when it arrives.
   const summary = detail ?? parcel.preview;
@@ -48,17 +52,8 @@ export default function ParcelDetailScreen() {
     return <LoadingScreen />;
   }
 
-  function start() {
-    setStartResult(null);
-    startDelivery.mutate([parcelId], {
-      onSuccess: () => setStartResult({ tone: "success", message: "Parcel moved to on the way." }),
-      onError: (error) => setStartResult({ tone: "danger", message: error.message }),
-    });
-  }
-
-  function openFailureNote() {
-    router.push({ pathname: "/failure/[parcelId]", params: { parcelId } });
-  }
+  // Nothing is collected on a return, so it shows where the parcel goes instead.
+  const isReturn = summary.status === "canceled_returned";
 
   return (
     <Screen>
@@ -67,58 +62,32 @@ export default function ParcelDetailScreen() {
         <StatusBadge label={summary.statusLabel} status={summary.status} />
       </View>
 
-      {startResult ? <Notice message={startResult.message} tone={startResult.tone} /> : null}
+      {actionResult ? <Notice message={actionResult.message} tone={actionResult.tone} /> : null}
 
-      {summary.status === "at_office" ? (
-        <Button busy={startDelivery.isPending} label="Start delivery" onPress={start} />
-      ) : null}
-
-      {summary.status === "on_the_way" && !summary.hasActiveFailureNote ? (
-        <>
-          <Button
-            label="Mark delivered"
-            onPress={() =>
-              router.push({ pathname: "/deliver/[parcelId]", params: { parcelId: summary.id } })
-            }
-          />
-          <Button label="Report failure" onPress={openFailureNote} variant="secondary" />
-        </>
-      ) : null}
-
-      {summary.status === "on_the_way" && detail?.activeFailureNote ? (
-        <View style={[styles.section, styles.failureSection]}>
-          <Text style={styles.sectionTitle}>Failure reported</Text>
-          <Text style={styles.bodyText}>{detail.activeFailureNote}</Text>
-          <Text style={styles.mutedText}>
-            An admin will review this parcel. Delete the note if you can still deliver it.
-          </Text>
-          <Button label="Edit note" onPress={openFailureNote} variant="secondary" />
-        </View>
-      ) : null}
+      {isReturn ? (
+        <ReturnSection detail={detail} onResult={setActionResult} parcel={summary} />
+      ) : (
+        <DeliveryActions detail={detail} onResult={setActionResult} parcel={summary} />
+      )}
 
       <Section title="Receiver">
         <Text style={styles.primaryText}>{summary.receiverName}</Text>
-        <Pressable
-          accessibilityHint="Opens the phone dialer"
-          accessibilityLabel={`Call ${summary.receiverPhoneNumber}`}
-          accessibilityRole="link"
-          onPress={() => void Linking.openURL(`tel:${summary.receiverPhoneNumber}`)}
-        >
-          <Text style={styles.phone}>{summary.receiverPhoneNumber}</Text>
-        </Pressable>
+        <PhoneLink phoneNumber={summary.receiverPhoneNumber} />
         <Text style={styles.bodyText}>{summary.receiverAddress}</Text>
         <Text style={styles.mutedText}>{summary.townshipName}</Text>
       </Section>
 
-      <Section title="Collection">
-        <Row label="Amount to collect" value={formatMmk(summary.amountToCollect)} strong />
-        {detail ? (
-          <>
-            <Row label="COD amount" value={formatMmk(detail.codAmount)} />
-            <Row label="Delivery fee" value={formatMmk(detail.deliveryFee)} />
-          </>
-        ) : null}
-      </Section>
+      {isReturn ? null : (
+        <Section title="Collection">
+          <Row label="Amount to collect" value={formatMmk(summary.amountToCollect)} strong />
+          {detail ? (
+            <>
+              <Row label="COD amount" value={formatMmk(detail.codAmount)} />
+              <Row label="Delivery fee" value={formatMmk(detail.deliveryFee)} />
+            </>
+          ) : null}
+        </Section>
+      )}
 
       {detail ? (
         <Section title="Parcel">
@@ -136,6 +105,91 @@ export default function ParcelDetailScreen() {
         <Text style={styles.mutedText}>Loading parcel details…</Text>
       )}
     </Screen>
+  );
+}
+
+type ActionProps = {
+  parcel: MobileRiderParcelListItemDto;
+  detail: MobileRiderParcelDetailDto | undefined;
+  onResult: (result: ActionResult | null) => void;
+};
+
+/** Start delivery, Mark delivered and the failure note, by status. */
+function DeliveryActions({ parcel, detail, onResult }: Readonly<ActionProps>) {
+  const startDelivery = useStartDelivery();
+
+  function start() {
+    onResult(null);
+    startDelivery.mutate([parcel.id], {
+      onSuccess: () => onResult({ tone: "success", message: "Parcel moved to on the way." }),
+      onError: (error) => onResult({ tone: "danger", message: error.message }),
+    });
+  }
+
+  function openFailureNote() {
+    router.push({ pathname: "/failure/[parcelId]", params: { parcelId: parcel.id } });
+  }
+
+  if (parcel.status === "at_office") {
+    return <Button busy={startDelivery.isPending} label="Start delivery" onPress={start} />;
+  }
+
+  if (parcel.status !== "on_the_way") {
+    return null;
+  }
+
+  if (!parcel.hasActiveFailureNote) {
+    return (
+      <>
+        <Button
+          label="Mark delivered"
+          onPress={() =>
+            router.push({ pathname: "/deliver/[parcelId]", params: { parcelId: parcel.id } })
+          }
+        />
+        <Button label="Report failure" onPress={openFailureNote} variant="secondary" />
+      </>
+    );
+  }
+
+  return detail?.activeFailureNote ? (
+    <View style={[styles.section, styles.failureSection]}>
+      <Text style={styles.sectionTitle}>Failure reported</Text>
+      <Text style={styles.bodyText}>{detail.activeFailureNote}</Text>
+      <Text style={styles.mutedText}>
+        An admin will review this parcel. Delete the note if you can still deliver it.
+      </Text>
+      <Button label="Edit note" onPress={openFailureNote} variant="secondary" />
+    </View>
+  ) : null;
+}
+
+/** Where a `canceled_returned` parcel goes back to, and "Mark returned". */
+function ReturnSection({ parcel, detail, onResult }: Readonly<ActionProps>) {
+  const returnToMerchant = useReturnToMerchant();
+  const contact = detail?.merchantReturnContact ?? null;
+
+  function markReturned() {
+    onResult(null);
+    returnToMerchant.mutate(parcel.id, {
+      onSuccess: () => onResult({ tone: "success", message: "Parcel returned to merchant." }),
+      onError: (error) => onResult({ tone: "danger", message: error.message }),
+    });
+  }
+
+  return (
+    <Section title="Return to merchant">
+      <Text style={styles.primaryText}>{parcel.merchantName}</Text>
+      {contact?.phoneNumber ? <PhoneLink phoneNumber={contact.phoneNumber} /> : null}
+      {contact ? <Text style={styles.bodyText}>{contact.address}</Text> : null}
+      <View style={styles.sectionAction}>
+        <Button
+          busy={returnToMerchant.isPending}
+          label="Mark returned"
+          onPress={() => confirmReturn(parcel, markReturned)}
+        />
+      </View>
+    </Section>
   );
 }
 
@@ -182,6 +236,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.warningSoft,
     borderColor: colors.warningSoft,
   },
+  sectionAction: {
+    paddingTop: spacing.sm,
+  },
   sectionTitle: {
     ...typography.micro,
     color: colors.inkMute,
@@ -192,12 +249,6 @@ const styles = StyleSheet.create({
   primaryText: {
     ...typography.headingLg,
     color: colors.ink,
-  },
-  phone: {
-    ...typography.bodyMd,
-    color: colors.primary,
-    fontWeight: "600",
-    textDecorationLine: "underline",
   },
   bodyText: {
     ...typography.bodyMd,

@@ -17,6 +17,8 @@ type ParcelCardProps = {
   onMarkDelivered?: () => void;
   /** Says a failure was reported, where "Mark delivered" would otherwise be. */
   failureReported?: boolean;
+  /** A "Mark returned" button for a parcel going back to its merchant. */
+  markReturned?: { returning: boolean; disabled: boolean; onPress: () => void };
 };
 
 export function ParcelCard({
@@ -26,7 +28,11 @@ export function ParcelCard({
   startDelivery,
   onMarkDelivered,
   failureReported = false,
+  markReturned,
 }: Readonly<ParcelCardProps>) {
+  // Nothing is collected on a return; the rider needs to know where it goes.
+  const isReturn = parcel.status === "canceled_returned";
+
   return (
     <Pressable
       accessibilityHint="Opens the parcel details"
@@ -69,8 +75,10 @@ export function ParcelCard({
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.amountLabel}>Amount to collect</Text>
-        <Text style={styles.amount}>{formatMmk(parcel.amountToCollect)}</Text>
+        <Text style={styles.amountLabel}>{isReturn ? "Return to" : "Amount to collect"}</Text>
+        <Text numberOfLines={1} style={styles.amount}>
+          {isReturn ? parcel.merchantName : formatMmk(parcel.amountToCollect)}
+        </Text>
       </View>
 
       {startDelivery ? (
@@ -87,6 +95,17 @@ export function ParcelCard({
       {onMarkDelivered ? (
         <View style={styles.actions}>
           <Button label="Mark delivered" onPress={onMarkDelivered} />
+        </View>
+      ) : null}
+
+      {markReturned ? (
+        <View style={styles.actions}>
+          <Button
+            busy={markReturned.returning}
+            disabled={markReturned.disabled}
+            label="Mark returned"
+            onPress={markReturned.onPress}
+          />
         </View>
       ) : null}
 
@@ -174,6 +193,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: spacing.md,
     borderTopColor: colors.hairline,
     borderTopWidth: 1,
     paddingHorizontal: spacing.lg,
@@ -185,6 +205,8 @@ const styles = StyleSheet.create({
   },
   amount: {
     ...typography.bodyMd,
+    flexShrink: 1,
+    textAlign: "right",
     color: colors.ink,
     fontWeight: "700",
   },

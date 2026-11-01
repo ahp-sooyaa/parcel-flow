@@ -1,13 +1,18 @@
-import type { MobileRiderParcelPageDto, MobileRiderParcelTab } from "@parcel-flow/contract";
+import type {
+  MobileRiderParcelListItemDto,
+  MobileRiderParcelPageDto,
+  MobileRiderParcelTab,
+} from "@parcel-flow/contract";
 import { router, Stack } from "expo-router";
 import { useState } from "react";
 import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 
-import { useRiderParcels, useStartDelivery } from "@/api/parcels";
+import { useReturnToMerchant, useRiderParcels, useStartDelivery } from "@/api/parcels";
 import { Button } from "@/components/button";
 import { LoadingScreen } from "@/components/loading-screen";
 import { Notice } from "@/components/notice";
 import { ParcelCard } from "@/components/parcel-card";
+import { confirmReturn } from "@/delivery/return-to-merchant";
 import { formatMmk } from "@/format";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
 
@@ -17,15 +22,17 @@ const tabs: { key: MobileRiderParcelTab; label: string; emptyMessage: string }[]
   { key: "returned", label: "Returned", emptyMessage: "No returned parcels." },
 ];
 
-type StartResult = { tone: "success" | "danger"; message: string };
+// The outcome of a start delivery or a return, shown above the list.
+type ActionResult = { tone: "success" | "danger"; message: string };
 
 export default function ParcelListScreen() {
   const [tab, setTab] = useState<MobileRiderParcelTab>("to_deliver");
   const [refreshing, setRefreshing] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [startResult, setStartResult] = useState<StartResult | null>(null);
+  const [actionResult, setActionResult] = useState<ActionResult | null>(null);
   const parcels = useRiderParcels(tab);
   const startDelivery = useStartDelivery();
+  const returnToMerchant = useReturnToMerchant();
   const activeTab = tabs.find((item) => item.key === tab) ?? tabs[0];
   // Counts come with every page; the first page is enough and is always loaded.
   const tabCounts: MobileRiderParcelPageDto["tabCounts"] | undefined =
@@ -43,7 +50,7 @@ export default function ParcelListScreen() {
   function selectTab(nextTab: MobileRiderParcelTab) {
     setTab(nextTab);
     setSelectedIds([]);
-    setStartResult(null);
+    setActionResult(null);
   }
 
   function toggleSelected(parcelId: string) {
@@ -53,11 +60,11 @@ export default function ParcelListScreen() {
   }
 
   function runStart(parcelIds: string[]) {
-    setStartResult(null);
+    setActionResult(null);
     startDelivery.mutate(parcelIds, {
       onSuccess: (data) => {
         setSelectedIds((current) => current.filter((id) => !data.parcelIds.includes(id)));
-        setStartResult({
+        setActionResult({
           tone: "success",
           message:
             parcelIds.length === 1
@@ -65,7 +72,7 @@ export default function ParcelListScreen() {
               : "Selected parcels moved to on the way.",
         });
       },
-      onError: (error) => setStartResult({ tone: "danger", message: error.message }),
+      onError: (error) => setActionResult({ tone: "danger", message: error.message }),
     });
   }
 
@@ -87,9 +94,61 @@ export default function ParcelListScreen() {
     );
   }
 
+  function runReturn(parcel: MobileRiderParcelListItemDto) {
+    setActionResult(null);
+    returnToMerchant.mutate(parcel.id, {
+      onSuccess: () =>
+        setActionResult({ tone: "success", message: "Parcel returned to merchant." }),
+      onError: (error) => setActionResult({ tone: "danger", message: error.message }),
+    });
+  }
+
+  /** The action props for one card on the To deliver tab; none on other tabs. */
+  function cardActions(item: MobileRiderParcelListItemDto) {
+    if (!canStart) {
+      return {};
+    }
+
+    if (item.status === "at_office") {
+      return {
+        selection: {
+          checked: selectedIds.includes(item.id),
+          disabled: startDelivery.isPending,
+          onToggle: () => toggleSelected(item.id),
+        },
+        startDelivery: {
+          starting: startingIds.length === 1 && startingIds[0] === item.id,
+          disabled: startDelivery.isPending,
+          onPress: () => runStart([item.id]),
+        },
+      };
+    }
+
+    if (item.status === "on_the_way") {
+      return item.hasActiveFailureNote
+        ? { failureReported: true }
+        : {
+            onMarkDelivered: () =>
+              router.push({ pathname: "/deliver/[parcelId]", params: { parcelId: item.id } }),
+          };
+    }
+
+    if (item.status === "canceled_returned") {
+      return {
+        markReturned: {
+          returning: returnToMerchant.isPending && returnToMerchant.variables === item.id,
+          disabled: returnToMerchant.isPending,
+          onPress: () => confirmReturn(item, () => runReturn(item)),
+        },
+      };
+    }
+
+    return {};
+  }
+
   async function handleRefresh() {
     setRefreshing(true);
-    setStartResult(null);
+    setActionResult(null);
     await parcels.refetch();
     setRefreshing(false);
   }
@@ -119,9 +178,9 @@ export default function ParcelListScreen() {
         })}
       </View>
 
-      {startResult ? (
+      {actionResult ? (
         <View style={styles.result}>
-          <Notice message={startResult.message} tone={startResult.tone} />
+          <Notice message={actionResult.message} tone={actionResult.tone} />
         </View>
       ) : null}
 
@@ -164,50 +223,15 @@ export default function ParcelListScreen() {
               refreshing={refreshing}
             />
           }
-          renderItem={({ item }) => {
-            const startable = canStart && item.status === "at_office";
-            const deliverable =
-              canStart && item.status === "on_the_way" && !item.hasActiveFailureNote;
-            const failureReported =
-              canStart && item.status === "on_the_way" && item.hasActiveFailureNote;
-
-            return (
-              <ParcelCard
-                onPress={() =>
-                  router.push({ pathname: "/parcels/[parcelId]", params: { parcelId: item.id } })
-                }
-                parcel={item}
-                selection={
-                  startable
-                    ? {
-                        checked: selectedIds.includes(item.id),
-                        disabled: startDelivery.isPending,
-                        onToggle: () => toggleSelected(item.id),
-                      }
-                    : undefined
-                }
-                startDelivery={
-                  startable
-                    ? {
-                        starting: startingIds.length === 1 && startingIds[0] === item.id,
-                        disabled: startDelivery.isPending,
-                        onPress: () => runStart([item.id]),
-                      }
-                    : undefined
-                }
-                onMarkDelivered={
-                  deliverable
-                    ? () =>
-                        router.push({
-                          pathname: "/deliver/[parcelId]",
-                          params: { parcelId: item.id },
-                        })
-                    : undefined
-                }
-                failureReported={failureReported}
-              />
-            );
-          }}
+          renderItem={({ item }) => (
+            <ParcelCard
+              onPress={() =>
+                router.push({ pathname: "/parcels/[parcelId]", params: { parcelId: item.id } })
+              }
+              parcel={item}
+              {...cardActions(item)}
+            />
+          )}
         />
       ) : null}
 

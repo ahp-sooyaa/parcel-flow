@@ -9,6 +9,7 @@ import {
   deleteDeliveryFailureForRiderParcel,
   getParcelByIdForRealtimeScope,
   markRiderParcelDelivered as markRiderParcelDeliveredInDatabase,
+  markRiderParcelReturnedToMerchant,
   reportDeliveryFailureForRiderParcel,
   startDeliveryForRiderParcels,
   updateDeliveryFailureForRiderParcel,
@@ -392,6 +393,59 @@ export async function deleteRiderDeliveryFailure(
       deleteDeliveryFailureForRiderParcel({ parcelId, riderUserId, actorRole: "rider" }),
     activeFailureNote: () => null,
   });
+}
+
+const returnToMerchantInputSchema = z.object({
+  parcelId: z.uuid("Invalid parcel selection."),
+});
+
+export type ReturnRiderParcelToMerchantResult =
+  | { ok: true; message: string; parcelId: string }
+  | RiderOperationFailure;
+
+/** Completes the rider's assigned `canceled_returned` parcel as returned to its merchant. */
+export async function returnRiderParcelToMerchant(
+  actor: CurrentUser,
+  input: unknown,
+  options: { caller: ParcelOperationCaller },
+): Promise<ReturnRiderParcelToMerchantResult> {
+  const parseResult = returnToMerchantInputSchema.safeParse(input);
+
+  if (!parseResult.success) {
+    return {
+      ok: false,
+      reason: "invalid",
+      message: parseResult.error.issues[0]?.message ?? "Invalid return completion details.",
+    };
+  }
+
+  if (
+    actor.role !== "rider" ||
+    !canChangeParcelStatus(actor.role, "canceled_returned", "returned_to_merchant")
+  ) {
+    return {
+      ok: false,
+      reason: "forbidden",
+      message: "You do not have permission to complete parcel returns.",
+    };
+  }
+
+  const { parcelId } = parseResult.data;
+
+  try {
+    await markRiderParcelReturnedToMerchant({
+      parcelId,
+      riderUserId: actor.id,
+      actorRole: actor.role,
+      createdBy: actor.id,
+    });
+  } catch (error) {
+    return toFailure(error, "Unable to complete parcel return.");
+  }
+
+  revalidateParcelOperationalPaths({ caller: options.caller, riderUserId: actor.id });
+
+  return { ok: true, message: "Parcel returned to merchant.", parcelId };
 }
 
 async function removeOrphanedProofImage(objectKey: string) {

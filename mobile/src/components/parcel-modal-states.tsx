@@ -1,13 +1,14 @@
 import type { MobileRiderParcelListItemDto } from "@parcel-flow/contract";
 import { router } from "expo-router";
 import type { ReactNode } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { MobileApiError } from "@/api/client";
 import type { useRiderParcel } from "@/api/parcels";
 import { Button } from "@/components/button";
 import { LoadingScreen } from "@/components/loading-screen";
 import { Notice } from "@/components/notice";
+import { PhoneLink } from "@/components/phone-link";
 import { Screen } from "@/components/screen";
 import { colors, spacing, typography } from "@/theme/tokens";
 
@@ -71,16 +72,7 @@ export function ParcelSummary({
     <View style={styles.summary}>
       <Text style={styles.code}>{parcel.parcelCode}</Text>
       <Text style={styles.receiver}>{parcel.receiverName}</Text>
-      {callable ? (
-        <Pressable
-          accessibilityHint="Opens the phone dialer"
-          accessibilityLabel={`Call ${parcel.receiverPhoneNumber}`}
-          accessibilityRole="link"
-          onPress={() => void Linking.openURL(`tel:${parcel.receiverPhoneNumber}`)}
-        >
-          <Text style={styles.phone}>{parcel.receiverPhoneNumber}</Text>
-        </Pressable>
-      ) : null}
+      {callable ? <PhoneLink phoneNumber={parcel.receiverPhoneNumber} /> : null}
       <Text style={styles.address}>{parcel.receiverAddress}</Text>
     </View>
   );
@@ -98,12 +90,6 @@ const styles = StyleSheet.create({
   receiver: {
     ...typography.headingLg,
     color: colors.ink,
-  },
-  phone: {
-    ...typography.bodyMd,
-    color: colors.primary,
-    fontWeight: "600",
-    textDecorationLine: "underline",
   },
   address: {
     ...typography.bodyMd,
