@@ -21,7 +21,7 @@ export type FakeChannel = {
 /** Replaces `@/lib/supabase/server`'s admin client, keeping its other exports. */
 export async function mockSupabaseRealtime() {
   const channels: FakeChannel[] = [];
-  const removeChannel = mock(async () => "ok");
+  const removeChannel = mock(() => Promise.resolve("ok"));
   const actualSupabaseServer = await import("@/lib/supabase/server");
 
   void mock.module("@/lib/supabase/server", () => ({
