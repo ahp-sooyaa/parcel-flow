@@ -1,12 +1,12 @@
+import type { MobileRiderParcelListItemDto } from "@parcel-flow/contract";
 import {
   MOBILE_FAILURE_NOTE_MAX_LENGTH,
   mobileFailureNoteRequestSchema,
 } from "@parcel-flow/contract";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, BackHandler, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, BackHandler, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { MobileApiError } from "@/api/client";
 import {
   useDeleteFailureNote,
   useReportFailure,
@@ -14,8 +14,8 @@ import {
   useUpdateFailureNote,
 } from "@/api/parcels";
 import { Button } from "@/components/button";
-import { LoadingScreen } from "@/components/loading-screen";
 import { Notice } from "@/components/notice";
+import { NotEligible, ParcelSummary, parcelLoadState } from "@/components/parcel-modal-states";
 import { Screen } from "@/components/screen";
 import { TextField } from "@/components/text-field";
 import { addQuickReason, QUICK_FAILURE_REASONS } from "@/delivery/failure-reasons";
@@ -24,29 +24,76 @@ import { colors, radii, spacing, typography } from "@/theme/tokens";
 export default function FailureNoteScreen() {
   const { parcelId } = useLocalSearchParams<{ parcelId: string }>();
   const parcel = useRiderParcel(parcelId);
-  const report = useReportFailure(parcelId);
-  const update = useUpdateFailureNote(parcelId);
-  const remove = useDeleteFailureNote(parcelId);
-  const [draft, setDraft] = useState("");
-  const [seededFrom, setSeededFrom] = useState<string | null>(null);
   const [openedMode, setOpenedMode] = useState<"report" | "edit" | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const summary = parcel.data ?? parcel.preview;
   const existingNote = parcel.data?.activeFailureNote ?? null;
   // The list row only says whether a note exists; its text comes with the detail.
   const hasNote = parcel.data ? existingNote !== null : (summary?.hasActiveFailureNote ?? false);
-  const saving = report.isPending || update.isPending || remove.isPending;
+  const title = hasNote ? "Edit failure note" : "Report failure";
 
   // Remember which form the rider opened, to tell them if a note turns up meanwhile.
   if (summary && openedMode === null && (parcel.data || !hasNote)) {
     setOpenedMode(hasNote ? "edit" : "report");
   }
 
+  const screenOptions = <Stack.Screen options={{ title }} />;
+  const loadState = parcelLoadState(parcel, {
+    screenOptions,
+    ready: summary !== undefined && (!hasNote || parcel.data !== undefined),
+  });
+
+  if (loadState || !summary) {
+    return loadState;
+  }
+
+  if (summary.status !== "on_the_way") {
+    return (
+      <NotEligible
+        message={`This parcel is ${summary.statusLabel.toLowerCase()}, so its failure note can't be changed.`}
+        options={screenOptions}
+      />
+    );
+  }
+
+  return (
+    <FailureNoteForm
+      alreadyReported={openedMode === "report" && hasNote}
+      existingNote={existingNote}
+      parcel={summary}
+      title={title}
+    />
+  );
+}
+
+type FailureNoteFormProps = {
+  parcel: MobileRiderParcelListItemDto;
+  /** The saved note's text, or null when reporting a new failure. */
+  existingNote: string | null;
+  /** The rider opened the screen to report, but a note was reported meanwhile. */
+  alreadyReported: boolean;
+  title: string;
+};
+
+function FailureNoteForm({
+  parcel,
+  existingNote,
+  alreadyReported,
+  title,
+}: Readonly<FailureNoteFormProps>) {
+  const report = useReportFailure(parcel.id);
+  const update = useUpdateFailureNote(parcel.id);
+  const remove = useDeleteFailureNote(parcel.id);
+  const [draft, setDraft] = useState(existingNote ?? "");
+  const [seededFrom, setSeededFrom] = useState(existingNote);
+  const [error, setError] = useState<string | null>(null);
+  const hasNote = existingNote !== null;
+  const saving = report.isPending || update.isPending || remove.isPending;
+
   // Start from the saved note, without replacing anything the rider has typed.
-  if (existingNote !== null && existingNote !== seededFrom) {
+  if (existingNote !== seededFrom) {
     setSeededFrom(existingNote);
 
-    if (draft.trim() === "") {
+    if (existingNote !== null && draft.trim() === "") {
       setDraft(existingNote);
     }
   }
@@ -61,43 +108,8 @@ export default function FailureNoteScreen() {
     return () => subscription.remove();
   }, [saving]);
 
-  const screenOptions = (
-    <Stack.Screen
-      options={{ title: hasNote ? "Edit failure note" : "Report failure", gestureEnabled: !saving }}
-    />
-  );
-
-  if (parcel.isError && parcel.error instanceof MobileApiError && parcel.error.status === 404) {
-    return (
-      <NotEligible message="This parcel is no longer assigned to you." options={screenOptions} />
-    );
-  }
-
-  if (!summary || (hasNote && !parcel.data)) {
-    if (parcel.isError) {
-      return (
-        <Screen>
-          {screenOptions}
-          <Notice message={parcel.error.message} />
-          <Button label="Try again" onPress={() => void parcel.refetch()} variant="secondary" />
-        </Screen>
-      );
-    }
-
-    return <LoadingScreen />;
-  }
-
-  if (summary.status !== "on_the_way") {
-    return (
-      <NotEligible
-        message={`This parcel is ${summary.statusLabel.toLowerCase()}, so its failure note can't be changed.`}
-        options={screenOptions}
-      />
-    );
-  }
-
   const parsed = mobileFailureNoteRequestSchema.safeParse({ note: draft });
-  const unchanged = hasNote && parsed.success && parsed.data.note === existingNote;
+  const unchanged = parsed.success && parsed.data.note === existingNote;
   const canSave = parsed.success && !unchanged;
 
   const callbacks = {
@@ -135,23 +147,11 @@ export default function FailureNoteScreen() {
 
   return (
     <Screen>
-      {screenOptions}
+      <Stack.Screen options={{ title, gestureEnabled: !saving }} />
 
-      <View style={styles.summary}>
-        <Text style={styles.code}>{summary.parcelCode}</Text>
-        <Text style={styles.receiver}>{summary.receiverName}</Text>
-        <Pressable
-          accessibilityHint="Opens the phone dialer"
-          accessibilityLabel={`Call ${summary.receiverPhoneNumber}`}
-          accessibilityRole="link"
-          onPress={() => void Linking.openURL(`tel:${summary.receiverPhoneNumber}`)}
-        >
-          <Text style={styles.phone}>{summary.receiverPhoneNumber}</Text>
-        </Pressable>
-        <Text style={styles.address}>{summary.receiverAddress}</Text>
-      </View>
+      <ParcelSummary callable parcel={parcel} />
 
-      {openedMode === "report" && hasNote ? (
+      {alreadyReported ? (
         <Notice
           message="A failure note was already reported for this parcel. Saving replaces it."
           tone="warning"
@@ -214,42 +214,7 @@ export default function FailureNoteScreen() {
   );
 }
 
-function NotEligible({
-  message,
-  options,
-}: Readonly<{ message: string; options: React.ReactNode }>) {
-  return (
-    <Screen>
-      {options}
-      <Notice message={message} tone="warning" />
-      <Button label="Back" onPress={() => router.back()} variant="secondary" />
-    </Screen>
-  );
-}
-
 const styles = StyleSheet.create({
-  summary: {
-    gap: spacing.xxs,
-  },
-  code: {
-    ...typography.caption,
-    color: colors.inkMute,
-    fontFamily: "monospace",
-  },
-  receiver: {
-    ...typography.headingLg,
-    color: colors.ink,
-  },
-  phone: {
-    ...typography.bodyMd,
-    color: colors.primary,
-    fontWeight: "600",
-    textDecorationLine: "underline",
-  },
-  address: {
-    ...typography.bodyMd,
-    color: colors.ink,
-  },
   reasons: {
     gap: spacing.sm,
   },

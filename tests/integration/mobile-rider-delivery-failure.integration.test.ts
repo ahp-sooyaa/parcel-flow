@@ -4,48 +4,15 @@ import { eq } from "drizzle-orm";
 import { financialItems, parcels } from "@/db/schema";
 import { mobileFailureNoteResponseSchema } from "@/features/mobile-api/contract";
 import { ParcelOperationError } from "@/features/parcels/server/errors";
-import type { ParcelFailureNoteEntry } from "@/features/parcels/server/failure-notes";
-import type { ParcelStatus } from "@/lib/domain";
-import { buildCurrentUser, buildSessionUser } from "../fixtures/builders";
+import { buildCurrentUser } from "../fixtures/builders";
 import { cleanupTestRecords } from "../fixtures/cleanup";
 import { closeTestDatabase, createTestDatabase } from "../fixtures/db";
-import {
-  seedTestMerchant,
-  seedTestParcel,
-  seedTestRider,
-  seedTestTownship,
-  seedTestUser,
-} from "../fixtures/seed";
+import { createSeededIds, mockMobileRiderSession, seedTwoRiders } from "../fixtures/mobile-rider";
 
 // The real operations, DAL and database run. The session lookup is stubbed so
 // each test picks the rider, and R2 uploads are stubbed for the delivery check.
-let sessionUserId: string | null = null;
-
-void mock.module("next/headers", () => ({
-  headers: async () => new Headers(),
-}));
-
-// Bun keeps module mocks for later test files, so keep the real exports
-// (mobile-auth.integration.test.ts needs the real `auth.handler` and sessions).
-// Capture them before mocking: the module namespace is live and gets patched.
-const actualAuth = { ...(await import("@/lib/auth")) };
-const realAuth = actualAuth.auth;
-const realGetSession = realAuth.api.getSession.bind(realAuth.api);
+const session = await mockMobileRiderSession();
 const actualUpload = await import("@/features/parcels/server/upload");
-
-void mock.module("@/lib/auth", () => ({
-  ...actualAuth,
-  auth: {
-    ...realAuth,
-    api: {
-      ...realAuth.api,
-      getSession: async (...args: Parameters<typeof realGetSession>) =>
-        sessionUserId
-          ? buildSessionUser({ id: sessionUserId, role: "rider" })
-          : realGetSession(...args),
-    },
-  },
-}));
 
 void mock.module("@/features/parcels/server/upload", () => ({
   ...actualUpload,
@@ -54,13 +21,7 @@ void mock.module("@/features/parcels/server/upload", () => ({
   deleteDeliveryProofImage: async () => undefined,
 }));
 
-const seededIds = {
-  userIds: [] as string[],
-  merchantIds: [] as string[],
-  riderIds: [] as string[],
-  townshipIds: [] as string[],
-  parcelIds: [] as string[],
-};
+const seededIds = createSeededIds();
 
 describe("mobile rider delivery failure integration", async () => {
   const testDb = createTestDatabase();
@@ -70,7 +31,7 @@ describe("mobile rider delivery failure integration", async () => {
     await import("@/features/parcels/server/dal");
 
   afterEach(async () => {
-    sessionUserId = null;
+    session.signInAs(null);
     await cleanupTestRecords(testDb.db, seededIds);
     for (const ids of Object.values(seededIds)) {
       ids.length = 0;
@@ -81,53 +42,19 @@ describe("mobile rider delivery failure integration", async () => {
     await closeTestDatabase(testDb.client);
   });
 
-  async function seedTwoRiders() {
-    const township = await seedTestTownship(testDb.db);
-    const creator = await seedTestUser(testDb.db, { role: "super_admin" });
-    const merchantSeed = await seedTestMerchant(testDb.db);
-    const riderA = await seedTestRider(testDb.db, { townshipId: township.id });
-    const riderB = await seedTestRider(testDb.db, { townshipId: township.id });
-
-    seededIds.townshipIds.push(township.id);
-    seededIds.userIds.push(
-      creator.id,
-      merchantSeed.user?.id ?? "",
-      riderA.user?.id ?? "",
-      riderB.user?.id ?? "",
-    );
-    seededIds.merchantIds.push(merchantSeed.merchant.id);
-    seededIds.riderIds.push(riderA.rider.id, riderB.rider.id);
-
-    async function parcelFor(
-      riderId: string,
-      status: ParcelStatus,
-      deliveryFailureNote: ParcelFailureNoteEntry[] | null = null,
-    ) {
-      const { parcel } = await seedTestParcel(testDb.db, {
-        riderId,
-        status,
-        merchantId: merchantSeed.merchant.id,
-        townshipId: township.id,
-        createdBy: creator.id,
-        parcelType: "cod",
-        codAmount: 20_000,
-        deliveryFee: 3_000,
-        deliveryFailureNote,
-      });
-      seededIds.parcelIds.push(parcel.id);
-      return parcel;
-    }
+  async function seedTwoRiderParcels() {
+    const seed = await seedTwoRiders(testDb, seededIds);
 
     return {
-      riderAId: riderA.rider.id,
-      riderAUserId: riderA.user?.id ?? "",
-      aOnTheWay: await parcelFor(riderA.rider.id, "on_the_way"),
-      aAtOffice: await parcelFor(riderA.rider.id, "at_office"),
-      aWithHistory: await parcelFor(riderA.rider.id, "on_the_way", [
+      riderAId: seed.riderAId,
+      riderAUserId: seed.riderAUserId,
+      aOnTheWay: await seed.parcelFor(seed.riderAId, "on_the_way"),
+      aAtOffice: await seed.parcelFor(seed.riderAId, "at_office"),
+      aWithHistory: await seed.parcelFor(seed.riderAId, "on_the_way", [
         { note: "Resolved earlier.", status: "inactive" },
         { note: "Receiver not home.", status: "active" },
       ]),
-      bOnTheWay: await parcelFor(riderB.rider.id, "on_the_way"),
+      bOnTheWay: await seed.parcelFor(seed.riderBId, "on_the_way"),
     };
   }
 
@@ -167,8 +94,8 @@ describe("mobile rider delivery failure integration", async () => {
   }
 
   test("report, edit and delete a note, then deliver the parcel", async () => {
-    const seed = await seedTwoRiders();
-    sessionUserId = seed.riderAUserId;
+    const seed = await seedTwoRiderParcels();
+    session.signInAs(seed.riderAUserId);
     const before = await parcelRow(seed.aOnTheWay.id);
     const itemsBefore = await financialItemCount(seed.aOnTheWay.id);
 
@@ -217,8 +144,8 @@ describe("mobile rider delivery failure integration", async () => {
   });
 
   test("deleting the active note keeps inactive history", async () => {
-    const seed = await seedTwoRiders();
-    sessionUserId = seed.riderAUserId;
+    const seed = await seedTwoRiderParcels();
+    session.signInAs(seed.riderAUserId);
 
     expect((await send("DELETE", seed.aWithHistory.id)).status).toBe(200);
     expect((await parcelRow(seed.aWithHistory.id))?.deliveryFailureNote).toEqual([
@@ -227,8 +154,8 @@ describe("mobile rider delivery failure integration", async () => {
   });
 
   test("another rider's parcel is a 404 for every verb, with no change", async () => {
-    const seed = await seedTwoRiders();
-    sessionUserId = seed.riderAUserId;
+    const seed = await seedTwoRiderParcels();
+    session.signInAs(seed.riderAUserId);
 
     expect((await send("POST", seed.bOnTheWay.id, "Not mine.")).status).toBe(404);
     expect((await send("PATCH", seed.bOnTheWay.id, "Not mine.")).status).toBe(404);
@@ -237,8 +164,8 @@ describe("mobile rider delivery failure integration", async () => {
   });
 
   test("an at-office parcel, or editing without a note, is a 409", async () => {
-    const seed = await seedTwoRiders();
-    sessionUserId = seed.riderAUserId;
+    const seed = await seedTwoRiderParcels();
+    session.signInAs(seed.riderAUserId);
 
     expect((await send("POST", seed.aAtOffice.id, "Too early.")).status).toBe(409);
     expect((await send("PATCH", seed.aOnTheWay.id, "No note yet.")).status).toBe(409);
@@ -247,7 +174,7 @@ describe("mobile rider delivery failure integration", async () => {
   });
 
   test("the DAL throws typed errors", async () => {
-    const seed = await seedTwoRiders();
+    const seed = await seedTwoRiderParcels();
 
     const notAssigned: unknown = await reportDeliveryFailureForRiderParcel({
       parcelId: seed.bOnTheWay.id,

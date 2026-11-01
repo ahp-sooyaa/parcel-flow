@@ -11,11 +11,10 @@ import {
   View,
 } from "react-native";
 
-import { MobileApiError } from "@/api/client";
 import { useMarkDelivered, useRiderParcel } from "@/api/parcels";
 import { Button } from "@/components/button";
-import { LoadingScreen } from "@/components/loading-screen";
 import { Notice } from "@/components/notice";
+import { NotEligible, ParcelSummary, parcelLoadState } from "@/components/parcel-modal-states";
 import { Screen } from "@/components/screen";
 import {
   chooseProofPhoto,
@@ -88,24 +87,10 @@ export default function MarkDeliveredScreen() {
     );
   }
 
-  if (parcel.isError && parcel.error instanceof MobileApiError && parcel.error.status === 404) {
-    return (
-      <NotEligible message="This parcel is no longer assigned to you." options={screenOptions} />
-    );
-  }
+  const loadState = parcelLoadState(parcel, { screenOptions, ready: summary !== undefined });
 
-  if (!summary) {
-    if (parcel.isError) {
-      return (
-        <Screen>
-          {screenOptions}
-          <Notice message={parcel.error.message} />
-          <Button label="Try again" onPress={() => void parcel.refetch()} variant="secondary" />
-        </Screen>
-      );
-    }
-
-    return <LoadingScreen />;
+  if (loadState || !summary) {
+    return loadState;
   }
 
   if (summary.status !== "on_the_way") {
@@ -130,11 +115,7 @@ export default function MarkDeliveredScreen() {
     <Screen>
       {screenOptions}
 
-      <View style={styles.summary}>
-        <Text style={styles.code}>{summary.parcelCode}</Text>
-        <Text style={styles.receiver}>{summary.receiverName}</Text>
-        <Text style={styles.address}>{summary.receiverAddress}</Text>
-      </View>
+      <ParcelSummary parcel={summary} />
 
       <View style={styles.collect}>
         <Text style={styles.collectLabel}>Collect</Text>
@@ -235,36 +216,7 @@ function PhotoPicker({
   );
 }
 
-function NotEligible({
-  message,
-  options,
-}: Readonly<{ message: string; options: React.ReactNode }>) {
-  return (
-    <Screen>
-      {options}
-      <Notice message={message} tone="warning" />
-      <Button label="Back" onPress={() => router.back()} variant="secondary" />
-    </Screen>
-  );
-}
-
 const styles = StyleSheet.create({
-  summary: {
-    gap: spacing.xxs,
-  },
-  code: {
-    ...typography.caption,
-    color: colors.inkMute,
-    fontFamily: "monospace",
-  },
-  receiver: {
-    ...typography.headingLg,
-    color: colors.ink,
-  },
-  address: {
-    ...typography.bodyMd,
-    color: colors.ink,
-  },
   collect: {
     alignItems: "center",
     gap: spacing.xxs,
