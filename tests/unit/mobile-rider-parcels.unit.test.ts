@@ -18,6 +18,9 @@ const headersMock = mock(async () => new Headers());
 const listRiderParcelsPageForUserMock = mock(
   async (): Promise<RiderParcelListPageDto> => buildPage(),
 );
+const getMerchantReturnContactMock = mock(
+  async (): Promise<{ address: string; phoneNumber: string | null } | null> => null,
+);
 const getParcelByIdForRealtimeScopeMock = mock(
   async (): Promise<ReturnType<typeof buildParcelListItem> | null> => null,
 );
@@ -41,6 +44,7 @@ void mock.module("@/features/parcels/server/dal", () => ({
   ...actualParcelsDal,
   listRiderParcelsPageForUser: listRiderParcelsPageForUserMock,
   getParcelByIdForRealtimeScope: getParcelByIdForRealtimeScopeMock,
+  getMerchantReturnContact: getMerchantReturnContactMock,
 }));
 
 const riderId = "8b3c5d4e-1111-4a2b-9c3d-000000000001";
@@ -84,6 +88,8 @@ describe("mobile rider parcel routes", async () => {
     listRiderParcelsPageForUserMock.mockResolvedValue(buildPage());
     getParcelByIdForRealtimeScopeMock.mockReset();
     getParcelByIdForRealtimeScopeMock.mockResolvedValue(null);
+    getMerchantReturnContactMock.mockReset();
+    getMerchantReturnContactMock.mockResolvedValue(null);
   });
 
   describe("GET /rider/parcels", () => {
@@ -145,6 +151,7 @@ describe("mobile rider parcel routes", async () => {
               id: parcelId,
               parcelCode: "PF-000123-000045",
               status: "delivered",
+              merchantName: "Golden Leaf Tea",
               receiverName: "Daw Mya",
               receiverPhoneNumber: "09400000000",
               receiverAddress: "No. 12, Bogyoke Road",
@@ -176,6 +183,7 @@ describe("mobile rider parcel routes", async () => {
             parcelCode: "PF-000123-000045",
             status: "delivered",
             statusLabel: "Delivered",
+            merchantName: "Golden Leaf Tea",
             receiverName: "Daw Mya",
             receiverPhoneNumber: "09400000000",
             receiverAddress: "No. 12, Bogyoke Road",
@@ -280,7 +288,34 @@ describe("mobile rider parcel routes", async () => {
         specialNotes: "Call before arriving",
         hasActiveFailureNote: true,
         activeFailureNote: "Receiver not home",
+        merchantReturnContact: null,
         createdAt: "2026-10-29T08:00:00.000Z",
+      });
+      // Only a return needs the merchant's contact.
+      expect(getMerchantReturnContactMock).not.toHaveBeenCalled();
+    });
+
+    test("adds the merchant's return contact for a parcel awaiting return", async () => {
+      signInAs("rider");
+      getParcelByIdForRealtimeScopeMock.mockResolvedValue(
+        buildParcelListItem({
+          id: parcelId,
+          status: "canceled_returned",
+          merchantId: "merchant-1",
+        }),
+      );
+      getMerchantReturnContactMock.mockResolvedValue({
+        address: "No. 5, Pansodan Street",
+        phoneNumber: "09977000000",
+      });
+
+      const response = await getDetail(new Request("http://localhost"), detailContext(parcelId));
+      const body = mobileRiderParcelDetailResponseSchema.parse(await response.json());
+
+      expect(getMerchantReturnContactMock).toHaveBeenCalledWith("merchant-1");
+      expect(body.data.merchantReturnContact).toEqual({
+        address: "No. 5, Pansodan Street",
+        phoneNumber: "09977000000",
       });
     });
   });

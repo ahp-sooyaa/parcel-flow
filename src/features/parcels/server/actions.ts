@@ -9,7 +9,6 @@ import {
   correctParcelStatus,
   createParcel,
   getParcelByIdForRealtimeScope,
-  markRiderParcelReturnedToMerchant,
   resolveFailedParcelByAdmin,
   updateParcel,
 } from "@/features/parcels/server/dal";
@@ -22,6 +21,7 @@ import {
 import {
   deleteRiderDeliveryFailure,
   reportRiderDeliveryFailure,
+  returnRiderParcelToMerchant,
   startRiderDelivery,
   updateRiderDeliveryFailure,
 } from "@/features/parcels/server/rider-operations";
@@ -432,45 +432,13 @@ export async function updateDeliveryFailureForRiderParcelAction(input: unknown) 
 
 export async function markRiderParcelReturnedToMerchantAction(input: unknown) {
   const actor = await requireCurrentUser();
-  const parseResult = resolveFailedParcelInputSchema.safeParse(normalizeFormInput(input));
+  const result = await returnRiderParcelToMerchant(actor, normalizeFormInput(input), {
+    caller: "server-action",
+  });
 
-  if (!parseResult.success) {
-    return {
-      ok: false as const,
-      message: parseResult.error.issues[0]?.message ?? "Invalid return completion details.",
-    };
-  }
-
-  if (
-    actor.role !== "rider" ||
-    !canChangeParcelStatus(actor.role, "canceled_returned", "returned_to_merchant")
-  ) {
-    return {
-      ok: false as const,
-      message: "You do not have permission to complete parcel returns.",
-    };
-  }
-
-  try {
-    await markRiderParcelReturnedToMerchant({
-      parcelId: parseResult.data.parcelId,
-      riderUserId: actor.id,
-      actorRole: actor.role,
-      createdBy: actor.id,
-    });
-  } catch (error) {
-    return {
-      ok: false as const,
-      message: error instanceof Error ? error.message : "Unable to complete parcel return.",
-    };
-  }
-
-  revalidateParcelOperationalPaths({ caller: "server-action" });
-
-  return {
-    ok: true as const,
-    message: "Parcel returned to merchant.",
-  };
+  return result.ok
+    ? { ok: true as const, message: result.message }
+    : { ok: false as const, message: result.message };
 }
 
 const parcelIdSchema = z.uuid("Invalid parcel selection.");

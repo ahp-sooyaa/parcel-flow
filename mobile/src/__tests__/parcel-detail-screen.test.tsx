@@ -1,11 +1,11 @@
-import { fireEvent, screen } from "@testing-library/react-native";
-import { Linking } from "react-native";
+import { act, fireEvent, screen } from "@testing-library/react-native";
+import { Alert, Linking } from "react-native";
 
 import { apiGet, apiPost, MobileApiError } from "@/api/client";
 import { riderParcelsQueryKey } from "@/api/parcels";
 import { queryClient } from "@/api/query-client";
 import ParcelDetailScreen from "@/app/(rider)/parcels/[parcelId]";
-import { buildDetail, buildListItem, renderWithQueryClient } from "./test-utils";
+import { buildDetail, buildListItem, pressAlertButton, renderWithQueryClient } from "./test-utils";
 
 const parcelId = "0f7a3c2e-2222-4b1c-8d9e-000000000001";
 
@@ -32,7 +32,11 @@ beforeEach(() => {
 describe("ParcelDetailScreen", () => {
   it("shows the parcel's details", async () => {
     apiGetMock.mockResolvedValue(
-      buildDetail({ specialNotes: "Call before arriving", activeFailureNote: "Not home" }),
+      buildDetail({
+        specialNotes: "Call before arriving",
+        hasActiveFailureNote: true,
+        activeFailureNote: "Not home",
+      }),
     );
 
     await renderWithQueryClient(<ParcelDetailScreen />);
@@ -217,5 +221,88 @@ describe("ParcelDetailScreen failure notes", () => {
 
     expect(screen.queryByRole("button", { name: "Report failure" })).not.toBeOnTheScreen();
     expect(screen.queryByRole("button", { name: "Edit note" })).not.toBeOnTheScreen();
+  });
+});
+
+describe("ParcelDetailScreen return to merchant", () => {
+  const returnDetail = buildDetail({
+    id: parcelId,
+    status: "canceled_returned",
+    statusLabel: "Canceled",
+    merchantName: "Golden Leaf Tea",
+    merchantReturnContact: { address: "No. 5, Pansodan Street", phoneNumber: "09977000000" },
+  });
+
+  it("shows where the parcel goes, without collection amounts", async () => {
+    const openURL = jest.spyOn(Linking, "openURL").mockResolvedValue(undefined);
+    apiGetMock.mockResolvedValue(returnDetail);
+    await renderWithQueryClient(<ParcelDetailScreen />);
+    await screen.findByText("No. 5, Pansodan Street");
+
+    expect(screen.getByText("Return to merchant")).toBeOnTheScreen();
+    expect(screen.queryByText("Collection")).not.toBeOnTheScreen();
+    expect(screen.queryByText("Amount to collect")).not.toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Mark delivered" })).not.toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole("link", { name: "Call 09977000000" }));
+    expect(openURL).toHaveBeenCalledWith("tel:09977000000");
+    openURL.mockRestore();
+  });
+
+  it("hides a phone number the merchant doesn't have", async () => {
+    apiGetMock.mockResolvedValue({
+      ...returnDetail,
+      merchantReturnContact: { address: "No. 5, Pansodan Street", phoneNumber: null },
+    });
+    await renderWithQueryClient(<ParcelDetailScreen />);
+    await screen.findByText("No. 5, Pansodan Street");
+
+    expect(screen.queryByRole("link", { name: /Call 099/ })).not.toBeOnTheScreen();
+  });
+
+  it("confirms and returns the parcel", async () => {
+    apiGetMock.mockResolvedValue(returnDetail);
+    apiPostMock.mockResolvedValue({ parcelId });
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+    await renderWithQueryClient(<ParcelDetailScreen />);
+    await screen.findByText("No. 5, Pansodan Street");
+
+    await fireEvent.press(screen.getByRole("button", { name: "Mark returned" }));
+    await act(async () => {
+      pressAlertButton(alert, "Mark returned");
+    });
+
+    expect(await screen.findByText("Parcel returned to merchant.")).toBeOnTheScreen();
+    expect(apiPostMock.mock.calls[0]?.[0]).toBe(`/rider/parcels/${parcelId}/return`);
+    alert.mockRestore();
+  });
+
+  it("shows the server's message when the return is rejected", async () => {
+    apiGetMock.mockResolvedValue(returnDetail);
+    apiPostMock.mockRejectedValue(
+      new MobileApiError(409, "Only canceled-returned parcels can be completed as returned."),
+    );
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+    await renderWithQueryClient(<ParcelDetailScreen />);
+    await screen.findByText("No. 5, Pansodan Street");
+
+    await fireEvent.press(screen.getByRole("button", { name: "Mark returned" }));
+    await act(async () => {
+      pressAlertButton(alert, "Mark returned");
+    });
+
+    expect(
+      await screen.findByText("Only canceled-returned parcels can be completed as returned."),
+    ).toBeOnTheScreen();
+    alert.mockRestore();
+  });
+
+  it("shows no return controls for other statuses", async () => {
+    apiGetMock.mockResolvedValue(buildDetail({ status: "on_the_way" }));
+    await renderWithQueryClient(<ParcelDetailScreen />);
+    await screen.findByText("Golden Leaf Tea");
+
+    expect(screen.queryByText("Return to merchant")).not.toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Mark returned" })).not.toBeOnTheScreen();
   });
 });

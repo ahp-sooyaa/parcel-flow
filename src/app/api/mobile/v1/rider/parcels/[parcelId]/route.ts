@@ -3,7 +3,10 @@ import { z } from "zod";
 import { toMobileRiderParcelDetail } from "@/features/mobile-api/server/parcels";
 import { mobileError, mobileOk } from "@/features/mobile-api/server/response";
 import { requireMobileRider } from "@/features/mobile-api/server/session";
-import { getParcelByIdForRealtimeScope } from "@/features/parcels/server/dal";
+import {
+  getMerchantReturnContact,
+  getParcelByIdForRealtimeScope,
+} from "@/features/parcels/server/dal";
 
 const parcelIdSchema = z.uuid();
 
@@ -41,7 +44,13 @@ export async function GET(
       return mobileError(404, "Parcel not found.");
     }
 
-    return mobileOk(toMobileRiderParcelDetail(parcel), "Parcel loaded.");
+    // Only a return needs the merchant's contact, so other parcels skip the read.
+    const merchantReturnContact =
+      parcel.status === "canceled_returned"
+        ? await getMerchantReturnContact(parcel.merchantId)
+        : null;
+
+    return mobileOk(toMobileRiderParcelDetail(parcel, merchantReturnContact), "Parcel loaded.");
   } catch {
     return mobileError(500, "Unable to load this parcel.");
   }

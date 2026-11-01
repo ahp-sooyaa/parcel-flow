@@ -9,6 +9,7 @@ const markRiderParcelDeliveredMock = mock(async (): Promise<void> => undefined);
 const reportDeliveryFailureMock = mock(async (): Promise<void> => undefined);
 const updateDeliveryFailureMock = mock(async (): Promise<void> => undefined);
 const deleteDeliveryFailureMock = mock(async (): Promise<void> => undefined);
+const markRiderParcelReturnedMock = mock(async (): Promise<void> => undefined);
 const getParcelByIdForRealtimeScopeMock = mock(async (): Promise<ParcelListItemDto | null> => null);
 const uploadDeliveryProofImageMock = mock(async (): Promise<string> => "parcels/p/proof.jpg");
 const deleteDeliveryProofImageMock = mock(async (): Promise<void> => undefined);
@@ -36,6 +37,7 @@ void mock.module("@/features/parcels/server/dal", () => ({
   reportDeliveryFailureForRiderParcel: reportDeliveryFailureMock,
   updateDeliveryFailureForRiderParcel: updateDeliveryFailureMock,
   deleteDeliveryFailureForRiderParcel: deleteDeliveryFailureMock,
+  markRiderParcelReturnedToMerchant: markRiderParcelReturnedMock,
 }));
 
 void mock.module("@/features/parcels/server/upload", () => ({
@@ -504,5 +506,104 @@ describe("failure note operations", async () => {
       expect(result).toEqual({ ok: false, reason: "invalid", message });
       expect(operation.dal).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("returnRiderParcelToMerchant", async () => {
+  const { returnRiderParcelToMerchant } =
+    await import("@/features/parcels/server/rider-operations");
+
+  beforeEach(() => {
+    markRiderParcelReturnedMock.mockReset();
+    markRiderParcelReturnedMock.mockResolvedValue(undefined);
+    revalidateTagMock.mockReset();
+    updateTagMock.mockReset();
+  });
+
+  test("rejects an invalid parcel id", async () => {
+    const result = await returnRiderParcelToMerchant(
+      rider,
+      { parcelId: "nope" },
+      { caller: "route-handler" },
+    );
+
+    expect(result).toEqual({ ok: false, reason: "invalid", message: "Invalid parcel selection." });
+    expect(markRiderParcelReturnedMock).not.toHaveBeenCalled();
+  });
+
+  test("rejects non-rider actors before the DAL", async () => {
+    const admin = buildCurrentUser({ role: "office_admin" });
+
+    const result = await returnRiderParcelToMerchant(
+      admin,
+      { parcelId: parcelA },
+      { caller: "route-handler" },
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      reason: "forbidden",
+      message: "You do not have permission to complete parcel returns.",
+    });
+    expect(markRiderParcelReturnedMock).not.toHaveBeenCalled();
+  });
+
+  test("returns the parcel and expires caches for route handlers", async () => {
+    const result = await returnRiderParcelToMerchant(
+      rider,
+      { parcelId: parcelA },
+      { caller: "route-handler" },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Parcel returned to merchant.",
+      parcelId: parcelA,
+    });
+    expect(markRiderParcelReturnedMock).toHaveBeenCalledWith({
+      parcelId: parcelA,
+      riderUserId,
+      actorRole: "rider",
+      createdBy: riderUserId,
+    });
+    expect(revalidateTagMock).toHaveBeenCalledWith(`rider-parcels:${riderUserId}`, { expire: 0 });
+    expect(updateTagMock).not.toHaveBeenCalled();
+  });
+
+  test("uses updateTag for server actions", async () => {
+    await returnRiderParcelToMerchant(rider, { parcelId: parcelA }, { caller: "server-action" });
+
+    expect(updateTagMock).toHaveBeenCalledWith(`rider-parcels:${riderUserId}`);
+    expect(revalidateTagMock).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ["forbidden", "forbidden"],
+    ["not_found", "not_found"],
+    ["not_assigned", "not_found"],
+    ["conflict", "conflict"],
+  ] as const)("maps the %s DAL error to %s", async (code, reason) => {
+    markRiderParcelReturnedMock.mockRejectedValue(new ParcelOperationError(code, "Rule message."));
+
+    const result = await returnRiderParcelToMerchant(
+      rider,
+      { parcelId: parcelA },
+      { caller: "route-handler" },
+    );
+
+    expect(result).toEqual({ ok: false, reason, message: "Rule message." });
+    expect(revalidateTagMock).not.toHaveBeenCalled();
+  });
+
+  test("reports unexpected errors as failed", async () => {
+    markRiderParcelReturnedMock.mockRejectedValue(new Error("connection reset"));
+
+    const result = await returnRiderParcelToMerchant(
+      rider,
+      { parcelId: parcelA },
+      { caller: "route-handler" },
+    );
+
+    expect(result).toEqual({ ok: false, reason: "failed", message: "connection reset" });
   });
 });

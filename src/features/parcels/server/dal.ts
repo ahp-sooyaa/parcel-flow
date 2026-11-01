@@ -2141,7 +2141,10 @@ export async function markRiderParcelReturnedToMerchant(input: {
   createdBy: string;
 }) {
   if (!canChangeParcelStatus(input.actorRole, "canceled_returned", "returned_to_merchant")) {
-    throw new Error("You do not have permission to complete parcel returns.");
+    throw new ParcelOperationError(
+      "forbidden",
+      "You do not have permission to complete parcel returns.",
+    );
   }
 
   await db.transaction(async (tx) => {
@@ -2153,7 +2156,7 @@ export async function markRiderParcelReturnedToMerchant(input: {
       .limit(1);
 
     if (!rider?.userIsActive) {
-      throw new Error("Active rider profile was not found.");
+      throw new ParcelOperationError("forbidden", "Active rider profile was not found.");
     }
 
     const [parcel] = await tx
@@ -2170,17 +2173,21 @@ export async function markRiderParcelReturnedToMerchant(input: {
       .for("update");
 
     if (!parcel) {
-      throw new Error("Parcel was not found.");
+      throw new ParcelOperationError("not_found", "Parcel was not found.");
     }
 
     if (parcel.riderId !== rider.id) {
-      throw new Error(
+      throw new ParcelOperationError(
+        "not_assigned",
         "You can only complete merchant returns for parcels assigned to your rider account.",
       );
     }
 
     if (parcel.status !== "canceled_returned") {
-      throw new Error("Only canceled-returned parcels can be completed as returned.");
+      throw new ParcelOperationError(
+        "conflict",
+        "Only canceled-returned parcels can be completed as returned.",
+      );
     }
 
     const returnedAt = new Date();
@@ -2205,7 +2212,10 @@ export async function markRiderParcelReturnedToMerchant(input: {
       .returning({ id: parcels.id });
 
     if (!returnedParcel) {
-      throw new Error("Only canceled-returned parcels can be completed as returned.");
+      throw new ParcelOperationError(
+        "conflict",
+        "Only canceled-returned parcels can be completed as returned.",
+      );
     }
 
     await tx.insert(parcelStatusLogs).values({
@@ -2239,4 +2249,19 @@ export async function markRiderParcelReturnedToMerchant(input: {
     ]);
     await recomputeParcelRiderPayoutStatuses(tx, [parcel.id]);
   });
+}
+
+/**
+ * Where a return goes back to: the shop's address and its login user's phone
+ * number (null when the shop has no user). Only for the assigned return rider.
+ */
+export async function getMerchantReturnContact(merchantId: string) {
+  const [contact] = await db
+    .select({ address: merchants.address, phoneNumber: appUsers.phoneNumber })
+    .from(merchants)
+    .leftJoin(appUsers, eq(appUsers.id, merchants.userId))
+    .where(eq(merchants.id, merchantId))
+    .limit(1);
+
+  return contact ? { address: contact.address, phoneNumber: contact.phoneNumber ?? null } : null;
 }

@@ -2,6 +2,7 @@ import {
   mobileParcelStatuses,
   mobileParcelTypes,
   mobileRiderParcelTabs,
+  type MobileMerchantReturnContactDto,
   type MobileRiderParcelDetailDto,
   type MobileRiderParcelListItemDto,
   type MobileRiderParcelPageDto,
@@ -34,6 +35,7 @@ export function toMobileRiderParcelListItem(
     parcelCode: parcel.parcelCode,
     status: parcel.status,
     statusLabel: parcelStatusLabels[parcel.status],
+    merchantName: parcel.merchantName,
     receiverName: parcel.receiverName,
     receiverPhoneNumber: parcel.receiverPhoneNumber,
     receiverAddress: parcel.receiverAddress,
@@ -43,16 +45,20 @@ export function toMobileRiderParcelListItem(
   };
 }
 
-export function toMobileRiderParcelDetail(parcel: ParcelListItemDto): MobileRiderParcelDetailDto {
+/** `merchantReturnContact` is only passed for a `canceled_returned` parcel. */
+export function toMobileRiderParcelDetail(
+  parcel: ParcelListItemDto,
+  merchantReturnContact: MobileMerchantReturnContactDto | null = null,
+): MobileRiderParcelDetailDto {
   return {
     ...toMobileRiderParcelListItem(parcel),
-    merchantName: parcel.merchantName,
     parcelType: parcel.parcelType,
     codAmount: parcel.codAmount,
     deliveryFee: parcel.deliveryFee,
     weightKg: parcel.weightKg,
     specialNotes: parcel.specialNotes,
     activeFailureNote: parcel.activeFailureNote?.note ?? null,
+    merchantReturnContact,
     createdAt: parcel.createdAt,
   };
 }

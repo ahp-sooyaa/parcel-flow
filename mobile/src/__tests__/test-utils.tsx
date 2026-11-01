@@ -21,6 +21,7 @@ export function buildListItem(
     parcelCode: "PF-000123-000045",
     status: "on_the_way",
     statusLabel: "On The Way",
+    merchantName: "Golden Leaf Tea",
     receiverName: "Daw Mya",
     receiverPhoneNumber: "09400000000",
     receiverAddress: "No. 12, Bogyoke Road",
@@ -36,14 +37,20 @@ export function buildDetail(
 ): MobileRiderParcelDetailDto {
   return {
     ...buildListItem(),
-    merchantName: "Golden Leaf Tea",
     parcelType: "cod",
     codAmount: 25_000,
     deliveryFee: 3_000,
     weightKg: 1.5,
     specialNotes: null,
     activeFailureNote: null,
+    merchantReturnContact: null,
     createdAt: "2026-10-29T08:00:00.000Z",
     ...overrides,
   };
+}
+
+/** Presses the button labelled `text` in the first `Alert.alert` the spy saw. */
+export function pressAlertButton(alert: jest.SpyInstance, text: string) {
+  const buttons = (alert.mock.calls[0]?.[2] ?? []) as { text: string; onPress?: () => void }[];
+  buttons.find((button) => button.text === text)?.onPress?.();
 }

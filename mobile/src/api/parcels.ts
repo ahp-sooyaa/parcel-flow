@@ -3,6 +3,7 @@ import {
   mobileRiderParcelDetailResponseSchema,
   mobileRiderParcelPageResponseSchema,
   mobileMarkDeliveredResponseSchema,
+  mobileReturnToMerchantResponseSchema,
   mobileStartDeliveryResponseSchema,
   type MobileFailureNoteResultDto,
   type MobileRiderParcelDetailDto,
@@ -172,5 +173,27 @@ export function useDeleteFailureNote(parcelId: string) {
   return useMutation({
     mutationFn: () => apiDelete(failureNotePath(parcelId), mobileFailureNoteResponseSchema),
     ...failureNoteMutationOptions(parcelId),
+  });
+}
+
+/**
+ * Marks a `canceled_returned` parcel returned to its merchant. Takes the parcel
+ * id per call, so the list can use one mutation for every card. The lists and
+ * the parcel's detail refetch whatever the outcome.
+ */
+export function useReturnToMerchant() {
+  return useMutation({
+    mutationFn: (parcelId: string) =>
+      apiPost(
+        `/rider/parcels/${encodeURIComponent(parcelId)}/return`,
+        {},
+        mobileReturnToMerchantResponseSchema,
+      ),
+    onSettled: async (_data, _error, parcelId) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["rider-parcels"] }),
+        queryClient.invalidateQueries({ queryKey: riderParcelQueryKey(parcelId) }),
+      ]);
+    },
   });
 }

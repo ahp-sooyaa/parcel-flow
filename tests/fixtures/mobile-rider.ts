@@ -141,6 +141,10 @@ export async function seedTwoRiders(
     riderAId: riderA.rider.id,
     riderAUserId: riderA.user?.id ?? "",
     riderBUserId: riderB.user?.id ?? "",
+    merchant: {
+      address: merchantSeed.merchant.address,
+      phoneNumber: merchantSeed.user?.phoneNumber ?? null,
+    },
     riderBId: riderB.rider.id,
     parcelFor,
   };

@@ -68,6 +68,7 @@ export const mobileRiderParcelListItemSchema = z.object({
   parcelCode: z.string(),
   status: mobileParcelStatusSchema,
   statusLabel: z.string(),
+  merchantName: z.string(),
   receiverName: z.string(),
   receiverPhoneNumber: z.string(),
   receiverAddress: z.string(),
@@ -79,14 +80,23 @@ export const mobileRiderParcelListItemSchema = z.object({
 
 export type MobileRiderParcelListItemDto = z.infer<typeof mobileRiderParcelListItemSchema>;
 
+// Where a `canceled_returned` parcel goes back to; null for every other status.
+export const mobileMerchantReturnContactSchema = z.object({
+  address: z.string(),
+  // Null when the shop has no login user to take its phone number from.
+  phoneNumber: z.string().nullable(),
+});
+
+export type MobileMerchantReturnContactDto = z.infer<typeof mobileMerchantReturnContactSchema>;
+
 export const mobileRiderParcelDetailSchema = mobileRiderParcelListItemSchema.extend({
-  merchantName: z.string(),
   parcelType: mobileParcelTypeSchema,
   codAmount: z.number().int(),
   deliveryFee: z.number().int(),
   weightKg: z.number(),
   specialNotes: z.string().nullable(),
   activeFailureNote: z.string().nullable(),
+  merchantReturnContact: mobileMerchantReturnContactSchema.nullable(),
   createdAt: z.string(),
 });
 
@@ -167,4 +177,14 @@ export type MobileFailureNoteResultDto = z.infer<typeof mobileFailureNoteResultS
 
 export const mobileFailureNoteResponseSchema = mobileSuccessResponseSchema(
   mobileFailureNoteResultSchema,
+);
+
+export const mobileReturnToMerchantResultSchema = z.object({
+  parcelId: z.string(),
+});
+
+export type MobileReturnToMerchantResultDto = z.infer<typeof mobileReturnToMerchantResultSchema>;
+
+export const mobileReturnToMerchantResponseSchema = mobileSuccessResponseSchema(
+  mobileReturnToMerchantResultSchema,
 );
