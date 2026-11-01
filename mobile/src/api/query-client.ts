@@ -14,7 +14,8 @@ export const queryClient = new QueryClient({
 
 // React Native has no window focus or online events, so tell TanStack Query when
 // the app returns to the foreground or the phone reconnects; active queries then
-// refetch. This stands in for realtime until slice 8.
+// refetch. This covers changes made while the app was in the background, when the
+// live parcel stream (src/realtime) is closed.
 focusManager.setEventListener((setFocused) => {
   if (Platform.OS === "web") {
     return undefined;

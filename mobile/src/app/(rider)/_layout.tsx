@@ -2,6 +2,7 @@ import { Redirect, Stack } from "expo-router";
 
 import { authClient } from "@/auth/client";
 import { LoadingScreen } from "@/components/loading-screen";
+import { useRiderParcelEvents } from "@/realtime/use-rider-parcel-events";
 import { colors } from "@/theme/tokens";
 
 // Rider screens only render for a stored session. While the session loads from
@@ -16,6 +17,14 @@ export default function RiderLayout() {
   if (!session) {
     return <Redirect href="/sign-in" />;
   }
+
+  return <RiderStack />;
+}
+
+// Mounted only with a session, so the live parcel stream opens after sign-in
+// and closes on sign-out.
+function RiderStack() {
+  useRiderParcelEvents();
 
   return (
     <Stack
