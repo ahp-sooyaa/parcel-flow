@@ -188,3 +188,15 @@ export type MobileReturnToMerchantResultDto = z.infer<typeof mobileReturnToMerch
 export const mobileReturnToMerchantResponseSchema = mobileSuccessResponseSchema(
   mobileReturnToMerchantResultSchema,
 );
+
+// The rider's live parcel stream (`text/event-stream`). Events only say which
+// parcel changed; the app refetches it through the endpoints above.
+export const MOBILE_RIDER_PARCEL_EVENTS_PATH = "/rider/parcels/events";
+
+export type MobileParcelStreamEventName = "ready" | "parcel-changed" | "stream-error";
+
+export const mobileParcelChangedEventSchema = z.object({
+  parcelId: z.string(),
+});
+
+export type MobileParcelChangedEventDto = z.infer<typeof mobileParcelChangedEventSchema>;

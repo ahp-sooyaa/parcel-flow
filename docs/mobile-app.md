@@ -184,6 +184,12 @@ Each slice is one OpenSpec change, built end to end (API, app screen, tests), in
 
 ## 9. Later Ideas
 
+### Follow-ups after the mobile app
+
+- **Web rider list misses reassignments**: the web stream (`/api/realtime/parcels`, `buildParcelRealtimeEventForScope`) decides `parcel-remove` from the change's old row. `parcels` uses Postgres's default replica identity, so an update's old row carries only the primary key. When a rider's parcel is resolved as a return and given to another rider, the first rider's web page keeps it until a refresh. Fix it like the mobile stream (slice 8): track the viewer's parcel ids per stream (`createRiderParcelChangeTracker`), for the rider and merchant list surfaces.
+
+### Ideas
+
 - Offline action queue for patchy mobile data (start delivery, failure notes, deliveries with photos)
 - Push notifications through Expo Notifications / FCM (new assignments, corrections)
 - Merchant role (read-only parcels and settlements)

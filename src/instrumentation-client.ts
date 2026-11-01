@@ -10,6 +10,10 @@ import { getSentryInitOptions } from "@/lib/sentry-config";
 Sentry.init({
   ...getSentryInitOptions(),
 
+  // Send reports through our own origin so ad blockers don't drop them and the
+  // CSP can stay at `connect-src 'self'` (src/app/api/monitoring/route.ts).
+  tunnel: "/api/monitoring",
+
   // Add optional integrations for additional features
   integrations: [replayIntegration()],
 

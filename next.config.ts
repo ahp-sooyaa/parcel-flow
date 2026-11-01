@@ -1,6 +1,10 @@
 import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig = {
+  // Dev servers started with a different env file (e.g. .env.test) get their
+  // own folder: NEXT_PUBLIC_* values are compiled into the client bundle, and a
+  // Turbopack cache shared across env files makes open pages reload in a loop.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   cacheComponents: true,
   partialPrefetching: true,
   reactCompiler: true,
@@ -28,11 +32,9 @@ export default withSentryConfig(nextConfig, {
   // Upload a larger set of source maps for prettier stack traces (increases build time)
   widenClientFileUpload: true,
 
-  // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
-  // This can increase your server load as well as your hosting bill.
-  // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
-  // side errors will fail.
-  tunnelRoute: "/monitoring",
+  // Browser reports reach Sentry through our own /api/monitoring route (set as
+  // `tunnel` in src/instrumentation-client.ts), not the `tunnelRoute` rewrite:
+  // Next.js's rewrite proxy logs MaxListenersExceededWarning for every report.
 
   webpack: {
     // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)

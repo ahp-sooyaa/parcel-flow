@@ -28,7 +28,11 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    ".next/test-db/types/**/*.ts",
+    ".next/test-db/dev/types/**/*.ts",
+    ".next/demo-local/types/**/*.ts",
+    ".next/demo-local/dev/types/**/*.ts"
   ],
   "exclude": ["node_modules", "mobile"]
 }
