@@ -1,6 +1,10 @@
 import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig = {
+  // Dev servers started with a different env file (e.g. .env.test) get their
+  // own folder: NEXT_PUBLIC_* values are compiled into the client bundle, and a
+  // Turbopack cache shared across env files makes open pages reload in a loop.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   cacheComponents: true,
   partialPrefetching: true,
   reactCompiler: true,
