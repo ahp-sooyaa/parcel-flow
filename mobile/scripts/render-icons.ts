@@ -14,8 +14,10 @@ const outputs = [
   { source: "play-store-icon.svg", target: "store/play-store-icon.png" },
 ];
 
-for (const { source, target } of outputs) {
-  const svg = await readFile(path.join("assets/source", source));
-  await sharp(svg).png().toFile(target);
-  console.log(`${source} -> ${target}`);
-}
+await Promise.all(
+  outputs.map(async ({ source, target }) => {
+    const svg = await readFile(path.join("assets/source", source));
+    await sharp(svg).png().toFile(target);
+    console.log(`${source} -> ${target}`);
+  }),
+);

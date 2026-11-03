@@ -86,7 +86,7 @@ export default function PrivacyPage() {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, children }: Readonly<{ title: string; children: ReactNode }>) {
   return (
     <section className="mt-10 space-y-3 text-base leading-7">
       <h2 className="text-xl font-semibold">{title}</h2>
