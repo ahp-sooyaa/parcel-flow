@@ -30,7 +30,7 @@ function ConfigErrorScreen() {
       <Text style={styles.title}>App not configured</Text>
       <Text style={styles.body}>
         Set EXPO_PUBLIC_API_URL to the Parcel Flow web address (see mobile/.env.example), then
-        restart the app.
+        restart the app. Release builds need an https:// address.
       </Text>
     </Screen>
   );
