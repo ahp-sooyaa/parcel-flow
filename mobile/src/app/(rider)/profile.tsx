@@ -2,6 +2,7 @@ import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { useMe } from "@/api/me";
+import { appVersionLabel } from "@/app-version";
 import { signOutRider } from "@/auth/session";
 import { Button } from "@/components/button";
 import { LoadingScreen } from "@/components/loading-screen";
@@ -49,6 +50,7 @@ export default function ProfileScreen() {
 
       <View style={styles.footer}>
         <Button busy={signingOut} label="Sign out" onPress={handleSignOut} variant="secondary" />
+        <Text style={styles.version}>{appVersionLabel()}</Text>
       </View>
     </Screen>
   );
@@ -89,6 +91,12 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   footer: {
+    gap: spacing.md,
     marginTop: "auto",
+  },
+  version: {
+    ...typography.caption,
+    color: colors.inkMute,
+    textAlign: "center",
   },
 });

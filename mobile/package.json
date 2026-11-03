@@ -11,20 +11,22 @@
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "typecheck": "tsc --noEmit",
-    "test": "jest"
+    "test": "jest",
+    "icons": "bun scripts/render-icons.ts"
   },
   "dependencies": {
     "@better-auth/expo": "1.6.9",
     "@tanstack/react-query": "^5.105.0",
     "better-auth": "1.6.9",
-    "expo": "~58.0.21",
+    "expo": "~58.0.22",
+    "expo-application": "~58.1.2",
     "expo-constants": "~58.0.14",
     "expo-file-system": "~58.0.13",
     "expo-image-manipulator": "~58.0.16",
     "expo-image-picker": "~58.0.10",
     "expo-linking": "~58.0.15",
     "expo-network": "~58.0.4",
-    "expo-router": "~58.0.28",
+    "expo-router": "~58.0.29",
     "expo-secure-store": "~58.0.2",
     "expo-splash-screen": "~58.0.12",
     "expo-status-bar": "~58.0.4",
@@ -44,6 +46,7 @@
     "jest-expo": "~58.0.13",
     "oxfmt": "^0.48.0",
     "oxlint": "^1.63.0",
+    "sharp": "^0.35.5",
     "typescript": "~6.0.3"
   }
 }
