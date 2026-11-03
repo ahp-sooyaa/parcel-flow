@@ -118,7 +118,7 @@ The envelope matches the existing `src/app/api/rider/parcels/deliver/route.ts`. 
 | Secure storage  | `expo-secure-store`                                    |
 | Camera / photos | `expo-image-picker`, `expo-image-manipulator` (resize) |
 | Tests           | Jest (`jest-expo`) + React Native Testing Library      |
-| Builds          | EAS Build (APK for preview, AAB for Play Store)        |
+| Builds          | EAS Build (APK for preview, AAB for Play Store), see `docs/mobile-release.md` |
 
 Styling uses plain `StyleSheet` with the `DESIGN.md` tokens in `mobile/src/theme/tokens.ts`, not NativeWind. NativeWind 4 needs Tailwind 3 and extra Babel/Metro setup, while the web is on Tailwind 4. For a handful of screens, tokens are less setup and nothing to keep in step with SDK upgrades.
 
@@ -170,7 +170,7 @@ Each slice is one OpenSpec change, built end to end (API, app screen, tests), in
 | 6   | `mobile-rider-delivery-failure`    | Report, edit, delete failure notes                                           | Archived (ahp-sooyaa/parcel-flow#14) |
 | 7   | `mobile-rider-return-to-merchant`  | Complete merchant returns                                                    | Archived (ahp-sooyaa/parcel-flow#15) |
 | 8   | `mobile-realtime-parcel-updates`   | Rider events stream (`/api/mobile/v1/rider/parcels/events`), paused in background | Archived (ahp-sooyaa/parcel-flow#16) |
-| 9   | `android-release-build`            | EAS profiles, icon/splash, versioning, Play Console internal testing         | Planned     |
+| 9   | `android-release-build`            | EAS profiles, icon/splash, versioning, Play Console internal testing         | In progress |
 
 ### Workflow per slice
 
