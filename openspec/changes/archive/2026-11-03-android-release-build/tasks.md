@@ -29,4 +29,7 @@
 - [x] 6.1 Mobile lint, format check, typecheck and tests; web lint, typecheck and unit tests.
 - [x] 6.2 (User, with their Expo account) `eas init`, set `EXPO_PUBLIC_API_URL` for both environments, then build a preview APK.
 - [x] 6.3 (User) Install the APK: icon, themed icon, splash, sign in against the deployed server, live updates, camera proof photo, gallery pick, version label.
-- [ ] 6.4 (User, with their Play account) Production build and `eas submit` to internal testing; install from the Play testing link.
+
+## Follow-up (outside this change)
+
+- Production build and `eas submit` to internal testing, after `dev` is merged into `main` (production lacks the mobile API) and the Play Console setup in `docs/mobile-release.md` is done.

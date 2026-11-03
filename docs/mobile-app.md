@@ -170,7 +170,7 @@ Each slice is one OpenSpec change, built end to end (API, app screen, tests), in
 | 6   | `mobile-rider-delivery-failure`    | Report, edit, delete failure notes                                           | Archived (ahp-sooyaa/parcel-flow#14) |
 | 7   | `mobile-rider-return-to-merchant`  | Complete merchant returns                                                    | Archived (ahp-sooyaa/parcel-flow#15) |
 | 8   | `mobile-realtime-parcel-updates`   | Rider events stream (`/api/mobile/v1/rider/parcels/events`), paused in background | Archived (ahp-sooyaa/parcel-flow#16) |
-| 9   | `android-release-build`            | EAS profiles, icon/splash, versioning, Play Console internal testing         | In progress |
+| 9   | `android-release-build`            | EAS profiles, icon/splash, versioning, Play Console internal testing         | Archived (ahp-sooyaa/parcel-flow#17) |
 
 ### Workflow per slice
 
