@@ -1,4 +1,4 @@
-import { revalidateTag, updateTag } from "next/cache";
+import { revalidatePath, revalidateTag, updateTag } from "next/cache";
 
 import {
   CACHE_TAGS,
@@ -28,24 +28,52 @@ export function invalidateParcelWriteCaches(options?: {
   }
 }
 
-/** Route-handler safe invalidation (stale-while-revalidate). Prefer updateTag in Server Actions. */
+/**
+ * Route-handler safe invalidation (stale-while-revalidate). Prefer updateTag in Server Actions.
+ * `expireNow` makes the next read wait for fresh data instead, for callers that
+ * refetch right after their own write (the mobile app).
+ */
 export function revalidateParcelWriteCaches(options?: {
   merchantUserId?: string | null;
   riderUserId?: string | null;
+  expireNow?: boolean;
 }) {
+  const profile = options?.expireNow ? { expire: 0 } : "max";
+
   for (const tag of PARCEL_WRITE_TAGS) {
-    revalidateTag(tag, "max");
+    revalidateTag(tag, profile);
   }
 
   if (options?.merchantUserId) {
-    revalidateTag(merchantParcelsTag(options.merchantUserId), "max");
-    revalidateTag(merchantOverviewTag(options.merchantUserId), "max");
-    revalidateTag(merchantSettlementsTag(options.merchantUserId), "max");
+    revalidateTag(merchantParcelsTag(options.merchantUserId), profile);
+    revalidateTag(merchantOverviewTag(options.merchantUserId), profile);
+    revalidateTag(merchantSettlementsTag(options.merchantUserId), profile);
   }
 
   if (options?.riderUserId) {
-    revalidateTag(riderParcelsTag(options.riderUserId), "max");
+    revalidateTag(riderParcelsTag(options.riderUserId), profile);
   }
+}
+
+/** Server Actions can use updateTag; route handlers can't, so they expire the tags instead. */
+export type ParcelOperationCaller = "server-action" | "route-handler";
+
+/** Caches and dashboard paths that show a parcel's operational status. */
+export function revalidateParcelOperationalPaths(options: {
+  caller: ParcelOperationCaller;
+  riderUserId?: string | null;
+}) {
+  if (options.caller === "server-action") {
+    invalidateParcelWriteCaches({ riderUserId: options.riderUserId });
+  } else {
+    revalidateParcelWriteCaches({ riderUserId: options.riderUserId, expireNow: true });
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/parcels");
+  revalidatePath("/dashboard/riders");
+  revalidatePath("/dashboard/merchant/parcels");
+  revalidatePath("/dashboard/rider/parcels");
 }
 
 export function invalidateMerchantListCaches() {

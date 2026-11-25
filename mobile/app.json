@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "Parcel Flow",
+    "slug": "parcel-flow",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "parcelflow",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "bundleIdentifier": "com.parcelflow.rider"
+    },
+    "android": {
+      "package": "com.parcelflow.rider",
+      "adaptiveIcon": {
+        "backgroundColor": "#1b1938",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "blockedPermissions": ["android.permission.SYSTEM_ALERT_WINDOW", "android.permission.VIBRATE"]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Parcel Flow uses the camera to take delivery proof photos.",
+          "photosPermission": "Parcel Flow lets you choose a delivery proof photo from your gallery.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#1b1938",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 160
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "132ba48a-d606-42f4-aff1-7722c3114459"
+      }
+    },
+    "owner": "aunghtet99"
+  }
+}

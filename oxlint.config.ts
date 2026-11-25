@@ -8,6 +8,8 @@ export default defineConfig({
     "dist/**",
     "node_modules/**",
     "*.tsbuildinfo",
+    // The Expo app has its own lint config and CI job.
+    "mobile/**",
   ],
   options: {
     typeAware: true,

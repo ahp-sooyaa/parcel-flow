@@ -8,13 +8,8 @@ import {
   correctParcelRider,
   correctParcelStatus,
   createParcel,
-  deleteDeliveryFailureForRiderParcel,
   getParcelByIdForRealtimeScope,
-  markRiderParcelReturnedToMerchant,
-  reportDeliveryFailureForRiderParcel,
   resolveFailedParcelByAdmin,
-  startDeliveryForRiderParcels,
-  updateDeliveryFailureForRiderParcel,
   updateParcel,
 } from "@/features/parcels/server/dal";
 import {
@@ -24,6 +19,13 @@ import {
   updateParcelFormInputSchema,
 } from "@/features/parcels/server/dto";
 import {
+  deleteRiderDeliveryFailure,
+  reportRiderDeliveryFailure,
+  returnRiderParcelToMerchant,
+  startRiderDelivery,
+  updateRiderDeliveryFailure,
+} from "@/features/parcels/server/rider-operations";
+import {
   deleteDeliveryProofImage,
   uploadDeliveryProofImage,
 } from "@/features/parcels/server/upload";
@@ -31,43 +33,19 @@ import {
   mapCreateParcelFormInputToCreateParcelInput,
   mapUpdateParcelFormInputToUpdateParcelInput,
 } from "@/features/parcels/server/utils";
-import { invalidateParcelWriteCaches } from "@/lib/cache-invalidation";
+import {
+  invalidateParcelWriteCaches,
+  revalidateParcelOperationalPaths,
+} from "@/lib/cache-invalidation";
 import { getFormFieldErrors } from "@/lib/form-action-errors";
 import { isAdminRole } from "@/lib/domain";
 import { canChangeParcelStatus, canCreateParcel } from "@/lib/permissions";
 import { isDemoMode, pickDemoProofImageKey } from "@/lib/demo";
 import { requireCurrentUser } from "@/lib/session";
-import { maxLengthMessage, TEXT_LIMITS } from "@/lib/validation";
 
 const assignParcelsInputSchema = z.object({
   parcelIds: z.array(z.string().min(1)).min(1, "Select at least one parcel."),
   riderId: z.string().min(1, "Rider is required."),
-});
-
-const startDeliveryInputSchema = z.object({
-  parcelIds: z.array(z.uuid("Invalid parcel selection.")).min(1, "Select at least one parcel."),
-});
-
-const reportDeliveryFailureInputSchema = z.object({
-  parcelId: z.uuid("Invalid parcel selection."),
-  note: z
-    .string()
-    .trim()
-    .min(1, "Failure note is required.")
-    .max(TEXT_LIMITS.note, maxLengthMessage("Failure note", TEXT_LIMITS.note)),
-});
-
-const deleteDeliveryFailureInputSchema = z.object({
-  parcelId: z.uuid("Invalid parcel selection."),
-});
-
-const updateDeliveryFailureInputSchema = z.object({
-  parcelId: z.uuid("Invalid parcel selection."),
-  note: z
-    .string()
-    .trim()
-    .min(1, "Failure note is required.")
-    .max(TEXT_LIMITS.note, maxLengthMessage("Failure note", TEXT_LIMITS.note)),
 });
 
 const resolveFailedParcelInputSchema = z.object({
@@ -195,7 +173,7 @@ export async function updateParcelAction(input: unknown) {
     };
   }
 
-  revalidateParcelOperationalPaths();
+  revalidateParcelOperationalPaths({ caller: "server-action" });
 
   return {
     ok: true as const,
@@ -248,15 +226,6 @@ function revalidateParcelCorrectionPaths() {
   revalidatePath("/dashboard/riders");
   revalidatePath("/dashboard/settlements");
   revalidatePath("/dashboard/rider-payouts");
-  revalidatePath("/dashboard/merchant/parcels");
-  revalidatePath("/dashboard/rider/parcels");
-}
-
-function revalidateParcelOperationalPaths() {
-  invalidateParcelWriteCaches();
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/parcels");
-  revalidatePath("/dashboard/riders");
   revalidatePath("/dashboard/merchant/parcels");
   revalidatePath("/dashboard/rider/parcels");
 }
@@ -400,7 +369,7 @@ async function resolveFailedParcelAction(
     };
   }
 
-  revalidateParcelOperationalPaths();
+  revalidateParcelOperationalPaths({ caller: "server-action" });
 
   return {
     ok: true as const,
@@ -421,206 +390,55 @@ export async function returnFailedParcelToMerchantAction(input: unknown) {
 
 export async function startDeliveryForRiderParcelsAction(input: unknown) {
   const actor = await requireCurrentUser();
-  const parseResult = startDeliveryInputSchema.safeParse(input);
+  const result = await startRiderDelivery(actor, input, { caller: "server-action" });
 
-  if (!parseResult.success) {
-    return {
-      ok: false as const,
-      message: parseResult.error.issues[0]?.message ?? "Invalid start delivery details.",
-    };
-  }
-
-  if (actor.role !== "rider" || !canChangeParcelStatus(actor.role, "at_office", "on_the_way")) {
-    return {
-      ok: false as const,
-      message: "You do not have permission to start delivery.",
-    };
-  }
-
-  try {
-    await startDeliveryForRiderParcels({
-      parcelIds: parseResult.data.parcelIds,
-      riderUserId: actor.id,
-      actorRole: actor.role,
-    });
-  } catch (error) {
-    return {
-      ok: false as const,
-      message: error instanceof Error ? error.message : "Unable to start delivery.",
-    };
-  }
-
-  revalidateParcelOperationalPaths();
-
-  return {
-    ok: true as const,
-    message:
-      parseResult.data.parcelIds.length === 1
-        ? "Parcel moved to on the way."
-        : "Selected parcels moved to on the way.",
-  };
+  return result.ok
+    ? { ok: true as const, message: result.message }
+    : { ok: false as const, message: result.message };
 }
 
 export async function reportDeliveryFailureForRiderParcelAction(input: unknown) {
   const actor = await requireCurrentUser();
-  const parseResult = reportDeliveryFailureInputSchema.safeParse(normalizeFormInput(input));
+  const result = await reportRiderDeliveryFailure(actor, normalizeFormInput(input), {
+    caller: "server-action",
+  });
 
-  if (!parseResult.success) {
-    return {
-      ok: false as const,
-      message: parseResult.error.issues[0]?.message ?? "Invalid failure report details.",
-    };
-  }
-
-  if (actor.role !== "rider") {
-    return {
-      ok: false as const,
-      message: "You do not have permission to report delivery failure.",
-    };
-  }
-
-  try {
-    await reportDeliveryFailureForRiderParcel({
-      parcelId: parseResult.data.parcelId,
-      note: parseResult.data.note,
-      riderUserId: actor.id,
-      actorRole: actor.role,
-    });
-  } catch (error) {
-    return {
-      ok: false as const,
-      message: error instanceof Error ? error.message : "Unable to report delivery failure.",
-    };
-  }
-
-  revalidateParcelOperationalPaths();
-
-  return {
-    ok: true as const,
-    message: "Delivery failure reported.",
-  };
+  return result.ok
+    ? { ok: true as const, message: result.message }
+    : { ok: false as const, message: result.message };
 }
 
 export async function deleteDeliveryFailureForRiderParcelAction(input: unknown) {
   const actor = await requireCurrentUser();
-  const parseResult = deleteDeliveryFailureInputSchema.safeParse(normalizeFormInput(input));
+  const result = await deleteRiderDeliveryFailure(actor, normalizeFormInput(input), {
+    caller: "server-action",
+  });
 
-  if (!parseResult.success) {
-    return {
-      ok: false as const,
-      message: parseResult.error.issues[0]?.message ?? "Invalid failure note details.",
-    };
-  }
-
-  if (actor.role !== "rider") {
-    return {
-      ok: false as const,
-      message: "You do not have permission to delete delivery failure notes.",
-    };
-  }
-
-  try {
-    await deleteDeliveryFailureForRiderParcel({
-      parcelId: parseResult.data.parcelId,
-      riderUserId: actor.id,
-      actorRole: actor.role,
-    });
-  } catch (error) {
-    return {
-      ok: false as const,
-      message: error instanceof Error ? error.message : "Unable to delete delivery failure note.",
-    };
-  }
-
-  revalidateParcelOperationalPaths();
-
-  return {
-    ok: true as const,
-    message: "Delivery failure note deleted.",
-  };
+  return result.ok
+    ? { ok: true as const, message: result.message }
+    : { ok: false as const, message: result.message };
 }
 
 export async function updateDeliveryFailureForRiderParcelAction(input: unknown) {
   const actor = await requireCurrentUser();
-  const parseResult = updateDeliveryFailureInputSchema.safeParse(normalizeFormInput(input));
+  const result = await updateRiderDeliveryFailure(actor, normalizeFormInput(input), {
+    caller: "server-action",
+  });
 
-  if (!parseResult.success) {
-    return {
-      ok: false as const,
-      message: parseResult.error.issues[0]?.message ?? "Invalid failure note details.",
-    };
-  }
-
-  if (actor.role !== "rider") {
-    return {
-      ok: false as const,
-      message: "You do not have permission to update delivery failure notes.",
-    };
-  }
-
-  try {
-    await updateDeliveryFailureForRiderParcel({
-      parcelId: parseResult.data.parcelId,
-      note: parseResult.data.note,
-      riderUserId: actor.id,
-      actorRole: actor.role,
-    });
-  } catch (error) {
-    return {
-      ok: false as const,
-      message: error instanceof Error ? error.message : "Unable to update delivery failure note.",
-    };
-  }
-
-  revalidateParcelOperationalPaths();
-
-  return {
-    ok: true as const,
-    message: "Delivery failure note updated.",
-  };
+  return result.ok
+    ? { ok: true as const, message: result.message }
+    : { ok: false as const, message: result.message };
 }
 
 export async function markRiderParcelReturnedToMerchantAction(input: unknown) {
   const actor = await requireCurrentUser();
-  const parseResult = resolveFailedParcelInputSchema.safeParse(normalizeFormInput(input));
+  const result = await returnRiderParcelToMerchant(actor, normalizeFormInput(input), {
+    caller: "server-action",
+  });
 
-  if (!parseResult.success) {
-    return {
-      ok: false as const,
-      message: parseResult.error.issues[0]?.message ?? "Invalid return completion details.",
-    };
-  }
-
-  if (
-    actor.role !== "rider" ||
-    !canChangeParcelStatus(actor.role, "canceled_returned", "returned_to_merchant")
-  ) {
-    return {
-      ok: false as const,
-      message: "You do not have permission to complete parcel returns.",
-    };
-  }
-
-  try {
-    await markRiderParcelReturnedToMerchant({
-      parcelId: parseResult.data.parcelId,
-      riderUserId: actor.id,
-      actorRole: actor.role,
-      createdBy: actor.id,
-    });
-  } catch (error) {
-    return {
-      ok: false as const,
-      message: error instanceof Error ? error.message : "Unable to complete parcel return.",
-    };
-  }
-
-  revalidateParcelOperationalPaths();
-
-  return {
-    ok: true as const,
-    message: "Parcel returned to merchant.",
-  };
+  return result.ok
+    ? { ok: true as const, message: result.message }
+    : { ok: false as const, message: result.message };
 }
 
 const parcelIdSchema = z.uuid("Invalid parcel selection.");

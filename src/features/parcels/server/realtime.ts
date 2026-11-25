@@ -1,7 +1,7 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
-import { merchants, riders } from "@/db/schema";
+import { merchants, parcels, riders } from "@/db/schema";
 import {
   getParcelByIdForRealtimeListScope,
   type ParcelRealtimeViewerScope,
@@ -51,7 +51,7 @@ type MerchantScopeContext = BaseScopeContext & {
   merchantId: string;
 };
 
-type RiderScopeContext = BaseScopeContext & {
+export type RiderScopeContext = BaseScopeContext & {
   role: "rider";
   riderId: string;
 };
@@ -226,4 +226,53 @@ function shouldInvalidateStats(
   return trackedFields.some(
     (field) => (nextRow?.[field] ?? null) !== (previousRow?.[field] ?? null),
   );
+}
+
+/**
+ * The mobile rider stream's events: the id of each parcel that is, or was, the
+ * rider's, so the app refetches it. It remembers which parcels are the
+ * rider's, starting from `initialParcelIds`, because Postgres doesn't send an
+ * update's old row (only its id), so a parcel moved to another rider or
+ * unassigned can't be recognised from the change alone. Unlike the web's
+ * upsert it needs no database read per change.
+ */
+export function createRiderParcelChangeTracker(
+  scope: RiderScopeContext,
+  initialParcelIds: Iterable<string>,
+) {
+  const riderParcelIds = new Set(initialParcelIds);
+
+  return (change: {
+    parcelId: string | null;
+    nextRow: ParcelRealtimeRow | null;
+    previousRow: ParcelRealtimeRow | null;
+  }): { type: "parcel-changed"; payload: { parcelId: string } } | null => {
+    const { parcelId, nextRow, previousRow } = change;
+
+    if (!parcelId) {
+      return null;
+    }
+
+    const wasRiders =
+      riderParcelIds.has(parcelId) || isParcelVisibleToRealtimeScope(previousRow, scope);
+    const isRiders = isParcelVisibleToRealtimeScope(nextRow, scope);
+
+    if (isRiders) {
+      riderParcelIds.add(parcelId);
+    } else {
+      riderParcelIds.delete(parcelId);
+    }
+
+    return isRiders || wasRiders ? { type: "parcel-changed", payload: { parcelId } } : null;
+  };
+}
+
+/** The ids of the parcels currently assigned to the rider. */
+export async function loadRiderParcelIds(riderId: string) {
+  const rows = await db
+    .select({ id: parcels.id })
+    .from(parcels)
+    .where(and(eq(parcels.riderId, riderId), isNull(parcels.deletedAt)));
+
+  return rows.map((row) => row.id);
 }

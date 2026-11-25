@@ -1,0 +1,31 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": [".expo/**", "android/**", "ios/**", "dist/**", "node_modules/**"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn"
+  },
+  "plugins": ["typescript", "react", "jsx-a11y", "import", "promise", "unicorn", "oxc", "jest"],
+  "env": {
+    "es2025": true
+  },
+  "settings": {
+    "react": {
+      "version": "19.3.0"
+    }
+  },
+  "rules": {
+    "import/no-cycle": ["error", { "maxDepth": 3 }],
+    "react/jsx-key": "error",
+    "react/jsx-no-useless-fragment": "warn",
+    "react/react-in-jsx-scope": "off",
+    "react/self-closing-comp": "warn",
+    "react/style-prop-object": ["warn", { "allow": ["StatusBar"] }]
+  },
+  "overrides": [
+    {
+      "files": ["*.config.js"],
+      "env": { "node": true }
+    }
+  ]
+}

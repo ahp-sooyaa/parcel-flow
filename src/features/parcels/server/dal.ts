@@ -33,6 +33,7 @@ import type {
   RiderParcelTabCountsDto,
   UpdateParcelInputDto,
 } from "@/features/parcels/server/dto";
+import { ParcelOperationError } from "@/features/parcels/server/errors";
 import { getRiderParcelTabStatuses, riderParcelPageSize } from "@/features/parcels/server/dto";
 import {
   appendActiveParcelFailureNote,
@@ -174,13 +175,13 @@ export async function listMerchantParcelsPageForUser(
 
   const [hasAnyParcelsRow, totalCountRow] = await Promise.all([
     db
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
       .from(parcels)
       .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
       .where(hasAnyParcelsWhere)
       .then((rows) => rows[0]),
     db
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
       .from(parcels)
       .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
       .where(filteredWhere)
@@ -356,10 +357,13 @@ async function getAdminParcelAssignmentCounts(
   const sharedWhere = buildAdminParcelSharedWhere(filters);
   const [countsRow] = await db
     .select({
-      all: sql<number>`count(*)`,
-      unassigned: sql<number>`count(*) filter (where ${parcels.riderId} is null)`,
-      assigned: sql<number>`count(*) filter (where ${parcels.riderId} is not null)`,
-      needReview: sql<number>`count(*) filter (where ${parcels.status} = 'on_the_way' and ${parcels.riderId} is not null and ${parcels.deliveryFailureNote} @> '[{"status":"active"}]'::jsonb)`,
+      all: sql<number>`count(*)`.mapWith(Number),
+      unassigned: sql<number>`count(*) filter (where ${parcels.riderId} is null)`.mapWith(Number),
+      assigned: sql<number>`count(*) filter (where ${parcels.riderId} is not null)`.mapWith(Number),
+      needReview:
+        sql<number>`count(*) filter (where ${parcels.status} = 'on_the_way' and ${parcels.riderId} is not null and ${parcels.deliveryFailureNote} @> '[{"status":"active"}]'::jsonb)`.mapWith(
+          Number,
+        ),
     })
     .from(parcels)
     .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
@@ -391,12 +395,12 @@ export async function listAdminParcelsPage(
 
   const [hasAnyParcelsRow, totalCountRow, assignmentCounts] = await Promise.all([
     db
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
       .from(parcels)
       .where(hasAnyParcelsWhere)
       .then((rows) => rows[0]),
     db
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
       .from(parcels)
       .innerJoin(merchants, eq(merchants.id, parcels.merchantId))
       .innerJoin(townships, eq(townships.id, parcels.townshipId))
@@ -471,9 +475,17 @@ async function getRiderParcelTabCounts(
   } as RiderParcelListFiltersDto);
   const [countsRow] = await db
     .select({
-      toDeliver: sql<number>`count(*) filter (where ${parcels.status} in ('at_office', 'on_the_way', 'canceled_returned'))`,
-      delivered: sql<number>`count(*) filter (where ${parcels.status} = 'delivered')`,
-      returned: sql<number>`count(*) filter (where ${parcels.status} = 'returned_to_merchant')`,
+      toDeliver:
+        sql<number>`count(*) filter (where ${parcels.status} in ('at_office', 'on_the_way', 'canceled_returned'))`.mapWith(
+          Number,
+        ),
+      delivered: sql<number>`count(*) filter (where ${parcels.status} = 'delivered')`.mapWith(
+        Number,
+      ),
+      returned:
+        sql<number>`count(*) filter (where ${parcels.status} = 'returned_to_merchant')`.mapWith(
+          Number,
+        ),
     })
     .from(parcels)
     .innerJoin(riders, eq(riders.id, parcels.riderId))
@@ -505,13 +517,13 @@ export async function listRiderParcelsPageForUser(
 
   const [hasAnyParcelsRow, totalCountRow, tabCounts] = await Promise.all([
     db
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
       .from(parcels)
       .innerJoin(riders, eq(riders.id, parcels.riderId))
       .where(hasAnyParcelsWhere)
       .then((rows) => rows[0]),
     db
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
       .from(parcels)
       .innerJoin(riders, eq(riders.id, parcels.riderId))
       .innerJoin(townships, eq(townships.id, parcels.townshipId))
@@ -885,17 +897,23 @@ export async function getParcelSummary(): Promise<ParcelSummaryDto> {
 
   const [summaryRow] = await db
     .select({
-      totalParcels: sql<number>`count(*)`,
-      atOffice: sql<number>`count(*) filter (where ${parcels.status} = 'at_office')`,
-      onTheWay: sql<number>`count(*) filter (where ${parcels.status} = 'on_the_way')`,
-      delivered: sql<number>`count(*) filter (where ${parcels.status} = 'delivered')`,
+      totalParcels: sql<number>`count(*)`.mapWith(Number),
+      atOffice: sql<number>`count(*) filter (where ${parcels.status} = 'at_office')`.mapWith(
+        Number,
+      ),
+      onTheWay: sql<number>`count(*) filter (where ${parcels.status} = 'on_the_way')`.mapWith(
+        Number,
+      ),
+      delivered: sql<number>`count(*) filter (where ${parcels.status} = 'delivered')`.mapWith(
+        Number,
+      ),
       expectedCollection: sql<number>`coalesce(sum(
         case
           when ${parcels.riderId} is not null and ${parcels.status} in ('at_office', 'on_the_way') then
             case when ${parcels.parcelType} = 'cod' then ${parcels.codAmount} + ${parcels.deliveryFee} else ${parcels.deliveryFee} end
           else 0
         end
-      ), 0)`,
+      ), 0)`.mapWith(Number),
     })
     .from(parcels)
     .where(isNull(parcels.deletedAt));
@@ -1772,7 +1790,7 @@ export async function startDeliveryForRiderParcels(input: {
   actorRole: "rider";
 }) {
   if (!canChangeParcelStatus(input.actorRole, "at_office", "on_the_way")) {
-    throw new Error("You do not have permission to start delivery.");
+    throw new ParcelOperationError("forbidden", "You do not have permission to start delivery.");
   }
 
   const uniqueParcelIds = Array.from(new Set(input.parcelIds));
@@ -1786,7 +1804,7 @@ export async function startDeliveryForRiderParcels(input: {
       .limit(1);
 
     if (!rider?.userIsActive) {
-      throw new Error("Active rider profile was not found.");
+      throw new ParcelOperationError("forbidden", "Active rider profile was not found.");
     }
 
     const selectedParcels = await tx
@@ -1802,19 +1820,25 @@ export async function startDeliveryForRiderParcels(input: {
       .for("update");
 
     if (selectedParcels.length !== uniqueParcelIds.length) {
-      throw new Error("One or more selected parcels were not found.");
+      throw new ParcelOperationError("not_found", "One or more selected parcels were not found.");
     }
 
     const unrelatedParcel = selectedParcels.find((parcel) => parcel.riderId !== rider.id);
 
     if (unrelatedParcel) {
-      throw new Error("You can only start delivery for parcels assigned to your rider account.");
+      throw new ParcelOperationError(
+        "not_assigned",
+        "You can only start delivery for parcels assigned to your rider account.",
+      );
     }
 
     const ineligibleParcel = selectedParcels.find((parcel) => parcel.status !== "at_office");
 
     if (ineligibleParcel) {
-      throw new Error("Only assigned at-office parcels can be started for delivery.");
+      throw new ParcelOperationError(
+        "conflict",
+        "Only assigned at-office parcels can be started for delivery.",
+      );
     }
 
     const startedAt = new Date();
@@ -1834,7 +1858,10 @@ export async function startDeliveryForRiderParcels(input: {
       .returning({ id: parcels.id });
 
     if (updatedParcels.length !== uniqueParcelIds.length) {
-      throw new Error("One or more selected parcels are no longer eligible to start delivery.");
+      throw new ParcelOperationError(
+        "conflict",
+        "One or more selected parcels are no longer eligible to start delivery.",
+      );
     }
 
     await tx.insert(financialItems).values(
@@ -1862,193 +1889,136 @@ export async function startDeliveryForRiderParcels(input: {
   });
 }
 
-export async function reportDeliveryFailureForRiderParcel(input: {
+type RiderFailureNoteInput = {
   parcelId: string;
-  note: string;
   riderUserId: string;
   actorRole: "rider";
-}) {
+};
+
+/**
+ * Checks the rider and locks their `on_the_way` parcel for a failure note
+ * write, so concurrent note writes, admin resolutions and deliveries apply one
+ * after another. Returns the parcel's current notes.
+ */
+async function lockRiderFailureNoteParcel(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  input: RiderFailureNoteInput,
+  messages: { forbidden: string; notAssigned: string; notOnTheWay: string },
+) {
   if (input.actorRole !== "rider") {
-    throw new Error("You do not have permission to report delivery failure.");
+    throw new ParcelOperationError("forbidden", messages.forbidden);
   }
 
+  const [rider] = await tx
+    .select({ id: riders.id, userIsActive: appUsers.isActive })
+    .from(riders)
+    .innerJoin(appUsers, eq(appUsers.id, riders.userId))
+    .where(eq(riders.userId, input.riderUserId))
+    .limit(1);
+
+  if (!rider?.userIsActive) {
+    throw new ParcelOperationError("forbidden", "Active rider profile was not found.");
+  }
+
+  const [parcel] = await tx
+    .select({
+      id: parcels.id,
+      status: parcels.status,
+      riderId: parcels.riderId,
+      deliveryFailureNote: parcels.deliveryFailureNote,
+    })
+    .from(parcels)
+    .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
+    .limit(1)
+    .for("update");
+
+  if (!parcel) {
+    throw new ParcelOperationError("not_found", "Parcel was not found.");
+  }
+
+  if (parcel.riderId !== rider.id) {
+    throw new ParcelOperationError("not_assigned", messages.notAssigned);
+  }
+
+  if (parcel.status !== "on_the_way") {
+    throw new ParcelOperationError("conflict", messages.notOnTheWay);
+  }
+
+  return { riderId: rider.id, failureNotes: parseParcelFailureNotes(parcel.deliveryFailureNote) };
+}
+
+async function writeRiderFailureNotes(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  input: { parcelId: string; riderId: string },
+  deliveryFailureNote: typeof parcels.$inferInsert.deliveryFailureNote,
+) {
+  await tx
+    .update(parcels)
+    .set({ deliveryFailureNote, updatedAt: new Date() })
+    .where(and(eq(parcels.id, input.parcelId), eq(parcels.riderId, input.riderId)));
+}
+
+const NO_ACTIVE_FAILURE_NOTE_MESSAGE = "No active failure note was found for this parcel.";
+
+export async function reportDeliveryFailureForRiderParcel(
+  input: RiderFailureNoteInput & { note: string },
+) {
   await db.transaction(async (tx) => {
-    const [rider] = await tx
-      .select({ id: riders.id, userIsActive: appUsers.isActive })
-      .from(riders)
-      .innerJoin(appUsers, eq(appUsers.id, riders.userId))
-      .where(eq(riders.userId, input.riderUserId))
-      .limit(1);
+    const { riderId, failureNotes } = await lockRiderFailureNoteParcel(tx, input, {
+      forbidden: "You do not have permission to report delivery failure.",
+      notAssigned: "You can only report failure for parcels assigned to your rider account.",
+      notOnTheWay: "Only on-the-way parcels can be reported as failed.",
+    });
 
-    if (!rider?.userIsActive) {
-      throw new Error("Active rider profile was not found.");
+    if (getActiveParcelFailureNote(failureNotes)) {
+      throw new ParcelOperationError("conflict", "This parcel already has an active failure note.");
     }
 
-    const [parcel] = await tx
-      .select({
-        id: parcels.id,
-        status: parcels.status,
-        riderId: parcels.riderId,
-        deliveryFailureNote: parcels.deliveryFailureNote,
-      })
-      .from(parcels)
-      .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
-      .limit(1)
-      .for("update");
-
-    if (!parcel) {
-      throw new Error("Parcel was not found.");
-    }
-
-    if (parcel.riderId !== rider.id) {
-      throw new Error("You can only report failure for parcels assigned to your rider account.");
-    }
-
-    if (parcel.status !== "on_the_way") {
-      throw new Error("Only on-the-way parcels can be reported as failed.");
-    }
-
-    const currentFailureNotes = parseParcelFailureNotes(parcel.deliveryFailureNote);
-
-    if (getActiveParcelFailureNote(currentFailureNotes)) {
-      throw new Error("This parcel already has an active failure note.");
-    }
-
-    await tx
-      .update(parcels)
-      .set({
-        deliveryFailureNote: appendActiveParcelFailureNote(currentFailureNotes, input.note),
-        updatedAt: new Date(),
-      })
-      .where(and(eq(parcels.id, input.parcelId), eq(parcels.riderId, rider.id)));
+    await writeRiderFailureNotes(
+      tx,
+      { parcelId: input.parcelId, riderId },
+      appendActiveParcelFailureNote(failureNotes, input.note),
+    );
   });
 }
 
-export async function updateDeliveryFailureForRiderParcel(input: {
-  parcelId: string;
-  note: string;
-  riderUserId: string;
-  actorRole: "rider";
-}) {
-  if (input.actorRole !== "rider") {
-    throw new Error("You do not have permission to update delivery failure notes.");
-  }
-
+export async function updateDeliveryFailureForRiderParcel(
+  input: RiderFailureNoteInput & { note: string },
+) {
   await db.transaction(async (tx) => {
-    const [rider] = await tx
-      .select({ id: riders.id, userIsActive: appUsers.isActive })
-      .from(riders)
-      .innerJoin(appUsers, eq(appUsers.id, riders.userId))
-      .where(eq(riders.userId, input.riderUserId))
-      .limit(1);
-
-    if (!rider?.userIsActive) {
-      throw new Error("Active rider profile was not found.");
-    }
-
-    const [parcel] = await tx
-      .select({
-        id: parcels.id,
-        status: parcels.status,
-        riderId: parcels.riderId,
-        deliveryFailureNote: parcels.deliveryFailureNote,
-      })
-      .from(parcels)
-      .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
-      .limit(1)
-      .for("update");
-
-    if (!parcel) {
-      throw new Error("Parcel was not found.");
-    }
-
-    if (parcel.riderId !== rider.id) {
-      throw new Error(
-        "You can only update failure notes for parcels assigned to your rider account.",
-      );
-    }
-
-    if (parcel.status !== "on_the_way") {
-      throw new Error("Only on-the-way parcel failure notes can be updated.");
-    }
-
-    const currentFailureNotes = parseParcelFailureNotes(parcel.deliveryFailureNote);
-    const nextFailureNotes = updateLatestActiveParcelFailureNote(currentFailureNotes, input.note);
+    const { riderId, failureNotes } = await lockRiderFailureNoteParcel(tx, input, {
+      forbidden: "You do not have permission to update delivery failure notes.",
+      notAssigned: "You can only update failure notes for parcels assigned to your rider account.",
+      notOnTheWay: "Only on-the-way parcel failure notes can be updated.",
+    });
+    const nextFailureNotes = updateLatestActiveParcelFailureNote(failureNotes, input.note);
 
     if (!nextFailureNotes) {
-      throw new Error("No active failure note was found for this parcel.");
+      throw new ParcelOperationError("conflict", NO_ACTIVE_FAILURE_NOTE_MESSAGE);
     }
 
-    await tx
-      .update(parcels)
-      .set({
-        deliveryFailureNote: nextFailureNotes,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(parcels.id, input.parcelId), eq(parcels.riderId, rider.id)));
+    await writeRiderFailureNotes(tx, { parcelId: input.parcelId, riderId }, nextFailureNotes);
   });
 }
 
-export async function deleteDeliveryFailureForRiderParcel(input: {
-  parcelId: string;
-  riderUserId: string;
-  actorRole: "rider";
-}) {
-  if (input.actorRole !== "rider") {
-    throw new Error("You do not have permission to delete delivery failure notes.");
-  }
-
+export async function deleteDeliveryFailureForRiderParcel(input: RiderFailureNoteInput) {
   await db.transaction(async (tx) => {
-    const [rider] = await tx
-      .select({ id: riders.id, userIsActive: appUsers.isActive })
-      .from(riders)
-      .innerJoin(appUsers, eq(appUsers.id, riders.userId))
-      .where(eq(riders.userId, input.riderUserId))
-      .limit(1);
-
-    if (!rider?.userIsActive) {
-      throw new Error("Active rider profile was not found.");
-    }
-
-    const [parcel] = await tx
-      .select({
-        id: parcels.id,
-        status: parcels.status,
-        riderId: parcels.riderId,
-        deliveryFailureNote: parcels.deliveryFailureNote,
-      })
-      .from(parcels)
-      .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
-      .limit(1);
-
-    if (!parcel) {
-      throw new Error("Parcel was not found.");
-    }
-
-    if (parcel.riderId !== rider.id) {
-      throw new Error(
-        "You can only delete failure notes for parcels assigned to your rider account.",
-      );
-    }
-
-    if (parcel.status !== "on_the_way") {
-      throw new Error("Only on-the-way parcel failure notes can be deleted.");
-    }
-
-    const currentFailureNotes = parseParcelFailureNotes(parcel.deliveryFailureNote);
-    const nextFailureNotes = removeLatestActiveParcelFailureNote(currentFailureNotes);
+    const { riderId, failureNotes } = await lockRiderFailureNoteParcel(tx, input, {
+      forbidden: "You do not have permission to delete delivery failure notes.",
+      notAssigned: "You can only delete failure notes for parcels assigned to your rider account.",
+      notOnTheWay: "Only on-the-way parcel failure notes can be deleted.",
+    });
+    const nextFailureNotes = removeLatestActiveParcelFailureNote(failureNotes);
 
     if (!nextFailureNotes) {
-      throw new Error("No active failure note was found for this parcel.");
+      throw new ParcelOperationError("conflict", NO_ACTIVE_FAILURE_NOTE_MESSAGE);
     }
 
-    await tx
-      .update(parcels)
-      .set({
-        deliveryFailureNote: nextFailureNotes.length > 0 ? nextFailureNotes : null,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(parcels.id, input.parcelId), eq(parcels.riderId, rider.id)));
+    await writeRiderFailureNotes(
+      tx,
+      { parcelId: input.parcelId, riderId },
+      nextFailureNotes.length > 0 ? nextFailureNotes : null,
+    );
   });
 }
 
@@ -2060,7 +2030,10 @@ export async function markRiderParcelDelivered(input: {
   createdBy: string;
 }) {
   if (!canChangeParcelStatus(input.actorRole, "on_the_way", "delivered")) {
-    throw new Error("You do not have permission to mark parcels delivered.");
+    throw new ParcelOperationError(
+      "forbidden",
+      "You do not have permission to mark parcels delivered.",
+    );
   }
 
   await db.transaction(async (tx) => {
@@ -2072,7 +2045,7 @@ export async function markRiderParcelDelivered(input: {
       .limit(1);
 
     if (!rider?.userIsActive) {
-      throw new Error("Active rider profile was not found.");
+      throw new ParcelOperationError("forbidden", "Active rider profile was not found.");
     }
 
     const [parcel] = await tx
@@ -2084,6 +2057,7 @@ export async function markRiderParcelDelivered(input: {
         parcelType: parcels.parcelType,
         codAmount: parcels.codAmount,
         deliveryFee: parcels.deliveryFee,
+        deliveryFailureNote: parcels.deliveryFailureNote,
       })
       .from(parcels)
       .where(and(eq(parcels.id, input.parcelId), isNull(parcels.deletedAt)))
@@ -2091,15 +2065,28 @@ export async function markRiderParcelDelivered(input: {
       .for("update");
 
     if (!parcel) {
-      throw new Error("Parcel was not found.");
+      throw new ParcelOperationError("not_found", "Parcel was not found.");
     }
 
     if (parcel.riderId !== rider.id) {
-      throw new Error("You can only mark parcels assigned to your rider account delivered.");
+      throw new ParcelOperationError(
+        "not_assigned",
+        "You can only mark parcels assigned to your rider account delivered.",
+      );
     }
 
     if (parcel.status !== "on_the_way") {
-      throw new Error("Only on-the-way parcels can be marked delivered.");
+      throw new ParcelOperationError(
+        "conflict",
+        "Only on-the-way parcels can be marked delivered.",
+      );
+    }
+
+    if (getActiveParcelFailureNote(parseParcelFailureNotes(parcel.deliveryFailureNote))) {
+      throw new ParcelOperationError(
+        "conflict",
+        "Resolve the delivery failure note before marking this parcel delivered.",
+      );
     }
 
     const deliveredAt = new Date();
@@ -2131,7 +2118,10 @@ export async function markRiderParcelDelivered(input: {
       .returning({ id: parcels.id });
 
     if (!deliveredParcel) {
-      throw new Error("Only on-the-way parcels can be marked delivered.");
+      throw new ParcelOperationError(
+        "conflict",
+        "Only on-the-way parcels can be marked delivered.",
+      );
     }
 
     await tx.insert(parcelStatusLogs).values({
@@ -2151,7 +2141,10 @@ export async function markRiderParcelReturnedToMerchant(input: {
   createdBy: string;
 }) {
   if (!canChangeParcelStatus(input.actorRole, "canceled_returned", "returned_to_merchant")) {
-    throw new Error("You do not have permission to complete parcel returns.");
+    throw new ParcelOperationError(
+      "forbidden",
+      "You do not have permission to complete parcel returns.",
+    );
   }
 
   await db.transaction(async (tx) => {
@@ -2163,7 +2156,7 @@ export async function markRiderParcelReturnedToMerchant(input: {
       .limit(1);
 
     if (!rider?.userIsActive) {
-      throw new Error("Active rider profile was not found.");
+      throw new ParcelOperationError("forbidden", "Active rider profile was not found.");
     }
 
     const [parcel] = await tx
@@ -2180,17 +2173,21 @@ export async function markRiderParcelReturnedToMerchant(input: {
       .for("update");
 
     if (!parcel) {
-      throw new Error("Parcel was not found.");
+      throw new ParcelOperationError("not_found", "Parcel was not found.");
     }
 
     if (parcel.riderId !== rider.id) {
-      throw new Error(
+      throw new ParcelOperationError(
+        "not_assigned",
         "You can only complete merchant returns for parcels assigned to your rider account.",
       );
     }
 
     if (parcel.status !== "canceled_returned") {
-      throw new Error("Only canceled-returned parcels can be completed as returned.");
+      throw new ParcelOperationError(
+        "conflict",
+        "Only canceled-returned parcels can be completed as returned.",
+      );
     }
 
     const returnedAt = new Date();
@@ -2215,7 +2212,10 @@ export async function markRiderParcelReturnedToMerchant(input: {
       .returning({ id: parcels.id });
 
     if (!returnedParcel) {
-      throw new Error("Only canceled-returned parcels can be completed as returned.");
+      throw new ParcelOperationError(
+        "conflict",
+        "Only canceled-returned parcels can be completed as returned.",
+      );
     }
 
     await tx.insert(parcelStatusLogs).values({
@@ -2249,4 +2249,19 @@ export async function markRiderParcelReturnedToMerchant(input: {
     ]);
     await recomputeParcelRiderPayoutStatuses(tx, [parcel.id]);
   });
+}
+
+/**
+ * Where a return goes back to: the shop's address and its login user's phone
+ * number (null when the shop has no user). Only for the assigned return rider.
+ */
+export async function getMerchantReturnContact(merchantId: string) {
+  const [contact] = await db
+    .select({ address: merchants.address, phoneNumber: appUsers.phoneNumber })
+    .from(merchants)
+    .leftJoin(appUsers, eq(appUsers.id, merchants.userId))
+    .where(eq(merchants.id, merchantId))
+    .limit(1);
+
+  return contact ? { address: contact.address, phoneNumber: contact.phoneNumber ?? null } : null;
 }

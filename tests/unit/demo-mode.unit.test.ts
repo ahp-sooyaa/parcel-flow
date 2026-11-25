@@ -67,6 +67,8 @@ describe("demo auth endpoint allowlist", () => {
       expect(isAllowedAuthEndpointInDemo("POST", path)).toBe(false);
     }
     expect(isAllowedAuthEndpointInDemo("GET", "/api/auth/admin/list-users")).toBe(false);
+    // Added by the Expo plugin for OAuth flows, which Parcel Flow doesn't use.
+    expect(isAllowedAuthEndpointInDemo("GET", "/api/auth/expo-authorization-proxy")).toBe(false);
   });
 });
 

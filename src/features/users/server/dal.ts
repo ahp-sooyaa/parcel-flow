@@ -120,7 +120,7 @@ export async function listUsersPage(filters: UserListFiltersDto): Promise<UserLi
   const where = buildUserListWhere(filters);
 
   const totalCountRow = await db
-    .select({ count: sql<number>`count(*)` })
+    .select({ count: sql<number>`count(*)`.mapWith(Number) })
     .from(appUsers)
     .where(where)
     .then((rows) => rows[0]);

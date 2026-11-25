@@ -66,6 +66,10 @@ Object.assign(globalThis, {
 });
 window.SyntaxError = SyntaxError;
 
+// happy-dom 21 implements Element.getAnimations(), but its animations never
+// finish, so Base UI would wait forever before unmounting closed popups.
+Object.assign(globalThis, { BASE_UI_ANIMATIONS_DISABLED: true });
+
 const { cleanup } = await import("@testing-library/react");
 
 afterEach(() => {

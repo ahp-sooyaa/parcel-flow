@@ -161,9 +161,15 @@ export async function listEligibleSettlementMerchantSummaries(): Promise<
       merchantName: merchants.shopName,
       bankName: bankAccounts.bankName,
       accountNumber: bankAccounts.accountNumber,
-      eligibleItemCount: sql<number>`count(${financialItems.id})`,
-      totalCodAmount: sql<number>`coalesce(sum(case when ${financialItems.itemType} = 'cod_remit' then ${financialItems.amount} else 0 end), 0)`,
-      totalDeliveryFeeDeduction: sql<number>`coalesce(sum(case when ${financialItems.itemType} = 'delivery_fee_deduction' then ${financialItems.amount} else 0 end), 0)`,
+      eligibleItemCount: sql<number>`count(${financialItems.id})`.mapWith(Number),
+      totalCodAmount:
+        sql<number>`coalesce(sum(case when ${financialItems.itemType} = 'cod_remit' then ${financialItems.amount} else 0 end), 0)`.mapWith(
+          Number,
+        ),
+      totalDeliveryFeeDeduction:
+        sql<number>`coalesce(sum(case when ${financialItems.itemType} = 'delivery_fee_deduction' then ${financialItems.amount} else 0 end), 0)`.mapWith(
+          Number,
+        ),
     })
     .from(financialItems)
     .innerJoin(merchants, eq(merchants.id, financialItems.merchantId))
@@ -245,10 +251,15 @@ export async function listPendingRiderCashHandoverSummaries(): Promise<
     .select({
       riderId: riders.id,
       riderName: appUsers.name,
-      pendingParcelCount: sql<number>`count(*)`,
-      totalCodAmount: sql<number>`coalesce(sum(case when ${parcels.parcelType} = 'cod' then ${parcels.codAmount} else 0 end), 0)`,
-      totalDeliveryFeeAmount: sql<number>`coalesce(sum(${parcels.deliveryFee}), 0)`,
-      totalCollectedAmount: sql<number>`coalesce(sum(${parcels.collectedAmount}), 0)`,
+      pendingParcelCount: sql<number>`count(*)`.mapWith(Number),
+      totalCodAmount:
+        sql<number>`coalesce(sum(case when ${parcels.parcelType} = 'cod' then ${parcels.codAmount} else 0 end), 0)`.mapWith(
+          Number,
+        ),
+      totalDeliveryFeeAmount: sql<number>`coalesce(sum(${parcels.deliveryFee}), 0)`.mapWith(Number),
+      totalCollectedAmount: sql<number>`coalesce(sum(${parcels.collectedAmount}), 0)`.mapWith(
+        Number,
+      ),
     })
     .from(parcels)
     .innerJoin(riders, eq(riders.id, parcels.riderId))
@@ -484,7 +495,7 @@ export async function listSettlementsPage(
   cacheTag(CACHE_TAGS.settlements);
 
   const totalCountRow = await db
-    .select({ count: sql<number>`count(*)` })
+    .select({ count: sql<number>`count(*)`.mapWith(Number) })
     .from(merchantSettlements)
     .then((rows) => rows[0]);
 
@@ -580,13 +591,13 @@ export async function listMerchantSettlementHistoryForUser(
 
   const [hasAnySettledRow, totalCountRow] = await Promise.all([
     db
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
       .from(merchantSettlements)
       .innerJoin(merchants, eq(merchants.id, merchantSettlements.merchantId))
       .where(baseWhere)
       .then((rows) => rows[0]),
     db
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
       .from(merchantSettlements)
       .innerJoin(merchants, eq(merchants.id, merchantSettlements.merchantId))
       .where(filteredWhere)
